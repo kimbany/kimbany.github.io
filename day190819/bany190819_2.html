@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="ko">
+    <head>
+        <meta charset="UTF-8">
+        <link rel="stylesheet" href="./bany190819_css.css">
+            <title>kakao</title>
+    </head>
+    <body>
+        <h1>kakao</h1>
+        <p>카카오계정 정보를 입력해주세요</p>
+        <form action="#" method="post">
+            <label for="email">카카오계정 이메일</label><br>
+            <input type="text" id="email" placeholder="이메일 주소 입력"><span>@daum.net</span>
+            <ul>
+                <li>카카오계정으로 사용할 Daum 이메일을 만들어주세요.</li>
+                <li>만약 사용중인 Daum메일이 있다면, Daun아이디로 로그인하여 계정을 가입해주세요.</li>
+            </ul>
+            <br>
+            <label for="pass">비밀번호</label><br>
+            <input type="password" id="pass" placeholder="비밀번호(8~32자리)"><br>
+            <input type="password" id="pass" placeholder="비밀번호 재입력"><br>
+            <label for="nick">닉네임</label><br>
+            <input type="text" id="nick" placeholder="닉네임을 입력해주세요."><br>
+            <label for="tel">전화번호</label><br>
+            <select id="tel">
+                <option value="+82">+82</option>
+                <option value="02">02</option>
+            </select>
+            <input type="number" placeholder="전화번호"><br>
+            <button type="button">인증번호 전송</button><br>
+            <label for="">생일/성별</label><br>
+            <select id="year">
+                <option value="year">연도</option>
+            </select>
+            <select id="month">
+                <option value="month">월</option>
+            </select>
+            <select id="day">
+                <option value="day">일</option>
+            </select>
+            <input type="checkbox" name="uhm" value="hum" id="uhm">
+            <label for="uhm">음력</label><br>
+            <input type="radio" id="none" value="none" checked>
+            <label for="none">선택안함</label>
+            <input type="radio" id="fe" value="fe">
+            <label for="fe">여성</label>
+            <input type="radio" id="ma" value="ma">
+            <label for="ma">남성</label><br>
+            <button type="submit">다음</button>
+        </form>
+    </body>
+</html>
