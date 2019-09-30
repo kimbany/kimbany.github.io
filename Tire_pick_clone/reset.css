@@ -1,0 +1,123 @@
+body,
+h1, h2, h3, h4, h5, h6,
+ul, ol, dl, dd,
+p,
+fieldset, legend {
+	margin: 0;
+	padding: 0;
+}
+
+body, input, textarea, select, button {
+	font-size: 14px;
+	font-family: Dotum,'돋움',Helvetica,"Apple SD Gothic Neo",sans-serif;
+}
+
+ul, ol {
+	list-style: none;
+}
+
+table {
+	border-collapse: collapse;
+}
+
+em {
+	font-style: normal
+}
+
+a {
+	color: inherit;
+	text-decoration: none;
+}
+
+a:hover {
+	text-decoration: underline;
+}
+
+img {
+	vertical-align: top;
+}
+
+fieldset {
+	border: 0;
+}
+
+.inner_box {
+    margin : auto;
+    width : 1200px;
+}
+
+header {
+    width : 100%;
+    height: 108px;
+    background-color: beige;
+    padding-top : 42px;
+    box-sizing: border-box; /*패딩값이 안쪽에 포함이되게 하는 속성*/
+    position : fixed;
+}
+
+h1,.gnb,.unb {
+    float : left;
+}
+
+h1 {
+    background-image : url('tire_logo.png');
+    background-repeat: no-repeat;
+    width: 146px;
+    height: 24px;    
+}
+
+.hidden {
+    display: block;
+    width : 1px;
+    height: 1px;
+    overflow : hidden;
+}
+
+.gnb {
+    margin-top : 5px;
+    margin-left: -50px;
+    transform: translateX(50%);
+}
+
+.gnb ul li {
+    float : left;
+    margin-left : 30px;
+}
+
+.unb {
+    float : right;
+}
+
+.unb ul li {
+    float : left;
+    margin-left : 30px;
+    width : 28px;
+    height: 25px;
+    background-image: url(ico_01.png);
+    background-repeat: no-repeat;
+    background-size: 100%;
+}
+
+.unb ul li:nth-child(2) {
+    background-image: url(ico_02.png);
+}
+
+.unb ul li:nth-child(3) {
+    background-image: url(ico_03.png);
+}
+
+.main_banner {
+    height: 788px;
+    background-color : coral;
+}
+
+
+
+
+
+
+
+
+
+
+
