@@ -1,0 +1,45 @@
+@font-face { font-family: 'KimNamyun'; src: url('https://cdn.jsdelivr.net/gh/projectnoonnu/noonfonts_one@1.0/KimNamyun.woff') format('woff'); font-weight: normal; font-style: normal; }
+
+div {
+    padding: 10px;
+    margin-bottom: 5px;
+    border: 2px solid blue;
+    background: #fff;
+}
+.static {
+    position : static;
+    top : 100px; /* static은 안먹힘*/
+}
+.relative {
+    position : relative;
+    top : 20px;
+}
+.absolute {
+    position : absolute;
+    top : 0px;
+}
+.fixed {
+    position : fixed;
+    top : 0px;
+    z-index : -100;
+}
+body {
+    height : 2000px;
+}
+.box2 {
+    z-index : -100;
+}
+p {
+    margin-top : 100px;
+    font-family: 'KimNamyun', sans-serif;
+    font-size: 30px;
+    font-weight: bold; 
+    /*글씨 굵기 100단위로도 가능 px안씀*/
+    letter-spacing: 20px;
+    /*자간*/
+}
+.p {
+    font-family: 'Turret Road', cursive;
+    line-height: 100%;
+    /*행간 px도 가능, 1=폰트크기1배, 2=폰트크기2배, %도 가능*/
+}
