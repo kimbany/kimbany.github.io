@@ -1,0 +1,28 @@
+div {
+    padding: 10px;
+    margin-bottom: 5px;
+    border: 2px solid blue;
+    background: #fff;
+}
+.static {
+    position : static;
+    top : 100px; /* static은 안먹힘*/
+}
+.relative {
+    position : relative;
+    top : 20px;
+}
+.absolute {
+    position : absolute;
+    top : 0px;
+}
+.fixed {
+    position : fixed;
+    top : 0px;
+}
+body {
+    height : 2000px;
+}
+.box2{
+    z-index : -100px;
+}
