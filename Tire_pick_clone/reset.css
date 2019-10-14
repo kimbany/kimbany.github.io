@@ -1,3 +1,5 @@
+@font-face { font-family: 'BBTreeGR'; src: url('https://cdn.jsdelivr.net/gh/projectnoonnu/noonfonts_nine_@1.1/BBTreeGR.woff') format('woff'); font-weight: normal; font-style: normal; }
+
 body,
 h1, h2, h3, h4, h5, h6,
 ul, ol, dl, dd,
@@ -45,6 +47,9 @@ fieldset {
     margin : auto;
     width : 1200px;
 }
+.main {
+    padding-top : 100px;
+}
 
 header {
     width : 100%;
@@ -53,6 +58,7 @@ header {
     padding-top : 42px;
     box-sizing: border-box; /*패딩값이 안쪽에 포함이되게 하는 속성*/
     position : fixed;
+    z-index : 1000;
 }
 
 h1,.gnb,.unb {
@@ -109,15 +115,136 @@ h1 {
 .main_banner {
     height: 788px;
     background-color : coral;
+    position : relative; 
+}
+.box_search {
+    position :absolute;
+    bottom : 40px;
+    width : 754px;
+    height: 70px;
+    background-color: #fff;
+    left: 50%;
+    margin-left: -327px;
+    border-radius: 35px;
+}
+.box_search ul li {
+    float: left;
+    width: 33.333%;
+    line-height: 70px;
+    text-align: center;
+}
+.banner_01 {
+    position : absolute;
+    top : 300px;
+    left: 50%;
+    margin-left: -600px;
+    font-size : 40px;
+    font-family: 'BBTreeGR' , sans-serif;
+    line-height: 1.4;
+}
+.color_strong {
+    color : brown;
+    font-weight: 600;
+}
+.banner_01 a {
+    height: 70px;
+    width: 150px;
+    background-color: #111;
+    border-radius: 35px;
+    color: #fff;
+    display: block;
+    font-size: 16px;
+    line-height: 70px;
+    text-align: center;
+}
+.box_tire {
+    background-color : #660099;
+    height : 888px;
+}
+.banner_02 {
+    font-size : 36px;
+    color : #fff;
+    font-family: 'BBTreeGR' , sans-serif;
+    line-height: 150%;
+}
+.tire_rank ol li {
+    font-size : 24px;
+    background-color : #fff;
+    width : 500px;
+    height: 100px;
+    margin-top : 20px;
+    border-radius : 8px;
+    overflow : hidden;
+    /*hidden은 무조건 숨김 , scroll 스크롤생성 , auto 자동*/
+    padding : 40px 30px;
+}
+.tire_rank {
+    margin-left : 600px;
+    margin-top : 40px;
+}
+.tire_rank img {
+    height: 100px;
+    width : 100px;
+    margin-right: 30px;
+}
+.tire_rank ol li::before {
+    content: "";
+    font-size : 36px;
+    color : #660099;
+    font-weight: 600;
+    line-height: 100px;
+    margin-right: 30px;
 }
 
+.tire_rank ol li:nth-child(1)::before {
+    content: "1";
+}
+.tire_rank ol li:nth-child(2)::before {
+    content: "2";
+}
+.tire_rank ol li:nth-child(3)::before {
+    content: "3";
+}
+.tire_rank ol li .brand {
+    display: inline-block;
+}
+.tire_rank ol li .star {
+    display: inline-block;
+    float: right;
+    line-height: 100px;
+}
+.text_1 , .text_1+p{
+    text-align: center;  
+}
+.text_1+p {
+    margin-top : 20px;
+    margin-bottom: 40px;
+}
+.box_howtobuy ol li {
+    float : left;
+    width : 20%;
+    text-align: center;
+    line-height: 1.5;
+}
 
-
-
-
-
-
-
-
-
-
+.box_howtobuy ol li i.tire_setp_icon{
+    display: inline-block;
+    height: 73px;
+    width: 65px;
+    background-image: url("./ico_step.png");
+    background-repeat: no-repeat;
+}
+.box_howtobuy ol li:nth-child(2) i.tire_setp_icon{
+    background-position: -230px 0;
+    width : 75px;
+}
+.box_howtobuy ol li:nth-child(3) i.tire_setp_icon{
+    background-position: -480px 0;
+}.box_howtobuy ol li:nth-child(4) i.tire_setp_icon{
+    background-position: -720px 0;
+    width : 75px;
+}
+.box_howtobuy ol li:nth-child(5) i.tire_setp_icon{
+    background-position: -950px 0;
+    width : 85px;
+}
