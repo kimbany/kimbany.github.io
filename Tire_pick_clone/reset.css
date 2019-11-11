@@ -146,6 +146,9 @@ h1 {
     color : brown;
     font-weight: 600;
 }
+.wrap{
+    background-color: #EEE;
+}
 .banner_01 a {
     height: 70px;
     width: 150px;
@@ -220,13 +223,19 @@ h1 {
     margin-top : 20px;
     margin-bottom: 40px;
 }
+.box_howtobuy ol::after{
+    content: '';
+    display: block;
+    width: 0px; 
+    height: 0px;
+    clear:both;
+}
 .box_howtobuy ol li {
     float : left;
     width : 20%;
     text-align: center;
     line-height: 1.5;
 }
-
 .box_howtobuy ol li i.tire_setp_icon{
     display: inline-block;
     height: 73px;
@@ -247,4 +256,61 @@ h1 {
 .box_howtobuy ol li:nth-child(5) i.tire_setp_icon{
     background-position: -950px 0;
     width : 85px;
+}
+.box_sale ul {
+    margin-top : 120px;
+}
+.box_sale ul li{
+    float :left;
+    text-align:center;
+    margin-left:26px;
+    background-color: white;
+    width: 280px;
+    height: 260px;
+    border-radius: 10px;
+}
+.box_sale ul li:first-child{
+    margin-left:0;
+}
+.box_sale ul::after{
+    content:'';
+    display: block;
+    width:0;
+    height: 0;
+    clear:both;
+}
+.box_sale ul li img{
+    width: 180px;
+    height: 180px;
+    margin-top: -60px;
+}
+.box_sale ul li p{
+    margin-top: 10px;
+}
+.box_sale ul li p:first-of-type{
+    font-weight: 600;
+}
+.box_sale ul li p:last-of-type{
+    color:red;
+}
+.middle_banner .inner_box div{
+    float: left;
+    width: 50%;
+    height: 192px;
+}
+.middle_banner .inner_box div:first-of-type{
+    background-color: #c626d5;
+    background-image: url('./banner_02.png');
+    background-repeat: no-repeat;
+    background-position: right;
+    padding : 50px;
+    box-sizing: border-box;
+    color:white;
+}
+.middle_banner .inner_box div h3{
+    margin-bottom: 10px;
+    font-size:20px;
+}
+.middle_banner .inner_box div p{
+    line-height: 1.8;
 }
