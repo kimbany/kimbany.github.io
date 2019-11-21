@@ -298,7 +298,7 @@ h1 {
     width: 50%;
     height: 192px;
 }
-.middle_banner .inner_box div:first-of-type{
+.middle_banner .inner_box div{
     background-color: #c626d5;
     background-image: url('./banner_02.png');
     background-repeat: no-repeat;
@@ -307,10 +307,106 @@ h1 {
     box-sizing: border-box;
     color:white;
 }
+.middle_banner .inner_box div:last-of-type{
+    background-image: url('banner_02_20190828.png');
+    background-color: #048e52;
+}
 .middle_banner .inner_box div h3{
     margin-bottom: 10px;
     font-size:20px;
 }
 .middle_banner .inner_box div p{
     line-height: 1.8;
+}
+.middle_banner .inner_box:after{
+    content: "";
+    display: block;
+    width: 0px;
+    height: 0px;
+    clear:both;
+}
+
+.box_review {
+    width: 100%;
+    height: auto;
+    height: 720px;
+}
+.box_review .inner_box{
+    position: relative;
+}
+.box_review ul {
+    position: absolute;
+    top:100px;
+    left:440px;
+    width: 770px; 
+}
+.box_review ul li{
+    box-sizing: border-box;
+    background-color: white;
+    width:100%;
+    height: auto;
+    margin-bottom: 20px;
+    border-radius: 10px;
+    padding: 20px 50px;
+    position: relative;
+    min-height: 150px; /*min-height 최소 높이 지정*/
+    max-height: 250px; /*max-height 최대 높이 지정*/
+    line-height: 1.6;
+}
+.avata {
+    width: 56px;
+    height: 56px;
+    background-image: url('ico_profile.png');
+    background-position: -66px 0px;
+    position: absolute;
+    top:20px;
+    left:-25px;
+}
+.use_name{
+    font-weight: 600;
+}
+.prd_name{
+    margin-top:20px;
+}
+.box_believe{
+    background-color: white;
+    position: relative;
+}
+.box_believe:before{
+    content:"";
+    display: block;
+    width: 100%;
+    height: 150px;
+    background-color: #eee;
+    position: absolute;
+}
+.box_believe .inner_box div{
+    width:100%;
+    height: auto;
+    text-align: center;
+}
+.box_believe .inner_box{
+    position: relative;
+    z-index: 1;
+}
+.box_believe .inner_box div .face_photo{
+    border-radius: 50%;
+    width: 150px;
+    margin:-100px;
+}
+.box_believe .inner_box div p:first-of-type{
+    padding-top : 60px;
+    padding-bottom: 20px;
+    font-weight: 600;
+    font-size: 20px;
+}
+.box_believe .inner_box div p:last-of-type{
+    padding-bottom: 30px;
+    padding-top:10px;
+}
+.box_believe .inner_box div i{
+    color:#eee;
+}
+.box_believe .inner_box div p:last-of-type i{
+    color:fuchsia;
 }
