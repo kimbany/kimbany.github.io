@@ -410,3 +410,71 @@ h1 {
 .box_believe .inner_box div p:last-of-type i{
     color:fuchsia;
 }
+.point{
+    float: left;
+    width: 33.3333%;
+    height: 204px;
+    color:white;
+    padding: 25px;
+    background-repeat: no-repeat;
+    box-sizing: border-box;
+    line-height: 1.5;
+}
+.point p:first-of-type{
+    font-size:20px;
+    font-weight: 600;
+}
+.point p:nth-of-type(2){
+    font-size:12px;
+}
+.inner_box::after{
+    content: "";
+    display: block;
+    width: 0;
+    height: 0;
+    clear:both;
+}
+.point:first-of-type{
+    background-image: url("event_20191113_20191118063809.png");
+    
+}
+.point:nth-of-type(2){
+    background-image: url("event_190920.png");
+}
+.point:nth-of-type(3){
+    background-image: url("PC_20191120080443.png");
+}
+
+#footBox{
+    margin-top: 80px;
+    color:white;
+    background-color: #192649;
+    
+}
+#footBox .inb ul{
+    text-align: center;
+}
+#footBox .inb ul li{
+    display: inline;
+    margin-left:20px;
+    letter-spacing: 5px; /*자간 설정*/
+    height: 50px;
+    line-height: 50px;
+}
+address{
+    text-align: center;
+    padding-bottom: 25px;
+    font-style: normal;
+    line-height: 1.5;
+}
+address ul {
+    width: 900px;
+    margin: 0 auto;
+}
+address ul li{
+    display: inline-block;
+}
+.noStyle{
+    color:darksalmon;
+    font-weight: 600;
+}
