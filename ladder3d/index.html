@@ -153,6 +153,11 @@ const floor = (() => {
 const ladderGroup = new THREE.Group();
 scene.add(ladderGroup);
 
+// ladderContent holds columns + rungs + labels (cleared on rebuild)
+// player is a sibling that stays through rebuilds — both rotate with ladderGroup
+const ladderContent = new THREE.Group();
+ladderGroup.add(ladderContent);
+
 // ---------- Helpers ----------
 function angleOf(i) { return (i / N) * Math.PI * 2; }
 function columnPos(i, y) {
@@ -233,11 +238,11 @@ function updateBottomLabel(i) {
   newSp.position.copy(columnPos(i, -H/2 - 0.75));
   const old = labelSprites[i];
   if (old) {
-    ladderGroup.remove(old);
+    ladderContent.remove(old);
     old.material.map.dispose();
     old.material.dispose();
   }
-  ladderGroup.add(newSp);
+  ladderContent.add(newSp);
   labelSprites[i] = newSp;
 }
 
@@ -255,10 +260,11 @@ function clearGroup(g) {
 
 // ---------- Build cylinder (columns only, no rungs) ----------
 function buildCylinder() {
-  clearGroup(ladderGroup);
+  clearGroup(ladderContent);
   labelSprites = [];
   rungMeshes = [];
   rungs = [];
+  ladderGroup.rotation.y = 0;
 
   R = computeR(N);
   floor.scale.set(R + 4, R + 4, 1);
@@ -272,7 +278,7 @@ function buildCylinder() {
     const geo = new THREE.CylinderGeometry(0.06, 0.06, H, 12);
     const pole = new THREE.Mesh(geo, poleMat);
     pole.position.copy(columnPos(i, 0));
-    ladderGroup.add(pole);
+    ladderContent.add(pole);
 
     const col = COLORS[i % COLORS.length];
     const ballGeo = new THREE.SphereGeometry(0.42, 32, 32);
@@ -280,11 +286,11 @@ function buildCylinder() {
     const ball = new THREE.Mesh(ballGeo, ballMat);
     const topPos = columnPos(i, H/2 + 0.05);
     ball.position.copy(topPos);
-    ladderGroup.add(ball);
+    ladderContent.add(ball);
 
     const numSprite = makeNumberSprite(String(i + 1), 0.7);
     numSprite.position.copy(topPos);
-    ladderGroup.add(numSprite);
+    ladderContent.add(numSprite);
 
     updateBottomLabel(i);
   }
@@ -351,7 +357,7 @@ function buildRungMeshes() {
     const tube = new THREE.Mesh(tubeGeo, rungMat);
     tube.visible = false;
     tubeGeo.setDrawRange(0, 0);
-    ladderGroup.add(tube);
+    ladderContent.add(tube);
     rungMeshes.push(tube);
   }
 }
@@ -403,7 +409,7 @@ const playerGlow = new THREE.Mesh(
 );
 player.add(playerGlow);
 player.visible = false;
-scene.add(player);
+ladderGroup.add(player);
 
 // ---------- Traversal ----------
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
@@ -511,7 +517,8 @@ function goToStep1() {
   postEl.style.display = 'none';
   resultEl.textContent = '';
   player.visible = false;
-  clearGroup(ladderGroup);
+  clearGroup(ladderContent);
+  ladderGroup.rotation.y = 0;
 }
 
 function goToStep2() {
@@ -542,7 +549,7 @@ document.getElementById('play').addEventListener('click', async () => {
 
   // remove any previous rung meshes (clean re-play)
   for (const m of rungMeshes) {
-    ladderGroup.remove(m);
+    ladderContent.remove(m);
     m.geometry.dispose();
   }
   rungMeshes = [];
