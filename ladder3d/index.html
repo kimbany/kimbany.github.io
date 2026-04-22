@@ -44,6 +44,15 @@
   .labelRow input { flex:1; padding:4px 6px; border:1px solid #ddd; border-radius:6px; font-size:13px; min-width:0; }
 
   #result { margin-top: 10px; font-weight: 700; color: #333; min-height: 20px; font-size: 14px; }
+  #result .resRow { display:flex; align-items:center; gap:6px; margin:2px 0; font-size:13px; }
+  #result .resDot { width:18px; height:18px; border-radius:50%; color:#fff; font-size:11px;
+    display:inline-flex; align-items:center; justify-content:center; font-weight:700; flex-shrink:0; }
+  #numberButtons { display:grid; grid-template-columns: repeat(5, 1fr); gap:4px; margin:6px 0; }
+  #numberButtons button.num {
+    padding:6px 0; min-width:0; margin:0; font-size:13px;
+    border-radius:8px; color:#fff; box-shadow: 0 2px 0 rgba(0,0,0,0.2);
+  }
+  #numberButtons button.num:hover { filter: brightness(1.1); }
   #hint { margin-top: 8px; font-size: 12px; color: #666; }
   #legend { position: absolute; bottom: 12px; right: 12px; z-index: 10;
     background: rgba(255,255,255,0.85); padding: 8px 12px; border-radius: 10px; font-size: 12px; color:#555; }
@@ -73,13 +82,16 @@
     <button id="play">▶ 출발!</button>
   </div>
 
-  <div id="result"></div>
-
-  <!-- Post-play -->
-  <div id="post" style="display:none; margin-top:8px;">
-    <button id="again" class="secondary">🔀 다시</button>
-    <button id="reset" class="ghost">처음으로</button>
+  <!-- Post-reveal: number selection -->
+  <div id="playControls" style="display:none;">
+    <div class="step-title">출발할 번호를 선택하세요</div>
+    <div id="numberButtons"></div>
+    <button id="allBtn">🎯 전체</button>
+    <button id="rebuildBtn" class="secondary">🔀 새 사다리</button>
+    <button id="resetBtn" class="ghost">처음으로</button>
   </div>
+
+  <div id="result"></div>
 
   <div id="hint">드래그로 회전, 휠로 확대/축소</div>
 </div>
@@ -396,39 +408,71 @@ function animateRungsReveal() {
   });
 }
 
-// ---------- Player ----------
-const player = new THREE.Group();
-const playerBall = new THREE.Mesh(
-  new THREE.SphereGeometry(0.3, 32, 32),
-  new THREE.MeshStandardMaterial({ color: 0xff1f77, emissive: 0x661033, emissiveIntensity: 0.4, roughness: 0.25 })
-);
-player.add(playerBall);
-const playerGlow = new THREE.Mesh(
-  new THREE.SphereGeometry(0.5, 24, 24),
-  new THREE.MeshBasicMaterial({ color: 0xff8ac2, transparent: true, opacity: 0.35 })
-);
-player.add(playerGlow);
-player.visible = false;
-ladderGroup.add(player);
+// ---------- Players (one per column, colored to match) ----------
+let players = [];
+
+function makePlayerBall(colorHex) {
+  const g = new THREE.Group();
+  const ball = new THREE.Mesh(
+    new THREE.SphereGeometry(0.3, 32, 32),
+    new THREE.MeshStandardMaterial({ color: colorHex, emissive: colorHex, emissiveIntensity: 0.25, roughness: 0.25 })
+  );
+  const glow = new THREE.Mesh(
+    new THREE.SphereGeometry(0.5, 24, 24),
+    new THREE.MeshBasicMaterial({ color: colorHex, transparent: true, opacity: 0.3 })
+  );
+  g.add(ball);
+  g.add(glow);
+  return g;
+}
+
+function disposePlayer(p) {
+  p.traverse(o => {
+    if (o.geometry) o.geometry.dispose();
+    if (o.material) o.material.dispose();
+  });
+}
+
+function createPlayers() {
+  for (const p of players) {
+    ladderGroup.remove(p);
+    disposePlayer(p);
+  }
+  players = [];
+  for (let i = 0; i < N; i++) {
+    const p = makePlayerBall(COLORS[i % COLORS.length]);
+    p.visible = false;
+    p.position.copy(columnPos(i, H/2));
+    ladderGroup.add(p);
+    players.push(p);
+  }
+}
+
+function resetPlayers() {
+  for (let i = 0; i < N; i++) {
+    players[i].visible = false;
+    players[i].position.copy(columnPos(i, H/2));
+  }
+}
 
 // ---------- Traversal ----------
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
-function animateDown(col, y1, y2, speed = 4.5) {
+function animateDown(p, col, y1, y2, speed = 4.5) {
   return new Promise(resolve => {
     const duration = Math.max(80, Math.abs(y1 - y2) / speed * 1000);
     const start = performance.now();
     function step(now) {
       const t = Math.min(1, (now - start) / duration);
       const y = y1 + (y2 - y1) * t;
-      player.position.copy(columnPos(col, y));
+      p.position.copy(columnPos(col, y));
       if (t < 1) requestAnimationFrame(step); else resolve();
     }
     requestAnimationFrame(step);
   });
 }
 
-function animateArc(colA, colB, y, duration = 360) {
+function animateArc(p, colA, colB, y, duration = 360) {
   return new Promise(resolve => {
     const a1 = angleOf(colA);
     let a2 = angleOf(colB);
@@ -439,18 +483,18 @@ function animateArc(colA, colB, y, duration = 360) {
     function step(now) {
       const t = Math.min(1, (now - start) / duration);
       const a = a1 + delta * t;
-      player.position.set(R * Math.cos(a), y, R * Math.sin(a));
+      p.position.set(R * Math.cos(a), y, R * Math.sin(a));
       if (t < 1) requestAnimationFrame(step); else resolve();
     }
     requestAnimationFrame(step);
   });
 }
 
-async function traverse(startCol) {
-  player.visible = true;
+async function traversePath(startCol, p) {
+  p.visible = true;
   let col = startCol;
   let y = H / 2;
-  player.position.copy(columnPos(col, y));
+  p.position.copy(columnPos(col, y));
 
   const sorted = [...rungs].sort((a, b) => b.y - a.y);
 
@@ -461,17 +505,42 @@ async function traverse(startCol) {
       if (r.col === col || (r.col + 1) % N === col) { next = r; break; }
     }
     const targetY = next ? next.y : -H / 2;
-    await animateDown(col, y, targetY);
+    await animateDown(p, col, y, targetY);
     y = targetY;
     if (!next) break;
     const newCol = (next.col === col) ? (col + 1) % N : (col - 1 + N) % N;
-    await animateArc(col, newCol, y);
+    await animateArc(p, col, newCol, y);
     col = newCol;
   }
+  return col;
+}
 
-  const label = bottomLabels[col] && bottomLabels[col].trim() ? bottomLabels[col] : `${col+1}`;
+function labelOf(col) {
+  return bottomLabels[col] && bottomLabels[col].trim() ? bottomLabels[col] : `${col+1}`;
+}
+function hexColor(i) {
+  return '#' + COLORS[i % COLORS.length].toString(16).padStart(6, '0');
+}
+
+async function runSingle(startCol) {
+  resetPlayers();
   document.getElementById('result').innerHTML =
-    `🎉 <b>${startCol + 1}번</b> → <span style="color:#ff3b8b">${escapeHtml(label)}</span>`;
+    `🚀 <b style="color:${hexColor(startCol)}">${startCol+1}번</b> 출발!`;
+  const end = await traversePath(startCol, players[startCol]);
+  document.getElementById('result').innerHTML =
+    `🎉 <b style="color:${hexColor(startCol)}">${startCol+1}번</b> → <span style="color:#ff3b8b">${escapeHtml(labelOf(end))}</span>`;
+}
+
+async function runAll() {
+  resetPlayers();
+  document.getElementById('result').innerHTML = `🎯 전체 진행 중...`;
+  const endCols = await Promise.all(
+    Array.from({ length: N }, (_, i) => traversePath(i, players[i]))
+  );
+  const html = endCols.map((end, i) =>
+    `<div class="resRow"><span class="resDot" style="background:${hexColor(i)}">${i+1}</span>→ ${escapeHtml(labelOf(end))}</div>`
+  ).join('');
+  document.getElementById('result').innerHTML = html;
 }
 
 function escapeHtml(s) {
@@ -481,11 +550,64 @@ function escapeHtml(s) {
 // ---------- UI wiring ----------
 const step1El = document.getElementById('step1');
 const step2El = document.getElementById('step2');
-const postEl = document.getElementById('post');
+const playControlsEl = document.getElementById('playControls');
+const numberButtonsEl = document.getElementById('numberButtons');
 const resultEl = document.getElementById('result');
 const labelInputsEl = document.getElementById('labelInputs');
 
 let running = false;
+
+function renderNumberButtons() {
+  numberButtonsEl.innerHTML = '';
+  for (let i = 0; i < N; i++) {
+    const b = document.createElement('button');
+    b.className = 'num';
+    b.textContent = String(i + 1);
+    b.style.background = hexColor(i);
+    b.addEventListener('click', () => onPickNumber(i));
+    numberButtonsEl.appendChild(b);
+  }
+}
+
+function setControlsDisabled(disabled) {
+  numberButtonsEl.querySelectorAll('button').forEach(b => b.disabled = disabled);
+  document.getElementById('allBtn').disabled = disabled;
+  document.getElementById('rebuildBtn').disabled = disabled;
+  document.getElementById('resetBtn').disabled = disabled;
+}
+
+async function onPickNumber(i) {
+  if (running) return;
+  running = true;
+  setControlsDisabled(true);
+  await runSingle(i);
+  running = false;
+  setControlsDisabled(false);
+}
+
+async function onAll() {
+  if (running) return;
+  running = true;
+  setControlsDisabled(true);
+  await runAll();
+  running = false;
+  setControlsDisabled(false);
+}
+
+async function generateAndReveal() {
+  for (const m of rungMeshes) {
+    ladderContent.remove(m);
+    m.geometry.dispose();
+  }
+  rungMeshes = [];
+  resetPlayers();
+  resultEl.textContent = '가로줄을 만드는 중...';
+  generateRungs();
+  buildRungMeshes();
+  await sleep(200);
+  await animateRungsReveal();
+  resultEl.textContent = '번호를 선택하세요 👇';
+}
 
 function renderLabelInputs() {
   labelInputsEl.innerHTML = '';
@@ -514,9 +636,9 @@ function renderLabelInputs() {
 function goToStep1() {
   step1El.style.display = '';
   step2El.style.display = 'none';
-  postEl.style.display = 'none';
+  playControlsEl.style.display = 'none';
   resultEl.textContent = '';
-  player.visible = false;
+  resetPlayers();
   clearGroup(ladderContent);
   ladderGroup.rotation.y = 0;
 }
@@ -530,11 +652,11 @@ function goToStep2() {
 
   step1El.style.display = 'none';
   step2El.style.display = '';
-  postEl.style.display = 'none';
+  playControlsEl.style.display = 'none';
   resultEl.textContent = '';
-  player.visible = false;
 
   buildCylinder();
+  createPlayers();
   renderLabelInputs();
 }
 
@@ -547,36 +669,30 @@ document.getElementById('play').addEventListener('click', async () => {
   document.getElementById('play').disabled = true;
   document.getElementById('back').disabled = true;
 
-  // remove any previous rung meshes (clean re-play)
-  for (const m of rungMeshes) {
-    ladderContent.remove(m);
-    m.geometry.dispose();
-  }
-  rungMeshes = [];
+  await generateAndReveal();
 
-  resultEl.textContent = '가로줄을 만드는 중...';
-  generateRungs();
-  buildRungMeshes();
-
-  await sleep(250);
-  await animateRungsReveal();
-  await sleep(200);
-
-  const start = Math.floor(Math.random() * N);
-  resultEl.innerHTML = `출발: <b>${start + 1}번</b> 🚀`;
-  await traverse(start);
+  // hide step2 action buttons area is optional; keep labels for reference.
+  step2El.style.display = 'none';
+  playControlsEl.style.display = '';
+  renderNumberButtons();
 
   running = false;
   document.getElementById('play').disabled = false;
   document.getElementById('back').disabled = false;
-  postEl.style.display = '';
 });
 
-document.getElementById('again').addEventListener('click', () => {
-  document.getElementById('play').click();
+document.getElementById('allBtn').addEventListener('click', onAll);
+
+document.getElementById('rebuildBtn').addEventListener('click', async () => {
+  if (running) return;
+  running = true;
+  setControlsDisabled(true);
+  await generateAndReveal();
+  running = false;
+  setControlsDisabled(false);
 });
 
-document.getElementById('reset').addEventListener('click', goToStep1);
+document.getElementById('resetBtn').addEventListener('click', goToStep1);
 
 // ---------- Loop ----------
 addEventListener('resize', () => {
