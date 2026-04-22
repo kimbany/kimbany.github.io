@@ -309,9 +309,12 @@ function buildCylinder() {
 }
 
 // ---------- Rung generation ----------
+// A rung at (col=c, y) connects column c with column (c+1)%N, i.e. it lives in "gap c".
+// There are N gaps (including the wrap-around gap N-1 ↔ 0), and we must guarantee
+// at least one rung in every gap so no adjacent pair is disconnected.
 function generateRungs() {
   rungs = [];
-  const touchCount = new Array(N).fill(0);
+  const gapCount = new Array(N).fill(0);
   const used = new Set();
   const minY = -H/2 + 0.9, maxY = H/2 - 0.9;
   const bucketSize = 0.42;
@@ -324,13 +327,25 @@ function generateRungs() {
     if (used.has(keyL) || used.has(keyR)) return false;
     used.add(keyL); used.add(keyR);
     rungs.push({ col, y });
-    touchCount[col]++;
-    touchCount[(col + 1) % N]++;
+    gapCount[col]++;
     return true;
   }
 
-  const target = Math.floor(N * 1.6) + 3 + Math.floor(Math.random() * N);
+  // Seed: one rung per gap first, so every adjacent pair is connected.
+  const order = Array.from({ length: N }, (_, i) => i);
+  for (let i = order.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [order[i], order[j]] = [order[j], order[i]];
+  }
+  for (const c of order) {
+    for (let attempt = 0; attempt < 500; attempt++) {
+      const y = minY + Math.random() * (maxY - minY);
+      if (tryPlace(c, y)) break;
+    }
+  }
 
+  // Fill the rest with random extras for variety.
+  const target = N + 3 + Math.floor(Math.random() * N);
   let tries = 0;
   while (rungs.length < target && tries < target * 80) {
     tries++;
@@ -339,13 +354,12 @@ function generateRungs() {
     tryPlace(c, y);
   }
 
-  // Guarantee every column is touched by at least one rung
+  // Safety net: if any gap is still empty (rare if attempt loop failed), retry.
   for (let c = 0; c < N; c++) {
-    if (touchCount[c] > 0) continue;
-    for (let attempt = 0; attempt < 300; attempt++) {
-      const side = Math.random() < 0.5 ? c : (c - 1 + N) % N;
+    if (gapCount[c] > 0) continue;
+    for (let attempt = 0; attempt < 800; attempt++) {
       const y = minY + Math.random() * (maxY - minY);
-      if (tryPlace(side, y)) break;
+      if (tryPlace(c, y)) break;
     }
   }
 }
