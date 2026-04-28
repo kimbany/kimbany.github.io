@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>엑셀 행사 처리기</title>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header>
+  <h1>엑셀 행사 처리기</h1>
+  <p class="sub">엑셀을 업로드하면 미리 설정한 행사(1+1, 사은품 증정)에 따라 자동으로 가공해 줍니다.</p>
+</header>
+
+<nav class="tabs">
+  <button class="tab active" data-tab="menu1">메뉴 1 · 행사 설정</button>
+  <button class="tab" data-tab="menu2">메뉴 2 · 엑셀 업로드/다운로드</button>
+  <button class="tab" data-tab="help">도움말</button>
+</nav>
+
+<!-- ================= MENU 1 ================= -->
+<section id="menu1" class="panel active">
+  <h2>1. 1+1 행사</h2>
+  <p class="desc">아래 목록에 등록된 제품코드는 엑셀의 구매수량이 자동으로 ×2 처리됩니다.</p>
+  <div class="row">
+    <input type="text" id="bogoCode" placeholder="제품코드 입력 (예: A001)">
+    <button id="bogoAdd">추가</button>
+  </div>
+  <ul id="bogoList" class="chips"></ul>
+
+  <h2>2. 사은품 증정 행사</h2>
+  <p class="desc">대상 제품코드 1개와, 랜덤으로 증정될 사은품 코드 여러 개를 등록합니다. 해당 제품 구매 시 바로 아래 행에 사은품 행이 추가되며 구매자명/연락처/주소가 동일하게 복사됩니다.</p>
+  <div class="row">
+    <input type="text" id="giftTrigger" placeholder="대상 제품코드 (예: B100)">
+    <input type="text" id="giftPool" placeholder="사은품 코드들, 콤마로 구분 (예: G1,G2,G3)">
+    <button id="giftAdd">추가</button>
+  </div>
+  <table id="giftTable" class="grid">
+    <thead><tr><th>대상 제품코드</th><th>사은품 풀(랜덤)</th><th>삭제</th></tr></thead>
+    <tbody></tbody>
+  </table>
+
+  <h2>3. 설정 저장/관리</h2>
+  <div class="row">
+    <button id="exportCfg">설정 내보내기 (JSON)</button>
+    <label class="filebtn">
+      설정 불러오기 (JSON)
+      <input type="file" id="importCfg" accept="application/json" hidden>
+    </label>
+    <button id="resetCfg" class="danger">전체 초기화</button>
+  </div>
+  <p class="hint">설정은 이 브라우저에 자동 저장됩니다(localStorage).</p>
+</section>
+
+<!-- ================= MENU 2 ================= -->
+<section id="menu2" class="panel">
+  <h2>1. 엑셀 업로드</h2>
+  <div class="row">
+    <label class="filebtn primary">
+      엑셀 파일 선택 (.xlsx, .xls)
+      <input type="file" id="xlsxFile" accept=".xlsx,.xls" hidden>
+    </label>
+    <span id="fileName" class="hint">선택된 파일 없음</span>
+  </div>
+
+  <div id="sheetPickWrap" class="row hidden">
+    <label>시트 선택:
+      <select id="sheetPick"></select>
+    </label>
+    <label>헤더 행 번호:
+      <input type="number" id="headerRow" value="1" min="1" style="width:80px">
+    </label>
+    <button id="loadPreview">미리보기 불러오기</button>
+  </div>
+
+  <div id="mappingWrap" class="hidden">
+    <h2>2. 컬럼 매핑</h2>
+    <p class="desc">엑셀의 어떤 컬럼이 무슨 정보인지 지정해 주세요. 헤더명이 비슷하면 자동으로 잡아둡니다.</p>
+    <div class="grid2">
+      <label>제품코드 컬럼<select id="colCode"></select></label>
+      <label>구매수량 컬럼<select id="colQty"></select></label>
+      <label>구매자명 컬럼<select id="colBuyer"></select></label>
+      <label>연락처 컬럼<select id="colPhone"></select></label>
+      <label>주소 컬럼<select id="colAddr"></select></label>
+    </div>
+
+    <h2>3. 미리보기 (앞 10행)</h2>
+    <div class="tablewrap"><table id="preview" class="grid"></table></div>
+
+    <h2>4. 처리 & 다운로드</h2>
+    <div class="row">
+      <button id="runProcess" class="primary">행사 적용해서 다운로드</button>
+      <span id="runStatus" class="hint"></span>
+    </div>
+    <div id="report" class="report hidden"></div>
+  </div>
+</section>
+
+<!-- ================= HELP ================= -->
+<section id="help" class="panel">
+  <h2>사용 흐름</h2>
+  <ol>
+    <li><b>메뉴 1</b>에서 1+1 대상 제품코드와 사은품 행사 규칙을 등록합니다.</li>
+    <li><b>메뉴 2</b>에서 주문 엑셀을 업로드하고, 컬럼 매핑을 확인합니다.</li>
+    <li>“행사 적용해서 다운로드”를 누르면 가공된 엑셀이 받아집니다.</li>
+  </ol>
+  <h2>처리 규칙</h2>
+  <ul>
+    <li><b>1+1</b>: 등록된 제품코드 행의 <b>구매수량 × 2</b></li>
+    <li><b>사은품 증정</b>: 등록된 제품코드 행 바로 아래에 <b>새 행 삽입</b>. 구매자명/연락처/주소 복사, 제품코드는 풀에서 <b>랜덤 1개</b> 선택, 수량 1, 비고에 “사은품(원본행 N)” 표기</li>
+  </ul>
+  <h2>참고</h2>
+  <ul>
+    <li>모든 처리는 브라우저 안에서만 이루어집니다. 파일이 외부로 전송되지 않습니다.</li>
+    <li>원본 엑셀의 셀 수식이 있는 경우 값으로 평가된 결과가 사용됩니다.</li>
+  </ul>
+</section>
+
+<footer>
+  <a href="../index.html">← 메인으로</a>
+</footer>
+
+<script src="app.js"></script>
+</body>
+</html>
