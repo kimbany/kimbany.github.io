@@ -5,6 +5,8 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>엑셀 행사 처리기</title>
 <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -22,26 +24,51 @@
 <!-- ================= MENU 1 ================= -->
 <section id="menu1" class="panel active">
   <h2>1. 1+1 행사</h2>
-  <p class="desc">아래 목록에 등록된 제품코드는 엑셀의 구매수량이 자동으로 ×2 처리됩니다.</p>
+  <p class="desc">아래 목록에 등록된 제품코드는 엑셀의 구매수량이 자동으로 ×2 처리됩니다. 적용 기간은 비워두면 상시 적용됩니다.</p>
   <div class="row">
     <input type="text" id="bogoCode" placeholder="제품코드 입력 (예: A001)">
+    <label class="hint">시작 <input type="date" id="bogoStart"></label>
+    <label class="hint">종료 <input type="date" id="bogoEnd"></label>
     <button id="bogoAdd">추가</button>
   </div>
   <ul id="bogoList" class="chips"></ul>
 
-  <h2>2. 사은품 증정 행사</h2>
-  <p class="desc">대상 제품코드 1개와, 랜덤으로 증정될 사은품 코드 여러 개를 등록합니다. 해당 제품 구매 시 바로 아래 행에 사은품 행이 추가되며 구매자명/연락처/주소가 동일하게 복사됩니다.</p>
+  <h2>2. 사은품 증정 행사 (특정 제품코드)</h2>
+  <p class="desc">대상 제품코드, 랜덤 사은품 코드들, 적용 기간, 수량 모드를 등록합니다. 해당 제품 구매 시 바로 아래 행에 사은품 행이 추가됩니다.</p>
   <div class="row">
     <input type="text" id="giftTrigger" placeholder="대상 제품코드 (예: B100)">
-    <input type="text" id="giftPool" placeholder="사은품 코드들, 콤마로 구분 (예: G1,G2,G3)">
+    <input type="text" id="giftPool" placeholder="사은품 코드들 (G1,G2,G3)">
+    <label class="hint">시작 <input type="date" id="giftStart"></label>
+    <label class="hint">종료 <input type="date" id="giftEnd"></label>
+    <select id="giftQtyMode" title="수량 모드">
+      <option value="order">주문 1건당 사은품 1개</option>
+      <option value="unit">구매 수량만큼 사은품</option>
+    </select>
     <button id="giftAdd">추가</button>
   </div>
   <table id="giftTable" class="grid">
-    <thead><tr><th>대상 제품코드</th><th>사은품 풀(랜덤)</th><th>삭제</th></tr></thead>
+    <thead><tr><th>대상 제품코드</th><th>사은품 풀(랜덤)</th><th>수량 모드</th><th>적용 기간</th><th>삭제</th></tr></thead>
     <tbody></tbody>
   </table>
 
-  <h2>3. 설정 저장/관리</h2>
+  <h2>3. 모든 주문에 사은품 (전체 행사)</h2>
+  <p class="desc">제품코드와 무관하게 모든 주문에 사은품을 증정합니다. <b>주문번호(A 컬럼)</b>를 기준으로 묶어서, 같은 주문의 마지막 행 바로 아래에 사은품 행이 추가됩니다. 메뉴2의 "주문번호 컬럼" 매핑이 필요합니다.</p>
+  <div class="row">
+    <input type="text" id="globalGiftPool" placeholder="사은품 코드들 (G10,G11,G12)">
+    <label class="hint">시작 <input type="date" id="globalGiftStart"></label>
+    <label class="hint">종료 <input type="date" id="globalGiftEnd"></label>
+    <select id="globalGiftQtyMode" title="수량 모드">
+      <option value="order">주문 1건당 사은품 1개</option>
+      <option value="unit">주문의 총 수량만큼 사은품</option>
+    </select>
+    <button id="globalGiftAdd">추가</button>
+  </div>
+  <table id="globalGiftTable" class="grid">
+    <thead><tr><th>사은품 풀(랜덤)</th><th>수량 모드</th><th>적용 기간</th><th>삭제</th></tr></thead>
+    <tbody></tbody>
+  </table>
+
+  <h2>4. 설정 저장/관리</h2>
   <div class="row">
     <button id="exportCfg">설정 내보내기 (JSON)</button>
     <label class="filebtn">
@@ -51,18 +78,43 @@
     <button id="resetCfg" class="danger">전체 초기화</button>
   </div>
   <p class="hint">설정은 이 브라우저에 자동 저장됩니다(localStorage).</p>
+
+  <h2>5. 클라우드 동기화 (Firebase) <span class="hint">선택</span></h2>
+  <p class="desc">Firebase Firestore에 행사 설정을 저장해 다른 PC/브라우저에서도 같은 설정을 쓸 수 있습니다. 처음 한 번만 Firebase 프로젝트를 만들고 아래에 config를 붙여넣어 주세요. <a href="firebase-guide.html" target="_blank">Firebase 설정 가이드 →</a></p>
+  <details id="fbDetails">
+    <summary>Firebase config 입력</summary>
+    <textarea id="fbConfig" rows="8" placeholder='{
+  "apiKey": "AIza...",
+  "authDomain": "myproject.firebaseapp.com",
+  "projectId": "myproject",
+  "appId": "1:..."
+}'></textarea>
+    <div class="row">
+      <button id="fbSave">설정 저장</button>
+      <button id="fbClear" class="danger">설정 삭제</button>
+    </div>
+  </details>
+  <div class="row">
+    <button id="fbPush" class="primary">↑ 클라우드에 올리기</button>
+    <button id="fbPull">↓ 클라우드에서 내려받기</button>
+    <label class="hint" style="display:inline-flex;align-items:center;gap:4px;">
+      <input type="checkbox" id="fbAutoSync"> 변경 시 자동으로 올리기
+    </label>
+  </div>
+  <p id="fbStatus" class="hint"></p>
 </section>
 
 <!-- ================= MENU 2 ================= -->
 <section id="menu2" class="panel">
   <h2>1. 엑셀 업로드</h2>
-  <div class="row">
-    <label class="filebtn primary">
-      엑셀 파일 선택 (.xlsx, .xls)
-      <input type="file" id="xlsxFile" accept=".xlsx,.xls" hidden>
-    </label>
-    <span id="fileName" class="hint">선택된 파일 없음</span>
-  </div>
+  <label class="dropzone" id="dropZone">
+    <div class="dz-text">
+      <b>여기에 엑셀 파일을 끌어다 놓거나</b><br>
+      클릭해서 파일을 선택하세요 (.xlsx, .xls)
+    </div>
+    <input type="file" id="xlsxFile" accept=".xlsx,.xls" hidden>
+  </label>
+  <p id="fileName" class="hint">선택된 파일 없음</p>
 
   <div id="sheetPickWrap" class="row hidden">
     <label>시트 선택:
@@ -76,10 +128,12 @@
 
   <div id="mappingWrap" class="hidden">
     <h2>2. 컬럼 매핑 (필수)</h2>
-    <p class="desc">행사 적용에 필요한 두 컬럼을 지정해 주세요. 헤더명을 보고 자동으로 잡아 둡니다.</p>
+    <p class="desc">행사 적용에 필요한 컬럼을 지정해 주세요. 제품코드는 두 컬럼을 모두 지정할 수 있고, <b>우선 컬럼에 값이 있으면 그 값을</b>, 비어있으면 보조 컬럼의 값을 사용해 매칭합니다. (예: 자체품목코드를 우선, 자체 상품코드를 보조)</p>
     <div class="grid2">
-      <label>제품코드 컬럼<select id="colCode"></select></label>
+      <label>제품코드 컬럼 (우선)<select id="colCode"></select></label>
+      <label>제품코드 컬럼 (보조)<select id="colCodeAlt"></select></label>
       <label>수량 컬럼<select id="colQty"></select></label>
+      <label>주문번호 컬럼 (전체 사은품용)<select id="colOrderNo"></select></label>
     </div>
 
     <h2>3. 사은품 행에 복사할 컬럼</h2>
@@ -91,8 +145,9 @@
       <button id="copyDefault" type="button">기본 추천</button>
     </div>
 
-    <h2>4. 미리보기 (앞 10행)</h2>
-    <div class="tablewrap"><table id="preview" class="grid"></table></div>
+    <h2>4. 미리보기</h2>
+    <div class="tablewrap nowrap"><table id="preview" class="grid"></table></div>
+    <div id="previewPager" class="pager"></div>
 
     <h2>5. 처리 & 다운로드</h2>
     <div class="row">
@@ -113,8 +168,21 @@
   </ol>
   <h2>처리 규칙</h2>
   <ul>
-    <li><b>1+1</b>: 등록된 제품코드 행의 <b>구매수량 × 2</b> (변경된 수량 셀은 <span style="background:#FFF59D;padding:0 4px">노란색</span>으로 표시)</li>
-    <li><b>사은품 증정</b>: 등록된 제품코드 행 바로 아래에 <b>새 행 삽입</b>. 메뉴2의 “사은품 행에 복사할 컬럼”에서 체크된 컬럼들이 원본 행에서 그대로 복사되며, 제품코드는 풀에서 <b>랜덤 1개</b>, 수량은 1로 설정됩니다. 추가된 행의 셀은 <span style="background:#C8E6C9;padding:0 4px">연두색</span>으로 표시</li>
+    <li><b>1+1</b>: 등록된 제품코드 행의 <b>구매수량 × 2</b> (변경된 수량 셀은 <span style="background:#FFF59D;padding:0 4px">노란색</span>)</li>
+    <li><b>사은품 증정 (특정 코드)</b>: 등록된 제품코드 행 바로 아래에 사은품 행 삽입. 수량 모드:
+      <ul>
+        <li>주문 1건당 1개: 매칭된 행마다 사은품 1개</li>
+        <li>구매 수량만큼: 구매 수량 N개당 사은품 N개 (각 행 수량 1, 매번 랜덤 재추첨)</li>
+      </ul>
+      메뉴2 "사은품 행에 복사할 컬럼"의 체크 컬럼이 원본에서 복사됨. 추가된 행 셀은 <span style="background:#C8E6C9;padding:0 4px">연두색</span>.
+    </li>
+    <li><b>사은품 증정 (전체 주문)</b>: 주문번호로 묶어 같은 주문의 마지막 행 바로 아래에 사은품 행 추가. 수량 모드:
+      <ul>
+        <li>주문 1건당 1개</li>
+        <li>주문의 총 수량만큼: 그 주문 모든 행의 수량 합만큼</li>
+      </ul>
+    </li>
+    <li><b>적용 기간</b>: 시작·종료일 비워두면 상시. 오늘 날짜가 범위 안일 때만 적용.</li>
   </ul>
   <h2>참고</h2>
   <ul>

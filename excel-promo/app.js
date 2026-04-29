@@ -7,23 +7,40 @@
 const LS_KEY = "excelPromoConfig.v1";
 
 const state = {
-  cfg: { bogo: [], gifts: [] },          // 메뉴1 설정
+  cfg: { bogo: [], gifts: [], globalGifts: [] }, // 메뉴1 설정
   workbook: null,                        // 업로드된 워크북
   sheetName: null,
   headerRow: 1,                          // 1-indexed
   aoa: null,                             // 시트 전체 (2차원 배열)
   headers: [],                           // 헤더 셀 텍스트
-  mapping: { code: -1, qty: -1 },
+  mapping: { code: -1, codeAlt: -1, qty: -1, orderNo: -1 },
   copyCols: new Set(),                   // 사은품 행에 복사할 컬럼들
+  previewPage: 0,                        // 미리보기 현재 페이지 (0-base)
 };
+const PREVIEW_PER_PAGE = 10;
 
 // ---------- 유틸 ----------
 const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => Array.from(document.querySelectorAll(sel));
 const norm = (v) => (v === undefined || v === null ? "" : String(v).trim());
 
+const todayStr = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+};
+const isActiveOnDate = (rule, today) => {
+  if (rule.start && today < rule.start) return false;
+  if (rule.end && today > rule.end) return false;
+  return true;
+};
+const formatRange = (rule) => {
+  if (!rule.start && !rule.end) return "(상시)";
+  return `${rule.start || "처음"} ~ ${rule.end || "끝"}`;
+};
+
 function saveCfg() {
   localStorage.setItem(LS_KEY, JSON.stringify(state.cfg));
+  if (localStorage.getItem(FB_AUTO_SYNC_KEY) === "1") scheduleFbAutoPush();
 }
 function loadCfg() {
   try {
@@ -32,6 +49,13 @@ function loadCfg() {
   } catch (_) {}
   if (!Array.isArray(state.cfg.bogo)) state.cfg.bogo = [];
   if (!Array.isArray(state.cfg.gifts)) state.cfg.gifts = [];
+  if (!Array.isArray(state.cfg.globalGifts)) state.cfg.globalGifts = [];
+  // 마이그레이션: bogo 항목 string -> object, gifts/globalGifts 기본값 보강
+  state.cfg.bogo = state.cfg.bogo.map((b) =>
+    typeof b === "string" ? { code: b, start: "", end: "" } : { start: "", end: "", ...b }
+  );
+  state.cfg.gifts = state.cfg.gifts.map((g) => ({ qtyMode: "order", start: "", end: "", ...g }));
+  state.cfg.globalGifts = state.cfg.globalGifts.map((g) => ({ qtyMode: "order", start: "", end: "", ...g }));
 }
 
 // ---------- 탭 ----------
@@ -48,9 +72,10 @@ $$(".tab").forEach((btn) => {
 function renderBogo() {
   const ul = $("#bogoList");
   ul.innerHTML = "";
-  state.cfg.bogo.forEach((code, i) => {
+  state.cfg.bogo.forEach((b, i) => {
     const li = document.createElement("li");
-    li.textContent = code;
+    const range = (b.start || b.end) ? ` · ${b.start || "처음"}~${b.end || "끝"}` : "";
+    li.appendChild(document.createTextNode(b.code + range + " "));
     const x = document.createElement("button");
     x.textContent = "×";
     x.title = "삭제";
@@ -65,10 +90,20 @@ function renderBogo() {
 }
 
 $("#bogoAdd").addEventListener("click", () => {
-  const v = norm($("#bogoCode").value);
-  if (!v) return;
-  if (!state.cfg.bogo.includes(v)) state.cfg.bogo.push(v);
+  const code = norm($("#bogoCode").value);
+  if (!code) return;
+  const start = $("#bogoStart").value || "";
+  const end = $("#bogoEnd").value || "";
+  const existing = state.cfg.bogo.find((b) => b.code === code);
+  if (existing) {
+    existing.start = start;
+    existing.end = end;
+  } else {
+    state.cfg.bogo.push({ code, start, end });
+  }
   $("#bogoCode").value = "";
+  $("#bogoStart").value = "";
+  $("#bogoEnd").value = "";
   saveCfg();
   renderBogo();
 });
@@ -76,7 +111,9 @@ $("#bogoCode").addEventListener("keydown", (e) => {
   if (e.key === "Enter") $("#bogoAdd").click();
 });
 
-// ---------- 메뉴1: 사은품 증정 ----------
+// ---------- 메뉴1: 사은품 증정 (특정 코드) ----------
+const QTY_MODE_LABEL = { order: "주문 1건당 1개", unit: "수량만큼" };
+
 function renderGifts() {
   const tbody = $("#giftTable tbody");
   tbody.innerHTML = "";
@@ -84,6 +121,8 @@ function renderGifts() {
     const tr = document.createElement("tr");
     tr.innerHTML = `<td>${escapeHtml(g.trigger)}</td>
                     <td>${g.pool.map(escapeHtml).join(", ")}</td>
+                    <td>${escapeHtml(QTY_MODE_LABEL[g.qtyMode] || g.qtyMode)}</td>
+                    <td>${escapeHtml(formatRange(g))}</td>
                     <td><button data-i="${i}" class="danger">삭제</button></td>`;
     tbody.appendChild(tr);
   });
@@ -103,13 +142,64 @@ $("#giftAdd").addEventListener("click", () => {
   if (!trigger || !poolRaw) return;
   const pool = poolRaw.split(",").map((s) => s.trim()).filter(Boolean);
   if (!pool.length) return;
+  const start = $("#giftStart").value || "";
+  const end = $("#giftEnd").value || "";
+  const qtyMode = $("#giftQtyMode").value || "order";
   const existing = state.cfg.gifts.find((g) => g.trigger === trigger);
-  if (existing) existing.pool = pool;
-  else state.cfg.gifts.push({ trigger, pool });
+  if (existing) {
+    existing.pool = pool;
+    existing.start = start;
+    existing.end = end;
+    existing.qtyMode = qtyMode;
+  } else {
+    state.cfg.gifts.push({ trigger, pool, start, end, qtyMode });
+  }
   $("#giftTrigger").value = "";
   $("#giftPool").value = "";
+  $("#giftStart").value = "";
+  $("#giftEnd").value = "";
+  $("#giftQtyMode").value = "order";
   saveCfg();
   renderGifts();
+});
+
+// ---------- 메뉴1: 모든 주문에 사은품 (글로벌) ----------
+function renderGlobalGifts() {
+  const tbody = $("#globalGiftTable tbody");
+  tbody.innerHTML = "";
+  state.cfg.globalGifts.forEach((g, i) => {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `<td>${g.pool.map(escapeHtml).join(", ")}</td>
+                    <td>${escapeHtml(QTY_MODE_LABEL[g.qtyMode] || g.qtyMode)}</td>
+                    <td>${escapeHtml(formatRange(g))}</td>
+                    <td><button data-i="${i}" class="danger">삭제</button></td>`;
+    tbody.appendChild(tr);
+  });
+  tbody.querySelectorAll("button.danger").forEach((b) => {
+    b.addEventListener("click", () => {
+      const idx = Number(b.dataset.i);
+      state.cfg.globalGifts.splice(idx, 1);
+      saveCfg();
+      renderGlobalGifts();
+    });
+  });
+}
+
+$("#globalGiftAdd").addEventListener("click", () => {
+  const poolRaw = norm($("#globalGiftPool").value);
+  if (!poolRaw) return;
+  const pool = poolRaw.split(",").map((s) => s.trim()).filter(Boolean);
+  if (!pool.length) return;
+  const start = $("#globalGiftStart").value || "";
+  const end = $("#globalGiftEnd").value || "";
+  const qtyMode = $("#globalGiftQtyMode").value || "order";
+  state.cfg.globalGifts.push({ pool, start, end, qtyMode });
+  $("#globalGiftPool").value = "";
+  $("#globalGiftStart").value = "";
+  $("#globalGiftEnd").value = "";
+  $("#globalGiftQtyMode").value = "order";
+  saveCfg();
+  renderGlobalGifts();
 });
 
 // ---------- 설정 내보내기/불러오기/초기화 ----------
@@ -150,9 +240,7 @@ $("#resetCfg").addEventListener("click", () => {
 });
 
 // ---------- 메뉴2: 엑셀 업로드 ----------
-$("#xlsxFile").addEventListener("change", async (e) => {
-  const f = e.target.files?.[0];
-  if (!f) return;
+async function loadExcelFile(f) {
   $("#fileName").textContent = f.name;
   const buf = await f.arrayBuffer();
   state.workbook = XLSX.read(buf, { type: "array" });
@@ -165,10 +253,37 @@ $("#xlsxFile").addEventListener("change", async (e) => {
     sel.appendChild(opt);
   });
   state.sheetName = state.workbook.SheetNames[0];
+  state.previewPage = 0;
   $("#sheetPickWrap").classList.remove("hidden");
   $("#mappingWrap").classList.add("hidden");
   $("#report").classList.add("hidden");
+}
+
+$("#xlsxFile").addEventListener("change", async (e) => {
+  const f = e.target.files?.[0];
+  if (!f) return;
+  await loadExcelFile(f);
 });
+
+// 드래그&드롭
+const dz = $("#dropZone");
+if (dz) {
+  ["dragenter", "dragover"].forEach((ev) =>
+    dz.addEventListener(ev, (e) => { e.preventDefault(); e.stopPropagation(); dz.classList.add("over"); })
+  );
+  ["dragleave", "drop"].forEach((ev) =>
+    dz.addEventListener(ev, (e) => { e.preventDefault(); e.stopPropagation(); dz.classList.remove("over"); })
+  );
+  dz.addEventListener("drop", async (e) => {
+    const f = e.dataTransfer?.files?.[0];
+    if (!f) return;
+    if (!/\.(xlsx|xls)$/i.test(f.name)) {
+      alert("엑셀 파일(.xlsx, .xls)만 업로드 가능합니다.");
+      return;
+    }
+    await loadExcelFile(f);
+  });
+}
 
 $("#sheetPick").addEventListener("change", (e) => {
   state.sheetName = e.target.value;
@@ -196,7 +311,7 @@ $("#loadPreview").addEventListener("click", () => {
 });
 
 function buildMappingSelectors() {
-  ["#colCode", "#colQty"].forEach((id) => {
+  ["#colCode", "#colCodeAlt", "#colQty", "#colOrderNo"].forEach((id) => {
     const sel = $(id);
     sel.innerHTML = "";
     const noneOpt = document.createElement("option");
@@ -211,7 +326,9 @@ function buildMappingSelectors() {
     });
   });
   $("#colCode").addEventListener("change", () => (state.mapping.code = Number($("#colCode").value)));
+  $("#colCodeAlt").addEventListener("change", () => (state.mapping.codeAlt = Number($("#colCodeAlt").value)));
   $("#colQty").addEventListener("change", () => (state.mapping.qty = Number($("#colQty").value)));
+  $("#colOrderNo").addEventListener("change", () => (state.mapping.orderNo = Number($("#colOrderNo").value)));
 
   // 사은품 행에 복사할 컬럼 체크리스트
   const wrap = $("#copyCols");
@@ -239,19 +356,26 @@ function applyCopyColsToCheckboxes() {
 function autoMap() {
   const norms = state.headers.map((h) => h.toLowerCase().replace(/\s+/g, ""));
   // 패턴 우선순위로 첫 매칭을 잡는다 (구체적인 키워드를 앞에 둘 것)
-  const guess = (patterns) => {
+  const guess = (patterns, skipIdx = -1) => {
     for (const p of patterns) {
       const np = p.toLowerCase().replace(/\s+/g, "");
       for (let i = 0; i < norms.length; i++) {
+        if (i === skipIdx) continue;
         if (norms[i].includes(np)) return i;
       }
     }
     return -1;
   };
-  state.mapping.code = guess(["상품코드", "productcode", "sku", "품목코드", "제품코드", "코드"]);
+  // 우선 제품코드: 품목코드 우선 (자체품목코드)
+  state.mapping.code = guess(["품목코드", "상품코드", "productcode", "sku", "제품코드", "코드"]);
+  // 보조 제품코드: 상품코드 우선 (자체 상품코드), 우선 컬럼은 제외
+  state.mapping.codeAlt = guess(["상품코드", "productcode", "sku", "품목코드", "제품코드"], state.mapping.code);
   state.mapping.qty = guess(["수량", "주문수량", "구매수량", "qty", "quantity"]);
+  state.mapping.orderNo = guess(["주문번호", "ordernumber", "orderno", "orderid"]);
   $("#colCode").value = String(state.mapping.code);
+  $("#colCodeAlt").value = String(state.mapping.codeAlt);
   $("#colQty").value = String(state.mapping.qty);
+  $("#colOrderNo").value = String(state.mapping.orderNo);
 
   // 사은품 행에 복사할 컬럼 자동 체크
   state.copyCols = computeDefaultCopyCols();
@@ -298,6 +422,11 @@ function renderPreview() {
   const tbl = $("#preview");
   tbl.innerHTML = "";
   const headerIdx = state.headerRow - 1;
+  const dataRows = state.aoa.slice(headerIdx + 1);
+  const totalPages = Math.max(1, Math.ceil(dataRows.length / PREVIEW_PER_PAGE));
+  const page = Math.max(0, Math.min(state.previewPage || 0, totalPages - 1));
+  state.previewPage = page;
+
   const thead = document.createElement("thead");
   const trh = document.createElement("tr");
   state.headers.forEach((h) => {
@@ -307,18 +436,57 @@ function renderPreview() {
   });
   thead.appendChild(trh);
   tbl.appendChild(thead);
+
   const tbody = document.createElement("tbody");
-  const rows = state.aoa.slice(headerIdx + 1, headerIdx + 1 + 10);
-  rows.forEach((r) => {
+  const start = page * PREVIEW_PER_PAGE;
+  const end = Math.min(dataRows.length, start + PREVIEW_PER_PAGE);
+  for (let r = start; r < end; r++) {
+    const row = dataRows[r];
     const tr = document.createElement("tr");
     for (let i = 0; i < state.headers.length; i++) {
       const td = document.createElement("td");
-      td.textContent = r[i] === undefined ? "" : String(r[i]);
+      td.textContent = row[i] === undefined ? "" : String(row[i]);
       tr.appendChild(td);
     }
     tbody.appendChild(tr);
-  });
+  }
   tbl.appendChild(tbody);
+
+  renderPreviewPager(page, totalPages, dataRows.length);
+}
+
+function renderPreviewPager(page, totalPages, totalRows) {
+  const pager = $("#previewPager");
+  pager.innerHTML = "";
+  const info = document.createElement("span");
+  info.className = "hint";
+  info.textContent = totalRows
+    ? `총 ${totalRows}행 · ${page + 1}/${totalPages} 페이지`
+    : "데이터 없음";
+  pager.appendChild(info);
+  if (totalPages <= 1) return;
+
+  const wrap = document.createElement("div");
+  wrap.className = "pages";
+  const mkBtn = (label, p, opts = {}) => {
+    const b = document.createElement("button");
+    b.textContent = label;
+    if (opts.disabled) b.disabled = true;
+    if (opts.current) b.classList.add("current");
+    b.addEventListener("click", () => { state.previewPage = p; renderPreview(); });
+    return b;
+  };
+  wrap.appendChild(mkBtn("«", 0, { disabled: page === 0 }));
+  wrap.appendChild(mkBtn("‹", page - 1, { disabled: page === 0 }));
+  const winSize = 5;
+  const winStart = Math.max(0, Math.min(page - Math.floor(winSize / 2), totalPages - winSize));
+  const winEnd = Math.min(totalPages, winStart + winSize);
+  for (let p = winStart; p < winEnd; p++) {
+    wrap.appendChild(mkBtn(String(p + 1), p, { current: p === page }));
+  }
+  wrap.appendChild(mkBtn("›", page + 1, { disabled: page === totalPages - 1 }));
+  wrap.appendChild(mkBtn("»", totalPages - 1, { disabled: page === totalPages - 1 }));
+  pager.appendChild(wrap);
 }
 
 // ---------- 처리 & 다운로드 ----------
@@ -332,52 +500,124 @@ $("#runProcess").addEventListener("click", () => {
   const headerIdx = state.headerRow - 1;
   const out = state.aoa.slice(0, headerIdx + 1).map((r) => r.slice());
 
-  const giftMap = new Map(state.cfg.gifts.map((g) => [g.trigger, g.pool]));
-  const bogoSet = new Set(state.cfg.bogo);
+  const today = todayStr();
+  const activeBogo = state.cfg.bogo.filter((b) => isActiveOnDate(b, today));
+  const activeGifts = state.cfg.gifts.filter((g) => isActiveOnDate(g, today));
+  const activeGlobalGifts = state.cfg.globalGifts.filter((g) => isActiveOnDate(g, today));
+  const giftMap = new Map(activeGifts.map((g) => [g.trigger, g]));
+  const bogoSet = new Set(activeBogo.map((b) => b.code));
+  const skippedBogo = state.cfg.bogo.length - activeBogo.length;
+  const skippedGifts = state.cfg.gifts.length - activeGifts.length;
+  const skippedGlobalGifts = state.cfg.globalGifts.length - activeGlobalGifts.length;
+  const orderNoCol = state.mapping.orderNo;
+
+  if (activeGlobalGifts.length > 0 && orderNoCol < 0) {
+    alert("'전체 주문 사은품' 행사가 등록되어 있는데 '주문번호 컬럼' 매핑이 비어 있습니다. 메뉴2 컬럼 매핑에서 주문번호 컬럼을 선택해 주세요.");
+    return;
+  }
 
   let bogoApplied = 0;
   let giftAdded = 0;
+  let globalGiftAdded = 0;
   const bogoMods = []; // [{ r, c }]
   const giftMods = []; // [{ r, cs: [c, ...] }]
 
+  // 주문 그룹 추적 (글로벌 사은품용)
+  let curOrderNo = null;
+  let curOrderQty = 0;
+  let lastOriginalRow = null;
+  const headerLen = state.aoa[headerIdx].length;
+
+  const flushGlobalGifts = () => {
+    if (curOrderNo === null || activeGlobalGifts.length === 0) return;
+    activeGlobalGifts.forEach((rule) => {
+      const count = rule.qtyMode === "unit" ? Math.max(1, Math.floor(curOrderQty || 1)) : 1;
+      for (let n = 0; n < count; n++) {
+        const giftCode = rule.pool[Math.floor(Math.random() * rule.pool.length)];
+        const giftRow = new Array(headerLen).fill("");
+        const cs = new Set();
+        if (state.mapping.code >= 0) { giftRow[state.mapping.code] = giftCode; cs.add(state.mapping.code); }
+        if (state.mapping.qty >= 0) { giftRow[state.mapping.qty] = 1; cs.add(state.mapping.qty); }
+        if (orderNoCol >= 0 && curOrderNo) { giftRow[orderNoCol] = curOrderNo; cs.add(orderNoCol); }
+        if (lastOriginalRow) {
+          state.copyCols.forEach((c) => {
+            if (cs.has(c)) return;
+            giftRow[c] = lastOriginalRow[c] ?? "";
+            cs.add(c);
+          });
+        }
+        out.push(giftRow);
+        giftMods.push({ r: out.length - 1, cs: Array.from(cs) });
+        globalGiftAdded++;
+      }
+    });
+  };
+
   for (let r = headerIdx + 1; r < state.aoa.length; r++) {
     const row = state.aoa[r].slice();
-    const code = norm(row[state.mapping.code]);
+    const orderNo = orderNoCol >= 0 ? norm(row[orderNoCol]) : "";
+
+    // 주문번호 변경 시점에 직전 주문의 글로벌 사은품 일괄 추가
+    if (orderNoCol >= 0 && orderNo !== curOrderNo) {
+      flushGlobalGifts();
+      curOrderNo = orderNo;
+      curOrderQty = 0;
+    }
+
+    // 우선 코드가 있으면 그 값, 없으면 보조 코드의 값 사용
+    const codePrimary = state.mapping.code >= 0 ? norm(row[state.mapping.code]) : "";
+    const codeAltVal = state.mapping.codeAlt >= 0 ? norm(row[state.mapping.codeAlt]) : "";
+    const code = codePrimary || codeAltVal;
+    const matchedCol = codePrimary ? state.mapping.code
+                      : codeAltVal ? state.mapping.codeAlt
+                      : state.mapping.code;
+
+    // 원본 수량 (1+1 ×2 적용 전)
+    const originalQty = state.mapping.qty >= 0 ? Number(row[state.mapping.qty]) : NaN;
 
     let bogoModified = false;
-    if (code && bogoSet.has(code) && state.mapping.qty >= 0) {
-      const q = Number(row[state.mapping.qty]);
-      if (Number.isFinite(q)) {
-        row[state.mapping.qty] = q * 2;
-        bogoApplied++;
-        bogoModified = true;
-      }
+    if (code && bogoSet.has(code) && state.mapping.qty >= 0 && Number.isFinite(originalQty)) {
+      row[state.mapping.qty] = originalQty * 2;
+      bogoApplied++;
+      bogoModified = true;
     }
     out.push(row);
     if (bogoModified) bogoMods.push({ r: out.length - 1, c: state.mapping.qty });
 
+    // 주문 합계 수량은 원본 기준 누적 (1+1 보너스/사은품 행은 제외)
+    if (Number.isFinite(originalQty)) curOrderQty += originalQty;
+    lastOriginalRow = row;
+
+    // 특정 코드 사은품
     if (code && giftMap.has(code)) {
-      const pool = giftMap.get(code);
-      const giftCode = pool[Math.floor(Math.random() * pool.length)];
-      const giftRow = new Array(row.length).fill("");
-      const cs = new Set();
-      giftRow[state.mapping.code] = giftCode;
-      cs.add(state.mapping.code);
-      if (state.mapping.qty >= 0) {
-        giftRow[state.mapping.qty] = 1;
-        cs.add(state.mapping.qty);
+      const rule = giftMap.get(code);
+      const count = rule.qtyMode === "unit" && Number.isFinite(originalQty)
+        ? Math.max(1, Math.floor(originalQty))
+        : 1;
+      for (let n = 0; n < count; n++) {
+        const giftCode = rule.pool[Math.floor(Math.random() * rule.pool.length)];
+        const giftRow = new Array(row.length).fill("");
+        const cs = new Set();
+        giftRow[matchedCol] = giftCode;
+        cs.add(matchedCol);
+        if (state.mapping.qty >= 0) {
+          giftRow[state.mapping.qty] = 1;
+          cs.add(state.mapping.qty);
+        }
+        state.copyCols.forEach((c) => {
+          if (cs.has(c)) return;
+          giftRow[c] = row[c] ?? "";
+          cs.add(c);
+        });
+        out.push(giftRow);
+        giftMods.push({ r: out.length - 1, cs: Array.from(cs) });
+        giftAdded++;
       }
-      // 체크된 컬럼들을 원본 행에서 그대로 복사 (제품코드/수량은 위에서 이미 처리)
-      state.copyCols.forEach((c) => {
-        if (c === state.mapping.code || c === state.mapping.qty) return;
-        giftRow[c] = row[c] ?? "";
-        cs.add(c);
-      });
-      out.push(giftRow);
-      giftMods.push({ r: out.length - 1, cs: Array.from(cs) });
-      giftAdded++;
     }
   }
+
+  // 마지막 주문 그룹의 글로벌 사은품 마무리
+  flushGlobalGifts();
 
   // 새 워크북 생성 (원본 다른 시트는 그대로 복사)
   const wbOut = XLSX.utils.book_new();
@@ -409,7 +649,9 @@ $("#runProcess").addEventListener("click", () => {
   rep.classList.remove("hidden");
   rep.innerHTML = `처리 완료 → <b>${escapeHtml(fname)}</b> 다운로드됨<br>
     1+1 적용된 행: <b>${bogoApplied}</b>건<br>
-    사은품 행 추가: <b>${giftAdded}</b>건<br>
+    사은품 행 추가 (특정 코드): <b>${giftAdded}</b>건<br>
+    사은품 행 추가 (전체 주문): <b>${globalGiftAdded}</b>건<br>
+    오늘 날짜(${today}) 기준 기간 외 미적용 룰: 1+1 <b>${skippedBogo}</b>건, 사은품 <b>${skippedGifts}</b>건, 전체사은품 <b>${skippedGlobalGifts}</b>건<br>
     원본 데이터 행: <b>${state.aoa.length - (headerIdx + 1)}</b>건 → 출력 데이터 행: <b>${out.length - (headerIdx + 1)}</b>건`;
   $("#runStatus").textContent = "완료";
 });
@@ -421,7 +663,155 @@ function escapeHtml(s) {
   })[c]);
 }
 
+// ---------- Firebase 동기화 ----------
+const FB_CFG_KEY = "excelPromoFirebaseCfg";
+const FB_AUTO_SYNC_KEY = "excelPromoAutoSync";
+let fbDb = null;
+
+function loadFbCfg() {
+  try {
+    const raw = localStorage.getItem(FB_CFG_KEY);
+    if (raw) return JSON.parse(raw);
+  } catch (_) {}
+  return null;
+}
+function saveFbCfg(c) {
+  if (c) localStorage.setItem(FB_CFG_KEY, JSON.stringify(c));
+  else localStorage.removeItem(FB_CFG_KEY);
+}
+function setFbStatus(msg, isError = false) {
+  const el = $("#fbStatus");
+  if (!el) return;
+  el.textContent = msg;
+  el.style.color = isError ? "#c0392b" : "#666";
+}
+
+function initFirebase() {
+  const cfg = loadFbCfg();
+  if (!cfg || !cfg.apiKey || !cfg.projectId) return false;
+  if (typeof firebase === "undefined") {
+    setFbStatus("Firebase SDK가 로드되지 않았습니다. 페이지를 새로고침해 주세요.", true);
+    return false;
+  }
+  try {
+    if (!firebase.apps.length) firebase.initializeApp(cfg);
+    fbDb = firebase.firestore();
+    return true;
+  } catch (e) {
+    setFbStatus("Firebase 초기화 실패: " + e.message, true);
+    return false;
+  }
+}
+
+async function fbPush() {
+  if (!initFirebase()) {
+    setFbStatus("Firebase 설정이 비어있거나 잘못되었습니다.", true);
+    return;
+  }
+  try {
+    setFbStatus("올리는 중...");
+    await fbDb.collection("configs").doc("main").set({
+      bogo: state.cfg.bogo,
+      gifts: state.cfg.gifts,
+      globalGifts: state.cfg.globalGifts,
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+    });
+    setFbStatus("업로드 완료 · " + new Date().toLocaleString("ko-KR"));
+  } catch (e) {
+    setFbStatus("업로드 실패: " + e.message, true);
+  }
+}
+
+async function fbPull() {
+  if (!initFirebase()) {
+    setFbStatus("Firebase 설정이 비어있거나 잘못되었습니다.", true);
+    return;
+  }
+  try {
+    setFbStatus("내려받는 중...");
+    const snap = await fbDb.collection("configs").doc("main").get();
+    if (!snap.exists) {
+      setFbStatus("클라우드에 저장된 데이터가 없습니다.");
+      return;
+    }
+    const data = snap.data();
+    if (Array.isArray(data.bogo)) state.cfg.bogo = data.bogo;
+    if (Array.isArray(data.gifts)) state.cfg.gifts = data.gifts;
+    if (Array.isArray(data.globalGifts)) state.cfg.globalGifts = data.globalGifts;
+    // saveCfg 직접 호출은 자동 푸시 트리거할 수 있으므로 우회
+    localStorage.setItem(LS_KEY, JSON.stringify(state.cfg));
+    renderBogo();
+    renderGifts();
+    renderGlobalGifts();
+    setFbStatus("내려받기 완료 · " + new Date().toLocaleString("ko-KR"));
+  } catch (e) {
+    setFbStatus("내려받기 실패: " + e.message, true);
+  }
+}
+
+let fbAutoTimer = null;
+function scheduleFbAutoPush() {
+  clearTimeout(fbAutoTimer);
+  fbAutoTimer = setTimeout(() => {
+    fbPush().catch(() => {});
+  }, 1500);
+}
+
+function initFbUI() {
+  const fbCfg = loadFbCfg();
+  if (fbCfg) {
+    $("#fbConfig").value = JSON.stringify(fbCfg, null, 2);
+    setFbStatus("저장된 Firebase 설정 사용 중 · 프로젝트: " + (fbCfg.projectId || "?"));
+  }
+  $("#fbAutoSync").checked = localStorage.getItem(FB_AUTO_SYNC_KEY) === "1";
+
+  $("#fbSave").addEventListener("click", () => {
+    const raw = $("#fbConfig").value.trim();
+    if (!raw) {
+      saveFbCfg(null);
+      setFbStatus("Firebase 설정이 삭제되었습니다.");
+      return;
+    }
+    try {
+      const cfg = JSON.parse(raw);
+      if (!cfg.apiKey || !cfg.projectId) {
+        setFbStatus("apiKey와 projectId는 필수입니다.", true);
+        return;
+      }
+      saveFbCfg(cfg);
+      // 새 설정으로 재초기화
+      try {
+        if (firebase.apps.length) firebase.app().delete();
+      } catch (_) {}
+      fbDb = null;
+      const ok = initFirebase();
+      setFbStatus(ok ? "Firebase 설정 저장 완료 · 프로젝트: " + cfg.projectId : "초기화 실패", !ok);
+    } catch (e) {
+      setFbStatus("JSON 파싱 실패: " + e.message, true);
+    }
+  });
+
+  $("#fbClear").addEventListener("click", () => {
+    if (!confirm("Firebase 설정을 삭제할까요? (클라우드 데이터는 그대로 유지됩니다)")) return;
+    saveFbCfg(null);
+    $("#fbConfig").value = "";
+    localStorage.removeItem(FB_AUTO_SYNC_KEY);
+    $("#fbAutoSync").checked = false;
+    fbDb = null;
+    setFbStatus("Firebase 설정이 삭제되었습니다.");
+  });
+
+  $("#fbPush").addEventListener("click", () => fbPush());
+  $("#fbPull").addEventListener("click", () => fbPull());
+  $("#fbAutoSync").addEventListener("change", (e) => {
+    localStorage.setItem(FB_AUTO_SYNC_KEY, e.target.checked ? "1" : "0");
+    setFbStatus(e.target.checked ? "자동 동기화 켜짐 (변경 후 1.5초 뒤 클라우드에 올림)" : "자동 동기화 꺼짐");
+  });
+}
+
 // ---------- 초기화 ----------
 loadCfg();
 renderBogo();
 renderGifts();
+renderGlobalGifts();
+initFbUI();
