@@ -38,13 +38,13 @@ const formatRange = (rule) => {
   return `${rule.start || "처음"} ~ ${rule.end || "끝"}`;
 };
 const ruleStatus = (rule, today = todayStr()) => {
-  if (rule.end && today > rule.end) return { label: "종료", color: "#c0392b" };
-  if (rule.start && today < rule.start) return { label: "예정", color: "#2980b9" };
-  return { label: "진행중", color: "#27ae60" };
+  if (rule.end && today > rule.end) return { label: "종료", cls: "badge-ended" };
+  if (rule.start && today < rule.start) return { label: "예정", cls: "badge-upcoming" };
+  return { label: "진행중", cls: "badge-active" };
 };
 const statusCell = (rule) => {
   const s = ruleStatus(rule);
-  return `<td><span style="color:${s.color};font-weight:600">${s.label}</span></td>`;
+  return `<td><span class="badge ${s.cls}">${s.label}</span></td>`;
 };
 
 function saveCfg() {
@@ -91,7 +91,7 @@ function renderBogo() {
   tbody.innerHTML = "";
   state.cfg.bogo.forEach((b, i) => {
     const tr = document.createElement("tr");
-    if (i === editingBogoIdx) tr.style.background = "#FFF59D";
+    if (i === editingBogoIdx) tr.classList.add("editing");
     tr.innerHTML = `<td>${escapeHtml(b.code)}</td>
                     <td>${escapeHtml(formatRange(b))}</td>
                     ${statusCell(b)}
@@ -237,7 +237,7 @@ function renderGlobalGifts() {
   tbody.innerHTML = "";
   state.cfg.globalGifts.forEach((g, i) => {
     const tr = document.createElement("tr");
-    if (i === editingGlobalIdx) tr.style.background = "#FFF59D";
+    if (i === editingGlobalIdx) tr.classList.add("editing");
     tr.innerHTML = `<td>${g.pool.map(escapeHtml).join(", ")}</td>
                     <td>${escapeHtml(QTY_MODE_LABEL[g.qtyMode] || g.qtyMode)}</td>
                     <td>${escapeHtml(formatRange(g))}</td>
