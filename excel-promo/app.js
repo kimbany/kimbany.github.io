@@ -76,6 +76,17 @@ function renderBogo() {
     const li = document.createElement("li");
     const range = (b.start || b.end) ? ` · ${b.start || "처음"}~${b.end || "끝"}` : "";
     li.appendChild(document.createTextNode(b.code + range + " "));
+    const edit = document.createElement("button");
+    edit.textContent = "수정";
+    edit.title = "이 항목 값을 위 입력칸에 불러옵니다. 수정 후 추가 버튼을 누르면 같은 코드 항목이 갱신됩니다.";
+    edit.addEventListener("click", () => {
+      $("#bogoCode").value = b.code;
+      $("#bogoStart").value = b.start || "";
+      $("#bogoEnd").value = b.end || "";
+      $("#bogoCode").focus();
+      $("#bogoCode").scrollIntoView({ behavior: "smooth", block: "center" });
+    });
+    li.appendChild(edit);
     const x = document.createElement("button");
     x.textContent = "×";
     x.title = "삭제";
@@ -123,8 +134,21 @@ function renderGifts() {
                     <td>${g.pool.map(escapeHtml).join(", ")}</td>
                     <td>${escapeHtml(QTY_MODE_LABEL[g.qtyMode] || g.qtyMode)}</td>
                     <td>${escapeHtml(formatRange(g))}</td>
-                    <td><button data-i="${i}" class="danger">삭제</button></td>`;
+                    <td><button data-i="${i}" class="edit-gift">수정</button> <button data-i="${i}" class="danger">삭제</button></td>`;
     tbody.appendChild(tr);
+  });
+  tbody.querySelectorAll("button.edit-gift").forEach((b) => {
+    b.addEventListener("click", () => {
+      const g = state.cfg.gifts[Number(b.dataset.i)];
+      if (!g) return;
+      $("#giftTrigger").value = g.trigger;
+      $("#giftPool").value = (g.pool || []).join(",");
+      $("#giftStart").value = g.start || "";
+      $("#giftEnd").value = g.end || "";
+      $("#giftQtyMode").value = g.qtyMode || "order";
+      $("#giftTrigger").focus();
+      $("#giftTrigger").scrollIntoView({ behavior: "smooth", block: "center" });
+    });
   });
   tbody.querySelectorAll("button.danger").forEach((b) => {
     b.addEventListener("click", () => {
@@ -164,21 +188,52 @@ $("#giftAdd").addEventListener("click", () => {
 });
 
 // ---------- 메뉴1: 모든 주문에 사은품 (글로벌) ----------
+let editingGlobalIdx = -1;
+
+function updateGlobalAddButton() {
+  const btn = $("#globalGiftAdd");
+  if (!btn) return;
+  btn.textContent = editingGlobalIdx >= 0 ? "수정 저장" : "추가";
+}
+
 function renderGlobalGifts() {
   const tbody = $("#globalGiftTable tbody");
   tbody.innerHTML = "";
   state.cfg.globalGifts.forEach((g, i) => {
     const tr = document.createElement("tr");
+    if (i === editingGlobalIdx) tr.style.background = "#FFF59D";
     tr.innerHTML = `<td>${g.pool.map(escapeHtml).join(", ")}</td>
                     <td>${escapeHtml(QTY_MODE_LABEL[g.qtyMode] || g.qtyMode)}</td>
                     <td>${escapeHtml(formatRange(g))}</td>
-                    <td><button data-i="${i}" class="danger">삭제</button></td>`;
+                    <td><button data-i="${i}" class="edit-global">수정</button> <button data-i="${i}" class="danger">삭제</button></td>`;
     tbody.appendChild(tr);
+  });
+  tbody.querySelectorAll("button.edit-global").forEach((b) => {
+    b.addEventListener("click", () => {
+      const idx = Number(b.dataset.i);
+      const g = state.cfg.globalGifts[idx];
+      if (!g) return;
+      editingGlobalIdx = idx;
+      $("#globalGiftPool").value = (g.pool || []).join(",");
+      $("#globalGiftStart").value = g.start || "";
+      $("#globalGiftEnd").value = g.end || "";
+      $("#globalGiftQtyMode").value = g.qtyMode || "order";
+      updateGlobalAddButton();
+      renderGlobalGifts();
+      $("#globalGiftPool").focus();
+      $("#globalGiftPool").scrollIntoView({ behavior: "smooth", block: "center" });
+    });
   });
   tbody.querySelectorAll("button.danger").forEach((b) => {
     b.addEventListener("click", () => {
       const idx = Number(b.dataset.i);
       state.cfg.globalGifts.splice(idx, 1);
+      if (editingGlobalIdx === idx) {
+        editingGlobalIdx = -1;
+        updateGlobalAddButton();
+      } else if (editingGlobalIdx > idx) {
+        editingGlobalIdx -= 1;
+      }
       saveCfg();
       renderGlobalGifts();
     });
@@ -193,11 +248,17 @@ $("#globalGiftAdd").addEventListener("click", () => {
   const start = $("#globalGiftStart").value || "";
   const end = $("#globalGiftEnd").value || "";
   const qtyMode = $("#globalGiftQtyMode").value || "order";
-  state.cfg.globalGifts.push({ pool, start, end, qtyMode });
+  if (editingGlobalIdx >= 0 && state.cfg.globalGifts[editingGlobalIdx]) {
+    state.cfg.globalGifts[editingGlobalIdx] = { pool, start, end, qtyMode };
+    editingGlobalIdx = -1;
+  } else {
+    state.cfg.globalGifts.push({ pool, start, end, qtyMode });
+  }
   $("#globalGiftPool").value = "";
   $("#globalGiftStart").value = "";
   $("#globalGiftEnd").value = "";
   $("#globalGiftQtyMode").value = "order";
+  updateGlobalAddButton();
   saveCfg();
   renderGlobalGifts();
 });
