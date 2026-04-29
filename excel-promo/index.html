@@ -145,11 +145,16 @@
       <button id="copyDefault" type="button">기본 추천</button>
     </div>
 
-    <h2>4. 미리보기</h2>
+    <h2>4. 원본 엑셀 미리보기</h2>
     <div class="tablewrap nowrap"><table id="preview" class="grid"></table></div>
     <div id="previewPager" class="pager"></div>
 
-    <h2>5. 처리 & 다운로드</h2>
+    <h2>5. 행사 적용 미리보기</h2>
+    <p class="desc">위 원본에 행사가 적용되면 이렇게 변합니다. <span class="cell-bogo" style="padding:0 6px;border-radius:3px">노란색</span>은 1+1로 수량이 ×2된 셀, <span class="cell-gift" style="padding:0 6px;border-radius:3px">연두색</span>은 새로 추가될 사은품 행입니다. <b>매칭 기준</b> 칸으로 우선/보조 컬럼 중 어느 쪽으로 행사가 매칭됐는지 확인하세요. (사은품 코드는 미리보기에서 풀의 첫 번째 코드를 보여주며, 실제 다운로드 시에는 풀 안에서 랜덤 선택됩니다.)</p>
+    <div class="tablewrap nowrap"><table id="appliedPreview" class="grid"></table></div>
+    <div id="appliedPreviewPager" class="pager"></div>
+
+    <h2>6. 처리 & 다운로드</h2>
     <div class="row">
       <button id="runProcess" class="primary">행사 적용해서 다운로드</button>
       <span id="runStatus" class="hint"></span>
