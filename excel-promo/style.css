@@ -51,6 +51,27 @@ button.danger:hover { background: #fdecea; }
 .grid th, .grid td { padding: 8px 10px; border-bottom: 1px solid #eef0f6; font-size: 13px; text-align: left; }
 .grid th { background: #f0f2fa; font-weight: 600; }
 .tablewrap { overflow: auto; max-height: 420px; border: 1px solid #e3e5ee; border-radius: 6px; }
+.tablewrap.nowrap th, .tablewrap.nowrap td { white-space: nowrap; }
+
+.dropzone {
+  display: flex; align-items: center; justify-content: center;
+  border: 2px dashed #b9c2dc; border-radius: 10px; background: #fafbff;
+  padding: 32px 20px; cursor: pointer; transition: background 0.15s, border-color 0.15s;
+  text-align: center; color: #555; font-size: 14px;
+}
+.dropzone:hover { background: #f0f4ff; border-color: #1f5cff; }
+.dropzone.over { background: #d6e2ff; border-color: #1f5cff; color: #1849cc; }
+.dz-text b { color: #1f5cff; }
+
+.pager { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin: 8px 0 16px; }
+.pager .pages { display: flex; gap: 4px; flex-wrap: wrap; }
+.pager .pages button {
+  min-width: 32px; padding: 4px 8px; font-size: 13px;
+}
+.pager .pages button.current { background: #1f5cff; color: #fff; border-color: #1f5cff; }
+.pager .pages button:disabled { opacity: 0.4; cursor: not-allowed; }
+
+input[type=date] { padding: 7px 10px; border: 1px solid #d3d6e0; border-radius: 6px; font-size: 14px; background: #fff; }
 
 .grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px; margin: 10px 0; }
 .grid2 label { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: #444; }

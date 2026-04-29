@@ -15,12 +15,28 @@ const state = {
   headers: [],                           // 헤더 셀 텍스트
   mapping: { code: -1, codeAlt: -1, qty: -1 },
   copyCols: new Set(),                   // 사은품 행에 복사할 컬럼들
+  previewPage: 0,                        // 미리보기 현재 페이지 (0-base)
 };
+const PREVIEW_PER_PAGE = 10;
 
 // ---------- 유틸 ----------
 const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => Array.from(document.querySelectorAll(sel));
 const norm = (v) => (v === undefined || v === null ? "" : String(v).trim());
+
+const todayStr = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+};
+const isActiveOnDate = (rule, today) => {
+  if (rule.start && today < rule.start) return false;
+  if (rule.end && today > rule.end) return false;
+  return true;
+};
+const formatRange = (rule) => {
+  if (!rule.start && !rule.end) return "(상시)";
+  return `${rule.start || "처음"} ~ ${rule.end || "끝"}`;
+};
 
 function saveCfg() {
   localStorage.setItem(LS_KEY, JSON.stringify(state.cfg));
@@ -32,6 +48,11 @@ function loadCfg() {
   } catch (_) {}
   if (!Array.isArray(state.cfg.bogo)) state.cfg.bogo = [];
   if (!Array.isArray(state.cfg.gifts)) state.cfg.gifts = [];
+  // 마이그레이션: bogo 항목 string -> object, gifts 에 start/end 보강
+  state.cfg.bogo = state.cfg.bogo.map((b) =>
+    typeof b === "string" ? { code: b, start: "", end: "" } : { start: "", end: "", ...b }
+  );
+  state.cfg.gifts = state.cfg.gifts.map((g) => ({ start: "", end: "", ...g }));
 }
 
 // ---------- 탭 ----------
@@ -48,9 +69,10 @@ $$(".tab").forEach((btn) => {
 function renderBogo() {
   const ul = $("#bogoList");
   ul.innerHTML = "";
-  state.cfg.bogo.forEach((code, i) => {
+  state.cfg.bogo.forEach((b, i) => {
     const li = document.createElement("li");
-    li.textContent = code;
+    const range = (b.start || b.end) ? ` · ${b.start || "처음"}~${b.end || "끝"}` : "";
+    li.appendChild(document.createTextNode(b.code + range + " "));
     const x = document.createElement("button");
     x.textContent = "×";
     x.title = "삭제";
@@ -65,10 +87,20 @@ function renderBogo() {
 }
 
 $("#bogoAdd").addEventListener("click", () => {
-  const v = norm($("#bogoCode").value);
-  if (!v) return;
-  if (!state.cfg.bogo.includes(v)) state.cfg.bogo.push(v);
+  const code = norm($("#bogoCode").value);
+  if (!code) return;
+  const start = $("#bogoStart").value || "";
+  const end = $("#bogoEnd").value || "";
+  const existing = state.cfg.bogo.find((b) => b.code === code);
+  if (existing) {
+    existing.start = start;
+    existing.end = end;
+  } else {
+    state.cfg.bogo.push({ code, start, end });
+  }
   $("#bogoCode").value = "";
+  $("#bogoStart").value = "";
+  $("#bogoEnd").value = "";
   saveCfg();
   renderBogo();
 });
@@ -84,6 +116,7 @@ function renderGifts() {
     const tr = document.createElement("tr");
     tr.innerHTML = `<td>${escapeHtml(g.trigger)}</td>
                     <td>${g.pool.map(escapeHtml).join(", ")}</td>
+                    <td>${escapeHtml(formatRange(g))}</td>
                     <td><button data-i="${i}" class="danger">삭제</button></td>`;
     tbody.appendChild(tr);
   });
@@ -103,11 +136,20 @@ $("#giftAdd").addEventListener("click", () => {
   if (!trigger || !poolRaw) return;
   const pool = poolRaw.split(",").map((s) => s.trim()).filter(Boolean);
   if (!pool.length) return;
+  const start = $("#giftStart").value || "";
+  const end = $("#giftEnd").value || "";
   const existing = state.cfg.gifts.find((g) => g.trigger === trigger);
-  if (existing) existing.pool = pool;
-  else state.cfg.gifts.push({ trigger, pool });
+  if (existing) {
+    existing.pool = pool;
+    existing.start = start;
+    existing.end = end;
+  } else {
+    state.cfg.gifts.push({ trigger, pool, start, end });
+  }
   $("#giftTrigger").value = "";
   $("#giftPool").value = "";
+  $("#giftStart").value = "";
+  $("#giftEnd").value = "";
   saveCfg();
   renderGifts();
 });
@@ -150,9 +192,7 @@ $("#resetCfg").addEventListener("click", () => {
 });
 
 // ---------- 메뉴2: 엑셀 업로드 ----------
-$("#xlsxFile").addEventListener("change", async (e) => {
-  const f = e.target.files?.[0];
-  if (!f) return;
+async function loadExcelFile(f) {
   $("#fileName").textContent = f.name;
   const buf = await f.arrayBuffer();
   state.workbook = XLSX.read(buf, { type: "array" });
@@ -165,10 +205,37 @@ $("#xlsxFile").addEventListener("change", async (e) => {
     sel.appendChild(opt);
   });
   state.sheetName = state.workbook.SheetNames[0];
+  state.previewPage = 0;
   $("#sheetPickWrap").classList.remove("hidden");
   $("#mappingWrap").classList.add("hidden");
   $("#report").classList.add("hidden");
+}
+
+$("#xlsxFile").addEventListener("change", async (e) => {
+  const f = e.target.files?.[0];
+  if (!f) return;
+  await loadExcelFile(f);
 });
+
+// 드래그&드롭
+const dz = $("#dropZone");
+if (dz) {
+  ["dragenter", "dragover"].forEach((ev) =>
+    dz.addEventListener(ev, (e) => { e.preventDefault(); e.stopPropagation(); dz.classList.add("over"); })
+  );
+  ["dragleave", "drop"].forEach((ev) =>
+    dz.addEventListener(ev, (e) => { e.preventDefault(); e.stopPropagation(); dz.classList.remove("over"); })
+  );
+  dz.addEventListener("drop", async (e) => {
+    const f = e.dataTransfer?.files?.[0];
+    if (!f) return;
+    if (!/\.(xlsx|xls)$/i.test(f.name)) {
+      alert("엑셀 파일(.xlsx, .xls)만 업로드 가능합니다.");
+      return;
+    }
+    await loadExcelFile(f);
+  });
+}
 
 $("#sheetPick").addEventListener("change", (e) => {
   state.sheetName = e.target.value;
@@ -304,6 +371,11 @@ function renderPreview() {
   const tbl = $("#preview");
   tbl.innerHTML = "";
   const headerIdx = state.headerRow - 1;
+  const dataRows = state.aoa.slice(headerIdx + 1);
+  const totalPages = Math.max(1, Math.ceil(dataRows.length / PREVIEW_PER_PAGE));
+  const page = Math.max(0, Math.min(state.previewPage || 0, totalPages - 1));
+  state.previewPage = page;
+
   const thead = document.createElement("thead");
   const trh = document.createElement("tr");
   state.headers.forEach((h) => {
@@ -313,18 +385,57 @@ function renderPreview() {
   });
   thead.appendChild(trh);
   tbl.appendChild(thead);
+
   const tbody = document.createElement("tbody");
-  const rows = state.aoa.slice(headerIdx + 1, headerIdx + 1 + 10);
-  rows.forEach((r) => {
+  const start = page * PREVIEW_PER_PAGE;
+  const end = Math.min(dataRows.length, start + PREVIEW_PER_PAGE);
+  for (let r = start; r < end; r++) {
+    const row = dataRows[r];
     const tr = document.createElement("tr");
     for (let i = 0; i < state.headers.length; i++) {
       const td = document.createElement("td");
-      td.textContent = r[i] === undefined ? "" : String(r[i]);
+      td.textContent = row[i] === undefined ? "" : String(row[i]);
       tr.appendChild(td);
     }
     tbody.appendChild(tr);
-  });
+  }
   tbl.appendChild(tbody);
+
+  renderPreviewPager(page, totalPages, dataRows.length);
+}
+
+function renderPreviewPager(page, totalPages, totalRows) {
+  const pager = $("#previewPager");
+  pager.innerHTML = "";
+  const info = document.createElement("span");
+  info.className = "hint";
+  info.textContent = totalRows
+    ? `총 ${totalRows}행 · ${page + 1}/${totalPages} 페이지`
+    : "데이터 없음";
+  pager.appendChild(info);
+  if (totalPages <= 1) return;
+
+  const wrap = document.createElement("div");
+  wrap.className = "pages";
+  const mkBtn = (label, p, opts = {}) => {
+    const b = document.createElement("button");
+    b.textContent = label;
+    if (opts.disabled) b.disabled = true;
+    if (opts.current) b.classList.add("current");
+    b.addEventListener("click", () => { state.previewPage = p; renderPreview(); });
+    return b;
+  };
+  wrap.appendChild(mkBtn("«", 0, { disabled: page === 0 }));
+  wrap.appendChild(mkBtn("‹", page - 1, { disabled: page === 0 }));
+  const winSize = 5;
+  const winStart = Math.max(0, Math.min(page - Math.floor(winSize / 2), totalPages - winSize));
+  const winEnd = Math.min(totalPages, winStart + winSize);
+  for (let p = winStart; p < winEnd; p++) {
+    wrap.appendChild(mkBtn(String(p + 1), p, { current: p === page }));
+  }
+  wrap.appendChild(mkBtn("›", page + 1, { disabled: page === totalPages - 1 }));
+  wrap.appendChild(mkBtn("»", totalPages - 1, { disabled: page === totalPages - 1 }));
+  pager.appendChild(wrap);
 }
 
 // ---------- 처리 & 다운로드 ----------
@@ -338,8 +449,13 @@ $("#runProcess").addEventListener("click", () => {
   const headerIdx = state.headerRow - 1;
   const out = state.aoa.slice(0, headerIdx + 1).map((r) => r.slice());
 
-  const giftMap = new Map(state.cfg.gifts.map((g) => [g.trigger, g.pool]));
-  const bogoSet = new Set(state.cfg.bogo);
+  const today = todayStr();
+  const activeBogo = state.cfg.bogo.filter((b) => isActiveOnDate(b, today));
+  const activeGifts = state.cfg.gifts.filter((g) => isActiveOnDate(g, today));
+  const giftMap = new Map(activeGifts.map((g) => [g.trigger, g.pool]));
+  const bogoSet = new Set(activeBogo.map((b) => b.code));
+  const skippedBogo = state.cfg.bogo.length - activeBogo.length;
+  const skippedGifts = state.cfg.gifts.length - activeGifts.length;
 
   let bogoApplied = 0;
   let giftAdded = 0;
@@ -423,6 +539,7 @@ $("#runProcess").addEventListener("click", () => {
   rep.innerHTML = `처리 완료 → <b>${escapeHtml(fname)}</b> 다운로드됨<br>
     1+1 적용된 행: <b>${bogoApplied}</b>건<br>
     사은품 행 추가: <b>${giftAdded}</b>건<br>
+    오늘 날짜(${today}) 기준 기간 외라 미적용된 룰: 1+1 <b>${skippedBogo}</b>건, 사은품 <b>${skippedGifts}</b>건<br>
     원본 데이터 행: <b>${state.aoa.length - (headerIdx + 1)}</b>건 → 출력 데이터 행: <b>${out.length - (headerIdx + 1)}</b>건`;
   $("#runStatus").textContent = "완료";
 });
