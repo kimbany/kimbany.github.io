@@ -295,34 +295,38 @@ $("#runProcess").addEventListener("click", () => {
 
   let bogoApplied = 0;
   let giftAdded = 0;
+  const bogoMods = []; // [{ r, c }]
+  const giftMods = []; // [{ r, cs: [c, ...] }]
 
   for (let r = headerIdx + 1; r < state.aoa.length; r++) {
     const row = state.aoa[r].slice();
     const code = norm(row[state.mapping.code]);
-    if (!code) {
-      out.push(row);
-      continue;
-    }
 
-    if (bogoSet.has(code) && state.mapping.qty >= 0) {
+    let bogoModified = false;
+    if (code && bogoSet.has(code) && state.mapping.qty >= 0) {
       const q = Number(row[state.mapping.qty]);
       if (Number.isFinite(q)) {
         row[state.mapping.qty] = q * 2;
         bogoApplied++;
+        bogoModified = true;
       }
     }
     out.push(row);
+    if (bogoModified) bogoMods.push({ r: out.length - 1, c: state.mapping.qty });
 
-    if (giftMap.has(code)) {
+    if (code && giftMap.has(code)) {
       const pool = giftMap.get(code);
       const giftCode = pool[Math.floor(Math.random() * pool.length)];
       const giftRow = new Array(row.length).fill("");
+      const cs = [];
       giftRow[state.mapping.code] = giftCode;
-      if (state.mapping.qty >= 0) giftRow[state.mapping.qty] = 1;
-      if (state.mapping.buyer >= 0) giftRow[state.mapping.buyer] = row[state.mapping.buyer] ?? "";
-      if (state.mapping.phone >= 0) giftRow[state.mapping.phone] = row[state.mapping.phone] ?? "";
-      if (state.mapping.addr >= 0) giftRow[state.mapping.addr] = row[state.mapping.addr] ?? "";
+      cs.push(state.mapping.code);
+      if (state.mapping.qty >= 0) { giftRow[state.mapping.qty] = 1; cs.push(state.mapping.qty); }
+      if (state.mapping.buyer >= 0) { giftRow[state.mapping.buyer] = row[state.mapping.buyer] ?? ""; cs.push(state.mapping.buyer); }
+      if (state.mapping.phone >= 0) { giftRow[state.mapping.phone] = row[state.mapping.phone] ?? ""; cs.push(state.mapping.phone); }
+      if (state.mapping.addr >= 0) { giftRow[state.mapping.addr] = row[state.mapping.addr] ?? ""; cs.push(state.mapping.addr); }
       out.push(giftRow);
+      giftMods.push({ r: out.length - 1, cs });
       giftAdded++;
     }
   }
@@ -330,6 +334,17 @@ $("#runProcess").addEventListener("click", () => {
   // 새 워크북 생성 (원본 다른 시트는 그대로 복사)
   const wbOut = XLSX.utils.book_new();
   const wsOut = XLSX.utils.aoa_to_sheet(out);
+
+  // 변경된 셀 색상 표시 (xlsx-js-style 필요)
+  const bogoStyle = { fill: { patternType: "solid", fgColor: { rgb: "FFF59D" } } }; // 연한 노랑
+  const giftStyle = { fill: { patternType: "solid", fgColor: { rgb: "C8E6C9" } } }; // 연한 연두
+  const paintCell = (r, c, style) => {
+    const ref = XLSX.utils.encode_cell({ r, c });
+    if (!wsOut[ref]) wsOut[ref] = { t: "s", v: "" };
+    wsOut[ref].s = style;
+  };
+  bogoMods.forEach(({ r, c }) => paintCell(r, c, bogoStyle));
+  giftMods.forEach(({ r, cs }) => cs.forEach((c) => paintCell(r, c, giftStyle)));
   state.workbook.SheetNames.forEach((sn) => {
     if (sn === state.sheetName) {
       XLSX.utils.book_append_sheet(wbOut, wsOut, sn);

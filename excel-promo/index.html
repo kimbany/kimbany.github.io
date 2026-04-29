@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>엑셀 행사 처리기</title>
-<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -107,8 +107,8 @@
   </ol>
   <h2>처리 규칙</h2>
   <ul>
-    <li><b>1+1</b>: 등록된 제품코드 행의 <b>구매수량 × 2</b></li>
-    <li><b>사은품 증정</b>: 등록된 제품코드 행 바로 아래에 <b>새 행 삽입</b>. 구매자명/연락처/주소 복사, 제품코드는 풀에서 <b>랜덤 1개</b> 선택, 수량 1, 비고에 “사은품(원본행 N)” 표기</li>
+    <li><b>1+1</b>: 등록된 제품코드 행의 <b>구매수량 × 2</b> (변경된 수량 셀은 <span style="background:#FFF59D;padding:0 4px">노란색</span>으로 표시)</li>
+    <li><b>사은품 증정</b>: 등록된 제품코드 행 바로 아래에 <b>새 행 삽입</b>. 구매자명/연락처/주소 복사, 제품코드는 풀에서 <b>랜덤 1개</b> 선택, 수량 1. 추가된 행의 셀은 <span style="background:#C8E6C9;padding:0 4px">연두색</span>으로 표시</li>
   </ul>
   <h2>참고</h2>
   <ul>
