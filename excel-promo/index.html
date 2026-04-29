@@ -24,14 +24,17 @@
 <!-- ================= MENU 1 ================= -->
 <section id="menu1" class="panel active">
   <h2>1. 1+1 행사</h2>
-  <p class="desc">아래 목록에 등록된 제품코드는 엑셀의 구매수량이 자동으로 ×2 처리됩니다. 적용 기간은 비워두면 상시 적용됩니다.</p>
+  <p class="desc">아래 목록에 등록된 제품코드는 엑셀의 구매수량이 자동으로 ×2 처리됩니다. 적용 기간은 각 항목마다 따로 설정되며, 비워두면 상시 적용됩니다.</p>
   <div class="row">
     <input type="text" id="bogoCode" placeholder="제품코드 입력 (예: A001)">
     <label class="hint">시작 <input type="date" id="bogoStart"></label>
     <label class="hint">종료 <input type="date" id="bogoEnd"></label>
     <button id="bogoAdd">추가</button>
   </div>
-  <ul id="bogoList" class="chips"></ul>
+  <table id="bogoTable" class="grid">
+    <thead><tr><th>제품코드</th><th>적용 기간</th><th>관리</th></tr></thead>
+    <tbody></tbody>
+  </table>
 
   <h2>2. 사은품 증정 행사 (특정 제품코드)</h2>
   <p class="desc">대상 제품코드, 랜덤 사은품 코드들, 적용 기간, 수량 모드를 등록합니다. 해당 제품 구매 시 바로 아래 행에 사은품 행이 추가됩니다.</p>

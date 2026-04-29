@@ -69,34 +69,53 @@ $$(".tab").forEach((btn) => {
 });
 
 // ---------- 메뉴1: 1+1 ----------
+let editingBogoIdx = -1;
+
+function updateBogoAddButton() {
+  const btn = $("#bogoAdd");
+  if (!btn) return;
+  btn.textContent = editingBogoIdx >= 0 ? "수정 저장" : "추가";
+}
+
 function renderBogo() {
-  const ul = $("#bogoList");
-  ul.innerHTML = "";
+  const tbody = $("#bogoTable tbody");
+  tbody.innerHTML = "";
   state.cfg.bogo.forEach((b, i) => {
-    const li = document.createElement("li");
-    const range = (b.start || b.end) ? ` · ${b.start || "처음"}~${b.end || "끝"}` : "";
-    li.appendChild(document.createTextNode(b.code + range + " "));
-    const edit = document.createElement("button");
-    edit.textContent = "수정";
-    edit.title = "이 항목 값을 위 입력칸에 불러옵니다. 수정 후 추가 버튼을 누르면 같은 코드 항목이 갱신됩니다.";
-    edit.addEventListener("click", () => {
+    const tr = document.createElement("tr");
+    if (i === editingBogoIdx) tr.style.background = "#FFF59D";
+    tr.innerHTML = `<td>${escapeHtml(b.code)}</td>
+                    <td>${escapeHtml(formatRange(b))}</td>
+                    <td><button data-i="${i}" class="edit-bogo">수정</button> <button data-i="${i}" class="danger">삭제</button></td>`;
+    tbody.appendChild(tr);
+  });
+  tbody.querySelectorAll("button.edit-bogo").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const idx = Number(btn.dataset.i);
+      const b = state.cfg.bogo[idx];
+      if (!b) return;
+      editingBogoIdx = idx;
       $("#bogoCode").value = b.code;
       $("#bogoStart").value = b.start || "";
       $("#bogoEnd").value = b.end || "";
+      updateBogoAddButton();
+      renderBogo();
       $("#bogoCode").focus();
       $("#bogoCode").scrollIntoView({ behavior: "smooth", block: "center" });
     });
-    li.appendChild(edit);
-    const x = document.createElement("button");
-    x.textContent = "×";
-    x.title = "삭제";
-    x.addEventListener("click", () => {
-      state.cfg.bogo.splice(i, 1);
+  });
+  tbody.querySelectorAll("button.danger").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const idx = Number(btn.dataset.i);
+      state.cfg.bogo.splice(idx, 1);
+      if (editingBogoIdx === idx) {
+        editingBogoIdx = -1;
+        updateBogoAddButton();
+      } else if (editingBogoIdx > idx) {
+        editingBogoIdx -= 1;
+      }
       saveCfg();
       renderBogo();
     });
-    li.appendChild(x);
-    ul.appendChild(li);
   });
 }
 
@@ -105,16 +124,22 @@ $("#bogoAdd").addEventListener("click", () => {
   if (!code) return;
   const start = $("#bogoStart").value || "";
   const end = $("#bogoEnd").value || "";
-  const existing = state.cfg.bogo.find((b) => b.code === code);
-  if (existing) {
-    existing.start = start;
-    existing.end = end;
+  if (editingBogoIdx >= 0 && state.cfg.bogo[editingBogoIdx]) {
+    state.cfg.bogo[editingBogoIdx] = { code, start, end };
+    editingBogoIdx = -1;
   } else {
-    state.cfg.bogo.push({ code, start, end });
+    const existing = state.cfg.bogo.find((b) => b.code === code);
+    if (existing) {
+      existing.start = start;
+      existing.end = end;
+    } else {
+      state.cfg.bogo.push({ code, start, end });
+    }
   }
   $("#bogoCode").value = "";
   $("#bogoStart").value = "";
   $("#bogoEnd").value = "";
+  updateBogoAddButton();
   saveCfg();
   renderBogo();
 });
