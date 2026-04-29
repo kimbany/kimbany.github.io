@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>엑셀 행사 처리기</title>
-<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -75,20 +75,26 @@
   </div>
 
   <div id="mappingWrap" class="hidden">
-    <h2>2. 컬럼 매핑</h2>
-    <p class="desc">엑셀의 어떤 컬럼이 무슨 정보인지 지정해 주세요. 헤더명이 비슷하면 자동으로 잡아둡니다.</p>
+    <h2>2. 컬럼 매핑 (필수)</h2>
+    <p class="desc">행사 적용에 필요한 두 컬럼을 지정해 주세요. 헤더명을 보고 자동으로 잡아 둡니다.</p>
     <div class="grid2">
       <label>제품코드 컬럼<select id="colCode"></select></label>
-      <label>구매수량 컬럼<select id="colQty"></select></label>
-      <label>구매자명 컬럼<select id="colBuyer"></select></label>
-      <label>연락처 컬럼<select id="colPhone"></select></label>
-      <label>주소 컬럼<select id="colAddr"></select></label>
+      <label>수량 컬럼<select id="colQty"></select></label>
     </div>
 
-    <h2>3. 미리보기 (앞 10행)</h2>
+    <h2>3. 사은품 행에 복사할 컬럼</h2>
+    <p class="desc">사은품 행이 추가될 때, 원본 주문 행에서 아래 체크된 컬럼들의 값이 그대로 복사됩니다. (제품코드/수량은 자동 처리)</p>
+    <div id="copyCols" class="checklist"></div>
+    <div class="row">
+      <button id="copyAll" type="button">모두 선택</button>
+      <button id="copyNone" type="button">모두 해제</button>
+      <button id="copyDefault" type="button">기본 추천</button>
+    </div>
+
+    <h2>4. 미리보기 (앞 10행)</h2>
     <div class="tablewrap"><table id="preview" class="grid"></table></div>
 
-    <h2>4. 처리 & 다운로드</h2>
+    <h2>5. 처리 & 다운로드</h2>
     <div class="row">
       <button id="runProcess" class="primary">행사 적용해서 다운로드</button>
       <span id="runStatus" class="hint"></span>
@@ -107,8 +113,8 @@
   </ol>
   <h2>처리 규칙</h2>
   <ul>
-    <li><b>1+1</b>: 등록된 제품코드 행의 <b>구매수량 × 2</b></li>
-    <li><b>사은품 증정</b>: 등록된 제품코드 행 바로 아래에 <b>새 행 삽입</b>. 구매자명/연락처/주소 복사, 제품코드는 풀에서 <b>랜덤 1개</b> 선택, 수량 1, 비고에 “사은품(원본행 N)” 표기</li>
+    <li><b>1+1</b>: 등록된 제품코드 행의 <b>구매수량 × 2</b> (변경된 수량 셀은 <span style="background:#FFF59D;padding:0 4px">노란색</span>으로 표시)</li>
+    <li><b>사은품 증정</b>: 등록된 제품코드 행 바로 아래에 <b>새 행 삽입</b>. 메뉴2의 “사은품 행에 복사할 컬럼”에서 체크된 컬럼들이 원본 행에서 그대로 복사되며, 제품코드는 풀에서 <b>랜덤 1개</b>, 수량은 1로 설정됩니다. 추가된 행의 셀은 <span style="background:#C8E6C9;padding:0 4px">연두색</span>으로 표시</li>
   </ul>
   <h2>참고</h2>
   <ul>

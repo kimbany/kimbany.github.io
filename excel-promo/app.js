@@ -13,7 +13,8 @@ const state = {
   headerRow: 1,                          // 1-indexed
   aoa: null,                             // 시트 전체 (2차원 배열)
   headers: [],                           // 헤더 셀 텍스트
-  mapping: { code: -1, qty: -1, buyer: -1, phone: -1, addr: -1 },
+  mapping: { code: -1, qty: -1 },
+  copyCols: new Set(),                   // 사은품 행에 복사할 컬럼들
 };
 
 // ---------- 유틸 ----------
@@ -195,8 +196,7 @@ $("#loadPreview").addEventListener("click", () => {
 });
 
 function buildMappingSelectors() {
-  const ids = ["#colCode", "#colQty", "#colBuyer", "#colPhone", "#colAddr"];
-  ids.forEach((id) => {
+  ["#colCode", "#colQty"].forEach((id) => {
     const sel = $(id);
     sel.innerHTML = "";
     const noneOpt = document.createElement("option");
@@ -212,30 +212,76 @@ function buildMappingSelectors() {
   });
   $("#colCode").addEventListener("change", () => (state.mapping.code = Number($("#colCode").value)));
   $("#colQty").addEventListener("change", () => (state.mapping.qty = Number($("#colQty").value)));
-  $("#colBuyer").addEventListener("change", () => (state.mapping.buyer = Number($("#colBuyer").value)));
-  $("#colPhone").addEventListener("change", () => (state.mapping.phone = Number($("#colPhone").value)));
-  $("#colAddr").addEventListener("change", () => (state.mapping.addr = Number($("#colAddr").value)));
+
+  // 사은품 행에 복사할 컬럼 체크리스트
+  const wrap = $("#copyCols");
+  wrap.innerHTML = "";
+  state.headers.forEach((h, i) => {
+    const lab = document.createElement("label");
+    lab.innerHTML = `<input type="checkbox" data-i="${i}"> ${columnLetter(i)} · ${escapeHtml(h)}`;
+    wrap.appendChild(lab);
+  });
+  wrap.querySelectorAll("input[type=checkbox]").forEach((cb) => {
+    cb.addEventListener("change", (e) => {
+      const i = Number(e.target.dataset.i);
+      if (e.target.checked) state.copyCols.add(i);
+      else state.copyCols.delete(i);
+    });
+  });
+}
+
+function applyCopyColsToCheckboxes() {
+  document.querySelectorAll("#copyCols input[type=checkbox]").forEach((cb) => {
+    cb.checked = state.copyCols.has(Number(cb.dataset.i));
+  });
 }
 
 function autoMap() {
+  const norms = state.headers.map((h) => h.toLowerCase().replace(/\s+/g, ""));
+  // 패턴 우선순위로 첫 매칭을 잡는다 (구체적인 키워드를 앞에 둘 것)
   const guess = (patterns) => {
-    for (let i = 0; i < state.headers.length; i++) {
-      const h = state.headers[i].toLowerCase().replace(/\s+/g, "");
-      if (patterns.some((p) => h.includes(p))) return i;
+    for (const p of patterns) {
+      const np = p.toLowerCase().replace(/\s+/g, "");
+      for (let i = 0; i < norms.length; i++) {
+        if (norms[i].includes(np)) return i;
+      }
     }
     return -1;
   };
-  state.mapping.code = guess(["제품코드", "상품코드", "코드", "productcode", "sku"]);
-  state.mapping.qty = guess(["수량", "구매수량", "주문수량", "qty", "quantity"]);
-  state.mapping.buyer = guess(["구매자", "주문자", "이름", "성명", "buyer", "name"]);
-  state.mapping.phone = guess(["연락처", "전화", "휴대폰", "phone", "tel", "mobile"]);
-  state.mapping.addr = guess(["주소", "배송지", "address", "addr"]);
+  state.mapping.code = guess(["상품코드", "productcode", "sku", "품목코드", "제품코드", "코드"]);
+  state.mapping.qty = guess(["수량", "주문수량", "구매수량", "qty", "quantity"]);
   $("#colCode").value = String(state.mapping.code);
   $("#colQty").value = String(state.mapping.qty);
-  $("#colBuyer").value = String(state.mapping.buyer);
-  $("#colPhone").value = String(state.mapping.phone);
-  $("#colAddr").value = String(state.mapping.addr);
+
+  // 사은품 행에 복사할 컬럼 자동 체크
+  state.copyCols = computeDefaultCopyCols();
+  applyCopyColsToCheckboxes();
 }
+
+function computeDefaultCopyCols() {
+  const norms = state.headers.map((h) => h.toLowerCase().replace(/\s+/g, ""));
+  // 주문자명 / 수령인계열 / 배송메시지(메모) 컬럼을 기본 추천
+  const patterns = ["주문자명", "수령인", "받는분", "받는사람", "배송메시지", "배송메모"];
+  const set = new Set();
+  norms.forEach((h, i) => {
+    if (patterns.some((p) => h.includes(p.toLowerCase().replace(/\s+/g, "")))) set.add(i);
+  });
+  return set;
+}
+
+// 모두 선택 / 해제 / 기본 추천 버튼
+document.addEventListener("click", (e) => {
+  if (e.target.id === "copyAll") {
+    state.copyCols = new Set(state.headers.map((_, i) => i));
+    applyCopyColsToCheckboxes();
+  } else if (e.target.id === "copyNone") {
+    state.copyCols = new Set();
+    applyCopyColsToCheckboxes();
+  } else if (e.target.id === "copyDefault") {
+    state.copyCols = computeDefaultCopyCols();
+    applyCopyColsToCheckboxes();
+  }
+});
 
 function columnLetter(i) {
   let s = "";
@@ -291,34 +337,44 @@ $("#runProcess").addEventListener("click", () => {
 
   let bogoApplied = 0;
   let giftAdded = 0;
+  const bogoMods = []; // [{ r, c }]
+  const giftMods = []; // [{ r, cs: [c, ...] }]
 
   for (let r = headerIdx + 1; r < state.aoa.length; r++) {
     const row = state.aoa[r].slice();
     const code = norm(row[state.mapping.code]);
-    if (!code) {
-      out.push(row);
-      continue;
-    }
 
-    if (bogoSet.has(code) && state.mapping.qty >= 0) {
+    let bogoModified = false;
+    if (code && bogoSet.has(code) && state.mapping.qty >= 0) {
       const q = Number(row[state.mapping.qty]);
       if (Number.isFinite(q)) {
         row[state.mapping.qty] = q * 2;
         bogoApplied++;
+        bogoModified = true;
       }
     }
     out.push(row);
+    if (bogoModified) bogoMods.push({ r: out.length - 1, c: state.mapping.qty });
 
-    if (giftMap.has(code)) {
+    if (code && giftMap.has(code)) {
       const pool = giftMap.get(code);
       const giftCode = pool[Math.floor(Math.random() * pool.length)];
       const giftRow = new Array(row.length).fill("");
+      const cs = new Set();
       giftRow[state.mapping.code] = giftCode;
-      if (state.mapping.qty >= 0) giftRow[state.mapping.qty] = 1;
-      if (state.mapping.buyer >= 0) giftRow[state.mapping.buyer] = row[state.mapping.buyer] ?? "";
-      if (state.mapping.phone >= 0) giftRow[state.mapping.phone] = row[state.mapping.phone] ?? "";
-      if (state.mapping.addr >= 0) giftRow[state.mapping.addr] = row[state.mapping.addr] ?? "";
+      cs.add(state.mapping.code);
+      if (state.mapping.qty >= 0) {
+        giftRow[state.mapping.qty] = 1;
+        cs.add(state.mapping.qty);
+      }
+      // 체크된 컬럼들을 원본 행에서 그대로 복사 (제품코드/수량은 위에서 이미 처리)
+      state.copyCols.forEach((c) => {
+        if (c === state.mapping.code || c === state.mapping.qty) return;
+        giftRow[c] = row[c] ?? "";
+        cs.add(c);
+      });
       out.push(giftRow);
+      giftMods.push({ r: out.length - 1, cs: Array.from(cs) });
       giftAdded++;
     }
   }
@@ -326,6 +382,17 @@ $("#runProcess").addEventListener("click", () => {
   // 새 워크북 생성 (원본 다른 시트는 그대로 복사)
   const wbOut = XLSX.utils.book_new();
   const wsOut = XLSX.utils.aoa_to_sheet(out);
+
+  // 변경된 셀 색상 표시 (xlsx-js-style 필요)
+  const bogoStyle = { fill: { patternType: "solid", fgColor: { rgb: "FFF59D" } } }; // 연한 노랑
+  const giftStyle = { fill: { patternType: "solid", fgColor: { rgb: "C8E6C9" } } }; // 연한 연두
+  const paintCell = (r, c, style) => {
+    const ref = XLSX.utils.encode_cell({ r, c });
+    if (!wsOut[ref]) wsOut[ref] = { t: "s", v: "" };
+    wsOut[ref].s = style;
+  };
+  bogoMods.forEach(({ r, c }) => paintCell(r, c, bogoStyle));
+  giftMods.forEach(({ r, cs }) => cs.forEach((c) => paintCell(r, c, giftStyle)));
   state.workbook.SheetNames.forEach((sn) => {
     if (sn === state.sheetName) {
       XLSX.utils.book_append_sheet(wbOut, wsOut, sn);
