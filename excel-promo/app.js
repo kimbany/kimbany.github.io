@@ -7,13 +7,13 @@
 const LS_KEY = "excelPromoConfig.v1";
 
 const state = {
-  cfg: { bogo: [], gifts: [] },          // 메뉴1 설정
+  cfg: { bogo: [], gifts: [], globalGifts: [] }, // 메뉴1 설정
   workbook: null,                        // 업로드된 워크북
   sheetName: null,
   headerRow: 1,                          // 1-indexed
   aoa: null,                             // 시트 전체 (2차원 배열)
   headers: [],                           // 헤더 셀 텍스트
-  mapping: { code: -1, codeAlt: -1, qty: -1 },
+  mapping: { code: -1, codeAlt: -1, qty: -1, orderNo: -1 },
   copyCols: new Set(),                   // 사은품 행에 복사할 컬럼들
   previewPage: 0,                        // 미리보기 현재 페이지 (0-base)
 };
@@ -48,11 +48,13 @@ function loadCfg() {
   } catch (_) {}
   if (!Array.isArray(state.cfg.bogo)) state.cfg.bogo = [];
   if (!Array.isArray(state.cfg.gifts)) state.cfg.gifts = [];
-  // 마이그레이션: bogo 항목 string -> object, gifts 에 start/end 보강
+  if (!Array.isArray(state.cfg.globalGifts)) state.cfg.globalGifts = [];
+  // 마이그레이션: bogo 항목 string -> object, gifts/globalGifts 기본값 보강
   state.cfg.bogo = state.cfg.bogo.map((b) =>
     typeof b === "string" ? { code: b, start: "", end: "" } : { start: "", end: "", ...b }
   );
-  state.cfg.gifts = state.cfg.gifts.map((g) => ({ start: "", end: "", ...g }));
+  state.cfg.gifts = state.cfg.gifts.map((g) => ({ qtyMode: "order", start: "", end: "", ...g }));
+  state.cfg.globalGifts = state.cfg.globalGifts.map((g) => ({ qtyMode: "order", start: "", end: "", ...g }));
 }
 
 // ---------- 탭 ----------
@@ -108,7 +110,9 @@ $("#bogoCode").addEventListener("keydown", (e) => {
   if (e.key === "Enter") $("#bogoAdd").click();
 });
 
-// ---------- 메뉴1: 사은품 증정 ----------
+// ---------- 메뉴1: 사은품 증정 (특정 코드) ----------
+const QTY_MODE_LABEL = { order: "주문 1건당 1개", unit: "수량만큼" };
+
 function renderGifts() {
   const tbody = $("#giftTable tbody");
   tbody.innerHTML = "";
@@ -116,6 +120,7 @@ function renderGifts() {
     const tr = document.createElement("tr");
     tr.innerHTML = `<td>${escapeHtml(g.trigger)}</td>
                     <td>${g.pool.map(escapeHtml).join(", ")}</td>
+                    <td>${escapeHtml(QTY_MODE_LABEL[g.qtyMode] || g.qtyMode)}</td>
                     <td>${escapeHtml(formatRange(g))}</td>
                     <td><button data-i="${i}" class="danger">삭제</button></td>`;
     tbody.appendChild(tr);
@@ -138,20 +143,62 @@ $("#giftAdd").addEventListener("click", () => {
   if (!pool.length) return;
   const start = $("#giftStart").value || "";
   const end = $("#giftEnd").value || "";
+  const qtyMode = $("#giftQtyMode").value || "order";
   const existing = state.cfg.gifts.find((g) => g.trigger === trigger);
   if (existing) {
     existing.pool = pool;
     existing.start = start;
     existing.end = end;
+    existing.qtyMode = qtyMode;
   } else {
-    state.cfg.gifts.push({ trigger, pool, start, end });
+    state.cfg.gifts.push({ trigger, pool, start, end, qtyMode });
   }
   $("#giftTrigger").value = "";
   $("#giftPool").value = "";
   $("#giftStart").value = "";
   $("#giftEnd").value = "";
+  $("#giftQtyMode").value = "order";
   saveCfg();
   renderGifts();
+});
+
+// ---------- 메뉴1: 모든 주문에 사은품 (글로벌) ----------
+function renderGlobalGifts() {
+  const tbody = $("#globalGiftTable tbody");
+  tbody.innerHTML = "";
+  state.cfg.globalGifts.forEach((g, i) => {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `<td>${g.pool.map(escapeHtml).join(", ")}</td>
+                    <td>${escapeHtml(QTY_MODE_LABEL[g.qtyMode] || g.qtyMode)}</td>
+                    <td>${escapeHtml(formatRange(g))}</td>
+                    <td><button data-i="${i}" class="danger">삭제</button></td>`;
+    tbody.appendChild(tr);
+  });
+  tbody.querySelectorAll("button.danger").forEach((b) => {
+    b.addEventListener("click", () => {
+      const idx = Number(b.dataset.i);
+      state.cfg.globalGifts.splice(idx, 1);
+      saveCfg();
+      renderGlobalGifts();
+    });
+  });
+}
+
+$("#globalGiftAdd").addEventListener("click", () => {
+  const poolRaw = norm($("#globalGiftPool").value);
+  if (!poolRaw) return;
+  const pool = poolRaw.split(",").map((s) => s.trim()).filter(Boolean);
+  if (!pool.length) return;
+  const start = $("#globalGiftStart").value || "";
+  const end = $("#globalGiftEnd").value || "";
+  const qtyMode = $("#globalGiftQtyMode").value || "order";
+  state.cfg.globalGifts.push({ pool, start, end, qtyMode });
+  $("#globalGiftPool").value = "";
+  $("#globalGiftStart").value = "";
+  $("#globalGiftEnd").value = "";
+  $("#globalGiftQtyMode").value = "order";
+  saveCfg();
+  renderGlobalGifts();
 });
 
 // ---------- 설정 내보내기/불러오기/초기화 ----------
@@ -263,7 +310,7 @@ $("#loadPreview").addEventListener("click", () => {
 });
 
 function buildMappingSelectors() {
-  ["#colCode", "#colCodeAlt", "#colQty"].forEach((id) => {
+  ["#colCode", "#colCodeAlt", "#colQty", "#colOrderNo"].forEach((id) => {
     const sel = $(id);
     sel.innerHTML = "";
     const noneOpt = document.createElement("option");
@@ -280,6 +327,7 @@ function buildMappingSelectors() {
   $("#colCode").addEventListener("change", () => (state.mapping.code = Number($("#colCode").value)));
   $("#colCodeAlt").addEventListener("change", () => (state.mapping.codeAlt = Number($("#colCodeAlt").value)));
   $("#colQty").addEventListener("change", () => (state.mapping.qty = Number($("#colQty").value)));
+  $("#colOrderNo").addEventListener("change", () => (state.mapping.orderNo = Number($("#colOrderNo").value)));
 
   // 사은품 행에 복사할 컬럼 체크리스트
   const wrap = $("#copyCols");
@@ -322,9 +370,11 @@ function autoMap() {
   // 보조 제품코드: 상품코드 우선 (자체 상품코드), 우선 컬럼은 제외
   state.mapping.codeAlt = guess(["상품코드", "productcode", "sku", "품목코드", "제품코드"], state.mapping.code);
   state.mapping.qty = guess(["수량", "주문수량", "구매수량", "qty", "quantity"]);
+  state.mapping.orderNo = guess(["주문번호", "ordernumber", "orderno", "orderid"]);
   $("#colCode").value = String(state.mapping.code);
   $("#colCodeAlt").value = String(state.mapping.codeAlt);
   $("#colQty").value = String(state.mapping.qty);
+  $("#colOrderNo").value = String(state.mapping.orderNo);
 
   // 사은품 행에 복사할 컬럼 자동 체크
   state.copyCols = computeDefaultCopyCols();
@@ -452,61 +502,121 @@ $("#runProcess").addEventListener("click", () => {
   const today = todayStr();
   const activeBogo = state.cfg.bogo.filter((b) => isActiveOnDate(b, today));
   const activeGifts = state.cfg.gifts.filter((g) => isActiveOnDate(g, today));
-  const giftMap = new Map(activeGifts.map((g) => [g.trigger, g.pool]));
+  const activeGlobalGifts = state.cfg.globalGifts.filter((g) => isActiveOnDate(g, today));
+  const giftMap = new Map(activeGifts.map((g) => [g.trigger, g]));
   const bogoSet = new Set(activeBogo.map((b) => b.code));
   const skippedBogo = state.cfg.bogo.length - activeBogo.length;
   const skippedGifts = state.cfg.gifts.length - activeGifts.length;
+  const skippedGlobalGifts = state.cfg.globalGifts.length - activeGlobalGifts.length;
+  const orderNoCol = state.mapping.orderNo;
+
+  if (activeGlobalGifts.length > 0 && orderNoCol < 0) {
+    alert("'전체 주문 사은품' 행사가 등록되어 있는데 '주문번호 컬럼' 매핑이 비어 있습니다. 메뉴2 컬럼 매핑에서 주문번호 컬럼을 선택해 주세요.");
+    return;
+  }
 
   let bogoApplied = 0;
   let giftAdded = 0;
+  let globalGiftAdded = 0;
   const bogoMods = []; // [{ r, c }]
   const giftMods = []; // [{ r, cs: [c, ...] }]
 
+  // 주문 그룹 추적 (글로벌 사은품용)
+  let curOrderNo = null;
+  let curOrderQty = 0;
+  let lastOriginalRow = null;
+  const headerLen = state.aoa[headerIdx].length;
+
+  const flushGlobalGifts = () => {
+    if (curOrderNo === null || activeGlobalGifts.length === 0) return;
+    activeGlobalGifts.forEach((rule) => {
+      const count = rule.qtyMode === "unit" ? Math.max(1, Math.floor(curOrderQty || 1)) : 1;
+      for (let n = 0; n < count; n++) {
+        const giftCode = rule.pool[Math.floor(Math.random() * rule.pool.length)];
+        const giftRow = new Array(headerLen).fill("");
+        const cs = new Set();
+        if (state.mapping.code >= 0) { giftRow[state.mapping.code] = giftCode; cs.add(state.mapping.code); }
+        if (state.mapping.qty >= 0) { giftRow[state.mapping.qty] = 1; cs.add(state.mapping.qty); }
+        if (orderNoCol >= 0 && curOrderNo) { giftRow[orderNoCol] = curOrderNo; cs.add(orderNoCol); }
+        if (lastOriginalRow) {
+          state.copyCols.forEach((c) => {
+            if (cs.has(c)) return;
+            giftRow[c] = lastOriginalRow[c] ?? "";
+            cs.add(c);
+          });
+        }
+        out.push(giftRow);
+        giftMods.push({ r: out.length - 1, cs: Array.from(cs) });
+        globalGiftAdded++;
+      }
+    });
+  };
+
   for (let r = headerIdx + 1; r < state.aoa.length; r++) {
     const row = state.aoa[r].slice();
+    const orderNo = orderNoCol >= 0 ? norm(row[orderNoCol]) : "";
+
+    // 주문번호 변경 시점에 직전 주문의 글로벌 사은품 일괄 추가
+    if (orderNoCol >= 0 && orderNo !== curOrderNo) {
+      flushGlobalGifts();
+      curOrderNo = orderNo;
+      curOrderQty = 0;
+    }
+
     // 우선 코드가 있으면 그 값, 없으면 보조 코드의 값 사용
     const codePrimary = state.mapping.code >= 0 ? norm(row[state.mapping.code]) : "";
-    const codeAlt = state.mapping.codeAlt >= 0 ? norm(row[state.mapping.codeAlt]) : "";
-    const code = codePrimary || codeAlt;
+    const codeAltVal = state.mapping.codeAlt >= 0 ? norm(row[state.mapping.codeAlt]) : "";
+    const code = codePrimary || codeAltVal;
     const matchedCol = codePrimary ? state.mapping.code
-                      : codeAlt ? state.mapping.codeAlt
+                      : codeAltVal ? state.mapping.codeAlt
                       : state.mapping.code;
 
+    // 원본 수량 (1+1 ×2 적용 전)
+    const originalQty = state.mapping.qty >= 0 ? Number(row[state.mapping.qty]) : NaN;
+
     let bogoModified = false;
-    if (code && bogoSet.has(code) && state.mapping.qty >= 0) {
-      const q = Number(row[state.mapping.qty]);
-      if (Number.isFinite(q)) {
-        row[state.mapping.qty] = q * 2;
-        bogoApplied++;
-        bogoModified = true;
-      }
+    if (code && bogoSet.has(code) && state.mapping.qty >= 0 && Number.isFinite(originalQty)) {
+      row[state.mapping.qty] = originalQty * 2;
+      bogoApplied++;
+      bogoModified = true;
     }
     out.push(row);
     if (bogoModified) bogoMods.push({ r: out.length - 1, c: state.mapping.qty });
 
+    // 주문 합계 수량은 원본 기준 누적 (1+1 보너스/사은품 행은 제외)
+    if (Number.isFinite(originalQty)) curOrderQty += originalQty;
+    lastOriginalRow = row;
+
+    // 특정 코드 사은품
     if (code && giftMap.has(code)) {
-      const pool = giftMap.get(code);
-      const giftCode = pool[Math.floor(Math.random() * pool.length)];
-      const giftRow = new Array(row.length).fill("");
-      const cs = new Set();
-      // 사은품 코드는 매칭된 컬럼(우선 또는 보조) 위치에 기록
-      giftRow[matchedCol] = giftCode;
-      cs.add(matchedCol);
-      if (state.mapping.qty >= 0) {
-        giftRow[state.mapping.qty] = 1;
-        cs.add(state.mapping.qty);
+      const rule = giftMap.get(code);
+      const count = rule.qtyMode === "unit" && Number.isFinite(originalQty)
+        ? Math.max(1, Math.floor(originalQty))
+        : 1;
+      for (let n = 0; n < count; n++) {
+        const giftCode = rule.pool[Math.floor(Math.random() * rule.pool.length)];
+        const giftRow = new Array(row.length).fill("");
+        const cs = new Set();
+        giftRow[matchedCol] = giftCode;
+        cs.add(matchedCol);
+        if (state.mapping.qty >= 0) {
+          giftRow[state.mapping.qty] = 1;
+          cs.add(state.mapping.qty);
+        }
+        state.copyCols.forEach((c) => {
+          if (cs.has(c)) return;
+          giftRow[c] = row[c] ?? "";
+          cs.add(c);
+        });
+        out.push(giftRow);
+        giftMods.push({ r: out.length - 1, cs: Array.from(cs) });
+        giftAdded++;
       }
-      // 체크된 컬럼들을 원본 행에서 그대로 복사 (제품코드/수량은 위에서 이미 처리)
-      state.copyCols.forEach((c) => {
-        if (c === matchedCol || c === state.mapping.qty) return;
-        giftRow[c] = row[c] ?? "";
-        cs.add(c);
-      });
-      out.push(giftRow);
-      giftMods.push({ r: out.length - 1, cs: Array.from(cs) });
-      giftAdded++;
     }
   }
+
+  // 마지막 주문 그룹의 글로벌 사은품 마무리
+  flushGlobalGifts();
 
   // 새 워크북 생성 (원본 다른 시트는 그대로 복사)
   const wbOut = XLSX.utils.book_new();
@@ -538,8 +648,9 @@ $("#runProcess").addEventListener("click", () => {
   rep.classList.remove("hidden");
   rep.innerHTML = `처리 완료 → <b>${escapeHtml(fname)}</b> 다운로드됨<br>
     1+1 적용된 행: <b>${bogoApplied}</b>건<br>
-    사은품 행 추가: <b>${giftAdded}</b>건<br>
-    오늘 날짜(${today}) 기준 기간 외라 미적용된 룰: 1+1 <b>${skippedBogo}</b>건, 사은품 <b>${skippedGifts}</b>건<br>
+    사은품 행 추가 (특정 코드): <b>${giftAdded}</b>건<br>
+    사은품 행 추가 (전체 주문): <b>${globalGiftAdded}</b>건<br>
+    오늘 날짜(${today}) 기준 기간 외 미적용 룰: 1+1 <b>${skippedBogo}</b>건, 사은품 <b>${skippedGifts}</b>건, 전체사은품 <b>${skippedGlobalGifts}</b>건<br>
     원본 데이터 행: <b>${state.aoa.length - (headerIdx + 1)}</b>건 → 출력 데이터 행: <b>${out.length - (headerIdx + 1)}</b>건`;
   $("#runStatus").textContent = "완료";
 });
@@ -555,3 +666,4 @@ function escapeHtml(s) {
 loadCfg();
 renderBogo();
 renderGifts();
+renderGlobalGifts();

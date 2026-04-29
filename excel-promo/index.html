@@ -31,21 +31,42 @@
   </div>
   <ul id="bogoList" class="chips"></ul>
 
-  <h2>2. 사은품 증정 행사</h2>
-  <p class="desc">대상 제품코드, 랜덤 사은품 코드들, 적용 기간을 등록합니다. 해당 제품 구매 시 바로 아래 행에 사은품 행이 추가되며 메뉴2에서 체크된 컬럼들이 그대로 복사됩니다.</p>
+  <h2>2. 사은품 증정 행사 (특정 제품코드)</h2>
+  <p class="desc">대상 제품코드, 랜덤 사은품 코드들, 적용 기간, 수량 모드를 등록합니다. 해당 제품 구매 시 바로 아래 행에 사은품 행이 추가됩니다.</p>
   <div class="row">
     <input type="text" id="giftTrigger" placeholder="대상 제품코드 (예: B100)">
-    <input type="text" id="giftPool" placeholder="사은품 코드들, 콤마로 구분 (예: G1,G2,G3)">
+    <input type="text" id="giftPool" placeholder="사은품 코드들 (G1,G2,G3)">
     <label class="hint">시작 <input type="date" id="giftStart"></label>
     <label class="hint">종료 <input type="date" id="giftEnd"></label>
+    <select id="giftQtyMode" title="수량 모드">
+      <option value="order">주문 1건당 사은품 1개</option>
+      <option value="unit">구매 수량만큼 사은품</option>
+    </select>
     <button id="giftAdd">추가</button>
   </div>
   <table id="giftTable" class="grid">
-    <thead><tr><th>대상 제품코드</th><th>사은품 풀(랜덤)</th><th>적용 기간</th><th>삭제</th></tr></thead>
+    <thead><tr><th>대상 제품코드</th><th>사은품 풀(랜덤)</th><th>수량 모드</th><th>적용 기간</th><th>삭제</th></tr></thead>
     <tbody></tbody>
   </table>
 
-  <h2>3. 설정 저장/관리</h2>
+  <h2>3. 모든 주문에 사은품 (전체 행사)</h2>
+  <p class="desc">제품코드와 무관하게 모든 주문에 사은품을 증정합니다. <b>주문번호(A 컬럼)</b>를 기준으로 묶어서, 같은 주문의 마지막 행 바로 아래에 사은품 행이 추가됩니다. 메뉴2의 "주문번호 컬럼" 매핑이 필요합니다.</p>
+  <div class="row">
+    <input type="text" id="globalGiftPool" placeholder="사은품 코드들 (G10,G11,G12)">
+    <label class="hint">시작 <input type="date" id="globalGiftStart"></label>
+    <label class="hint">종료 <input type="date" id="globalGiftEnd"></label>
+    <select id="globalGiftQtyMode" title="수량 모드">
+      <option value="order">주문 1건당 사은품 1개</option>
+      <option value="unit">주문의 총 수량만큼 사은품</option>
+    </select>
+    <button id="globalGiftAdd">추가</button>
+  </div>
+  <table id="globalGiftTable" class="grid">
+    <thead><tr><th>사은품 풀(랜덤)</th><th>수량 모드</th><th>적용 기간</th><th>삭제</th></tr></thead>
+    <tbody></tbody>
+  </table>
+
+  <h2>4. 설정 저장/관리</h2>
   <div class="row">
     <button id="exportCfg">설정 내보내기 (JSON)</button>
     <label class="filebtn">
@@ -86,6 +107,7 @@
       <label>제품코드 컬럼 (우선)<select id="colCode"></select></label>
       <label>제품코드 컬럼 (보조)<select id="colCodeAlt"></select></label>
       <label>수량 컬럼<select id="colQty"></select></label>
+      <label>주문번호 컬럼 (전체 사은품용)<select id="colOrderNo"></select></label>
     </div>
 
     <h2>3. 사은품 행에 복사할 컬럼</h2>
@@ -120,8 +142,21 @@
   </ol>
   <h2>처리 규칙</h2>
   <ul>
-    <li><b>1+1</b>: 등록된 제품코드 행의 <b>구매수량 × 2</b> (변경된 수량 셀은 <span style="background:#FFF59D;padding:0 4px">노란색</span>으로 표시)</li>
-    <li><b>사은품 증정</b>: 등록된 제품코드 행 바로 아래에 <b>새 행 삽입</b>. 메뉴2의 “사은품 행에 복사할 컬럼”에서 체크된 컬럼들이 원본 행에서 그대로 복사되며, 제품코드는 풀에서 <b>랜덤 1개</b>, 수량은 1로 설정됩니다. 추가된 행의 셀은 <span style="background:#C8E6C9;padding:0 4px">연두색</span>으로 표시</li>
+    <li><b>1+1</b>: 등록된 제품코드 행의 <b>구매수량 × 2</b> (변경된 수량 셀은 <span style="background:#FFF59D;padding:0 4px">노란색</span>)</li>
+    <li><b>사은품 증정 (특정 코드)</b>: 등록된 제품코드 행 바로 아래에 사은품 행 삽입. 수량 모드:
+      <ul>
+        <li>주문 1건당 1개: 매칭된 행마다 사은품 1개</li>
+        <li>구매 수량만큼: 구매 수량 N개당 사은품 N개 (각 행 수량 1, 매번 랜덤 재추첨)</li>
+      </ul>
+      메뉴2 "사은품 행에 복사할 컬럼"의 체크 컬럼이 원본에서 복사됨. 추가된 행 셀은 <span style="background:#C8E6C9;padding:0 4px">연두색</span>.
+    </li>
+    <li><b>사은품 증정 (전체 주문)</b>: 주문번호로 묶어 같은 주문의 마지막 행 바로 아래에 사은품 행 추가. 수량 모드:
+      <ul>
+        <li>주문 1건당 1개</li>
+        <li>주문의 총 수량만큼: 그 주문 모든 행의 수량 합만큼</li>
+      </ul>
+    </li>
+    <li><b>적용 기간</b>: 시작·종료일 비워두면 상시. 오늘 날짜가 범위 안일 때만 적용.</li>
   </ul>
   <h2>참고</h2>
   <ul>
