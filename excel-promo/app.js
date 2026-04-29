@@ -13,7 +13,7 @@ const state = {
   headerRow: 1,                          // 1-indexed
   aoa: null,                             // 시트 전체 (2차원 배열)
   headers: [],                           // 헤더 셀 텍스트
-  mapping: { code: -1, qty: -1 },
+  mapping: { code: -1, codeAlt: -1, qty: -1 },
   copyCols: new Set(),                   // 사은품 행에 복사할 컬럼들
 };
 
@@ -196,7 +196,7 @@ $("#loadPreview").addEventListener("click", () => {
 });
 
 function buildMappingSelectors() {
-  ["#colCode", "#colQty"].forEach((id) => {
+  ["#colCode", "#colCodeAlt", "#colQty"].forEach((id) => {
     const sel = $(id);
     sel.innerHTML = "";
     const noneOpt = document.createElement("option");
@@ -211,6 +211,7 @@ function buildMappingSelectors() {
     });
   });
   $("#colCode").addEventListener("change", () => (state.mapping.code = Number($("#colCode").value)));
+  $("#colCodeAlt").addEventListener("change", () => (state.mapping.codeAlt = Number($("#colCodeAlt").value)));
   $("#colQty").addEventListener("change", () => (state.mapping.qty = Number($("#colQty").value)));
 
   // 사은품 행에 복사할 컬럼 체크리스트
@@ -239,18 +240,23 @@ function applyCopyColsToCheckboxes() {
 function autoMap() {
   const norms = state.headers.map((h) => h.toLowerCase().replace(/\s+/g, ""));
   // 패턴 우선순위로 첫 매칭을 잡는다 (구체적인 키워드를 앞에 둘 것)
-  const guess = (patterns) => {
+  const guess = (patterns, skipIdx = -1) => {
     for (const p of patterns) {
       const np = p.toLowerCase().replace(/\s+/g, "");
       for (let i = 0; i < norms.length; i++) {
+        if (i === skipIdx) continue;
         if (norms[i].includes(np)) return i;
       }
     }
     return -1;
   };
-  state.mapping.code = guess(["상품코드", "productcode", "sku", "품목코드", "제품코드", "코드"]);
+  // 우선 제품코드: 품목코드 우선 (자체품목코드)
+  state.mapping.code = guess(["품목코드", "상품코드", "productcode", "sku", "제품코드", "코드"]);
+  // 보조 제품코드: 상품코드 우선 (자체 상품코드), 우선 컬럼은 제외
+  state.mapping.codeAlt = guess(["상품코드", "productcode", "sku", "품목코드", "제품코드"], state.mapping.code);
   state.mapping.qty = guess(["수량", "주문수량", "구매수량", "qty", "quantity"]);
   $("#colCode").value = String(state.mapping.code);
+  $("#colCodeAlt").value = String(state.mapping.codeAlt);
   $("#colQty").value = String(state.mapping.qty);
 
   // 사은품 행에 복사할 컬럼 자동 체크
@@ -342,7 +348,13 @@ $("#runProcess").addEventListener("click", () => {
 
   for (let r = headerIdx + 1; r < state.aoa.length; r++) {
     const row = state.aoa[r].slice();
-    const code = norm(row[state.mapping.code]);
+    // 우선 코드가 있으면 그 값, 없으면 보조 코드의 값 사용
+    const codePrimary = state.mapping.code >= 0 ? norm(row[state.mapping.code]) : "";
+    const codeAlt = state.mapping.codeAlt >= 0 ? norm(row[state.mapping.codeAlt]) : "";
+    const code = codePrimary || codeAlt;
+    const matchedCol = codePrimary ? state.mapping.code
+                      : codeAlt ? state.mapping.codeAlt
+                      : state.mapping.code;
 
     let bogoModified = false;
     if (code && bogoSet.has(code) && state.mapping.qty >= 0) {
@@ -361,15 +373,16 @@ $("#runProcess").addEventListener("click", () => {
       const giftCode = pool[Math.floor(Math.random() * pool.length)];
       const giftRow = new Array(row.length).fill("");
       const cs = new Set();
-      giftRow[state.mapping.code] = giftCode;
-      cs.add(state.mapping.code);
+      // 사은품 코드는 매칭된 컬럼(우선 또는 보조) 위치에 기록
+      giftRow[matchedCol] = giftCode;
+      cs.add(matchedCol);
       if (state.mapping.qty >= 0) {
         giftRow[state.mapping.qty] = 1;
         cs.add(state.mapping.qty);
       }
       // 체크된 컬럼들을 원본 행에서 그대로 복사 (제품코드/수량은 위에서 이미 처리)
       state.copyCols.forEach((c) => {
-        if (c === state.mapping.code || c === state.mapping.qty) return;
+        if (c === matchedCol || c === state.mapping.qty) return;
         giftRow[c] = row[c] ?? "";
         cs.add(c);
       });
