@@ -218,17 +218,21 @@ function buildMappingSelectors() {
 }
 
 function autoMap() {
+  const norms = state.headers.map((h) => h.toLowerCase().replace(/\s+/g, ""));
+  // 패턴 우선순위로 첫 매칭을 잡는다 (구체적인 키워드를 앞에 둘 것)
   const guess = (patterns) => {
-    for (let i = 0; i < state.headers.length; i++) {
-      const h = state.headers[i].toLowerCase().replace(/\s+/g, "");
-      if (patterns.some((p) => h.includes(p))) return i;
+    for (const p of patterns) {
+      const np = p.toLowerCase().replace(/\s+/g, "");
+      for (let i = 0; i < norms.length; i++) {
+        if (norms[i].includes(np)) return i;
+      }
     }
     return -1;
   };
-  state.mapping.code = guess(["제품코드", "상품코드", "코드", "productcode", "sku"]);
-  state.mapping.qty = guess(["수량", "구매수량", "주문수량", "qty", "quantity"]);
-  state.mapping.buyer = guess(["구매자", "주문자", "이름", "성명", "buyer", "name"]);
-  state.mapping.phone = guess(["연락처", "전화", "휴대폰", "phone", "tel", "mobile"]);
+  state.mapping.code = guess(["상품코드", "productcode", "sku", "품목코드", "제품코드", "코드"]);
+  state.mapping.qty = guess(["수량", "주문수량", "구매수량", "qty", "quantity"]);
+  state.mapping.buyer = guess(["수령인", "받는분", "받는사람", "구매자", "주문자명", "주문자", "이름", "성명", "buyer", "name"]);
+  state.mapping.phone = guess(["휴대전화", "휴대폰", "핸드폰", "mobile", "전화번호", "전화", "연락처", "phone", "tel"]);
   state.mapping.addr = guess(["주소", "배송지", "address", "addr"]);
   $("#colCode").value = String(state.mapping.code);
   $("#colQty").value = String(state.mapping.qty);
