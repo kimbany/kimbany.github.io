@@ -18,7 +18,7 @@ const state = {
   previewPage: 0,                        // 원본 미리보기 페이지 (0-base)
   appliedPreviewPage: 0,                 // 적용 미리보기 페이지 (0-base)
 };
-const PREVIEW_PER_PAGE = 10;
+const PREVIEW_PER_PAGE = 20;
 
 // ---------- 유틸 ----------
 const $ = (sel) => document.querySelector(sel);

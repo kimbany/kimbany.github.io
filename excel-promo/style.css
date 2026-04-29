@@ -233,12 +233,12 @@ button.danger:hover {
 
 .tablewrap {
   overflow: auto;
-  max-height: 420px;
+  max-height: 360px;
   border: 1px solid var(--border);
   border-radius: var(--radius);
   background: var(--surface);
 }
-.tablewrap .grid { border: 0; box-shadow: none; border-radius: 0; }
+.tablewrap .grid { border: 0; box-shadow: none; border-radius: 0; overflow: visible; }
 .tablewrap.nowrap th, .tablewrap.nowrap td { white-space: nowrap; }
 
 /* 위아래 스크롤 시 헤더 행 고정 */
@@ -246,7 +246,7 @@ button.danger:hover {
   position: sticky;
   top: 0;
   background: #f7f9fc;
-  z-index: 2;
+  z-index: 3;
   box-shadow: inset 0 -1px 0 var(--border);
 }
 
