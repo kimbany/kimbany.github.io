@@ -40,6 +40,7 @@ const formatRange = (rule) => {
 
 function saveCfg() {
   localStorage.setItem(LS_KEY, JSON.stringify(state.cfg));
+  if (localStorage.getItem(FB_AUTO_SYNC_KEY) === "1") scheduleFbAutoPush();
 }
 function loadCfg() {
   try {
@@ -662,8 +663,155 @@ function escapeHtml(s) {
   })[c]);
 }
 
+// ---------- Firebase 동기화 ----------
+const FB_CFG_KEY = "excelPromoFirebaseCfg";
+const FB_AUTO_SYNC_KEY = "excelPromoAutoSync";
+let fbDb = null;
+
+function loadFbCfg() {
+  try {
+    const raw = localStorage.getItem(FB_CFG_KEY);
+    if (raw) return JSON.parse(raw);
+  } catch (_) {}
+  return null;
+}
+function saveFbCfg(c) {
+  if (c) localStorage.setItem(FB_CFG_KEY, JSON.stringify(c));
+  else localStorage.removeItem(FB_CFG_KEY);
+}
+function setFbStatus(msg, isError = false) {
+  const el = $("#fbStatus");
+  if (!el) return;
+  el.textContent = msg;
+  el.style.color = isError ? "#c0392b" : "#666";
+}
+
+function initFirebase() {
+  const cfg = loadFbCfg();
+  if (!cfg || !cfg.apiKey || !cfg.projectId) return false;
+  if (typeof firebase === "undefined") {
+    setFbStatus("Firebase SDK가 로드되지 않았습니다. 페이지를 새로고침해 주세요.", true);
+    return false;
+  }
+  try {
+    if (!firebase.apps.length) firebase.initializeApp(cfg);
+    fbDb = firebase.firestore();
+    return true;
+  } catch (e) {
+    setFbStatus("Firebase 초기화 실패: " + e.message, true);
+    return false;
+  }
+}
+
+async function fbPush() {
+  if (!initFirebase()) {
+    setFbStatus("Firebase 설정이 비어있거나 잘못되었습니다.", true);
+    return;
+  }
+  try {
+    setFbStatus("올리는 중...");
+    await fbDb.collection("configs").doc("main").set({
+      bogo: state.cfg.bogo,
+      gifts: state.cfg.gifts,
+      globalGifts: state.cfg.globalGifts,
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+    });
+    setFbStatus("업로드 완료 · " + new Date().toLocaleString("ko-KR"));
+  } catch (e) {
+    setFbStatus("업로드 실패: " + e.message, true);
+  }
+}
+
+async function fbPull() {
+  if (!initFirebase()) {
+    setFbStatus("Firebase 설정이 비어있거나 잘못되었습니다.", true);
+    return;
+  }
+  try {
+    setFbStatus("내려받는 중...");
+    const snap = await fbDb.collection("configs").doc("main").get();
+    if (!snap.exists) {
+      setFbStatus("클라우드에 저장된 데이터가 없습니다.");
+      return;
+    }
+    const data = snap.data();
+    if (Array.isArray(data.bogo)) state.cfg.bogo = data.bogo;
+    if (Array.isArray(data.gifts)) state.cfg.gifts = data.gifts;
+    if (Array.isArray(data.globalGifts)) state.cfg.globalGifts = data.globalGifts;
+    // saveCfg 직접 호출은 자동 푸시 트리거할 수 있으므로 우회
+    localStorage.setItem(LS_KEY, JSON.stringify(state.cfg));
+    renderBogo();
+    renderGifts();
+    renderGlobalGifts();
+    setFbStatus("내려받기 완료 · " + new Date().toLocaleString("ko-KR"));
+  } catch (e) {
+    setFbStatus("내려받기 실패: " + e.message, true);
+  }
+}
+
+let fbAutoTimer = null;
+function scheduleFbAutoPush() {
+  clearTimeout(fbAutoTimer);
+  fbAutoTimer = setTimeout(() => {
+    fbPush().catch(() => {});
+  }, 1500);
+}
+
+function initFbUI() {
+  const fbCfg = loadFbCfg();
+  if (fbCfg) {
+    $("#fbConfig").value = JSON.stringify(fbCfg, null, 2);
+    setFbStatus("저장된 Firebase 설정 사용 중 · 프로젝트: " + (fbCfg.projectId || "?"));
+  }
+  $("#fbAutoSync").checked = localStorage.getItem(FB_AUTO_SYNC_KEY) === "1";
+
+  $("#fbSave").addEventListener("click", () => {
+    const raw = $("#fbConfig").value.trim();
+    if (!raw) {
+      saveFbCfg(null);
+      setFbStatus("Firebase 설정이 삭제되었습니다.");
+      return;
+    }
+    try {
+      const cfg = JSON.parse(raw);
+      if (!cfg.apiKey || !cfg.projectId) {
+        setFbStatus("apiKey와 projectId는 필수입니다.", true);
+        return;
+      }
+      saveFbCfg(cfg);
+      // 새 설정으로 재초기화
+      try {
+        if (firebase.apps.length) firebase.app().delete();
+      } catch (_) {}
+      fbDb = null;
+      const ok = initFirebase();
+      setFbStatus(ok ? "Firebase 설정 저장 완료 · 프로젝트: " + cfg.projectId : "초기화 실패", !ok);
+    } catch (e) {
+      setFbStatus("JSON 파싱 실패: " + e.message, true);
+    }
+  });
+
+  $("#fbClear").addEventListener("click", () => {
+    if (!confirm("Firebase 설정을 삭제할까요? (클라우드 데이터는 그대로 유지됩니다)")) return;
+    saveFbCfg(null);
+    $("#fbConfig").value = "";
+    localStorage.removeItem(FB_AUTO_SYNC_KEY);
+    $("#fbAutoSync").checked = false;
+    fbDb = null;
+    setFbStatus("Firebase 설정이 삭제되었습니다.");
+  });
+
+  $("#fbPush").addEventListener("click", () => fbPush());
+  $("#fbPull").addEventListener("click", () => fbPull());
+  $("#fbAutoSync").addEventListener("change", (e) => {
+    localStorage.setItem(FB_AUTO_SYNC_KEY, e.target.checked ? "1" : "0");
+    setFbStatus(e.target.checked ? "자동 동기화 켜짐 (변경 후 1.5초 뒤 클라우드에 올림)" : "자동 동기화 꺼짐");
+  });
+}
+
 // ---------- 초기화 ----------
 loadCfg();
 renderBogo();
 renderGifts();
 renderGlobalGifts();
+initFbUI();

@@ -5,6 +5,8 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>엑셀 행사 처리기</title>
 <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -76,6 +78,30 @@
     <button id="resetCfg" class="danger">전체 초기화</button>
   </div>
   <p class="hint">설정은 이 브라우저에 자동 저장됩니다(localStorage).</p>
+
+  <h2>5. 클라우드 동기화 (Firebase) <span class="hint">선택</span></h2>
+  <p class="desc">Firebase Firestore에 행사 설정을 저장해 다른 PC/브라우저에서도 같은 설정을 쓸 수 있습니다. 처음 한 번만 Firebase 프로젝트를 만들고 아래에 config를 붙여넣어 주세요. <a href="firebase-guide.html" target="_blank">Firebase 설정 가이드 →</a></p>
+  <details id="fbDetails">
+    <summary>Firebase config 입력</summary>
+    <textarea id="fbConfig" rows="8" placeholder='{
+  "apiKey": "AIza...",
+  "authDomain": "myproject.firebaseapp.com",
+  "projectId": "myproject",
+  "appId": "1:..."
+}'></textarea>
+    <div class="row">
+      <button id="fbSave">설정 저장</button>
+      <button id="fbClear" class="danger">설정 삭제</button>
+    </div>
+  </details>
+  <div class="row">
+    <button id="fbPush" class="primary">↑ 클라우드에 올리기</button>
+    <button id="fbPull">↓ 클라우드에서 내려받기</button>
+    <label class="hint" style="display:inline-flex;align-items:center;gap:4px;">
+      <input type="checkbox" id="fbAutoSync"> 변경 시 자동으로 올리기
+    </label>
+  </div>
+  <p id="fbStatus" class="hint"></p>
 </section>
 
 <!-- ================= MENU 2 ================= -->

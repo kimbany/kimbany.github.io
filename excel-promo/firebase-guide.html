@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Firebase 동기화 설정 가이드</title>
+<link rel="stylesheet" href="style.css">
+<style>
+  .guide { padding: 22px 28px; max-width: 900px; }
+  .guide h2 { margin-top: 28px; }
+  .guide pre { background: #0f1730; color: #d6e2ff; padding: 14px; border-radius: 6px; overflow: auto; font-size: 13px; }
+  .guide code { background: #eef0f6; padding: 1px 6px; border-radius: 4px; font-size: 13px; }
+  .guide ol li { margin: 6px 0; }
+  .warn { background: #fff8e1; border-left: 4px solid #f9a825; padding: 10px 14px; border-radius: 4px; margin: 10px 0; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Firebase 동기화 설정 가이드</h1>
+  <p class="sub">행사 설정을 모든 PC/브라우저에서 공유하기 위한 5분 세팅</p>
+</header>
+<div class="guide">
+
+<h2>1. Firebase 프로젝트 만들기</h2>
+<ol>
+  <li><a href="https://console.firebase.google.com/" target="_blank">Firebase Console</a> 접속 (구글 로그인)</li>
+  <li><b>프로젝트 추가</b> → 이름은 자유 (예: <code>excel-promo</code>) → 만들기</li>
+  <li>Google Analytics는 <b>비활성화</b>해도 됩니다.</li>
+</ol>
+
+<h2>2. Firestore Database 활성화</h2>
+<ol>
+  <li>좌측 메뉴 → <b>빌드 → Firestore Database</b></li>
+  <li><b>데이터베이스 만들기</b> → 위치는 <code>asia-northeast3 (서울)</code> 또는 <code>asia-northeast1 (도쿄)</code> 추천</li>
+  <li>모드는 <b>프로덕션 모드</b> 선택 → <b>사용 설정</b></li>
+</ol>
+
+<h2>3. 보안 규칙 설정 (가장 중요)</h2>
+<p>Firestore Database → <b>규칙</b> 탭에서 아래로 교체 후 <b>게시</b>:</p>
+<pre>rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /configs/{docId} {
+      allow read, write: if true;
+    }
+  }
+}</pre>
+<div class="warn">
+  ⚠️ 위 규칙은 <b>이 Firebase 프로젝트의 web app config(API key 등)를 아는 사람이면 누구나</b> 읽고 쓸 수 있습니다. 개인용으로 본인만 사용한다면 충분히 안전합니다 (config를 외부에 공유하지 않으면 됨). 더 엄격한 보호가 필요하면 익명 인증 + 인증된 사용자만 쓰기 규칙으로 바꾸세요.
+</div>
+
+<h2>4. 웹 앱 등록 후 config 받기</h2>
+<ol>
+  <li>좌측 메뉴 → <b>프로젝트 설정 (톱니바퀴)</b></li>
+  <li><b>일반</b> 탭 하단 → <b>내 앱</b> → <b>&lt;/&gt; 웹</b> 아이콘 클릭</li>
+  <li>닉네임(예: <code>excel-promo-web</code>) 입력 → <b>앱 등록</b></li>
+  <li>화면에 보이는 <code>firebaseConfig</code> 객체 부분을 복사:
+    <pre>const firebaseConfig = {
+  apiKey: "AIza...",
+  authDomain: "myproj.firebaseapp.com",
+  projectId: "myproj",
+  storageBucket: "myproj.appspot.com",
+  messagingSenderId: "...",
+  appId: "1:..."
+};</pre>
+    JSON 형태로 (key를 따옴표로 감싸서) 변환해 붙여넣어야 합니다:
+    <pre>{
+  "apiKey": "AIza...",
+  "authDomain": "myproj.firebaseapp.com",
+  "projectId": "myproj",
+  "appId": "1:..."
+}</pre>
+  </li>
+</ol>
+
+<h2>5. 엑셀 처리기에 붙여넣기</h2>
+<ol>
+  <li><a href="index.html">엑셀 행사 처리기</a> → 메뉴1 → <b>5. 클라우드 동기화</b></li>
+  <li>"Firebase config 입력" 펼치기 → 위 JSON을 그대로 붙여넣기 → <b>설정 저장</b></li>
+  <li><b>↑ 클라우드에 올리기</b> 클릭 → 현재 행사 설정이 Firestore에 저장됨</li>
+  <li>다른 PC에서 같은 페이지 → 같은 JSON 붙여넣고 → <b>↓ 클라우드에서 내려받기</b></li>
+  <li>(옵션) <b>변경 시 자동으로 올리기</b>를 체크하면 메뉴1에서 행사 추가/삭제할 때마다 1.5초 뒤 자동 동기화됨</li>
+</ol>
+
+<h2>요금</h2>
+<p>Firestore 무료 등급은 <b>매일 50,000회 읽기/20,000회 쓰기/1GB 저장</b>까지 무료입니다. 이 정도 사용량이면 평생 무료로 쓸 수 있어요.</p>
+
+<p style="margin-top:32px"><a href="index.html">← 엑셀 행사 처리기로 돌아가기</a></p>
+</div>
+</body>
+</html>
