@@ -37,6 +37,15 @@ const formatRange = (rule) => {
   if (!rule.start && !rule.end) return "(상시)";
   return `${rule.start || "처음"} ~ ${rule.end || "끝"}`;
 };
+const ruleStatus = (rule, today = todayStr()) => {
+  if (rule.end && today > rule.end) return { label: "종료", color: "#c0392b" };
+  if (rule.start && today < rule.start) return { label: "예정", color: "#2980b9" };
+  return { label: "진행중", color: "#27ae60" };
+};
+const statusCell = (rule) => {
+  const s = ruleStatus(rule);
+  return `<td><span style="color:${s.color};font-weight:600">${s.label}</span></td>`;
+};
 
 function saveCfg() {
   localStorage.setItem(LS_KEY, JSON.stringify(state.cfg));
@@ -85,6 +94,7 @@ function renderBogo() {
     if (i === editingBogoIdx) tr.style.background = "#FFF59D";
     tr.innerHTML = `<td>${escapeHtml(b.code)}</td>
                     <td>${escapeHtml(formatRange(b))}</td>
+                    ${statusCell(b)}
                     <td><button data-i="${i}" class="edit-bogo">수정</button> <button data-i="${i}" class="danger">삭제</button></td>`;
     tbody.appendChild(tr);
   });
@@ -159,6 +169,7 @@ function renderGifts() {
                     <td>${g.pool.map(escapeHtml).join(", ")}</td>
                     <td>${escapeHtml(QTY_MODE_LABEL[g.qtyMode] || g.qtyMode)}</td>
                     <td>${escapeHtml(formatRange(g))}</td>
+                    ${statusCell(g)}
                     <td><button data-i="${i}" class="edit-gift">수정</button> <button data-i="${i}" class="danger">삭제</button></td>`;
     tbody.appendChild(tr);
   });
@@ -230,6 +241,7 @@ function renderGlobalGifts() {
     tr.innerHTML = `<td>${g.pool.map(escapeHtml).join(", ")}</td>
                     <td>${escapeHtml(QTY_MODE_LABEL[g.qtyMode] || g.qtyMode)}</td>
                     <td>${escapeHtml(formatRange(g))}</td>
+                    ${statusCell(g)}
                     <td><button data-i="${i}" class="edit-global">수정</button> <button data-i="${i}" class="danger">삭제</button></td>`;
     tbody.appendChild(tr);
   });
