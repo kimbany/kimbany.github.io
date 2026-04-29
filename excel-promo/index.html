@@ -79,10 +79,12 @@
   </div>
   <p class="hint">설정은 이 브라우저에 자동 저장됩니다(localStorage).</p>
 
-  <h2>5. 클라우드 동기화 (Firebase) <span class="hint">선택</span></h2>
-  <p class="desc">Firebase Firestore에 행사 설정을 저장해 다른 PC/브라우저에서도 같은 설정을 쓸 수 있습니다. 처음 한 번만 Firebase 프로젝트를 만들고 아래에 config를 붙여넣어 주세요. <a href="firebase-guide.html" target="_blank">Firebase 설정 가이드 →</a></p>
+  <h2>5. 클라우드 실시간 동기화</h2>
+  <p class="desc">행사 설정이 자동으로 클라우드에 저장되고, 다른 PC/브라우저에서도 변경사항이 <b>실시간</b>으로 반영됩니다. 별도 설정 없이 바로 사용하세요.</p>
+  <p id="fbStatus" class="hint">실시간 동기화 연결 중...</p>
   <details id="fbDetails">
-    <summary>Firebase config 입력</summary>
+    <summary class="hint">고급: 다른 Firebase 프로젝트 사용</summary>
+    <p class="hint">기본 클라우드 대신 본인의 Firebase 프로젝트를 쓰고 싶을 때만 입력하세요.</p>
     <textarea id="fbConfig" rows="8" placeholder='{
   "apiKey": "AIza...",
   "authDomain": "myproject.firebaseapp.com",
@@ -91,17 +93,12 @@
 }'></textarea>
     <div class="row">
       <button id="fbSave">설정 저장</button>
-      <button id="fbClear" class="danger">설정 삭제</button>
+      <button id="fbClear" class="danger">기본 클라우드로 되돌리기</button>
+      <button id="fbPush">↑ 강제 올리기</button>
+      <button id="fbPull">↓ 강제 내려받기</button>
     </div>
+    <input type="checkbox" id="fbAutoSync" hidden>
   </details>
-  <div class="row">
-    <button id="fbPush" class="primary">↑ 클라우드에 올리기</button>
-    <button id="fbPull">↓ 클라우드에서 내려받기</button>
-    <label class="hint" style="display:inline-flex;align-items:center;gap:4px;">
-      <input type="checkbox" id="fbAutoSync"> 변경 시 자동으로 올리기
-    </label>
-  </div>
-  <p id="fbStatus" class="hint"></p>
 </section>
 
 <!-- ================= MENU 2 ================= -->
