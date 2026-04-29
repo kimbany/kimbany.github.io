@@ -14,7 +14,7 @@ header .sub { margin: 6px 0 0; color: #666; font-size: 14px; }
 }
 .tab.active { color: #1f5cff; border-bottom-color: #1f5cff; font-weight: 600; }
 
-.panel { display: none; padding: 22px 28px; max-width: 1100px; }
+.panel { display: none; padding: 22px 28px; width: 100%; max-width: none; }
 .panel.active { display: block; }
 
 h2 { font-size: 16px; margin: 22px 0 8px; }
@@ -50,7 +50,7 @@ button.danger:hover { background: #fdecea; }
 .grid { width: 100%; border-collapse: collapse; background: #fff; border: 1px solid #e3e5ee; }
 .grid th, .grid td { padding: 8px 10px; border-bottom: 1px solid #eef0f6; font-size: 13px; text-align: left; }
 .grid th { background: #f0f2fa; font-weight: 600; }
-.tablewrap { overflow: auto; max-height: 320px; border: 1px solid #e3e5ee; border-radius: 6px; }
+.tablewrap { overflow: auto; max-height: 420px; border: 1px solid #e3e5ee; border-radius: 6px; }
 
 .grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px; margin: 10px 0; }
 .grid2 label { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: #444; }
