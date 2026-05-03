@@ -14,8 +14,33 @@
   <div id="device">
     <div id="screen">
 
+      <!-- INTRO (이름 정하기) -->
+      <section class="screen" data-screen="intro">
+        <header class="bar"><div class="title">새 다마고치</div></header>
+        <div class="stage">
+          <canvas id="intro-canvas" width="128" height="128"></canvas>
+          <div class="intro-bubble">
+            안녕! 내 이름을 정해줘 🥚
+          </div>
+        </div>
+        <div class="intro-form">
+          <input
+            id="intro-name-input"
+            type="text"
+            maxlength="8"
+            placeholder="이름 입력 (최대 8자)"
+            autocomplete="off"
+            spellcheck="false"
+          />
+          <div id="intro-error" class="intro-error hidden"></div>
+        </div>
+        <div class="actions">
+          <button class="btn primary" data-action="confirm-name">시작하기</button>
+        </div>
+      </section>
+
       <!-- HOME -->
-      <section class="screen active" data-screen="home">
+      <section class="screen" data-screen="home">
         <header class="bar">
           <div class="lvl">LV <span id="home-level">1</span></div>
           <div class="exp-wrap">
@@ -25,8 +50,10 @@
         </header>
 
         <div class="stage">
+          <div id="home-name" class="char-name">—</div>
           <canvas id="char-canvas" width="128" height="128"></canvas>
           <div id="mood-text" class="mood">행복</div>
+          <div id="stage-text" class="stage-tier">아기</div>
         </div>
 
         <div class="hp-row">

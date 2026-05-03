@@ -18,11 +18,25 @@ const Logic = (() => {
       level: 1,
       exp: 0,
       hp: MAX_HP,
+      name: null,           // 사용자가 첫 입장 시 정해줌
       last_active_date: todayKey(),
       inventory: {},        // { itemId: count }
       exp_boost_active: false,
       workouts: [],
     };
+  }
+
+  // Evolution tier based on level. 캐릭터 모양/크기를 결정.
+  //   LV 1~9   → '아기' (작고 동글)
+  //   LV 10~19 → '어른' (성체 사이즈)
+  //   LV 20+   → '왕'   (어른 + 왕관)
+  function stageFor(level) {
+    if (level >= 20) return 'king';
+    if (level >= 10) return 'adult';
+    return 'baby';
+  }
+  function stageNameKo(stage) {
+    return stage === 'king' ? '왕' : stage === 'adult' ? '어른' : '아기';
   }
 
   function todayKey(d = new Date()) {
@@ -179,6 +193,7 @@ const Logic = (() => {
     defaultState, todayKey, daysBetween,
     expForLevel, applyDailyDecay, gainExp, gainHp,
     endWorkout, intensityFromHeartRate, grantRandomItem, useItem, moodFor,
+    stageFor, stageNameKo,
     load, save, reset,
   };
 })();
