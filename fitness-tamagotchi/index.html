@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+<meta name="theme-color" content="#0f1020" />
+<title>Fitness Tamagotchi</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <div id="device">
+    <div id="screen">
+
+      <!-- HOME -->
+      <section class="screen active" data-screen="home">
+        <header class="bar">
+          <div class="lvl">LV <span id="home-level">1</span></div>
+          <div class="exp-wrap">
+            <div class="exp-bar"><div id="home-exp-fill" class="exp-fill"></div></div>
+            <div class="exp-text"><span id="home-exp">0</span>/<span id="home-exp-max">100</span></div>
+          </div>
+        </header>
+
+        <div class="stage">
+          <canvas id="char-canvas" width="128" height="128"></canvas>
+          <div id="mood-text" class="mood">HAPPY</div>
+        </div>
+
+        <div class="hp-row">
+          <span class="hp-label">HP</span>
+          <div class="hp-bar" id="home-hp-bar"></div>
+          <span class="hp-num"><span id="home-hp">10</span>/10</span>
+        </div>
+
+        <div class="actions">
+          <button class="btn primary" data-action="goto-workout">START WORKOUT</button>
+          <button class="btn" data-action="goto-inventory">INVENTORY</button>
+        </div>
+      </section>
+
+      <!-- WORKOUT -->
+      <section class="screen" data-screen="workout">
+        <header class="bar"><div class="title">WORKOUT</div></header>
+        <div class="stage">
+          <canvas id="workout-canvas" width="128" height="128"></canvas>
+        </div>
+        <div class="timer" id="timer">00:00</div>
+        <div id="boost-tag" class="boost-tag hidden">EXP x2 ACTIVE</div>
+        <div class="actions">
+          <button class="btn danger" data-action="end-workout">END WORKOUT</button>
+          <button class="btn ghost" data-action="cancel-workout">CANCEL</button>
+        </div>
+      </section>
+
+      <!-- RESULT -->
+      <section class="screen" data-screen="result">
+        <header class="bar"><div class="title">RESULT</div></header>
+        <div class="result-card">
+          <div class="line"><span>TIME</span><span id="r-time">00:00</span></div>
+          <div class="line"><span>EXP</span><span id="r-exp">+0</span></div>
+          <div class="line"><span>HP</span><span id="r-hp">+0</span></div>
+          <div class="line lvlup hidden" id="r-lvlup-line"><span>LEVEL UP!</span><span id="r-lvlup">LV 2</span></div>
+          <div class="reward">
+            <div class="reward-label">REWARD</div>
+            <div class="reward-box" id="r-reward">—</div>
+          </div>
+        </div>
+        <div class="actions">
+          <button class="btn primary" data-action="goto-home">OK</button>
+        </div>
+      </section>
+
+      <!-- INVENTORY -->
+      <section class="screen" data-screen="inventory">
+        <header class="bar"><div class="title">INVENTORY</div></header>
+        <ul id="inv-list" class="inv-list"></ul>
+        <div class="actions">
+          <button class="btn" data-action="goto-home">BACK</button>
+        </div>
+      </section>
+
+      <!-- TOAST -->
+      <div id="toast" class="toast hidden"></div>
+    </div>
+  </div>
+
+  <script src="js/logic.js"></script>
+  <script src="js/sprites.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
