@@ -53,19 +53,44 @@ jobs:
         working-directory: fitness-tamagotchi-app/android
         run: chmod +x ./gradlew
 
-      - name: Build debug APK (with retry on transient errors)
+      - name: Build debug APK (verbose, with retry on transient errors)
         working-directory: fitness-tamagotchi-app/android
         run: |
           set +e
           rc=1
           for i in 1 2 3; do
-            ./gradlew assembleDebug --no-daemon
-            rc=$?
+            ./gradlew assembleDebug --no-daemon --stacktrace --info 2>&1 | tee gradle-build-${i}.log
+            rc=${PIPESTATUS[0]}
             if [ $rc -eq 0 ]; then break; fi
             echo "::warning::Gradle build attempt $i failed (exit $rc) — retrying in 30s"
             sleep 30
           done
+          # If all attempts failed, dump the FAILURE section so it's easy to find in logs.
+          if [ $rc -ne 0 ]; then
+            echo "::group::Last gradle FAILURE excerpt"
+            awk '/^FAILURE:/{flag=1} flag' gradle-build-3.log | head -200 || true
+            echo "::endgroup::"
+          fi
           exit $rc
+
+      - name: Upload gradle logs (on failure)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gradle-logs-${{ github.sha }}
+          path: fitness-tamagotchi-app/android/gradle-build-*.log
+          retention-days: 7
+
+      - name: Upload build reports (on failure)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gradle-reports-${{ github.sha }}
+          path: |
+            fitness-tamagotchi-app/android/**/build/reports/
+            fitness-tamagotchi-app/android/**/build/outputs/logs/
+          retention-days: 7
+          if-no-files-found: ignore
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
