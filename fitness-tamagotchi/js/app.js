@@ -16,6 +16,35 @@
     if (screen === 'home') renderHome();
     if (screen === 'inventory') renderInventory();
     if (screen === 'workout') startWorkout();
+    if (screen === 'intro') renderIntro();
+  }
+
+  // -------- Intro (이름 정하기) --------
+  function renderIntro() {
+    $('#intro-name-input').value = '';
+    $('#intro-error').classList.add('hidden');
+    // 아기 모습으로 행복하게 보여줌
+    startAnim($('#intro-canvas'), { stage: 'baby', mood: 'happy' });
+    setTimeout(() => $('#intro-name-input').focus(), 50);
+  }
+
+  function confirmName() {
+    const raw = $('#intro-name-input').value.trim();
+    const errEl = $('#intro-error');
+    if (!raw) {
+      errEl.textContent = '이름을 입력해주세요';
+      errEl.classList.remove('hidden');
+      return;
+    }
+    if (raw.length > 8) {
+      errEl.textContent = '이름은 최대 8자까지';
+      errEl.classList.remove('hidden');
+      return;
+    }
+    state.name = raw;
+    Logic.save(state);
+    toast(`반가워, ${raw}!`);
+    show('home');
   }
 
   // -------- Toast --------
@@ -31,11 +60,12 @@
   // -------- Character animation --------
   let frame = 0;
   let animTimer = null;
-  function startAnim(canvas) {
+  function startAnim(canvas, opts = {}) {
     stopAnim();
     const tick = () => {
-      const mood = Logic.moodFor(state.hp);
-      Sprites.draw(canvas, mood, frame);
+      const mood = opts.mood || Logic.moodFor(state.hp);
+      const stage = opts.stage || Logic.stageFor(state.level);
+      Sprites.draw(canvas, mood, stage, frame);
       frame = frame ? 0 : 1;
     };
     tick();
@@ -48,12 +78,14 @@
 
   // -------- Home --------
   function renderHome() {
+    $('#home-name').textContent = state.name || '다마고치';
     $('#home-level').textContent = state.level;
     $('#home-exp').textContent = state.exp;
     $('#home-exp-max').textContent = Logic.expForLevel(state.level);
     const pct = Math.min(100, Math.floor((state.exp / Logic.expForLevel(state.level)) * 100));
     $('#home-exp-fill').style.width = pct + '%';
     $('#home-hp').textContent = state.hp;
+    $('#stage-text').textContent = Logic.stageNameKo(Logic.stageFor(state.level));
 
     const bar = $('#home-hp-bar');
     bar.innerHTML = '';
@@ -252,6 +284,7 @@
         case 'cancel-workout': cancelWorkout(); return;
         case 'confirm-result': confirmResult(false); return;
         case 'skip-result':    confirmResult(true);  return;
+        case 'confirm-name':   confirmName(); return;
       }
     }
     const useBtn = e.target.closest('.inv-use');
@@ -273,7 +306,20 @@
   });
 
   // -------- Boot --------
-  show('home');
+  // 이름이 없으면 인트로 화면(이름 정하기)으로, 있으면 홈으로.
+  if (!state.name) {
+    show('intro');
+  } else {
+    show('home');
+  }
+
+  // Enter 키로도 이름 확정 가능
+  $('#intro-name-input').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      confirmName();
+    }
+  });
 
   // Ask for health permissions on first launch (no-op on web).
   if (Health.isNative()) {
