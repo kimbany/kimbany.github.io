@@ -36,6 +36,8 @@
   --hp-bg: #4a2030;
   --exp: #6cb6ff;
   --exp-bg: #1f2c4a;
+  --ticket: #ffd84a;
+  --ticket-bg: #4a3a10;
   --shadow: 0 0 0 4px #000, 0 0 0 8px #1a1c30;
 }
 
@@ -252,6 +254,36 @@ body {
   box-shadow: inset 1px 1px 0 #ffb0b8, inset -1px -1px 0 #8a1a26;
 }
 .hp-cell.empty { background: transparent; box-shadow: none; }
+
+/* Coupon ticket progress bar (30분 누적 마다 1장) */
+.ticket-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--panel);
+  border: 2px solid #000;
+  padding: 10px;
+  box-shadow: inset -2px -2px 0 #0a0b18, inset 2px 2px 0 #2f3454;
+}
+.ticket-icon { font-size: 16px; }
+.ticket-num { font-size: 12px; color: var(--dim); white-space: nowrap; }
+.ticket-num #home-tickets { color: var(--ticket); }
+.ticket-bar {
+  flex: 1;
+  height: 12px;
+  background: var(--ticket-bg);
+  border: 2px solid #000;
+  overflow: hidden;
+}
+.ticket-fill {
+  height: 100%;
+  background: var(--ticket);
+  width: 0%;
+  transition: width .3s steps(8);
+  box-shadow: inset 1px 1px 0 #fff0a8, inset -1px -1px 0 #a07a10;
+}
+
+.line.ticket-line span:last-child { color: var(--ticket); }
 
 .actions {
   display: flex;

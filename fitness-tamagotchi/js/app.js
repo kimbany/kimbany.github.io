@@ -87,6 +87,15 @@
     $('#home-hp').textContent = state.hp;
     $('#stage-text').textContent = Logic.stageNameKo(Logic.stageFor(state.level));
 
+    // 확률 쿠폰 진행 (운동 누적 30분당 1장)
+    const banked = state.bankedSeconds || 0;
+    const tickets = state.tickets || 0;
+    const bankedMin = Math.floor(banked / 60);
+    const ticketGoalMin = Math.floor(Logic.SECONDS_PER_TICKET / 60);
+    $('#home-tickets').textContent = tickets;
+    $('#home-ticket-progress').textContent = `${bankedMin}/${ticketGoalMin}`;
+    $('#home-ticket-fill').style.width = Math.min(100, Math.floor((banked / Logic.SECONDS_PER_TICKET) * 100)) + '%';
+
     const bar = $('#home-hp-bar');
     bar.innerHTML = '';
     for (let i = 0; i < Logic.MAX_HP; i++) {
@@ -229,6 +238,15 @@
       const label = r.intensity >= 2.0 ? '고강도' : r.intensity >= 1.5 ? '중강도' : '저강도';
       $('#r-int').textContent = `${label} (×${r.intensity})`;
     } else intLine.classList.add('hidden');
+
+    // 확률 쿠폰 획득 표시 (이번 운동에서 새로 받은 게 있을 때만)
+    const ticketLine = $('#r-ticket-line');
+    if (r.ticketsGained > 0) {
+      ticketLine.classList.remove('hidden');
+      $('#r-tickets').textContent = `+${r.ticketsGained}장 (보유 ${r.totalTickets}장)`;
+    } else {
+      ticketLine.classList.add('hidden');
+    }
 
     const lvlLine = $('#r-lvlup-line');
     if (r.levelsGained > 0) {
