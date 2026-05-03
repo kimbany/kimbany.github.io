@@ -1,0 +1,14 @@
+{
+  "appId": "com.kimbany.fitnesstamagotchi",
+  "appName": "운동 다마고치",
+  "webDir": "../fitness-tamagotchi",
+  "server": {
+    "androidScheme": "https"
+  },
+  "android": {
+    "allowMixedContent": false
+  },
+  "ios": {
+    "contentInset": "always"
+  }
+}

@@ -97,8 +97,9 @@
     $('#timer').textContent = `${m}:${s}`;
   }
 
-  function endWorkout() {
-    const durationSec = Math.floor((Date.now() - workoutStartedAt) / 1000);
+  async function endWorkout() {
+    const endedAt = Date.now();
+    const durationSec = Math.floor((endedAt - workoutStartedAt) / 1000);
     stopWorkoutTimer();
 
     if (durationSec < 5) {
@@ -108,7 +109,13 @@
       return;
     }
 
-    const result = Logic.endWorkout(state, durationSec);
+    // Read native health data if available (no-op on web).
+    let health = null;
+    if (Health.isNative()) {
+      health = await Health.readWorkoutData(workoutStartedAt, endedAt);
+    }
+
+    const result = Logic.endWorkout(state, durationSec, health);
     Logic.save(state);
     showResult(result);
   }
@@ -125,6 +132,22 @@
     $('#r-time').textContent = `${m}:${s}`;
     $('#r-exp').textContent  = `+${r.expGained}${r.boostUsed ? ' (x2)' : ''}`;
     $('#r-hp').textContent   = `+${r.hpGained}`;
+
+    // Health data lines (only when present)
+    const hrLine = $('#r-hr-line'), calLine = $('#r-cal-line'), intLine = $('#r-int-line');
+    if (r.avgHeartRate) {
+      hrLine.classList.remove('hidden');
+      $('#r-hr').textContent = `${r.avgHeartRate} bpm`;
+    } else hrLine.classList.add('hidden');
+    if (r.calories) {
+      calLine.classList.remove('hidden');
+      $('#r-cal').textContent = `${r.calories} kcal`;
+    } else calLine.classList.add('hidden');
+    if (r.intensity && r.intensity !== 1.0) {
+      intLine.classList.remove('hidden');
+      const label = r.intensity >= 2.0 ? '고강도' : r.intensity >= 1.5 ? '중강도' : '저강도';
+      $('#r-int').textContent = `${label} (×${r.intensity})`;
+    } else intLine.classList.add('hidden');
 
     const lvlLine = $('#r-lvlup-line');
     if (r.levelsGained > 0) {
@@ -200,6 +223,13 @@
 
   // -------- Boot --------
   show('home');
+
+  // Ask for health permissions on first launch (no-op on web).
+  if (Health.isNative()) {
+    document.addEventListener('deviceready', () => Health.requestPermissions(), { once: true });
+    // Some Capacitor setups don't emit deviceready — try immediately too.
+    Health.requestPermissions().catch(() => {});
+  }
 
   // Pause animation when tab hidden to save battery.
   document.addEventListener('visibilitychange', () => {

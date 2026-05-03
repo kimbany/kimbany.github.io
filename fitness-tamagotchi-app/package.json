@@ -1,0 +1,20 @@
+{
+  "name": "fitness-tamagotchi-app",
+  "version": "0.1.0",
+  "description": "Capacitor wrapper for Fitness Tamagotchi (HealthKit + Health Connect)",
+  "private": true,
+  "scripts": {
+    "sync": "npx cap sync",
+    "open:android": "npx cap open android",
+    "open:ios": "npx cap open ios",
+    "run:android": "npx cap run android",
+    "run:ios": "npx cap run ios"
+  },
+  "dependencies": {
+    "@capacitor/android": "^8.3.1",
+    "@capacitor/cli": "^8.3.1",
+    "@capacitor/core": "^8.3.1",
+    "@capacitor/ios": "^8.3.1",
+    "capacitor-health": "^8.1.0"
+  }
+}
