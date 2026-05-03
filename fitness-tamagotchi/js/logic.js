@@ -70,9 +70,13 @@ const Logic = (() => {
 
   // Compute rewards from a workout. Mutates state.
   // durationSec: integer seconds of exercise.
-  function endWorkout(state, durationSec) {
+  // health (optional): { avgHeartRate, calories } from native health bridge.
+  function endWorkout(state, durationSec, health = null) {
     const minutes = durationSec / 60;
-    let expGained = Math.floor(minutes * 2);
+    const intensity = intensityFromHeartRate(health?.avgHeartRate);
+    const baseExp = Math.floor(minutes * 2 * intensity);
+    const calorieBonus = health?.calories ? Math.floor(health.calories / 10) : 0;
+    let expGained = baseExp + calorieBonus;
     let boostUsed = false;
     if (state.exp_boost_active && expGained > 0) {
       expGained *= 2;
@@ -85,7 +89,12 @@ const Logic = (() => {
     gainHp(state, hpGained);
 
     const reward = grantRandomItem(state);
-    state.workouts.push({ duration: durationSec, date: new Date().toISOString() });
+    state.workouts.push({
+      duration: durationSec,
+      date: new Date().toISOString(),
+      avgHeartRate: health?.avgHeartRate ?? null,
+      calories: health?.calories ?? null,
+    });
     state.last_active_date = todayKey();
 
     return {
@@ -96,7 +105,19 @@ const Logic = (() => {
       newLevel: state.level,
       reward,
       boostUsed,
+      intensity,
+      avgHeartRate: health?.avgHeartRate ?? null,
+      calories: health?.calories ?? null,
     };
+  }
+
+  // Heart-rate based intensity multiplier.
+  // Uses simple zones; defaults to 1.0 if unknown.
+  function intensityFromHeartRate(hr) {
+    if (!hr || hr <= 0) return 1.0;
+    if (hr < 100) return 1.0;   // 저강도
+    if (hr < 140) return 1.5;   // 중강도
+    return 2.0;                  // 고강도
   }
 
   function grantRandomItem(state) {
@@ -157,7 +178,7 @@ const Logic = (() => {
     MAX_HP, BASE_EXP, ITEM_DEFS, REWARD_POOL,
     defaultState, todayKey, daysBetween,
     expForLevel, applyDailyDecay, gainExp, gainHp,
-    endWorkout, grantRandomItem, useItem, moodFor,
+    endWorkout, intensityFromHeartRate, grantRandomItem, useItem, moodFor,
     load, save, reset,
   };
 })();
