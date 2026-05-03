@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
 <meta name="theme-color" content="#0f1020" />
-<title>Fitness Tamagotchi</title>
+<title>운동 다마고치</title>
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet" />
@@ -26,7 +26,7 @@
 
         <div class="stage">
           <canvas id="char-canvas" width="128" height="128"></canvas>
-          <div id="mood-text" class="mood">HAPPY</div>
+          <div id="mood-text" class="mood">행복</div>
         </div>
 
         <div class="hp-row">
@@ -36,49 +36,49 @@
         </div>
 
         <div class="actions">
-          <button class="btn primary" data-action="goto-workout">START WORKOUT</button>
-          <button class="btn" data-action="goto-inventory">INVENTORY</button>
+          <button class="btn primary" data-action="goto-workout">운동 시작</button>
+          <button class="btn" data-action="goto-inventory">인벤토리</button>
         </div>
       </section>
 
       <!-- WORKOUT -->
       <section class="screen" data-screen="workout">
-        <header class="bar"><div class="title">WORKOUT</div></header>
+        <header class="bar"><div class="title">운동 중</div></header>
         <div class="stage">
           <canvas id="workout-canvas" width="128" height="128"></canvas>
         </div>
         <div class="timer" id="timer">00:00</div>
-        <div id="boost-tag" class="boost-tag hidden">EXP x2 ACTIVE</div>
+        <div id="boost-tag" class="boost-tag hidden">EXP x2 적용 중</div>
         <div class="actions">
-          <button class="btn danger" data-action="end-workout">END WORKOUT</button>
-          <button class="btn ghost" data-action="cancel-workout">CANCEL</button>
+          <button class="btn danger" data-action="end-workout">운동 종료</button>
+          <button class="btn ghost" data-action="cancel-workout">취소</button>
         </div>
       </section>
 
       <!-- RESULT -->
       <section class="screen" data-screen="result">
-        <header class="bar"><div class="title">RESULT</div></header>
+        <header class="bar"><div class="title">결과</div></header>
         <div class="result-card">
-          <div class="line"><span>TIME</span><span id="r-time">00:00</span></div>
+          <div class="line"><span>시간</span><span id="r-time">00:00</span></div>
           <div class="line"><span>EXP</span><span id="r-exp">+0</span></div>
           <div class="line"><span>HP</span><span id="r-hp">+0</span></div>
-          <div class="line lvlup hidden" id="r-lvlup-line"><span>LEVEL UP!</span><span id="r-lvlup">LV 2</span></div>
+          <div class="line lvlup hidden" id="r-lvlup-line"><span>레벨 업!</span><span id="r-lvlup">LV 2</span></div>
           <div class="reward">
-            <div class="reward-label">REWARD</div>
+            <div class="reward-label">보상</div>
             <div class="reward-box" id="r-reward">—</div>
           </div>
         </div>
         <div class="actions">
-          <button class="btn primary" data-action="goto-home">OK</button>
+          <button class="btn primary" data-action="goto-home">확인</button>
         </div>
       </section>
 
       <!-- INVENTORY -->
       <section class="screen" data-screen="inventory">
-        <header class="bar"><div class="title">INVENTORY</div></header>
+        <header class="bar"><div class="title">인벤토리</div></header>
         <ul id="inv-list" class="inv-list"></ul>
         <div class="actions">
-          <button class="btn" data-action="goto-home">BACK</button>
+          <button class="btn" data-action="goto-home">뒤로</button>
         </div>
       </section>
 

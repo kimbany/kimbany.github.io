@@ -21,7 +21,7 @@ html, body {
   height: 100%;
   background: #050610;
   color: var(--ink);
-  font-family: 'Press Start 2P', ui-monospace, Menlo, monospace;
+  font-family: 'Press Start 2P', 'DungGeunMo', 'Galmuri11', 'NeoDunggeunmo', 'D2Coding', 'Apple SD Gothic Neo', 'Malgun Gothic', ui-monospace, Menlo, monospace;
   -webkit-font-smoothing: none;
   font-smooth: never;
   user-select: none;
