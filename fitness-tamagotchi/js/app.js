@@ -64,7 +64,8 @@
     }
 
     const mood = Logic.moodFor(state.hp);
-    $('#mood-text').textContent = mood.toUpperCase();
+    const MOOD_LABEL = { happy: '행복', normal: '보통', tired: '피곤', sick: '아픔' };
+    $('#mood-text').textContent = MOOD_LABEL[mood] || mood;
     $('#mood-text').style.color =
       mood === 'happy'  ? '#6cf06c' :
       mood === 'normal' ? '#ffd84a' :
@@ -102,7 +103,7 @@
 
     if (durationSec < 5) {
       // Too short — discard, go home.
-      toast('TOO SHORT (min 5s)');
+      toast('너무 짧아요 (최소 5초)');
       show('home');
       return;
     }
@@ -145,7 +146,7 @@
     if (entries.length === 0) {
       const li = document.createElement('li');
       li.className = 'empty-msg';
-      li.textContent = 'NO ITEMS YET. EXERCISE TO GET REWARDS.';
+      li.textContent = '아직 아이템이 없어요. 운동하고 보상을 받아보세요.';
       list.appendChild(li);
       return;
     }
@@ -161,7 +162,7 @@
           <div class="desc">${def.desc}</div>
         </div>
         <div class="inv-count">x${count}</div>
-        <button class="inv-use" data-item="${id}">USE</button>
+        <button class="inv-use" data-item="${id}">사용</button>
       `;
       list.appendChild(li);
     }
@@ -184,10 +185,10 @@
       const id = useBtn.dataset.item;
       const res = Logic.useItem(state, id);
       if (!res.ok) {
-        const why = res.reason === 'full'   ? 'HP ALREADY FULL'
-                  : res.reason === 'active' ? 'BOOST ALREADY ACTIVE'
-                  : res.reason === 'none'   ? 'NONE LEFT'
-                  : 'CANT USE';
+        const why = res.reason === 'full'   ? 'HP가 이미 가득 찼어요'
+                  : res.reason === 'active' ? '이미 부스터 사용 중'
+                  : res.reason === 'none'   ? '남은 수량 없음'
+                  : '사용할 수 없어요';
         toast(why);
         return;
       }

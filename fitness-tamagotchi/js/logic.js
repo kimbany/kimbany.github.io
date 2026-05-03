@@ -7,8 +7,8 @@ const Logic = (() => {
   const LEVEL_GROWTH = 1.2;
 
   const ITEM_DEFS = {
-    hp_potion:  { id: 'hp_potion',  type: 'hp',  value: 3, name: 'HP POTION',  desc: 'Restores +3 HP',          icon: '+' },
-    exp_booster:{ id: 'exp_booster',type: 'exp', value: 2, name: 'EXP BOOSTER',desc: 'Next workout EXP x2',     icon: 'x' },
+    hp_potion:  { id: 'hp_potion',  type: 'hp',  value: 3, name: 'HP 포션',    desc: 'HP +3 회복',              icon: '+' },
+    exp_booster:{ id: 'exp_booster',type: 'exp', value: 2, name: 'EXP 부스터', desc: '다음 운동 EXP x2',        icon: 'x' },
   };
 
   const REWARD_POOL = ['hp_potion', 'exp_booster'];
@@ -116,11 +116,11 @@ const Logic = (() => {
     if (def.type === 'hp') {
       const restored = gainHp(state, def.value);
       if (restored === 0) return { ok: false, reason: 'full' };
-      effect = `+${restored} HP`;
+      effect = `HP +${restored}`;
     } else if (def.type === 'exp') {
       if (state.exp_boost_active) return { ok: false, reason: 'active' };
       state.exp_boost_active = true;
-      effect = 'EXP x2 NEXT';
+      effect = '다음 운동 EXP x2';
     }
     state.inventory[itemId] = count - 1;
     return { ok: true, effect, def };
