@@ -12,6 +12,9 @@ on:
       - '.github/workflows/build-android.yml'
   workflow_dispatch:  # 수동 실행 허용 (Actions 탭에서 Run workflow 버튼)
 
+permissions:
+  contents: write   # release 생성/삭제 권한
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -134,9 +137,46 @@ jobs:
           path: fitness-tamagotchi-app/android/app/build/outputs/apk/debug/app-debug.apk
           retention-days: 30
 
-      - name: Build summary
+      - name: Publish APK to "latest-debug" release (always-overwriting)
+        if: success() && github.ref == 'refs/heads/master'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          echo "## ✅ APK 빌드 완료" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "이 페이지 하단 **Artifacts** 섹션에서 \`fitness-tamagotchi-${{ github.sha }}.zip\` 을 다운로드 받으세요." >> $GITHUB_STEP_SUMMARY
-          echo "압축 풀면 \`app-debug.apk\` 파일이 나옵니다. 폰으로 옮겨서 설치하면 끝." >> $GITHUB_STEP_SUMMARY
+          set -e
+          APK=fitness-tamagotchi-app/android/app/build/outputs/apk/debug/app-debug.apk
+          TAG=latest-debug
+          # Delete any pre-existing release + tag with the same name so we
+          # always end up with a single "always-latest" download URL.
+          gh release delete "$TAG" --yes --cleanup-tag 2>/dev/null || true
+          gh release create "$TAG" "$APK" \
+            --title "Fitness Tamagotchi (debug) — latest" \
+            --notes "Auto-built from \`${{ github.sha }}\` on $(date -u +'%Y-%m-%d %H:%M UTC').
+
+폰에서 아래 직링크 그대로 클릭하면 APK 가 받아집니다:
+
+\`\`\`
+https://github.com/${{ github.repository }}/releases/download/$TAG/app-debug.apk
+\`\`\`
+
+설치 후 '알 수 없는 출처' 권한 허용 필요."
+
+      - name: Build summary
+        if: success()
+        run: |
+          {
+            echo "## ✅ APK 빌드 완료"
+            echo ""
+            echo "### 📥 폰에서 바로 받기 (로그인 불필요)"
+            echo ""
+            echo "폰 브라우저로 아래 URL 접속 → 자동 다운로드:"
+            echo ""
+            echo '```'
+            echo "https://github.com/${{ github.repository }}/releases/download/latest-debug/app-debug.apk"
+            echo '```'
+            echo ""
+            echo "또는 [Releases 페이지](https://github.com/${{ github.repository }}/releases/tag/latest-debug) 에서 다운로드."
+            echo ""
+            echo "### 💻 PC 에서 받기 (artifact)"
+            echo ""
+            echo "이 페이지 하단 **Artifacts** 섹션에서 \`fitness-tamagotchi-${{ github.sha }}.zip\` 을 다운로드."
+          } >> $GITHUB_STEP_SUMMARY
