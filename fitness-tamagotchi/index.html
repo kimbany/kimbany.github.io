@@ -60,42 +60,18 @@
         <header class="bar"><div class="title">결과</div></header>
         <div class="result-card">
           <div class="line"><span>시간</span><span id="r-time">00:00</span></div>
-
-          <!-- INPUT phase: shown right after workout ends -->
-          <div id="r-input-section">
-            <div class="input-hint">
-              ⌚ Apple Watch / 건강 앱 데이터<br/>
-              <span class="dim">입력하면 EXP 보너스 (선택)</span>
-            </div>
-            <div class="input-row">
-              <label>평균 심박</label>
-              <input id="r-input-hr" type="number" inputmode="numeric" min="40" max="220" placeholder="bpm" />
-            </div>
-            <div class="input-row">
-              <label>칼로리</label>
-              <input id="r-input-cal" type="number" inputmode="numeric" min="0" max="2000" placeholder="kcal" />
-            </div>
-            <div class="actions inline">
-              <button class="btn primary" data-action="confirm-result">확인</button>
-              <button class="btn ghost" data-action="skip-result">건너뛰기</button>
-            </div>
-          </div>
-
-          <!-- REWARD phase: shown after user confirms inputs -->
-          <div id="r-reward-section" class="hidden">
-            <div class="line hidden" id="r-hr-line"><span>평균 심박</span><span id="r-hr">—</span></div>
-            <div class="line hidden" id="r-cal-line"><span>칼로리</span><span id="r-cal">—</span></div>
-            <div class="line hidden" id="r-int-line"><span>강도</span><span id="r-int">—</span></div>
-            <div class="line"><span>EXP</span><span id="r-exp">+0</span></div>
-            <div class="line"><span>HP</span><span id="r-hp">+0</span></div>
-            <div class="line lvlup hidden" id="r-lvlup-line"><span>레벨 업!</span><span id="r-lvlup">LV 2</span></div>
-            <div class="reward">
-              <div class="reward-label">보상</div>
-              <div class="reward-box" id="r-reward">—</div>
-            </div>
+          <div class="line hidden" id="r-hr-line"><span>평균 심박</span><span id="r-hr">—</span></div>
+          <div class="line hidden" id="r-cal-line"><span>칼로리</span><span id="r-cal">—</span></div>
+          <div class="line hidden" id="r-int-line"><span>강도</span><span id="r-int">—</span></div>
+          <div class="line"><span>EXP</span><span id="r-exp">+0</span></div>
+          <div class="line"><span>HP</span><span id="r-hp">+0</span></div>
+          <div class="line lvlup hidden" id="r-lvlup-line"><span>레벨 업!</span><span id="r-lvlup">LV 2</span></div>
+          <div class="reward">
+            <div class="reward-label">보상</div>
+            <div class="reward-box" id="r-reward">—</div>
           </div>
         </div>
-        <div class="actions" id="r-final-actions" style="display:none;">
+        <div class="actions">
           <button class="btn primary" data-action="goto-home">확인</button>
         </div>
       </section>

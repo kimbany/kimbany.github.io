@@ -97,76 +97,27 @@
     $('#timer').textContent = `${m}:${s}`;
   }
 
-  // The workout is finalized in two steps now:
-  //  1. endWorkout() — captures duration, shows the input form (HR/calories)
-  //  2. confirmResult() — runs Logic.endWorkout with whatever the user typed
-  // This way the user always gets a chance to enter Apple Watch data manually,
-  // and the random reward/EXP/HP are only applied once at confirm time.
-  let pendingWorkout = null;
-
   async function endWorkout() {
     const endedAt = Date.now();
     const durationSec = Math.floor((endedAt - workoutStartedAt) / 1000);
     stopWorkoutTimer();
 
     if (durationSec < 5) {
+      // Too short — discard, go home.
       toast('너무 짧아요 (최소 5초)');
       show('home');
       return;
     }
 
-    // Try native health (Android Health Connect / iOS HealthKit when wrapped
-    // as a native app). Used to pre-fill the inputs.
-    let auto = null;
-    if (Health.isNative()) {
-      auto = await Health.readWorkoutData(workoutStartedAt, endedAt);
-    }
-
-    pendingWorkout = { durationSec, auto };
-    showResultInput();
-  }
-
-  function showResultInput() {
-    const r = pendingWorkout;
-    const m = String(Math.floor(r.durationSec / 60)).padStart(2, '0');
-    const s = String(r.durationSec % 60).padStart(2, '0');
-    $('#r-time').textContent = `${m}:${s}`;
-    $('#r-input-hr').value  = r.auto?.avgHeartRate || '';
-    $('#r-input-cal').value = r.auto?.calories || '';
-    $('#r-input-section').classList.remove('hidden');
-    $('#r-reward-section').classList.add('hidden');
-    $('#r-final-actions').style.display = 'none';
-    show('result');
-  }
-
-  function confirmResult(skip) {
-    if (!pendingWorkout) return;
-
+    // Read native health data if available (no-op on web).
     let health = null;
-    if (!skip) {
-      const hr  = parseInt($('#r-input-hr').value, 10);
-      const cal = parseInt($('#r-input-cal').value, 10);
-      const validHr  = Number.isFinite(hr)  && hr  >= 30 && hr  <= 230;
-      const validCal = Number.isFinite(cal) && cal >  0  && cal <= 5000;
-      if (validHr || validCal) {
-        health = {
-          avgHeartRate: validHr  ? hr  : null,
-          calories:     validCal ? cal : null,
-        };
-      }
+    if (Health.isNative()) {
+      health = await Health.readWorkoutData(workoutStartedAt, endedAt);
     }
 
-    const result = Logic.endWorkout(state, pendingWorkout.durationSec, health);
+    const result = Logic.endWorkout(state, durationSec, health);
     Logic.save(state);
-    pendingWorkout = null;
-    showResultRewards(result);
-  }
-
-  function showResultRewards(r) {
-    $('#r-input-section').classList.add('hidden');
-    $('#r-reward-section').classList.remove('hidden');
-    $('#r-final-actions').style.display = '';
-    showResult(r);
+    showResult(result);
   }
 
   function cancelWorkout() {
@@ -250,8 +201,6 @@
         case 'goto-home':      show('home'); return;
         case 'end-workout':    endWorkout(); return;
         case 'cancel-workout': cancelWorkout(); return;
-        case 'confirm-result': confirmResult(false); return;
-        case 'skip-result':    confirmResult(true);  return;
       }
     }
     const useBtn = e.target.closest('.inv-use');
