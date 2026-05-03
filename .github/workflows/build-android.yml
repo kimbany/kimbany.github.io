@@ -141,24 +141,29 @@ jobs:
         if: success() && github.ref == 'refs/heads/master'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          COMMIT_SHA: ${{ github.sha }}
+          REPO: ${{ github.repository }}
         run: |
           set -e
           APK=fitness-tamagotchi-app/android/app/build/outputs/apk/debug/app-debug.apk
           TAG=latest-debug
+          # Build the release notes in a temp file (avoids YAML/shell quoting hell).
+          NOTES_FILE=$(mktemp)
+          {
+            echo "Auto-built from $COMMIT_SHA on $(date -u +'%Y-%m-%d %H:%M UTC')."
+            echo ""
+            echo "폰에서 아래 직링크 그대로 클릭하면 APK 가 받아집니다:"
+            echo ""
+            echo "https://github.com/$REPO/releases/download/$TAG/app-debug.apk"
+            echo ""
+            echo "설치 후 '알 수 없는 출처' 권한 허용 필요."
+          } > "$NOTES_FILE"
           # Delete any pre-existing release + tag with the same name so we
           # always end up with a single "always-latest" download URL.
           gh release delete "$TAG" --yes --cleanup-tag 2>/dev/null || true
           gh release create "$TAG" "$APK" \
             --title "Fitness Tamagotchi (debug) — latest" \
-            --notes "Auto-built from \`${{ github.sha }}\` on $(date -u +'%Y-%m-%d %H:%M UTC').
-
-폰에서 아래 직링크 그대로 클릭하면 APK 가 받아집니다:
-
-\`\`\`
-https://github.com/${{ github.repository }}/releases/download/$TAG/app-debug.apk
-\`\`\`
-
-설치 후 '알 수 없는 출처' 권한 허용 필요."
+            --notes-file "$NOTES_FILE"
 
       - name: Build summary
         if: success()
