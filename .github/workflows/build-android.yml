@@ -65,22 +65,34 @@ jobs:
             echo "::warning::Gradle build attempt $i failed (exit $rc) — retrying in 30s"
             sleep 30
           done
-          # If all attempts failed, dump several useful excerpts so the user
-          # doesn't have to download the artifact to know what broke.
+          # If all attempts failed, dump several useful excerpts inline (no
+          # ::group:: wrapping — those collapse by default and hide content).
           if [ $rc -ne 0 ]; then
             LAST_LOG=$(ls -1 gradle-build-*.log 2>/dev/null | tail -1)
+            echo ""
+            echo "=================================================="
+            echo "  GRADLE BUILD DIAGNOSTICS"
+            echo "  log file: ${LAST_LOG:-<none>}"
+            if [ -n "$LAST_LOG" ] && [ -f "$LAST_LOG" ]; then
+              echo "  log size: $(wc -c < "$LAST_LOG") bytes / $(wc -l < "$LAST_LOG") lines"
+            fi
+            echo "=================================================="
             if [ -n "$LAST_LOG" ] && [ -s "$LAST_LOG" ]; then
-              echo "::group::FAILURE: section"
-              awk '/^FAILURE:/{flag=1} flag' "$LAST_LOG" | head -200 || true
-              echo "::endgroup::"
-              echo "::group::Failed task lines"
-              grep -nE '^> Task .* FAILED|^FAILURE|^\* What went wrong|^\* Where|error:|^e: ' "$LAST_LOG" | head -50 || true
-              echo "::endgroup::"
-              echo "::group::Last 120 lines of gradle log"
-              tail -120 "$LAST_LOG" || true
-              echo "::endgroup::"
+              echo ""
+              echo "===== FAILED tasks ====="
+              grep -nE '^> Task .* FAILED' "$LAST_LOG" || echo "(none matched)"
+              echo ""
+              echo "===== Error keywords ====="
+              grep -nE 'error:|^e: |^FAILURE|^\* What went wrong|^\* Where|Caused by:|Could not|Cannot find' "$LAST_LOG" | head -60 || echo "(none matched)"
+              echo ""
+              echo "===== FAILURE: section (raw) ====="
+              awk '/^FAILURE:/{flag=1} flag' "$LAST_LOG" | head -150 || echo "(none)"
+              echo ""
+              echo "===== Last 80 lines of gradle log ====="
+              tail -80 "$LAST_LOG" || true
+              echo "===== end ====="
             else
-              echo "::warning::No gradle log file found at $LAST_LOG"
+              echo "(log file missing or empty — see uploaded artifact)"
             fi
           fi
           exit $rc
