@@ -59,41 +59,52 @@ jobs:
           set +e
           rc=1
           for i in 1 2 3; do
-            ./gradlew assembleDebug --no-daemon --stacktrace --info 2>&1 | tee gradle-build-${i}.log
+            ./gradlew assembleDebug --no-daemon --stacktrace 2>&1 | tee gradle-build-${i}.log
             rc=${PIPESTATUS[0]}
             if [ $rc -eq 0 ]; then break; fi
             echo "::warning::Gradle build attempt $i failed (exit $rc) — retrying in 30s"
             sleep 30
           done
-          # If all attempts failed, dump several useful excerpts inline (no
-          # ::group:: wrapping — those collapse by default and hide content).
+
+          # Always write a markdown report to the workflow summary so the
+          # failure is impossible to miss, regardless of how the user reads logs.
           if [ $rc -ne 0 ]; then
             LAST_LOG=$(ls -1 gradle-build-*.log 2>/dev/null | tail -1)
+            {
+              echo "## ❌ Android 빌드 실패"
+              echo ""
+              echo "log: \`${LAST_LOG:-<none>}\`"
+              if [ -n "$LAST_LOG" ] && [ -f "$LAST_LOG" ]; then
+                echo "  / $(wc -l < "$LAST_LOG") 줄 / $(wc -c < "$LAST_LOG") bytes"
+                echo ""
+                echo "### 🔴 Failed tasks"
+                echo '```'
+                grep -E '^> Task .* FAILED' "$LAST_LOG" || echo "(매치 없음)"
+                echo '```'
+                echo ""
+                echo "### ⚠️ Error keywords"
+                echo '```'
+                grep -nE 'error:|^e: |^FAILURE|^\* What went wrong|^\* Where|Caused by:|Could not|Cannot find|Unresolved reference|incompatible' "$LAST_LOG" | head -80
+                echo '```'
+                echo ""
+                echo "### 📜 FAILURE: section (raw)"
+                echo '```'
+                awk '/^FAILURE:/{flag=1} flag' "$LAST_LOG" | head -200
+                echo '```'
+                echo ""
+                echo "### 📜 Last 200 lines"
+                echo '```'
+                tail -200 "$LAST_LOG"
+                echo '```'
+              else
+                echo "_log 파일이 없습니다 — Artifact 의 gradle-logs 를 확인하세요._"
+              fi
+            } >> $GITHUB_STEP_SUMMARY
             echo ""
-            echo "=================================================="
-            echo "  GRADLE BUILD DIAGNOSTICS"
-            echo "  log file: ${LAST_LOG:-<none>}"
-            if [ -n "$LAST_LOG" ] && [ -f "$LAST_LOG" ]; then
-              echo "  log size: $(wc -c < "$LAST_LOG") bytes / $(wc -l < "$LAST_LOG") lines"
-            fi
-            echo "=================================================="
-            if [ -n "$LAST_LOG" ] && [ -s "$LAST_LOG" ]; then
-              echo ""
-              echo "===== FAILED tasks ====="
-              grep -nE '^> Task .* FAILED' "$LAST_LOG" || echo "(none matched)"
-              echo ""
-              echo "===== Error keywords ====="
-              grep -nE 'error:|^e: |^FAILURE|^\* What went wrong|^\* Where|Caused by:|Could not|Cannot find' "$LAST_LOG" | head -60 || echo "(none matched)"
-              echo ""
-              echo "===== FAILURE: section (raw) ====="
-              awk '/^FAILURE:/{flag=1} flag' "$LAST_LOG" | head -150 || echo "(none)"
-              echo ""
-              echo "===== Last 80 lines of gradle log ====="
-              tail -80 "$LAST_LOG" || true
-              echo "===== end ====="
-            else
-              echo "(log file missing or empty — see uploaded artifact)"
-            fi
+            echo "==============================================="
+            echo "  ❌ 빌드 실패 — 자세한 정보는 워크플로우 페이지"
+            echo "  상단의 'Summary' 탭에 마크다운으로 게시됨."
+            echo "==============================================="
           fi
           exit $rc
 
