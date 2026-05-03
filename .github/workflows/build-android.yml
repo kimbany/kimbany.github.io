@@ -1,0 +1,69 @@
+name: Build Android APK
+
+# 폰에서 바로 설치할 수 있는 디버그 APK 를 자동으로 빌드합니다.
+# 결과물은 Actions 탭 → 워크플로우 실행 → Artifacts 에서 다운로드.
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - 'fitness-tamagotchi/**'
+      - 'fitness-tamagotchi-app/**'
+      - '.github/workflows/build-android.yml'
+  workflow_dispatch:  # 수동 실행 허용 (Actions 탭에서 Run workflow 버튼)
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: fitness-tamagotchi-app/package-lock.json
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          packages: 'platforms;android-34 build-tools;34.0.0'
+
+      - name: Install npm dependencies
+        working-directory: fitness-tamagotchi-app
+        run: npm ci
+
+      - name: Sync web assets to Android project
+        working-directory: fitness-tamagotchi-app
+        run: npx cap sync android
+
+      - name: Make gradlew executable
+        working-directory: fitness-tamagotchi-app/android
+        run: chmod +x ./gradlew
+
+      - name: Build debug APK
+        working-directory: fitness-tamagotchi-app/android
+        run: ./gradlew assembleDebug --no-daemon
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: fitness-tamagotchi-${{ github.sha }}
+          path: fitness-tamagotchi-app/android/app/build/outputs/apk/debug/app-debug.apk
+          retention-days: 30
+
+      - name: Build summary
+        run: |
+          echo "## ✅ APK 빌드 완료" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "이 페이지 하단 **Artifacts** 섹션에서 \`fitness-tamagotchi-${{ github.sha }}.zip\` 을 다운로드 받으세요." >> $GITHUB_STEP_SUMMARY
+          echo "압축 풀면 \`app-debug.apk\` 파일이 나옵니다. 폰으로 옮겨서 설치하면 끝." >> $GITHUB_STEP_SUMMARY
