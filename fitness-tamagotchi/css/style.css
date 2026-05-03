@@ -1,3 +1,28 @@
+/* Korean pixel webfonts (projectnoonnu CDN — widely used in Korean dev community) */
+@font-face {
+  font-family: 'NeoDunggeunmo';
+  src: url('https://cdn.jsdelivr.net/gh/projectnoonnu/noonfonts_2105_2@1.0/NeoDunggeunmo.woff') format('woff');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'DungGeunMo';
+  src: url('https://cdn.jsdelivr.net/gh/projectnoonnu/noonfonts_2107@1.1/DungGeunMo.woff') format('woff');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+/* Galmuri11 fallback via npm/jsdelivr */
+@font-face {
+  font-family: 'Galmuri11';
+  src: url('https://cdn.jsdelivr.net/gh/quiple/galmuri/dist/Galmuri11.woff2') format('woff2'),
+       url('https://cdn.jsdelivr.net/gh/quiple/galmuri/dist/Galmuri11.woff') format('woff');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+
 :root {
   --bg: #0f1020;
   --panel: #1a1c30;
@@ -21,7 +46,8 @@ html, body {
   height: 100%;
   background: #050610;
   color: var(--ink);
-  font-family: 'Press Start 2P', 'DungGeunMo', 'Galmuri11', 'NeoDunggeunmo', 'D2Coding', 'Apple SD Gothic Neo', 'Malgun Gothic', ui-monospace, Menlo, monospace;
+  font-family: 'NeoDunggeunmo', 'DungGeunMo', 'Galmuri11', 'Press Start 2P', 'D2Coding', 'Apple SD Gothic Neo', 'Malgun Gothic', ui-monospace, Menlo, monospace;
+  font-size: 16px;
   -webkit-font-smoothing: none;
   font-smooth: never;
   user-select: none;
@@ -77,16 +103,16 @@ body {
   background: var(--panel);
   border: 2px solid #000;
   box-shadow: inset -2px -2px 0 #0a0b18, inset 2px 2px 0 #2f3454;
-  font-size: 10px;
+  font-size: 16px;
 }
 
 .lvl { color: var(--accent); }
-.title { letter-spacing: 2px; }
+.title { letter-spacing: 2px; font-size: 18px; }
 
 .exp-wrap { flex: 1; display: flex; align-items: center; gap: 8px; }
 .exp-bar {
   flex: 1;
-  height: 10px;
+  height: 12px;
   background: var(--exp-bg);
   border: 2px solid #000;
   position: relative;
@@ -98,7 +124,7 @@ body {
   width: 0%;
   transition: width .25s steps(8);
 }
-.exp-text { font-size: 8px; color: var(--dim); min-width: 56px; text-align: right; }
+.exp-text { font-size: 13px; color: var(--dim); min-width: 64px; text-align: right; }
 
 .stage {
   flex: 1;
@@ -123,7 +149,7 @@ body {
 
 .mood {
   margin-top: 8px;
-  font-size: 10px;
+  font-size: 18px;
   color: var(--accent);
   letter-spacing: 2px;
 }
@@ -137,8 +163,8 @@ body {
   padding: 10px;
   box-shadow: inset -2px -2px 0 #0a0b18, inset 2px 2px 0 #2f3454;
 }
-.hp-label { font-size: 10px; color: var(--hp); }
-.hp-num { font-size: 8px; color: var(--dim); }
+.hp-label { font-size: 16px; color: var(--hp); }
+.hp-num { font-size: 13px; color: var(--dim); }
 .hp-bar {
   flex: 1;
   height: 14px;
@@ -163,8 +189,8 @@ body {
 
 .btn {
   font-family: inherit;
-  font-size: 11px;
-  padding: 14px;
+  font-size: 18px;
+  padding: 16px;
   background: var(--panel-2);
   color: var(--ink);
   border: 2px solid #000;
@@ -195,7 +221,7 @@ body {
 
 .timer {
   text-align: center;
-  font-size: 36px;
+  font-size: 48px;
   letter-spacing: 4px;
   padding: 18px 0;
   background: var(--panel);
@@ -206,10 +232,10 @@ body {
 
 .boost-tag {
   text-align: center;
-  font-size: 9px;
+  font-size: 14px;
   color: #2a0808;
   background: #ffd84a;
-  padding: 6px;
+  padding: 8px;
   border: 2px solid #000;
   letter-spacing: 1px;
 }
@@ -224,7 +250,7 @@ body {
   display: flex;
   flex-direction: column;
   gap: 12px;
-  font-size: 10px;
+  font-size: 16px;
 }
 .result-card .line {
   display: flex;
@@ -242,13 +268,13 @@ body {
   flex-direction: column;
   gap: 6px;
 }
-.reward-label { font-size: 9px; color: var(--dim); }
+.reward-label { font-size: 13px; color: var(--dim); }
 .reward-box {
   padding: 14px;
   background: var(--panel-2);
   border: 2px solid #000;
   text-align: center;
-  font-size: 11px;
+  font-size: 18px;
   color: var(--accent-2);
   letter-spacing: 1px;
 }
@@ -267,26 +293,26 @@ body {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 10px;
+  padding: 12px;
   background: var(--panel);
   border: 2px solid #000;
-  font-size: 10px;
+  font-size: 16px;
 }
 .inv-icon {
-  width: 32px; height: 32px;
+  width: 40px; height: 40px;
   background: var(--panel-2);
   border: 2px solid #000;
   display: flex; align-items: center; justify-content: center;
-  font-size: 16px;
+  font-size: 22px;
 }
 .inv-info { flex: 1; display: flex; flex-direction: column; gap: 4px; }
-.inv-info .name { color: var(--ink); }
-.inv-info .desc { font-size: 8px; color: var(--dim); }
-.inv-count { font-size: 9px; color: var(--accent); padding-right: 6px; }
+.inv-info .name { color: var(--ink); font-size: 16px; }
+.inv-info .desc { font-size: 13px; color: var(--dim); }
+.inv-count { font-size: 14px; color: var(--accent); padding-right: 6px; }
 .inv-use {
   font-family: inherit;
-  font-size: 9px;
-  padding: 8px 10px;
+  font-size: 14px;
+  padding: 10px 14px;
   background: var(--accent-2);
   color: #082a22;
   border: 2px solid #000;
@@ -299,20 +325,21 @@ body {
 .empty-msg {
   text-align: center;
   color: var(--dim);
-  font-size: 9px;
+  font-size: 14px;
   padding: 24px;
+  line-height: 1.6;
 }
 
 .toast {
   position: absolute;
-  bottom: 90px;
+  bottom: 100px;
   left: 50%;
   transform: translateX(-50%);
   background: #000;
   color: var(--accent);
   border: 2px solid var(--accent);
-  padding: 8px 14px;
-  font-size: 9px;
+  padding: 10px 16px;
+  font-size: 14px;
   letter-spacing: 1px;
   animation: toast-in .2s steps(4);
   z-index: 10;
@@ -325,6 +352,8 @@ body {
 }
 
 @media (max-width: 380px) {
-  .timer { font-size: 28px; }
+  .timer { font-size: 36px; }
+  .btn { font-size: 16px; padding: 14px; }
+  .bar { font-size: 14px; }
   #char-canvas, #workout-canvas { width: 160px; height: 160px; }
 }
