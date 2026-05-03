@@ -62,6 +62,15 @@
           <span class="hp-num"><span id="home-hp">10</span>/10</span>
         </div>
 
+        <div class="ticket-row">
+          <span class="ticket-icon">🎟</span>
+          <div class="ticket-bar"><div id="home-ticket-fill" class="ticket-fill"></div></div>
+          <span class="ticket-num">
+            <span id="home-ticket-progress">0/30</span>분 ·
+            <span id="home-tickets">0</span>장
+          </span>
+        </div>
+
         <div class="actions">
           <button class="btn primary" data-action="goto-workout">운동 시작</button>
           <button class="btn" data-action="goto-inventory">인벤토리</button>
@@ -115,6 +124,7 @@
             <div class="line hidden" id="r-int-line"><span>강도</span><span id="r-int">—</span></div>
             <div class="line"><span>EXP</span><span id="r-exp">+0</span></div>
             <div class="line"><span>HP</span><span id="r-hp">+0</span></div>
+            <div class="line ticket-line hidden" id="r-ticket-line"><span>🎟 쿠폰</span><span id="r-tickets">+0</span></div>
             <div class="line lvlup hidden" id="r-lvlup-line"><span>레벨 업!</span><span id="r-lvlup">LV 2</span></div>
             <div class="reward">
               <div class="reward-label">보상</div>

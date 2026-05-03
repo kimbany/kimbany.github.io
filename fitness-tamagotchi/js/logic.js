@@ -5,6 +5,8 @@ const Logic = (() => {
   const MAX_HP = 10;
   const BASE_EXP = 100;
   const LEVEL_GROWTH = 1.2;
+  // 운동 30분 누적당 확률 쿠폰 1장. 모자란 시간은 자동 이월.
+  const SECONDS_PER_TICKET = 30 * 60;
 
   const ITEM_DEFS = {
     hp_potion:  { id: 'hp_potion',  type: 'hp',  value: 3, name: 'HP 포션',    desc: 'HP +3 회복',              icon: '+' },
@@ -23,6 +25,8 @@ const Logic = (() => {
       inventory: {},        // { itemId: count }
       exp_boost_active: false,
       workouts: [],
+      bankedSeconds: 0,     // 다음 쿠폰까지 누적된 운동 시간 (0 ~ 1800)
+      tickets: 0,           // 미사용 확률 쿠폰 개수
     };
   }
 
@@ -102,6 +106,13 @@ const Logic = (() => {
     const { levelsGained } = gainExp(state, expGained);
     gainHp(state, hpGained);
 
+    // 확률 쿠폰: 운동 시간을 누적해서 30분마다 1장씩 발급. 모자란 시간은 이월.
+    const beforeBank = state.bankedSeconds || 0;
+    const totalBanked = beforeBank + durationSec;
+    const ticketsGained = Math.floor(totalBanked / SECONDS_PER_TICKET);
+    state.tickets = (state.tickets || 0) + ticketsGained;
+    state.bankedSeconds = totalBanked % SECONDS_PER_TICKET;
+
     const reward = grantRandomItem(state);
     state.workouts.push({
       duration: durationSec,
@@ -122,6 +133,9 @@ const Logic = (() => {
       intensity,
       avgHeartRate: health?.avgHeartRate ?? null,
       calories: health?.calories ?? null,
+      ticketsGained,
+      totalTickets: state.tickets,
+      bankedSeconds: state.bankedSeconds,
     };
   }
 
@@ -189,7 +203,7 @@ const Logic = (() => {
   }
 
   return {
-    MAX_HP, BASE_EXP, ITEM_DEFS, REWARD_POOL,
+    MAX_HP, BASE_EXP, SECONDS_PER_TICKET, ITEM_DEFS, REWARD_POOL,
     defaultState, todayKey, daysBetween,
     expForLevel, applyDailyDecay, gainExp, gainHp,
     endWorkout, intensityFromHeartRate, grantRandomItem, useItem, moodFor,
