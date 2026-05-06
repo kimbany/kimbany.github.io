@@ -52,6 +52,14 @@
   .thumb img, .thumb video { width: 100%; height: 100%; object-fit: cover; }
   .meta { padding: 8px 10px; font-size: 11px; color: var(--muted);
     word-break: break-all; display: flex; justify-content: space-between; gap: 6px; }
+  .hint { font-size: 10px; color: var(--accent); padding: 0 10px 8px; }
+  .linklist { display: flex; flex-direction: column; gap: 6px; margin-top: 16px; }
+  .linklist a { color: var(--accent); text-decoration: none; padding: 8px 12px;
+    background: var(--panel2); border: 1px solid var(--line); border-radius: 6px;
+    font-family: monospace; font-size: 12px; word-break: break-all; }
+  .linklist a:hover { background: #2a2f3a; }
+  .linklist .ll-row { display: flex; align-items: center; gap: 8px; }
+  .linklist .ll-row a { flex: 1; }
   .badge { background: #2a2f3a; color: #cbd2e0; padding: 2px 6px; border-radius: 6px;
     font-size: 10px; flex-shrink: 0; }
   .check { display: flex; align-items: center; gap: 6px; padding: 6px 10px;
@@ -81,6 +89,9 @@
     <div class="actions">
       <button id="download" class="ghost" disabled>📂 폴더 선택 후 모두 다운로드</button>
       <button id="downloadAll" class="ghost" disabled>⬇ 전부 그냥 다운로드</button>
+      <button id="openTabs" class="ghost" disabled title="각 URL을 새 탭에 열어서 우클릭 저장">🪟 새 탭에서 모두 열기</button>
+      <button id="copyUrls" class="ghost" disabled>📋 URL 전체 복사</button>
+      <label class="check"><input type="checkbox" id="linkMode" /> 🔗 링크 리스트 모드 (우클릭 → "다른 이름으로 링크 저장")</label>
       <label class="check"><input type="checkbox" id="selectAll" checked /> 전체 선택</label>
     </div>
     <div id="status" class="status"></div>
@@ -98,11 +109,23 @@
     </ul>
   </details>
 
+  <details open>
+    <summary>💡 어떤 버튼을 눌러야 하나요?</summary>
+    <ul class="small">
+      <li><b>📂 폴더 선택 후 모두 다운로드</b> — 가장 편함. 자동으로 폴더에 저장. (CORS 차단 사이트는 안 됨)</li>
+      <li><b>⬇ 전부 그냥 다운로드</b> — 기본 다운로드 폴더로. (역시 CORS 영향)</li>
+      <li><b>🪟 새 탭에서 모두 열기</b> — 개발자도구에서 URL 클릭하는 것과 동일. <b>차단 안 당함.</b> 각 탭에서 우클릭 → 저장. (팝업 차단 허용 필요)</li>
+      <li><b>🔗 링크 리스트 모드</b> — 미리보기 대신 클릭 가능한 링크로 표시. 각 링크 우클릭 → "다른 이름으로 링크 저장". <b>차단 안 당함.</b> 가장 확실한 방법.</li>
+      <li><b>📋 URL 전체 복사</b> — URL 목록을 클립보드에. 다운로드 매니저(JDownloader 등)에 붙여넣기 좋음.</li>
+      <li>미리보기 이미지 자체도 <b>우클릭 → "이미지 저장"</b> 으로 받을 수 있어요.</li>
+    </ul>
+  </details>
+
   <details>
     <summary>ℹ️ 안내 / 한계</summary>
     <ul class="small">
-      <li>URL 입력 방식은 <b>CORS 프록시</b>를 거치기 때문에 일부 사이트는 차단될 수 있어요. 그럴 땐 위의 북마클릿을 쓰세요.</li>
-      <li>"폴더 선택 저장"은 <b>크롬·엣지</b>에서만 됩니다. 사파리·파이어폭스는 자동으로 다운로드 폴더에 저장됩니다.</li>
+      <li>URL 입력 방식은 <b>CORS 프록시</b>를 거치기 때문에 일부 사이트는 차단될 수 있어요. 그럴 땐 북마클릿이나 "새 탭 열기" / "링크 리스트" 모드를 쓰세요.</li>
+      <li>"폴더 선택 저장"은 <b>크롬·엣지</b>에서만 됩니다.</li>
       <li>저작권이 있는 콘텐츠는 개인 보관 외 용도로 재배포하지 마세요.</li>
     </ul>
   </details>

@@ -5,6 +5,9 @@ const urlInput = $("url");
 const scanBtn = $("scan");
 const downloadBtn = $("download");
 const downloadAllBtn = $("downloadAll");
+const openTabsBtn = $("openTabs");
+const copyUrlsBtn = $("copyUrls");
+const linkMode = $("linkMode");
 const selectAll = $("selectAll");
 const statusEl = $("status");
 const grid = $("grid");
@@ -161,6 +164,8 @@ async function scan() {
     setStatus(`${urls.length}개 발견. 다운로드 버튼을 누르세요.`, "ok");
     downloadBtn.disabled = false;
     downloadAllBtn.disabled = false;
+    openTabsBtn.disabled = false;
+    copyUrlsBtn.disabled = false;
   } catch (e) {
     setStatus("실패: " + e.message + " — CORS 차단일 수 있어요. 북마클릿을 써보세요.", "err");
   } finally {
@@ -170,11 +175,37 @@ async function scan() {
 
 function render() {
   grid.innerHTML = "";
+  if (linkMode.checked) {
+    grid.className = "linklist";
+    foundItems.forEach((it, i) => {
+      const row = document.createElement("div");
+      row.className = "ll-row";
+      const cb = document.createElement("input");
+      cb.type = "checkbox"; cb.checked = it.selected;
+      cb.onchange = () => { foundItems[i].selected = cb.checked; };
+      const a = document.createElement("a");
+      a.href = it.url;
+      a.target = "_blank";
+      a.rel = "noopener";
+      a.download = safeName(it.url, i + 1); // 같은 출처면 자동 다운로드, 다른 출처면 우클릭→링크 저장
+      a.textContent = `[${it.type.toUpperCase()}] ${it.url}`;
+      a.title = "우클릭 → '다른 이름으로 링크 저장'";
+      row.appendChild(cb);
+      row.appendChild(a);
+      grid.appendChild(row);
+    });
+    return;
+  }
+  grid.className = "grid";
   foundItems.forEach((it, i) => {
     const card = document.createElement("div");
     card.className = "item";
-    const thumb = document.createElement("div");
+    const thumb = document.createElement("a");
     thumb.className = "thumb";
+    thumb.href = it.url;
+    thumb.target = "_blank";
+    thumb.rel = "noopener";
+    thumb.title = "클릭: 새 탭에서 열기 / 우클릭 → 이미지(또는 비디오) 저장";
     if (it.type === "video") {
       const v = document.createElement("video");
       v.src = it.url; v.muted = true; v.preload = "metadata";
@@ -182,7 +213,7 @@ function render() {
     } else {
       const img = document.createElement("img");
       img.src = it.url; img.loading = "lazy";
-      img.onerror = () => { thumb.innerHTML = '<span style="color:#666;font-size:11px">미리보기 불가</span>'; };
+      img.onerror = () => { thumb.innerHTML = '<span style="color:#666;font-size:11px">미리보기 불가 — 클릭해서 새 탭으로 열기</span>'; };
       thumb.appendChild(img);
     }
     const meta = document.createElement("label");
@@ -199,11 +230,17 @@ function render() {
     left.appendChild(document.createTextNode((extOf(it.url) || "?").toUpperCase()));
     meta.appendChild(left);
     meta.appendChild(badge);
+    const hint = document.createElement("div");
+    hint.className = "hint";
+    hint.textContent = "↑ 우클릭 → 저장";
     card.appendChild(thumb);
     card.appendChild(meta);
+    card.appendChild(hint);
     grid.appendChild(card);
   });
 }
+
+linkMode.addEventListener("change", render);
 
 selectAll.addEventListener("change", () => {
   foundItems.forEach((it) => (it.selected = selectAll.checked));
@@ -288,10 +325,42 @@ async function downloadAllSimple() {
   setStatus("완료. 다운로드 폴더를 확인하세요.", "ok");
 }
 
+async function openAllInTabs() {
+  const targets = foundItems.filter((it) => it.selected);
+  if (!targets.length) return;
+  if (targets.length > 8 && !confirm(`${targets.length}개 탭을 엽니다. 팝업 차단을 허용해주세요. 계속할까요?`)) return;
+  for (let i = 0; i < targets.length; i++) {
+    setStatus(`탭 여는 중 ${i + 1}/${targets.length}…`);
+    const w = window.open(targets[i].url, "_blank", "noopener");
+    if (!w) {
+      setStatus("팝업이 차단됐습니다. 주소창 옆 차단 아이콘을 눌러 허용해주세요.", "err");
+      return;
+    }
+    await new Promise((r) => setTimeout(r, 200));
+  }
+  setStatus(`${targets.length}개 탭을 열었습니다. 각 탭에서 우클릭 → 저장하세요.`, "ok");
+}
+
+async function copyUrls() {
+  const targets = foundItems.filter((it) => it.selected).map((it) => it.url).join("\n");
+  try {
+    await navigator.clipboard.writeText(targets);
+    setStatus("URL을 클립보드에 복사했습니다. 다운로드 매니저에 붙여넣으세요.", "ok");
+  } catch {
+    // 폴백: textarea 선택
+    const ta = document.createElement("textarea");
+    ta.value = targets; document.body.appendChild(ta); ta.select();
+    document.execCommand("copy"); ta.remove();
+    setStatus("URL을 복사했습니다.", "ok");
+  }
+}
+
 scanBtn.addEventListener("click", scan);
 urlInput.addEventListener("keydown", (e) => { if (e.key === "Enter") scan(); });
 downloadBtn.addEventListener("click", downloadToFolder);
 downloadAllBtn.addEventListener("click", downloadAllSimple);
+openTabsBtn.addEventListener("click", openAllInTabs);
+copyUrlsBtn.addEventListener("click", copyUrls);
 
 // ---------- 북마클릿 ----------
 // 현재 페이지의 미디어 URL을 모아 새 창에 보여주는 스크립트
