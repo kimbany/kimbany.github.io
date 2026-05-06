@@ -451,6 +451,83 @@ urlInput.addEventListener("input", updateWarn);
 scanBtn.addEventListener("click", scan);
 urlInput.addEventListener("keydown", (e) => { if (e.key === "Enter") scan(); });
 
+// ---------- 붙여넣은 HTML 분석 (북마클릿 없이 100% 동작) ----------
+const htmlTextEl = document.getElementById("htmlText");
+const baseUrlEl = document.getElementById("baseUrl");
+const parseBtn = document.getElementById("parseBtn");
+const htmlSizeEl = document.getElementById("htmlSize");
+
+function updateHtmlSize() {
+  const n = htmlTextEl.value.length;
+  htmlSizeEl.textContent = n ? `(${n.toLocaleString()} 자)` : "";
+}
+htmlTextEl.addEventListener("input", updateHtmlSize);
+
+// 파일 드래그&드롭 → textarea에 내용 채우기
+htmlTextEl.addEventListener("dragover", (e) => { e.preventDefault(); });
+htmlTextEl.addEventListener("drop", (e) => {
+  e.preventDefault();
+  const file = e.dataTransfer.files && e.dataTransfer.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    htmlTextEl.value = reader.result || "";
+    updateHtmlSize();
+    setStatus(`파일 로드됨: ${file.name} (${(file.size / 1024).toFixed(1)} KB). [분석] 누르세요.`, "ok");
+  };
+  reader.readAsText(file, "utf-8");
+});
+
+function analyzePastedHtml() {
+  const html = htmlTextEl.value;
+  if (!html || html.length < 200) {
+    setStatus("붙여넣은 HTML이 너무 짧아요. 페이지 소스 전체를 복사했는지 확인하세요.", "err");
+    return;
+  }
+  let baseUrl = (baseUrlEl.value || urlInput.value || "").trim();
+  if (!baseUrl) {
+    // 붙여넣은 HTML 안에서 og:url, canonical 또는 base 태그로 추정
+    const doc = new DOMParser().parseFromString(html, "text/html");
+    const og = doc.querySelector('meta[property="og:url"]');
+    const can = doc.querySelector('link[rel="canonical"]');
+    const base = doc.querySelector("base[href]");
+    baseUrl = (og && og.getAttribute("content")) || (can && can.getAttribute("href")) || (base && base.getAttribute("href")) || "https://example.com/";
+  }
+
+  // 네이버 데스크탑 wrapper 감지: iframe만 있고 실제 콘텐츠가 없는 경우
+  if (/blog\.naver\.com/.test(baseUrl) && !/m\.blog\.naver\.com/.test(baseUrl)) {
+    const doc = new DOMParser().parseFromString(html, "text/html");
+    const frame = doc.querySelector('iframe#mainFrame, iframe[name="mainFrame"]');
+    if (frame && doc.querySelectorAll("img").length < 3) {
+      const innerSrc = frame.getAttribute("src");
+      setStatus(
+        `이건 네이버 wrapper HTML이에요. 본문은 iframe 안에 있어요. ` +
+        `🔧 해결: 주소를 'm.blog.naver.com/...'으로 바꿔서 다시 Ctrl+U 하거나, ` +
+        `이 iframe 주소(${innerSrc ? innerSrc.slice(0, 80) : "..."})를 직접 열어서 그 페이지의 소스를 복사하세요.`,
+        "err"
+      );
+      return;
+    }
+  }
+
+  const urls = collectFromHtml(html, baseUrl);
+  if (urls.length === 0) {
+    const doc = new DOMParser().parseFromString(html, "text/html");
+    const title = ((doc.querySelector("title") || {}).textContent || "(제목 없음)").trim();
+    setStatus(`미디어 0개. [HTML ${html.length.toLocaleString()} 자 / 제목: "${title.slice(0, 60)}"] 페이지를 끝까지 스크롤한 뒤 다시 소스를 복사해보세요.`, "err");
+    return;
+  }
+  foundItems = urls.map((u) => ({ url: u, type: classify(u), selected: true }));
+  render();
+  setStatus(`✅ ${urls.length}개 발견. 다운로드 버튼을 누르세요.`, "ok");
+  downloadBtn.disabled = false;
+  downloadAllBtn.disabled = false;
+  openTabsBtn.disabled = false;
+  copyUrlsBtn.disabled = false;
+}
+
+parseBtn.addEventListener("click", analyzePastedHtml);
+
 document.getElementById("copyBml").addEventListener("click", async () => {
   const code = "javascript:" + encodeURIComponent(bookmarkletCode.replace(/\s+/g, " "));
   try {
