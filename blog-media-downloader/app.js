@@ -471,6 +471,11 @@ copyUrlsBtn.addEventListener("click", copyUrls);
 // ---------- 북마클릿 ----------
 // 현재 페이지의 미디어 URL을 type 정보와 함께 모아 새 창에 보여주는 스크립트
 const bookmarkletCode = `(function(){
+  try{
+  if(/kimbany\\.github\\.io/.test(location.host)){
+    alert('⚠️ 이 도구 페이지에서 클릭하면 안 됩니다.\\n\\n받고 싶은 블로그 글(예: blog.naver.com/...)을 직접 켜놓고\\n그 페이지에서 이 북마크를 클릭하세요.');
+    return;
+  }
   var imgExt=['jpg','jpeg','png','gif','webp','bmp','svg','avif'];
   var vidExt=['mp4','webm','mov','m4v','m3u8','ts'];
   var vidHostRe=/(?:^|\\/\\/|\\.)(?:blogvideo\\.pstatic\\.net|pic-video\\.pstatic\\.net|videos?\\.naver\\.(?:com|net)|rmcnmv\\.naver\\.com|tv\\.naver\\.com)/i;
@@ -558,7 +563,10 @@ const bookmarkletCode = `(function(){
     return n;
   }
 
-  var w=window.open('','_blank');
+  if(arr.length===0){
+    alert('미디어 0개 발견.\\n\\n원인:\\n1) 페이지가 다 로드되기 전에 클릭했을 수 있어요. 스크롤 끝까지 내려서 모든 이미지가 뜬 뒤 다시 클릭.\\n2) 우리 도구 페이지에서 클릭한 거 아닌가요?\\n3) 로그인 필요한 비공개 글일 수 있어요.');
+    return;
+  }
   var counts={video:0,gif:0,image:0};
   arr.forEach(function(it){counts[it.type]++;});
   var html='<!doctype html><html><head><meta charset="utf-8"><title>추출됨 '+arr.length+'개</title>'+
@@ -586,7 +594,34 @@ const bookmarkletCode = `(function(){
         '<div class="meta"><span>'+(u.split('/').pop().split('?')[0].slice(0,30))+'</span><span class="b '+t+'">'+t.toUpperCase()+'</span></div>'+
         '<a href="'+u+'" download="'+fname(u,t)+'" target="_blank" rel="noopener">⬇ '+fname(u,t)+'</a></div>';
     }).join('')+'</div></body></html>';
-  w.document.write(html); w.document.close();
+
+  // 1) Blob URL로 새 창 (CSP 우회 + popup blocker 감지)
+  var opened=false;
+  try{
+    var blob=new Blob([html],{type:'text/html'});
+    var blobUrl=URL.createObjectURL(blob);
+    var w=window.open(blobUrl,'_blank');
+    if(w){opened=true; alert('✅ '+arr.length+'개 발견 (영상 '+counts.video+' · GIF '+counts.gif+' · 이미지 '+counts.image+')\\n새 창에서 우클릭 저장하세요.');}
+  }catch(e){}
+  if(opened) return;
+
+  // 2) 폴백: 현재 페이지에 오버레이로 띄우기 (popup 차단됐을 때)
+  alert('팝업이 차단되어 현재 페이지에 결과를 표시합니다. ('+arr.length+'개)');
+  var ov=document.createElement('div');
+  ov.setAttribute('style','position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:2147483647;overflow:auto;padding:20px;font-family:sans-serif;color:#eee');
+  ov.innerHTML='<div style="max-width:1100px;margin:0 auto"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px"><div><h2 style="margin:0">'+arr.length+'개 발견</h2><div style="color:#9aa3b2;font-size:13px">🎬 '+counts.video+' · 🖼 '+counts.gif+' · 📷 '+counts.image+'</div></div><button id="__close" style="padding:8px 14px;background:#444;color:#fff;border:0;border-radius:6px;cursor:pointer">닫기 X</button></div>'+
+    '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px">'+
+    arr.map(function(it){
+      var u=it.url, t=it.type;
+      var preview=(t==='video')?'<video src="'+u+'" controls muted preload="metadata" style="width:100%;aspect-ratio:1;object-fit:cover;background:#000;display:block"></video>':'<img src="'+u+'" loading="lazy" style="width:100%;aspect-ratio:1;object-fit:cover;background:#000;display:block">';
+      return '<div style="background:#222;border-radius:8px;overflow:hidden;border:1px solid #333">'+preview+
+        '<a href="'+u+'" download="'+fname(u,t)+'" target="_blank" rel="noopener" style="display:block;padding:8px;color:#9bf;font-size:11px;text-decoration:none;word-break:break-all;border-top:1px solid #333">['+t.toUpperCase()+'] ⬇ '+fname(u,t)+'</a></div>';
+    }).join('')+'</div></div>';
+  document.body.appendChild(ov);
+  document.getElementById('__close').addEventListener('click',function(){ov.remove();});
+  }catch(err){
+    alert('❌ 북마클릿 실행 오류:\\n'+err.message+'\\n\\n'+(err.stack||''));
+  }
 })();`;
 
 const bmlHref = "javascript:" + encodeURIComponent(bookmarkletCode.replace(/\s+/g, " "));
