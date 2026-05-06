@@ -171,6 +171,22 @@ function collectFromHtml(html, baseUrl) {
 async function scan() {
   const url = urlInput.value.trim();
   if (!url) { setStatus("URL을 입력하세요.", "err"); return; }
+
+  // 네이버/인스타: 공용 CORS 프록시가 모두 차단함 → 시도하지 말고 즉시 북마클릿 안내
+  if (isLikelyBlocked(url)) {
+    const wb = document.getElementById("warnBox");
+    wb.style.display = "block";
+    wb.scrollIntoView({ behavior: "smooth", block: "center" });
+    setStatus("이 사이트는 자동 스캔이 차단됩니다. 위 노란 박스의 북마클릿을 사용하세요 ↑", "err");
+    try {
+      wb.animate(
+        [{ boxShadow: "0 0 0 0 #f3a847" }, { boxShadow: "0 0 0 6px #f3a847" }, { boxShadow: "0 0 0 0 #f3a847" }],
+        { duration: 900, iterations: 2 }
+      );
+    } catch {}
+    return;
+  }
+
   scanBtn.disabled = true;
   downloadBtn.disabled = true;
   downloadAllBtn.disabled = true;
