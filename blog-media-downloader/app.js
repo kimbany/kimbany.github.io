@@ -415,10 +415,13 @@ function render() {
     if (it.type === "video") {
       const v = document.createElement("video");
       v.src = it.url; v.muted = true; v.preload = "metadata";
+      v.setAttribute("referrerpolicy", "no-referrer");
       thumb.appendChild(v);
     } else {
       const img = document.createElement("img");
-      img.src = it.url; img.loading = "lazy";
+      img.src = it.url;
+      img.loading = "lazy";
+      img.referrerPolicy = "no-referrer"; // 네이버 핫링크 차단 우회
       img.onerror = () => { thumb.innerHTML = '<span style="color:#666;font-size:11px">미리보기 불가 — 클릭해서 새 탭으로 열기</span>'; };
       thumb.appendChild(img);
     }
@@ -436,11 +439,17 @@ function render() {
     left.appendChild(document.createTextNode((extOf(it.url) || "?").toUpperCase()));
     meta.appendChild(left);
     meta.appendChild(badge);
+    // URL 표시 — 본인이 어떤 이미지인지 확인할 수 있도록
+    const urlLine = document.createElement("div");
+    urlLine.className = "url-line";
+    urlLine.title = it.url;
+    urlLine.textContent = it.url.length > 60 ? it.url.slice(0, 30) + "…" + it.url.slice(-25) : it.url;
     const hint = document.createElement("div");
     hint.className = "hint";
     hint.textContent = "↑ 우클릭 → 저장";
     card.appendChild(thumb);
     card.appendChild(meta);
+    card.appendChild(urlLine);
     card.appendChild(hint);
     grid.appendChild(card);
   });
