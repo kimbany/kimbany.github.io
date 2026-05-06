@@ -142,21 +142,47 @@ async function scan() {
   try {
     let html = await fetchViaProxy(url);
     let baseUrl = url;
+    setStatus(`HTML 수신 (${html.length.toLocaleString()} bytes). 분석 중…`);
 
-    // 네이버 블로그: mainFrame iframe URL 자동 따라가기
-    if (/blog\.naver\.com/.test(url)) {
-      const m = html.match(/mainFrame["']?\s*src=["']([^"']+)/);
-      if (m) {
-        const inner = absUrl(m[1], "https://blog.naver.com");
+    // 네이버 블로그: mainFrame iframe URL 자동 따라가기 (모바일 m.blog는 제외)
+    if (/blog\.naver\.com/.test(url) && !/m\.blog\.naver\.com/.test(url)) {
+      const doc = new DOMParser().parseFromString(html, "text/html");
+      const frame = doc.querySelector('iframe#mainFrame, iframe[name="mainFrame"]');
+      let innerSrc = frame && frame.getAttribute("src");
+      if (!innerSrc) {
+        // 정규식 폴백: 속성 순서 무관하게 잡기
+        const m1 = html.match(/<iframe[^>]*\bid=["']mainFrame["'][^>]*\bsrc=["']([^"']+)/i)
+                || html.match(/<iframe[^>]*\bsrc=["']([^"']+)["'][^>]*\bid=["']mainFrame["']/i)
+                || html.match(/<iframe[^>]*\bname=["']mainFrame["'][^>]*\bsrc=["']([^"']+)/i);
+        if (m1) innerSrc = m1[1];
+      }
+      if (innerSrc) {
+        const inner = absUrl(innerSrc, "https://blog.naver.com");
         setStatus("네이버 본문 iframe 따라가는 중…");
         html = await fetchViaProxy(inner);
         baseUrl = inner;
+        setStatus(`본문 HTML 수신 (${html.length.toLocaleString()} bytes). 분석 중…`);
+      } else {
+        // 모바일 버전 폴백: 보통 m.blog.naver.com 은 iframe 없이 본문 직접 노출
+        const mm = url.match(/blog\.naver\.com\/([^/?#]+)\/(\d+)/);
+        if (mm) {
+          const mobileUrl = `https://m.blog.naver.com/${mm[1]}/${mm[2]}`;
+          setStatus(`모바일 버전으로 재시도: ${mobileUrl}`);
+          html = await fetchViaProxy(mobileUrl);
+          baseUrl = mobileUrl;
+        }
       }
     }
 
     const urls = collectFromHtml(html, baseUrl);
     if (urls.length === 0) {
-      setStatus("미디어를 찾지 못했습니다. 차단된 사이트면 아래 북마클릿을 사용해보세요.", "err");
+      const doc = new DOMParser().parseFromString(html, "text/html");
+      const title = ((doc.querySelector("title") || {}).textContent || "(제목 없음)").trim();
+      setStatus(
+        `미디어 0개. [HTML ${html.length.toLocaleString()} bytes / 제목: "${title.slice(0, 60)}"] ` +
+        `JS로 그려지는 사이트이거나 로그인 필요할 수 있어요. 아래 북마클릿/링크 모드를 써보세요.`,
+        "err"
+      );
       return;
     }
     foundItems = urls.map((u) => ({ url: u, type: classify(u), selected: true }));
