@@ -1,39 +1,26 @@
-# Blog Media Downloader
+# 블로그 / 인스타 미디어 다운로더 (웹 버전)
 
-블로그 글 URL 하나만 주면 페이지 안의 **이미지 / GIF / 동영상**을 통째로 받아주는 파이썬 스크립트입니다.
-브라우저 개발자도구(F12) → Network 탭에서 한땀한땀 찾던 작업을 자동화합니다.
-
-## 지원
-
-- 일반 HTML 블로그 (워드프레스, 정적 사이트 등)
-- 네이버 블로그 (`blog.naver.com` — `mainFrame` iframe 자동 추적, 썸네일 파라미터 제거 → 원본 화질)
-- 티스토리 / 다음 블로그
-- `<img>`, `<source>`, `<video>`, `srcset`, lazy-load 속성(`data-src`, `data-original` 등)
-- 본문에 박혀있는 `.mp4`, `.webm`, `.m3u8`, `.gif` 직링크
-
-## 설치
-
-```bash
-pip install -r requirements.txt
-```
+설치 필요 없이 브라우저에서 바로 쓰는 도구입니다.
 
 ## 사용법
 
-```bash
-python download.py <블로그 URL> [-o 저장폴더]
-```
+배포되면 다음 주소에서 바로 사용:
 
-예:
+**https://kimbany.github.io/blog-media-downloader/**
 
-```bash
-python download.py https://blog.naver.com/someuser/223456789
-python download.py https://example.tistory.com/12 -o ./my_save
-```
+1. 입력란에 블로그 글 URL 붙여넣기 → **스캔**
+2. 미리보기에서 받을 항목 체크
+3. **📂 폴더 선택 후 모두 다운로드** (크롬/엣지) 또는 **⬇ 전부 그냥 다운로드**
+
+## 두 가지 방식
+
+| 방식 | 사용 사례 | 한계 |
+|------|----------|------|
+| **URL 입력** | 티스토리, 워드프레스 등 일반 블로그 | CORS 프록시를 거치므로 일부 사이트(인스타·일부 네이버)는 차단 |
+| **북마클릿** | 인스타, 차단된 네이버 블로그, 로그인 필요한 비공개 글 | 그 페이지를 직접 켜놓고 북마크 클릭해야 함 |
 
 ## 주의
 
-- 저작권이 있는 콘텐츠는 개인 보관 외 용도로 재배포하지 마세요.
-- `.m3u8`(HLS 스트리밍)은 매니페스트만 받아집니다. 실제 영상으로 합치려면 `ffmpeg`를 별도로 사용하세요:
-  ```bash
-  ffmpeg -i downloaded/001_video.m3u8 -c copy out.mp4
-  ```
+- "폴더 선택 저장"은 **크롬 / 엣지 / 오페라**(File System Access API)만 지원
+- 사파리·파이어폭스에서는 자동으로 다운로드 폴더로 저장
+- 저작권 보호 콘텐츠는 개인 보관 외 용도로 재배포 금지
