@@ -128,6 +128,27 @@ function isJunkUrl(url) {
   return JUNK_URL_PATTERNS.some((re) => re.test(url));
 }
 
+// 이미지/영상이 본문이 아닌 영역(추천글/관련글/사이드바/댓글 등)에 있으면 제외
+const EXCLUDE_CONTEXT_RE = /(?:^|[\s_-])(?:related|recommend|popular|suggest|recom|sidebar|side[-_]?bar|footer|header|nav|gnb|lnb|comment|reply|widget|advertise|sponsor|aside|banner|toolbar|sticker|emoticon|popup|share|sns|sympathy|like_?box|other_?post|other_?article|prev_?next|adsby|adfit)(?:[\s_-]|$)/i;
+
+function isInExcludedSection(el) {
+  let cur = el;
+  let hops = 0;
+  while (cur && hops < 30) {
+    const id = cur.id || "";
+    const cls = (typeof cur.className === "string" ? cur.className : "") || "";
+    const role = cur.getAttribute && cur.getAttribute("role");
+    if (id && EXCLUDE_CONTEXT_RE.test(id)) return id;
+    if (cls && EXCLUDE_CONTEXT_RE.test(cls)) return cls;
+    const tag = (cur.tagName || "").toLowerCase();
+    if (["nav", "header", "footer", "aside"].includes(tag)) return tag;
+    if (role && /complementary|navigation|banner|contentinfo/i.test(role)) return "role=" + role;
+    cur = cur.parentElement;
+    hops++;
+  }
+  return null;
+}
+
 // 블로그 본문 영역을 찾아 그 안에서만 스캔 (헤더/사이드바/광고/댓글 제외)
 function findContentRoot(doc) {
   const selectors = [
@@ -186,7 +207,10 @@ function collectFromHtml(html, baseUrl) {
     set.add(normalizeUrl(abs));
   };
 
+  let excludedCount = 0;
   scope.querySelectorAll("img").forEach((img) => {
+    const reason = isInExcludedSection(img);
+    if (reason) { excludedCount++; return; }
     add(img.getAttribute("src"));
     add(img.getAttribute("data-src"));
     add(img.getAttribute("data-lazy-src"));
@@ -198,6 +222,7 @@ function collectFromHtml(html, baseUrl) {
     }
   });
   scope.querySelectorAll("source").forEach((s) => {
+    if (isInExcludedSection(s)) { excludedCount++; return; }
     add(s.getAttribute("src"));
     const ss = s.getAttribute("srcset");
     if (ss) {
@@ -206,6 +231,7 @@ function collectFromHtml(html, baseUrl) {
     }
   });
   scope.querySelectorAll("video, audio").forEach((v) => {
+    if (isInExcludedSection(v)) { excludedCount++; return; }
     add(v.getAttribute("src"));
     add(v.getAttribute("data-src"));
     add(v.getAttribute("data-source"));
@@ -215,9 +241,11 @@ function collectFromHtml(html, baseUrl) {
       add(s.getAttribute("data-src"));
     });
   });
+  if (excludedCount > 0) console.log(`[BMD] 추천글/사이드바 등 제외 영역의 미디어 ${excludedCount}개 스킵`);
 
-  // 모든 element 속성 스캔 — 본문 영역 안에서만 (data-module-data JSON 등)
+  // 모든 element 속성 스캔 — 본문 영역 안에서만, 추천글/사이드바 영역 제외
   scope.querySelectorAll("*").forEach((el) => {
+    if (isInExcludedSection(el)) return;
     for (const attr of el.attributes) {
       const v = attr.value;
       if (!v || v.length < 12) continue;
