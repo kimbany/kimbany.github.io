@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>블로그/인스타 미디어 다운로더</title>
+<style>
+  :root {
+    --bg: #0f1115;
+    --panel: #181b22;
+    --panel2: #20242d;
+    --line: #2a2f3a;
+    --text: #e7e9ee;
+    --muted: #9aa3b2;
+    --accent: #5b8cff;
+    --accent-2: #8a5bff;
+    --ok: #38d39f;
+    --err: #ff6b6b;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; background: var(--bg); color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Apple SD Gothic Neo",
+      "Noto Sans KR", Roboto, sans-serif; }
+  .wrap { max-width: 980px; margin: 0 auto; padding: 32px 20px 80px; }
+  h1 { font-size: 24px; margin: 0 0 6px; }
+  .sub { color: var(--muted); margin-bottom: 28px; font-size: 14px; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 14px;
+    padding: 20px; margin-bottom: 18px; }
+  .row { display: flex; gap: 10px; flex-wrap: wrap; }
+  input[type="text"] {
+    flex: 1 1 320px; min-width: 0; padding: 12px 14px; font-size: 15px;
+    background: var(--panel2); color: var(--text); border: 1px solid var(--line);
+    border-radius: 10px; outline: none;
+  }
+  input[type="text"]:focus { border-color: var(--accent); }
+  button {
+    padding: 12px 18px; font-size: 14px; font-weight: 600;
+    border: 0; border-radius: 10px; cursor: pointer;
+    background: linear-gradient(135deg, var(--accent), var(--accent-2)); color: #fff;
+  }
+  button.ghost { background: var(--panel2); color: var(--text); border: 1px solid var(--line); }
+  button:disabled { opacity: 0.5; cursor: not-allowed; }
+  .actions { display: flex; gap: 10px; margin-top: 14px; flex-wrap: wrap; align-items: center; }
+  .status { color: var(--muted); font-size: 13px; min-height: 18px; }
+  .status.err { color: var(--err); }
+  .status.ok { color: var(--ok); }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    gap: 12px; margin-top: 16px; }
+  .item { background: var(--panel2); border: 1px solid var(--line); border-radius: 10px;
+    overflow: hidden; display: flex; flex-direction: column; }
+  .thumb { aspect-ratio: 1/1; background: #000; display: flex; align-items: center; justify-content: center; overflow: hidden; }
+  .thumb img, .thumb video { width: 100%; height: 100%; object-fit: cover; }
+  .meta { padding: 8px 10px; font-size: 11px; color: var(--muted);
+    word-break: break-all; display: flex; justify-content: space-between; gap: 6px; }
+  .badge { background: #2a2f3a; color: #cbd2e0; padding: 2px 6px; border-radius: 6px;
+    font-size: 10px; flex-shrink: 0; }
+  .check { display: flex; align-items: center; gap: 6px; padding: 6px 10px;
+    color: var(--muted); font-size: 12px; }
+  details { background: var(--panel2); border: 1px solid var(--line); border-radius: 10px;
+    padding: 14px 16px; margin-top: 14px; }
+  details summary { cursor: pointer; font-weight: 600; }
+  code { background: #0c0e13; padding: 2px 6px; border-radius: 4px; font-size: 12px; }
+  .bookmarklet { display: inline-block; margin: 10px 0; padding: 10px 16px;
+    background: #2a2f3a; color: #fff; border-radius: 8px; text-decoration: none;
+    border: 1px dashed #5b8cff; font-weight: 600; }
+  ul { padding-left: 20px; line-height: 1.7; }
+  ul li { color: #cdd3df; }
+  .small { font-size: 12px; color: var(--muted); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>📥 블로그 / 인스타 미디어 다운로더</h1>
+  <div class="sub">URL을 붙여넣으면 페이지의 이미지 · GIF · 영상을 한 번에 받아줍니다.</div>
+
+  <div class="card">
+    <div class="row">
+      <input id="url" type="text" placeholder="블로그 글 URL을 붙여넣으세요 (예: https://example.tistory.com/12)" />
+      <button id="scan">스캔</button>
+    </div>
+    <div class="actions">
+      <button id="download" class="ghost" disabled>📂 폴더 선택 후 모두 다운로드</button>
+      <button id="downloadAll" class="ghost" disabled>⬇ 전부 그냥 다운로드</button>
+      <label class="check"><input type="checkbox" id="selectAll" checked /> 전체 선택</label>
+    </div>
+    <div id="status" class="status"></div>
+    <div id="grid" class="grid"></div>
+  </div>
+
+  <details>
+    <summary>🔖 인스타/네이버처럼 차단된 사이트 받는 법 (북마클릿)</summary>
+    <p class="small">아래 버튼을 <b>북마크 바로 드래그</b>해서 등록하세요. 그 다음 인스타/네이버 블로그 글을 켜놓고 북마크를 누르면, 그 페이지의 이미지·영상 링크가 새 창에 뜹니다. 거기서 우클릭 → "다른 이름으로 저장"으로 받으세요.</p>
+    <a id="bml" class="bookmarklet" href="#">📌 미디어 추출기 (드래그)</a>
+    <ul class="small">
+      <li>인스타: 게시물 하나의 페이지(<code>/p/...</code> 또는 <code>/reel/...</code>)에서 사용</li>
+      <li>네이버 블로그: 글 본문 안(<code>PostView</code> iframe)에서 사용하면 더 잘 잡힘</li>
+      <li>로그인이 필요한 비공개 게시물도 본인이 로그인된 상태면 동작합니다</li>
+    </ul>
+  </details>
+
+  <details>
+    <summary>ℹ️ 안내 / 한계</summary>
+    <ul class="small">
+      <li>URL 입력 방식은 <b>CORS 프록시</b>를 거치기 때문에 일부 사이트는 차단될 수 있어요. 그럴 땐 위의 북마클릿을 쓰세요.</li>
+      <li>"폴더 선택 저장"은 <b>크롬·엣지</b>에서만 됩니다. 사파리·파이어폭스는 자동으로 다운로드 폴더에 저장됩니다.</li>
+      <li>저작권이 있는 콘텐츠는 개인 보관 외 용도로 재배포하지 마세요.</li>
+    </ul>
+  </details>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>
