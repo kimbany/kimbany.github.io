@@ -99,6 +99,35 @@ function normalizeUrl(u) {
   return u;
 }
 
+// 명백히 본문이 아닌 URL 패턴 (네이버 UI 아이콘, 프로필, 광고, 트래커 등)
+const JUNK_URL_PATTERNS = [
+  /static\.naver\.(?:net|com)/i,
+  /ssl\.pstatic\.net\/static\//i,
+  /nimg\.pstatic\.net\//i,           // 네이버 UI 아이콘
+  /blogpfthumb/i,                     // 프로필 썸네일
+  /\/(?:profile|profil|avatar)[/_-]/i,
+  /\/buddy[/_-]/i,
+  /\/icon[/_-s]/i,
+  /\/ico_/i,
+  /\/btn[/_-]/i,
+  /\/bg[/_-]/i,
+  /\/banner/i,
+  /\/sticker/i,
+  /\/emoticon/i,
+  /\/emoji/i,
+  /\/blank\.(?:gif|png)/i,
+  /\bspacer\b/i,
+  /\/1x1\.(?:gif|png)/i,
+  /tracker|tracking|pixel|beacon/i,
+  /favicon/i,
+  /\/logo[/_]/i,
+  /naverlogo/i,
+];
+
+function isJunkUrl(url) {
+  return JUNK_URL_PATTERNS.some((re) => re.test(url));
+}
+
 // 블로그 본문 영역을 찾아 그 안에서만 스캔 (헤더/사이드바/광고/댓글 제외)
 function findContentRoot(doc) {
   const selectors = [
@@ -204,28 +233,37 @@ function collectFromHtml(html, baseUrl) {
     const href = a.getAttribute("href");
     if (ALL_EXT.includes(extOf(absUrl(href, baseUrl) || ""))) add(href);
   });
-  // og:image, og:video — head에 있어서 scope 밖이지만, 보통 본문 대표 이미지라 포함
-  doc.querySelectorAll('meta[property^="og:image"], meta[property^="og:video"], meta[name="twitter:image"]').forEach((m) => {
+  // og:video는 본문 영상일 가능성 높음. og:image는 프로필/대표일 가능성 있어 제외.
+  doc.querySelectorAll('meta[property^="og:video"]').forEach((m) => {
     add(m.getAttribute("content"));
   });
 
-  // raw 정규식: 본문 영역 HTML에서만 (전체 페이지가 아니라)
+  // raw 정규식: 본문 영역 HTML에서만 (정크 패턴 1차 거름)
   const scopeHtml = found.root ? found.root.outerHTML : html;
   const raw = scopeHtml.match(/https?:\/\/[^\s"'<>]+?\.(?:mp4|webm|m3u8|gif|png|jpe?g|webp)(?:\?[^\s"'<>]*)?/gi);
-  if (raw) raw.forEach((u) => set.add(normalizeUrl(u)));
+  if (raw) raw.forEach((u) => { if (!isJunkUrl(u)) set.add(normalizeUrl(u)); });
 
-  // Markdown ![alt](url) 패턴 — Jina Reader 같은 곳이 markdown으로 줄 때
+  // Markdown ![alt](url) — Jina Reader가 markdown으로 줄 때
+  // 본문 영역을 못 찾았어도 markdown 자체가 본문이라 가정
   const md = html.match(/!\[[^\]]*\]\((https?:\/\/[^\s)]+)\)/gi);
   if (md) md.forEach((token) => {
     const m = token.match(/\((https?:\/\/[^\s)]+)\)/);
-    if (m) add(m[1]);
+    if (m && !isJunkUrl(m[1])) add(m[1]);
   });
 
-  // 미디어가 아닌 것은 거른다
-  return Array.from(set).filter((u) => {
+  // 미디어가 아닌 것 + 명백한 정크(아이콘/프로필/로고/트래커) 제거
+  const all = Array.from(set);
+  const filtered = all.filter((u) => {
     const t = classify(u);
-    return t === "image" || t === "gif" || t === "video";
+    if (t !== "image" && t !== "gif" && t !== "video") return false;
+    if (isJunkUrl(u)) return false;
+    return true;
   });
+  const junkCount = all.length - filtered.length;
+  if (junkCount > 0) {
+    console.log(`[BMD] 정크/비미디어 ${junkCount}개 제외:`, all.filter((u) => filtered.indexOf(u) === -1));
+  }
+  return filtered;
 }
 
 // 네이버 데스크탑 URL → 모바일 URL 자동 변환 (모바일이 iframe 없이 본문 직접 노출)
