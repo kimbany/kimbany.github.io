@@ -18,12 +18,14 @@ const ALL_EXT = [...IMAGE_EXT, ...VIDEO_EXT];
 
 let foundItems = []; // { url, type, selected }
 
-// 여러 CORS 프록시를 순차 시도 (어떤 곳은 네이버 같은 도메인을 차단함)
+// 여러 CORS 프록시를 순차 시도. 각 프록시가 차단하는 도메인이 달라서 다양화.
+// jina.ai는 추출용 LLM 인프라라 차단 없이 잘 됨 (HTML 포맷 지원).
 const PROXIES = [
-  (u) => `https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`,
-  (u) => `https://api.codetabs.com/v1/proxy/?quest=${encodeURIComponent(u)}`,
-  (u) => `https://corsproxy.io/?${encodeURIComponent(u)}`,
-  (u) => `https://thingproxy.freeboard.io/fetch/${u}`,
+  { make: (u) => `https://r.jina.ai/${u}`, headers: { "X-Return-Format": "html" } },
+  { make: (u) => `https://api.codetabs.com/v1/proxy/?quest=${encodeURIComponent(u)}` },
+  { make: (u) => `https://api.allorigins.win/raw?url=${encodeURIComponent(u)}` },
+  { make: (u) => `https://corsproxy.io/?${encodeURIComponent(u)}` },
+  { make: (u) => `https://thingproxy.freeboard.io/fetch/${u}` },
 ];
 
 const BLOCKED_HOSTS = [
@@ -46,13 +48,19 @@ function setStatus(msg, kind = "") {
 
 async function fetchViaProxy(url) {
   let lastErr;
-  for (const make of PROXIES) {
+  for (let i = 0; i < PROXIES.length; i++) {
+    const p = PROXIES[i];
     try {
-      const r = await fetch(make(url), { redirect: "follow" });
+      setStatus(`프록시 ${i + 1}/${PROXIES.length} 시도 중…`);
+      const r = await fetch(p.make(url), { redirect: "follow", headers: p.headers || {} });
       if (!r.ok) throw new Error("HTTP " + r.status);
       const text = await r.text();
-      if (text && text.length > 200) return text;
-      throw new Error("빈 응답");
+      if (!text || text.length < 200) throw new Error("빈 응답 (" + (text || "").length + " bytes)");
+      // 프록시가 "Host not allowed" 같은 거부 메시지를 200으로 주는 경우도 있음
+      if (/host not in allowlist|not allowed|blocked|denied/i.test(text.slice(0, 300))) {
+        throw new Error("프록시가 도메인 차단함");
+      }
+      return text;
     } catch (e) {
       lastErr = e;
     }
@@ -161,6 +169,13 @@ function collectFromHtml(html, baseUrl) {
   const raw = html.match(/https?:\/\/[^\s"'<>]+?\.(?:mp4|webm|m3u8|gif|png|jpe?g|webp)(?:\?[^\s"'<>]*)?/gi);
   if (raw) raw.forEach((u) => set.add(normalizeUrl(u)));
 
+  // Markdown ![alt](url) 패턴 — Jina Reader 같은 곳이 markdown으로 줄 때
+  const md = html.match(/!\[[^\]]*\]\((https?:\/\/[^\s)]+)\)/gi);
+  if (md) md.forEach((token) => {
+    const m = token.match(/\((https?:\/\/[^\s)]+)\)/);
+    if (m) add(m[1]);
+  });
+
   // 미디어가 아닌 것은 거른다
   return Array.from(set).filter((u) => {
     const t = classify(u);
@@ -168,24 +183,19 @@ function collectFromHtml(html, baseUrl) {
   });
 }
 
-async function scan() {
-  const url = urlInput.value.trim();
-  if (!url) { setStatus("URL을 입력하세요.", "err"); return; }
+// 네이버 데스크탑 URL → 모바일 URL 자동 변환 (모바일이 iframe 없이 본문 직접 노출)
+function preprocessUrl(url) {
+  const m = url.match(/^(https?:)\/\/blog\.naver\.com\/([^/?#]+)\/(\d+)/i);
+  if (m) return `${m[1]}//m.blog.naver.com/${m[2]}/${m[3]}`;
+  return url;
+}
 
-  // 네이버/인스타: 공용 CORS 프록시가 모두 차단함 → 시도하지 말고 즉시 북마클릿 안내
-  if (isLikelyBlocked(url)) {
-    const wb = document.getElementById("warnBox");
-    wb.style.display = "block";
-    wb.scrollIntoView({ behavior: "smooth", block: "center" });
-    setStatus("이 사이트는 자동 스캔이 차단됩니다. 위 노란 박스의 북마클릿을 사용하세요 ↑", "err");
-    try {
-      wb.animate(
-        [{ boxShadow: "0 0 0 0 #f3a847" }, { boxShadow: "0 0 0 6px #f3a847" }, { boxShadow: "0 0 0 0 #f3a847" }],
-        { duration: 900, iterations: 2 }
-      );
-    } catch {}
-    return;
-  }
+async function scan() {
+  let url = urlInput.value.trim();
+  if (!url) { setStatus("URL을 입력하세요.", "err"); return; }
+  const original = url;
+  url = preprocessUrl(url);
+  if (url !== original) setStatus(`네이버 모바일 URL로 변환: ${url}`);
 
   scanBtn.disabled = true;
   downloadBtn.disabled = true;
@@ -248,7 +258,11 @@ async function scan() {
     openTabsBtn.disabled = false;
     copyUrlsBtn.disabled = false;
   } catch (e) {
-    setStatus("실패: " + e.message + " — CORS 차단일 수 있어요. 북마클릿을 써보세요.", "err");
+    setStatus(
+      `실패: ${e.message}. 모든 공용 프록시가 차단됐거나 사이트가 안 받아줍니다. ` +
+      `↑ 위쪽 노란 카드의 'HTML 붙여넣기' 방식을 사용하세요.`,
+      "err"
+    );
   } finally {
     scanBtn.disabled = false;
   }
