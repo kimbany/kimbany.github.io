@@ -99,9 +99,54 @@ function normalizeUrl(u) {
   return u;
 }
 
+// 블로그 본문 영역을 찾아 그 안에서만 스캔 (헤더/사이드바/광고/댓글 제외)
+function findContentRoot(doc) {
+  const selectors = [
+    // Naver SmartEditor 3 (현재 네이버 블로그 표준)
+    ".se-main-container",
+    "div.se_component_wrap",
+    // Naver 모바일/구버전
+    "#postViewArea",
+    "#viewTypeSelector",
+    ".post_ct",
+    ".post_content",
+    "div[id^='post-view']",
+    // Tistory
+    ".tt_article_useless_p_margin",
+    ".area_view",
+    ".article_view",
+    "#article",
+    // 워드프레스/일반
+    ".entry-content",
+    ".post-content",
+    ".article-content",
+    ".content-body",
+    "article",
+    "[role='main']",
+    "main",
+  ];
+  for (const sel of selectors) {
+    let els;
+    try { els = doc.querySelectorAll(sel); } catch { continue; }
+    for (const el of els) {
+      // 미디어가 있거나 본문 텍스트가 충분한 영역만
+      if (el.querySelector("img, video, source") || el.textContent.trim().length > 300) {
+        return { root: el, selector: sel };
+      }
+    }
+  }
+  return { root: null, selector: null };
+}
+
 function collectFromHtml(html, baseUrl) {
   const doc = new DOMParser().parseFromString(html, "text/html");
   const set = new Set();
+
+  const found = findContentRoot(doc);
+  const scope = found.root || doc;
+  if (found.selector) {
+    setStatus(`본문 영역 찾음: ${found.selector}`);
+  }
 
   const add = (u) => {
     if (!u) return;
@@ -112,7 +157,7 @@ function collectFromHtml(html, baseUrl) {
     set.add(normalizeUrl(abs));
   };
 
-  doc.querySelectorAll("img").forEach((img) => {
+  scope.querySelectorAll("img").forEach((img) => {
     add(img.getAttribute("src"));
     add(img.getAttribute("data-src"));
     add(img.getAttribute("data-lazy-src"));
@@ -123,7 +168,7 @@ function collectFromHtml(html, baseUrl) {
       add(last);
     }
   });
-  doc.querySelectorAll("source").forEach((s) => {
+  scope.querySelectorAll("source").forEach((s) => {
     add(s.getAttribute("src"));
     const ss = s.getAttribute("srcset");
     if (ss) {
@@ -131,20 +176,19 @@ function collectFromHtml(html, baseUrl) {
       add(last);
     }
   });
-  doc.querySelectorAll("video, audio").forEach((v) => {
+  scope.querySelectorAll("video, audio").forEach((v) => {
     add(v.getAttribute("src"));
     add(v.getAttribute("data-src"));
     add(v.getAttribute("data-source"));
     add(v.getAttribute("poster"));
-    // 자식 <source> 의 src/data-src
     v.querySelectorAll("source").forEach((s) => {
       add(s.getAttribute("src"));
       add(s.getAttribute("data-src"));
     });
   });
 
-  // 모든 element 속성 스캔: data-module-data 같은 JSON 속성 안의 URL도 잡기
-  doc.querySelectorAll("*").forEach((el) => {
+  // 모든 element 속성 스캔 — 본문 영역 안에서만 (data-module-data JSON 등)
+  scope.querySelectorAll("*").forEach((el) => {
     for (const attr of el.attributes) {
       const v = attr.value;
       if (!v || v.length < 12) continue;
@@ -156,17 +200,18 @@ function collectFromHtml(html, baseUrl) {
       });
     }
   });
-  doc.querySelectorAll("a[href]").forEach((a) => {
+  scope.querySelectorAll("a[href]").forEach((a) => {
     const href = a.getAttribute("href");
     if (ALL_EXT.includes(extOf(absUrl(href, baseUrl) || ""))) add(href);
   });
-  // og:image, og:video
+  // og:image, og:video — head에 있어서 scope 밖이지만, 보통 본문 대표 이미지라 포함
   doc.querySelectorAll('meta[property^="og:image"], meta[property^="og:video"], meta[name="twitter:image"]').forEach((m) => {
     add(m.getAttribute("content"));
   });
 
-  // raw 정규식: html에 박힌 mp4/m3u8/gif 직링크
-  const raw = html.match(/https?:\/\/[^\s"'<>]+?\.(?:mp4|webm|m3u8|gif|png|jpe?g|webp)(?:\?[^\s"'<>]*)?/gi);
+  // raw 정규식: 본문 영역 HTML에서만 (전체 페이지가 아니라)
+  const scopeHtml = found.root ? found.root.outerHTML : html;
+  const raw = scopeHtml.match(/https?:\/\/[^\s"'<>]+?\.(?:mp4|webm|m3u8|gif|png|jpe?g|webp)(?:\?[^\s"'<>]*)?/gi);
   if (raw) raw.forEach((u) => set.add(normalizeUrl(u)));
 
   // Markdown ![alt](url) 패턴 — Jina Reader 같은 곳이 markdown으로 줄 때
