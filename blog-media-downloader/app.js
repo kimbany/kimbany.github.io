@@ -72,10 +72,14 @@ function extOf(url) {
   } catch { return ""; }
 }
 
+// 확장자 없이도 영상으로 취급해야 하는 호스트(네이버 비디오 CDN 등)
+const VIDEO_HOST_RE = /(?:^|\/\/|\.)(?:blogvideo\.pstatic\.net|pic-video\.pstatic\.net|videos?\.naver\.(?:com|net)|rmcnmv\.naver\.com|tv\.naver\.com|serviceapi\.rmcnmv\.naver\.com)/i;
+
 function classify(url) {
   const e = extOf(url);
   if (IMAGE_EXT.includes(e)) return e === "gif" ? "gif" : "image";
   if (VIDEO_EXT.includes(e)) return "video";
+  if (VIDEO_HOST_RE.test(url)) return "video";
   return "other";
 }
 
@@ -121,7 +125,28 @@ function collectFromHtml(html, baseUrl) {
   });
   doc.querySelectorAll("video, audio").forEach((v) => {
     add(v.getAttribute("src"));
+    add(v.getAttribute("data-src"));
+    add(v.getAttribute("data-source"));
     add(v.getAttribute("poster"));
+    // 자식 <source> 의 src/data-src
+    v.querySelectorAll("source").forEach((s) => {
+      add(s.getAttribute("src"));
+      add(s.getAttribute("data-src"));
+    });
+  });
+
+  // 모든 element 속성 스캔: data-module-data 같은 JSON 속성 안의 URL도 잡기
+  doc.querySelectorAll("*").forEach((el) => {
+    for (const attr of el.attributes) {
+      const v = attr.value;
+      if (!v || v.length < 12) continue;
+      const matches = v.match(/https?:\/\/[^\s"'<>]+/gi);
+      if (!matches) continue;
+      matches.forEach((u) => {
+        const cleaned = u.replace(/[)\];,]+$/, "");
+        if (classify(cleaned) !== "other") add(cleaned);
+      });
+    }
   });
   doc.querySelectorAll("a[href]").forEach((a) => {
     const href = a.getAttribute("href");
@@ -227,7 +252,7 @@ function render() {
       a.href = it.url;
       a.target = "_blank";
       a.rel = "noopener";
-      a.download = safeName(it.url, i + 1); // 같은 출처면 자동 다운로드, 다른 출처면 우클릭→링크 저장
+      a.download = safeName(it.url, i + 1, it.type); // 같은 출처면 자동 다운로드, 다른 출처면 우클릭→링크 저장
       a.textContent = `[${it.type.toUpperCase()}] ${it.url}`;
       a.title = "우클릭 → '다른 이름으로 링크 저장'";
       row.appendChild(cb);
@@ -287,15 +312,21 @@ selectAll.addEventListener("change", () => {
   render();
 });
 
-function safeName(url, idx) {
+function defaultExt(type) {
+  if (type === "video") return ".mp4";
+  if (type === "gif") return ".gif";
+  return ".jpg";
+}
+
+function safeName(url, idx, type) {
   try {
     let n = decodeURIComponent(new URL(url).pathname.split("/").pop() || "");
     n = n.replace(/[^\w\-.]+/g, "_").slice(0, 80);
     if (!n) n = `file_${idx}`;
-    if (!/\.[a-z0-9]+$/i.test(n)) n += "." + (extOf(url) || "bin");
+    if (!/\.[a-z0-9]+$/i.test(n)) n += defaultExt(type);
     return String(idx).padStart(3, "0") + "_" + n;
   } catch {
-    return String(idx).padStart(3, "0") + "_file";
+    return String(idx).padStart(3, "0") + "_file" + defaultExt(type);
   }
 }
 
@@ -331,7 +362,7 @@ async function downloadToFolder() {
     setStatus(`다운로드 중 ${i + 1}/${targets.length} — ${it.url}`);
     try {
       const blob = await fetchBlobMaybeProxied(it.url);
-      const handle = await dir.getFileHandle(safeName(it.url, i + 1), { create: true });
+      const handle = await dir.getFileHandle(safeName(it.url, i + 1, it.type), { create: true });
       const w = await handle.createWritable();
       await w.write(blob);
       await w.close();
@@ -353,7 +384,7 @@ async function downloadAllSimple() {
       const a = document.createElement("a");
       const objUrl = URL.createObjectURL(blob);
       a.href = objUrl;
-      a.download = safeName(it.url, i + 1);
+      a.download = safeName(it.url, i + 1, it.type);
       document.body.appendChild(a);
       a.click();
       a.remove();
@@ -422,41 +453,122 @@ openTabsBtn.addEventListener("click", openAllInTabs);
 copyUrlsBtn.addEventListener("click", copyUrls);
 
 // ---------- 북마클릿 ----------
-// 현재 페이지의 미디어 URL을 모아 새 창에 보여주는 스크립트
+// 현재 페이지의 미디어 URL을 type 정보와 함께 모아 새 창에 보여주는 스크립트
 const bookmarkletCode = `(function(){
-  var ext=['jpg','jpeg','png','gif','webp','bmp','svg','avif','mp4','webm','mov','m4v','m3u8'];
-  var s=new Set();
-  function add(u){ if(!u||u.startsWith('data:'))return; try{u=new URL(u,location.href).toString();}catch(e){return;} s.add(u.replace(/\\?type=.*$/,'')); }
+  var imgExt=['jpg','jpeg','png','gif','webp','bmp','svg','avif'];
+  var vidExt=['mp4','webm','mov','m4v','m3u8','ts'];
+  var vidHostRe=/(?:^|\\/\\/|\\.)(?:blogvideo\\.pstatic\\.net|pic-video\\.pstatic\\.net|videos?\\.naver\\.(?:com|net)|rmcnmv\\.naver\\.com|tv\\.naver\\.com)/i;
+  var items=new Map(); // url -> 'image'|'gif'|'video'
+  function abs(u){ try{return new URL(u, location.href).toString();}catch(e){return null;} }
+  function clean(u){ return u.replace(/\\?type=.*$/,''); }
+  function classify(u){
+    var p=''; try{p=new URL(u).pathname.toLowerCase();}catch(e){return null;}
+    var m=p.match(/\\.([a-z0-9]+)$/);
+    if(m){
+      if(imgExt.indexOf(m[1])>=0) return m[1]==='gif'?'gif':'image';
+      if(vidExt.indexOf(m[1])>=0) return 'video';
+    }
+    if(vidHostRe.test(u)) return 'video';
+    return null;
+  }
+  function add(u, hint){
+    if(!u||typeof u!=='string') return;
+    u=u.trim(); if(!u||u.indexOf('data:')===0||u.indexOf('javascript:')===0) return;
+    var a=abs(u); if(!a) return;
+    a=clean(a);
+    var t=hint||classify(a);
+    if(!t) return;
+    // hint(예: video element 자식이면 video)이 더 신뢰도 높음 → 덮어쓰기
+    if(!items.has(a) || (hint && items.get(a)==='image' && hint==='video')) items.set(a,t);
+  }
   document.querySelectorAll('img').forEach(function(i){
-    add(i.src);['data-src','data-lazy-src','data-original'].forEach(function(a){add(i.getAttribute(a));});
+    add(i.src,'image');
+    ['data-src','data-lazy-src','data-original'].forEach(function(a){add(i.getAttribute(a),'image');});
     var ss=i.getAttribute('srcset')||i.getAttribute('data-srcset');
-    if(ss){var p=ss.split(',').map(function(x){return x.trim().split(' ')[0];}).pop();add(p);}
+    if(ss){var p=ss.split(',').map(function(x){return x.trim().split(' ')[0];}).pop();add(p,'image');}
   });
-  document.querySelectorAll('source').forEach(function(s2){add(s2.src);});
-  document.querySelectorAll('video,audio').forEach(function(v){add(v.src);add(v.poster);});
-  document.querySelectorAll('a[href]').forEach(function(a){
-    var h=a.href.toLowerCase();if(ext.some(function(e){return h.includes('.'+e);})) add(a.href);
+  document.querySelectorAll('video,audio').forEach(function(v){
+    add(v.src,'video');
+    add(v.currentSrc,'video');  // 실제 로드된 소스
+    add(v.getAttribute('data-src'),'video');
+    add(v.getAttribute('data-source'),'video');
+    add(v.poster,'image');
+    v.querySelectorAll('source').forEach(function(s){
+      add(s.src,'video');
+      add(s.getAttribute('data-src'),'video');
+    });
   });
-  var raw=document.documentElement.outerHTML.match(/https?:\\/\\/[^\\s"'<>]+?\\.(?:mp4|webm|m3u8|gif|png|jpe?g|webp)(?:\\?[^\\s"'<>]*)?/gi);
-  if(raw) raw.forEach(add);
-  var iframes=document.querySelectorAll('iframe');
-  iframes.forEach(function(f){try{
+  document.querySelectorAll('a[href]').forEach(function(a){ if(classify(a.href)) add(a.href); });
+  // 모든 element 속성 스캔 (data-module-data JSON 등)
+  var media=/https?:\\/\\/[^\\s"'<>]+?\\.(?:mp4|webm|m3u8|gif|png|jpe?g|webp|mov|avif|ts)(?:\\?[^\\s"'<>]*)?/gi;
+  var any=/https?:\\/\\/[^\\s"'<>]+/gi;
+  document.querySelectorAll('*').forEach(function(el){
+    for(var i=0;i<el.attributes.length;i++){
+      var val=el.attributes[i].value;
+      if(!val||val.length<12) continue;
+      (val.match(media)||[]).forEach(function(u){add(u);});
+      // 비디오 호스트만 따로 검사
+      (val.match(any)||[]).forEach(function(u){if(vidHostRe.test(u)) add(u,'video');});
+    }
+  });
+  // og:* meta
+  document.querySelectorAll('meta[property^="og:"], meta[name^="twitter:"]').forEach(function(m){
+    var c=m.getAttribute('content');
+    if(c){
+      var p=(m.getAttribute('property')||m.getAttribute('name')||'').toLowerCase();
+      add(c, p.indexOf('video')>=0?'video':null);
+    }
+  });
+  // outerHTML 전체에서 raw 미디어 URL
+  (document.documentElement.outerHTML.match(media)||[]).forEach(function(u){add(u);});
+  // iframe 내부 (same-origin만)
+  document.querySelectorAll('iframe').forEach(function(f){try{
     var d=f.contentDocument; if(!d) return;
-    d.querySelectorAll('img,video,source').forEach(function(el){add(el.src);add(el.getAttribute&&el.getAttribute('data-src'));});
+    d.querySelectorAll('img').forEach(function(el){add(el.src,'image');});
+    d.querySelectorAll('video,audio').forEach(function(el){add(el.src,'video');add(el.currentSrc,'video');add(el.poster,'image');
+      el.querySelectorAll('source').forEach(function(s){add(s.src,'video');});});
   }catch(e){}});
-  var arr=Array.from(s).filter(function(u){var m=u.toLowerCase().match(/\\.([a-z0-9]+)(\\?|$)/);return m && ext.indexOf(m[1])>=0;});
+
+  var arr=Array.from(items.entries()).map(function(e){return {url:e[0],type:e[1]};});
+  // 영상 먼저, 그 다음 GIF, 마지막 이미지
+  var order={video:0,gif:1,image:2};
+  arr.sort(function(a,b){return (order[a.type]||9)-(order[b.type]||9);});
+
+  function fname(u,t){
+    var n=''; try{n=decodeURIComponent(new URL(u).pathname.split('/').pop()||'');}catch(e){}
+    n=n.replace(/[^\\w\\-.]+/g,'_').slice(0,80);
+    if(!n) n='file';
+    if(!/\\.[a-z0-9]+$/i.test(n)) n+=(t==='video'?'.mp4':(t==='gif'?'.gif':'.jpg'));
+    return n;
+  }
+
   var w=window.open('','_blank');
-  var html='<html><head><meta charset="utf-8"><title>추출됨 '+arr.length+'개</title>'+
-    '<style>body{font-family:sans-serif;background:#111;color:#eee;padding:20px}'+
-    '.g{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px}'+
-    '.c{background:#222;border-radius:8px;overflow:hidden}'+
-    '.c img,.c video{width:100%;display:block;aspect-ratio:1;object-fit:cover;background:#000}'+
-    '.c a{display:block;padding:8px;color:#9bf;font-size:11px;text-decoration:none;word-break:break-all}'+
-    'h1{font-size:16px}</style></head><body>'+
-    '<h1>'+arr.length+'개 발견 — 우클릭해서 저장하세요</h1><div class="g">'+
-    arr.map(function(u){var v=/\\.(mp4|webm|mov)/i.test(u);
-      return '<div class="c">'+(v?'<video src="'+u+'" controls muted></video>':'<img src="'+u+'">')+
-        '<a href="'+u+'" download target="_blank">'+u.split('/').pop().split('?')[0]+'</a></div>';
+  var counts={video:0,gif:0,image:0};
+  arr.forEach(function(it){counts[it.type]++;});
+  var html='<!doctype html><html><head><meta charset="utf-8"><title>추출됨 '+arr.length+'개</title>'+
+    '<style>body{font-family:sans-serif;background:#111;color:#eee;padding:20px;margin:0}'+
+    '.bar{position:sticky;top:0;background:#111;padding:10px 0;border-bottom:1px solid #333;margin-bottom:14px}'+
+    '.g{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px}'+
+    '.c{background:#222;border-radius:8px;overflow:hidden;border:1px solid #333}'+
+    '.c .m{aspect-ratio:1;background:#000;display:flex;align-items:center;justify-content:center;overflow:hidden}'+
+    '.c img,.c video{width:100%;height:100%;object-fit:cover;display:block}'+
+    '.c .meta{padding:6px 10px;font-size:11px;display:flex;justify-content:space-between;gap:6px}'+
+    '.c .meta .b{padding:2px 6px;border-radius:4px;font-weight:600}'+
+    '.c .meta .video{background:#5b8cff;color:#fff}'+
+    '.c .meta .gif{background:#f3a847;color:#000}'+
+    '.c .meta .image{background:#444;color:#ddd}'+
+    '.c a{display:block;padding:8px 10px;color:#9bf;font-size:11px;text-decoration:none;word-break:break-all;border-top:1px solid #333}'+
+    '.c a:hover{background:#1a1f2a}'+
+    'h1{font-size:18px;margin:0 0 6px}.s{color:#9aa3b2;font-size:13px}</style></head><body>'+
+    '<div class="bar"><h1>'+arr.length+'개 발견 — 우클릭 → "다른 이름으로 링크 저장"</h1>'+
+    '<div class="s">🎬 영상 '+counts.video+' · 🖼 GIF '+counts.gif+' · 📷 이미지 '+counts.image+'</div></div>'+
+    '<div class="g">'+
+    arr.map(function(it){
+      var u=it.url, t=it.type;
+      var preview=(t==='video')?'<video src="'+u+'" controls muted preload="metadata"></video>':'<img src="'+u+'" loading="lazy">';
+      return '<div class="c"><div class="m">'+preview+'</div>'+
+        '<div class="meta"><span>'+(u.split('/').pop().split('?')[0].slice(0,30))+'</span><span class="b '+t+'">'+t.toUpperCase()+'</span></div>'+
+        '<a href="'+u+'" download="'+fname(u,t)+'" target="_blank" rel="noopener">⬇ '+fname(u,t)+'</a></div>';
     }).join('')+'</div></body></html>';
   w.document.write(html); w.document.close();
 })();`;
