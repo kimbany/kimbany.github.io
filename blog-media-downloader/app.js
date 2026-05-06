@@ -18,12 +18,26 @@ const ALL_EXT = [...IMAGE_EXT, ...VIDEO_EXT];
 
 let foundItems = []; // { url, type, selected }
 
-// 여러 CORS 프록시를 순차 시도
+// 여러 CORS 프록시를 순차 시도 (어떤 곳은 네이버 같은 도메인을 차단함)
 const PROXIES = [
-  (u) => `https://corsproxy.io/?${encodeURIComponent(u)}`,
   (u) => `https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`,
   (u) => `https://api.codetabs.com/v1/proxy/?quest=${encodeURIComponent(u)}`,
+  (u) => `https://corsproxy.io/?${encodeURIComponent(u)}`,
+  (u) => `https://thingproxy.freeboard.io/fetch/${u}`,
 ];
+
+const BLOCKED_HOSTS = [
+  /(?:^|\.)blog\.naver\.com/i,
+  /(?:^|\.)m\.blog\.naver\.com/i,
+  /(?:^|\.)instagram\.com/i,
+];
+
+function isLikelyBlocked(url) {
+  try {
+    const h = new URL(url).hostname;
+    return BLOCKED_HOSTS.some((re) => re.test(h));
+  } catch { return false; }
+}
 
 function setStatus(msg, kind = "") {
   statusEl.className = "status " + kind;
@@ -381,8 +395,27 @@ async function copyUrls() {
   }
 }
 
+const warnBox = document.getElementById("warnBox");
+function updateWarn() {
+  warnBox.style.display = isLikelyBlocked(urlInput.value.trim()) ? "block" : "none";
+}
+urlInput.addEventListener("input", updateWarn);
+
 scanBtn.addEventListener("click", scan);
 urlInput.addEventListener("keydown", (e) => { if (e.key === "Enter") scan(); });
+
+document.getElementById("copyBml").addEventListener("click", async () => {
+  const code = "javascript:" + encodeURIComponent(bookmarkletCode.replace(/\s+/g, " "));
+  try {
+    await navigator.clipboard.writeText(code);
+    setStatus("북마클릿 코드를 복사했습니다. 새 북마크 만들 때 URL 자리에 붙여넣으세요.", "ok");
+  } catch {
+    const ta = document.createElement("textarea");
+    ta.value = code; document.body.appendChild(ta); ta.select();
+    document.execCommand("copy"); ta.remove();
+    setStatus("북마클릿 코드를 복사했습니다.", "ok");
+  }
+});
 downloadBtn.addEventListener("click", downloadToFolder);
 downloadAllBtn.addEventListener("click", downloadAllSimple);
 openTabsBtn.addEventListener("click", openAllInTabs);
@@ -428,9 +461,13 @@ const bookmarkletCode = `(function(){
   w.document.write(html); w.document.close();
 })();`;
 
-const bml = document.getElementById("bml");
-bml.href = "javascript:" + encodeURIComponent(bookmarkletCode.replace(/\s+/g, " "));
-bml.addEventListener("click", (e) => {
-  e.preventDefault();
-  alert("이 버튼을 '클릭'하지 말고 브라우저의 북마크 바로 '드래그' 해주세요.");
+const bmlHref = "javascript:" + encodeURIComponent(bookmarkletCode.replace(/\s+/g, " "));
+["bml", "bmlTop"].forEach((id) => {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.href = bmlHref;
+  el.addEventListener("click", (e) => {
+    e.preventDefault();
+    alert("이 버튼을 '클릭'하지 말고 브라우저의 북마크 바로 '드래그' 해주세요. (드래그가 안 되면 '북마클릿 코드 복사' 버튼을 사용하세요)");
+  });
 });
