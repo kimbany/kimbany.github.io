@@ -88,7 +88,27 @@
   <h1>📥 블로그 / 인스타 미디어 다운로더</h1>
   <div class="sub">URL을 붙여넣으면 페이지의 이미지 · GIF · 영상을 한 번에 받아줍니다.</div>
 
+  <div class="card" style="border-color: #f3a847;">
+    <div style="font-weight:600;margin-bottom:6px;color:#ffd9a3">⭐ 추천 방법: HTML 붙여넣기 (네이버/인스타도 100%)</div>
+    <ol class="small" style="margin: 6px 0 12px 18px; padding: 0;">
+      <li><b>네이버 블로그</b>면 주소를 <code>blog.naver.com</code> → <code>m.blog.naver.com</code>으로 바꿔서 여세요 (모바일 버전이 iframe 없이 본문만 나와서 편함)</li>
+      <li>그 페이지에서 키보드 <code>Ctrl + U</code> (Mac: <code>⌥⌘U</code>) → 새 탭에 소스가 뜹니다</li>
+      <li>그 새 탭에서 <code>Ctrl + A</code> 전체선택 → <code>Ctrl + C</code> 복사</li>
+      <li>아래 칸에 <code>Ctrl + V</code> 로 붙여넣고 <b>[분석]</b> 클릭</li>
+    </ol>
+    <div class="row" style="margin-bottom:8px">
+      <input id="baseUrl" type="text" placeholder="기준 URL (예: https://m.blog.naver.com/mvp87/224268615738) — 선택, 상대 경로용" />
+    </div>
+    <textarea id="htmlText" placeholder="여기에 HTML 붙여넣기 (또는 .html 파일을 이 영역에 드래그&드롭)"
+      style="width:100%;min-height:140px;background:#181b22;color:#e7e9ee;border:1px solid #2a2f3a;border-radius:10px;padding:10px;font-family:monospace;font-size:12px;resize:vertical"></textarea>
+    <div class="actions">
+      <button id="parseBtn">📋 붙여넣은 HTML 분석</button>
+      <span class="small" id="htmlSize"></span>
+    </div>
+  </div>
+
   <div class="card">
+    <div style="font-weight:600;margin-bottom:8px">또는 URL로 자동 가져오기 (티스토리/워드프레스 등 일반 블로그)</div>
     <div class="row">
       <input id="url" type="text" placeholder="블로그 글 URL을 붙여넣으세요 (예: https://example.tistory.com/12)" />
       <button id="scan">스캔</button>
@@ -150,6 +170,6 @@
   </details>
 </div>
 
-<script src="app.js?v=6"></script>
+<script src="app.js?v=7"></script>
 </body>
 </html>
