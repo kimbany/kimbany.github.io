@@ -1,6 +1,50 @@
 /* 샤오홍슈 한국어 검색기 — 프론트엔드
  * 1단계: 검색 UI, 한→중 번역, 추천 키워드, 백엔드 호출 준비
+ * 2단계: 크롬 확장프로그램 헬퍼를 통한 직접 검색
  */
+
+// ===== 크롬 확장프로그램 헬퍼 감지 / 호출 =====
+let extensionDetected = false;
+
+function detectExtension(timeoutMs = 600) {
+  return new Promise((resolve) => {
+    // (1) meta 태그로 감지 (확장 content.js가 페이지 로드 직후 삽입)
+    const meta = document.querySelector('meta[name="xhs-helper-installed"]');
+    if (meta) { extensionDetected = true; return resolve(meta.content || "1"); }
+    // (2) postMessage ping
+    const id = "ping-" + Math.random().toString(36).slice(2);
+    const handler = (e) => {
+      if (e.source !== window) return;
+      if (e.data && e.data.type === "XHS_HELPER_PONG" && e.data.requestId === id) {
+        window.removeEventListener("message", handler);
+        extensionDetected = true;
+        resolve(e.data.version || "1");
+      }
+    };
+    window.addEventListener("message", handler);
+    window.postMessage({ type: "XHS_HELPER_PING", requestId: id }, "*");
+    setTimeout(() => { window.removeEventListener("message", handler); resolve(null); }, timeoutMs);
+  });
+}
+
+function extensionFetch(url, init) {
+  return new Promise((resolve, reject) => {
+    const id = "req-" + Math.random().toString(36).slice(2);
+    const handler = (e) => {
+      if (e.source !== window) return;
+      const m = e.data;
+      if (!m || m.type !== "XHS_HELPER_FETCH_RESULT" || m.requestId !== id) return;
+      window.removeEventListener("message", handler);
+      if (m.error) return reject(new Error(m.error));
+      const r = m.response || {};
+      if (!r.ok) return reject(new Error("HTTP " + r.status + ": " + (r.statusText || r.error || "")));
+      resolve(r);
+    };
+    window.addEventListener("message", handler);
+    window.postMessage({ type: "XHS_HELPER_FETCH", requestId: id, url, init: init || {} }, "*");
+    setTimeout(() => { window.removeEventListener("message", handler); reject(new Error("확장프로그램 응답 없음 (30초)")); }, 30000);
+  });
+}
 
 const $ = (id) => document.getElementById(id);
 const q = $("q");
@@ -122,8 +166,24 @@ async function search() {
   }
 }
 
-// ===== 제품 검색 — 백엔드 우선, 없으면 Jina Reader 직접 호출 =====
+// ===== 제품 검색 — 확장 > 백엔드 > Jina 순서로 시도 =====
 async function fetchProducts(zhKeyword, koKeyword) {
+  // (1) 크롬 확장이 있으면 그걸 통해 직접 호출 (가장 신뢰도 높음, 본인 세션 사용)
+  if (extensionDetected) {
+    resultLabel.textContent = "검색 중… (확장)";
+    try {
+      const items = await searchViaExtension(zhKeyword);
+      if (items.length) {
+        renderProducts(items);
+        resultLabel.textContent = `${items.length}개 (확장)`;
+        return;
+      }
+      setStatus("확장 응답 0건 — Jina로 폴백", "err");
+    } catch (e) {
+      setStatus("확장 실패: " + e.message + " — Jina로 폴백", "err");
+    }
+  }
+
   const w = getWorkerUrl();
   if (w) {
     resultLabel.textContent = "검색 중… (백엔드)";
@@ -314,6 +374,77 @@ function onProductPick(idx, item) {
   setStatus(`#${idx + 1} 선택됨: "${item.title || ""}". 같은 제품 찾기는 다음 단계에서 활성화됩니다.`, "ok");
 }
 
+// ===== 확장프로그램 경유 샤오홍슈 검색 =====
+async function searchViaExtension(zhKeyword) {
+  const url = `https://www.xiaohongshu.com/search_result?keyword=${encodeURIComponent(zhKeyword)}&source=web_search_result_notes`;
+  const r = await extensionFetch(url);
+  return parseXhsHtml(r.text, zhKeyword);
+}
+
+function parseXhsHtml(html, zhKeyword) {
+  const items = [];
+
+  // (1) window.__INITIAL_STATE__ = {...} 에 검색 결과 JSON이 박혀있음
+  const m = html.match(/window\.__INITIAL_STATE__\s*=\s*([\s\S]+?)\s*<\/script>/);
+  if (m) {
+    let json = m[1].trim();
+    // 끝의 ; 제거
+    json = json.replace(/;\s*$/, "");
+    // XHS는 undefined를 그대로 넣는 일이 있어 정리
+    json = json.replace(/:\s*undefined(?=[\s,}])/g, ": null");
+    try {
+      const state = JSON.parse(json);
+      const searchObj = state.search || {};
+      let feeds = searchObj.feeds;
+      if (feeds && feeds._rawValue) feeds = feeds._rawValue;
+      const list = Array.isArray(feeds) ? feeds : (feeds && (feeds.items || feeds.list)) || [];
+      for (const n of list.slice(0, 20)) {
+        const note = n.noteCard || n.note_card || n;
+        if (!note) continue;
+        const id = note.id || note.noteId || n.id || "";
+        if (!id) continue;
+        const cover =
+          (note.cover && (note.cover.url || note.cover.urlDefault || note.cover.url_default)) ||
+          (note.imageList && note.imageList[0] && note.imageList[0].url) || "";
+        items.push({
+          id,
+          title: note.displayTitle || note.title || note.desc || "",
+          image: cover,
+          author: (note.user && (note.user.nickname || note.user.nickName)) || "",
+          likes: (note.interactInfo && (note.interactInfo.likedCount || note.interactInfo.liked_count)) || "",
+          url: `https://www.xiaohongshu.com/explore/${id}`,
+          keyword: zhKeyword,
+        });
+        if (items.length >= 12) break;
+      }
+    } catch (e) {
+      console.warn("[XHS] __INITIAL_STATE__ 파싱 실패:", e.message);
+    }
+  }
+
+  // (2) 폴백: HTML 내 sns-webpic / xhscdn 이미지 + explore/{id} 링크 정규식
+  if (items.length === 0) {
+    const linkIds = [...html.matchAll(/\/explore\/([0-9a-f]{20,})/gi)]
+      .map((mm) => mm[1]);
+    const imgs = [...html.matchAll(/"(?:url|urlDefault|url_default)":"(https?:\\?\/\\?\/[^"]+\.(?:jpg|jpeg|png|webp))"/gi)]
+      .map((mm) => mm[1].replace(/\\u002F/g, "/").replace(/\\\//g, "/"))
+      .filter((u) => /xhscdn|sns-webpic|sns-img|picasso/i.test(u));
+    const uniqueIds = [...new Set(linkIds)].slice(0, 12);
+    uniqueIds.forEach((id, i) => {
+      items.push({
+        id,
+        title: "(상세 추출 실패)",
+        image: imgs[i] || "",
+        url: `https://www.xiaohongshu.com/explore/${id}`,
+        keyword: zhKeyword,
+      });
+    });
+  }
+
+  console.log("[XHS] 확장 경유 결과:", items.length, "개");
+  return items;
+}
+
 // ===== 추천 키워드 =====
 // 백엔드가 있으면 AI(OpenAI) 호출, 없으면 키워드 변형(색상·스타일·계절 조합) 사용
 async function refreshRecommended(koKeyword) {
@@ -396,3 +527,13 @@ copyZh.addEventListener("click", async () => {
 
 // 초기화
 updateWorkerUi();
+
+(async () => {
+  const v = await detectExtension();
+  if (v) {
+    setupWarn.style.display = "none";
+    setStatus(`✅ 크롬 확장 v${v} 감지됨 — 본인 세션으로 직접 검색합니다.`, "ok");
+  } else {
+    console.log("[XHS] 확장 미감지 — Jina 폴백 모드");
+  }
+})();
