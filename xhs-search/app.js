@@ -143,10 +143,40 @@ async function fetchProducts(zhKeyword, koKeyword) {
 
   // Jina Reader 직접 호출 — 백엔드 없이 동작 (무료, rate limit 있음)
   resultLabel.textContent = "Jina 검색 중…";
+  let lastDebug = null;
   try {
-    const items = await searchViaJina(zhKeyword);
+    // 데스크탑 URL 먼저, 실패 시 모바일 URL 폴백
+    const variants = [
+      `https://www.xiaohongshu.com/search_result?keyword=${encodeURIComponent(zhKeyword)}&source=web_search_result_notes`,
+      `https://www.xiaohongshu.com/search?keyword=${encodeURIComponent(zhKeyword)}`,
+    ];
+    let items = [];
+    for (const v of variants) {
+      const result = await searchViaJina(v, zhKeyword);
+      lastDebug = result.debug;
+      if (result.items.length) { items = result.items; break; }
+    }
     if (!items.length) {
-      results.innerHTML = `<div class="empty">결과를 못 가져왔어요. 샤오홍슈가 Jina 요청을 차단했거나 키워드가 너무 좁을 수 있어요.<br>"🔗 샤오홍슈에서 직접 보기" 로 확인해보세요.</div>`;
+      const dbg = lastDebug || {};
+      results.innerHTML = `
+        <div class="empty">
+          <div style="margin-bottom:10px">결과를 못 가져왔어요.</div>
+          <div style="text-align:left;background:#0c0e13;padding:12px;border-radius:8px;font-family:monospace;font-size:11px;color:#9aa3b2">
+            <div><b>Jina 응답 진단:</b></div>
+            <div>· 제목: ${(dbg.title || "(없음)").slice(0, 80)}</div>
+            <div>· 콘텐츠 길이: ${dbg.contentLength || 0} 자</div>
+            <div>· 이미지 ${dbg.totalImages || 0}개 (XHS 호스트: ${dbg.xhsImages || 0}개)</div>
+            <div>· 링크 ${dbg.totalLinks || 0}개 (XHS 노트: ${dbg.xhsLinks || 0}개)</div>
+            <div>· 콘텐츠 첫줄: ${(dbg.contentFirstLine || "").slice(0, 80)}</div>
+          </div>
+          <div style="margin-top:10px">
+            ${dbg.xhsImages === 0 && dbg.totalImages > 0 ?
+              "샤오홍슈는 응답했지만 호스트가 우리 패턴과 안 맞음. 코드 업데이트 필요." :
+              dbg.totalImages === 0 ?
+              "샤오홍슈가 Jina 봇을 차단했거나 로그인 페이지를 줬어요. Cloudflare Worker 배포 필요." :
+              "어떤 이유인지 불명확. 디버그 정보를 보내주세요."}
+          </div>
+        </div>`;
       resultLabel.textContent = "0개";
       return;
     }
@@ -160,8 +190,7 @@ async function fetchProducts(zhKeyword, koKeyword) {
 
 // Jina AI Reader: 어떤 URL이든 실제 브라우저로 렌더링해서 콘텐츠 추출.
 // 무료, CORS OK, 약 20 req/min 한도.
-async function searchViaJina(zhKeyword) {
-  const xhsUrl = `https://www.xiaohongshu.com/search_result?keyword=${encodeURIComponent(zhKeyword)}&source=web_search_result_notes`;
+async function searchViaJina(xhsUrl, zhKeyword) {
   const jinaUrl = `https://r.jina.ai/${xhsUrl}`;
   const r = await fetch(jinaUrl, {
     headers: {
@@ -181,18 +210,32 @@ function parseJinaResponse(payload, zhKeyword) {
   const links = payload.links || {};
   const content = payload.content || "";
 
-  // 샤오홍슈 이미지 호스트 패턴
-  const xhsImageRe = /sns-(?:img|webpic|avatar)|picasso-static|xhscdn\.com/i;
+  // 샤오홍슈 이미지 호스트 패턴 (느슨하게)
+  const xhsImageRe = /xhscdn|xiaohongshu|sns-(?:img|webpic|avatar|video)|picasso-static/i;
   const imageEntries = Object.entries(images).filter(([, u]) => xhsImageRe.test(u));
 
   // 샤오홍슈 노트 URL 패턴
-  const noteLinkRe = /xiaohongshu\.com\/(?:explore|discovery\/item)\/([0-9a-f]+)/i;
+  const noteLinkRe = /xiaohongshu\.com\/(?:explore|discovery\/item|user\/profile)\/([0-9a-f]+)/i;
   const noteLinks = Object.entries(links).filter(([, u]) => noteLinkRe.test(u));
 
-  // markdown 내 ![alt](url) 추가 수집
+  // markdown 내 ![alt](url) 추가 수집 (호스트 필터 풀어서 모든 이미지)
   const mdImages = [...content.matchAll(/!\[([^\]]*)\]\((https?:\/\/[^\s)]+)\)/gi)]
-    .filter((m) => xhsImageRe.test(m[2]))
     .map((m) => ({ alt: m[1] || "", url: m[2] }));
+  const mdXhsImages = mdImages.filter((x) => xhsImageRe.test(x.url));
+
+  const debug = {
+    title: payload.title || "",
+    contentLength: content.length,
+    contentFirstLine: (content.split("\n").find((l) => l.trim()) || "").slice(0, 200),
+    totalImages: Object.keys(images).length,
+    xhsImages: imageEntries.length,
+    totalLinks: Object.keys(links).length,
+    xhsLinks: noteLinks.length,
+    mdImages: mdImages.length,
+    mdXhsImages: mdXhsImages.length,
+  };
+  console.log("[XHS] Jina 응답 진단:", debug);
+  console.log("[XHS] 응답 첫 1000자:", content.slice(0, 1000));
 
   const items = [];
   const seen = new Set();
@@ -202,7 +245,7 @@ function parseJinaResponse(payload, zhKeyword) {
     if (!id || seen.has(id)) continue;
     seen.add(id);
     const matchedImg = imageEntries[items.length];
-    const md = mdImages[items.length];
+    const md = mdXhsImages[items.length] || mdImages[items.length];
     items.push({
       id,
       title: text || "",
@@ -213,22 +256,32 @@ function parseJinaResponse(payload, zhKeyword) {
     if (items.length >= 12) break;
   }
 
-  // 노트 링크가 안 잡혔으면 이미지만으로 카드 생성
-  if (items.length === 0) {
-    const pool = imageEntries.length
-      ? imageEntries
-      : mdImages.map((m) => [m.alt, m.url]);
-    pool.slice(0, 10).forEach(([alt, url], i) => {
+  // 노트 링크가 안 잡혔으면 XHS 이미지만으로 카드 생성
+  if (items.length === 0 && imageEntries.length) {
+    imageEntries.slice(0, 10).forEach(([alt, url], i) => {
       items.push({
         id: "jina-" + i,
         title: (alt || "").slice(0, 60),
-        image: url || alt,
+        image: url,
         url: "",
         keyword: zhKeyword,
       });
     });
   }
-  return items;
+
+  // 그래도 0개면 md 이미지만이라도 (XHS 호스트 검증 없이)
+  if (items.length === 0 && mdImages.length) {
+    mdImages.slice(0, 10).forEach((x, i) => {
+      items.push({
+        id: "md-" + i,
+        title: x.alt.slice(0, 60),
+        image: x.url,
+        url: "",
+        keyword: zhKeyword,
+      });
+    });
+  }
+  return { items, debug };
 }
 
 function renderProducts(items) {
