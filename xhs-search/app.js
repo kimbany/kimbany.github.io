@@ -122,32 +122,113 @@ async function search() {
   }
 }
 
-// ===== 백엔드 호출: 제품 검색 =====
+// ===== 제품 검색 — 백엔드 우선, 없으면 Jina Reader 직접 호출 =====
 async function fetchProducts(zhKeyword, koKeyword) {
   const w = getWorkerUrl();
-  if (!w) {
-    resultLabel.textContent = "백엔드 미연결";
-    results.innerHTML = `
-      <div class="empty">
-        ⚙️ 백엔드 Worker URL이 아직 설정 안 됐어요.<br>
-        하단의 <b>"⚙️ 백엔드 설정"</b> 펼쳐서 1번~5번 진행 후, 다시 검색하세요.<br><br>
-        그동안 <b>샤오홍슈에서 직접 보기</b> 버튼으로 결과 확인 가능합니다 ↑
-      </div>`;
-    return;
+  if (w) {
+    resultLabel.textContent = "검색 중… (백엔드)";
+    try {
+      const url = `${w}/search?q=${encodeURIComponent(zhKeyword)}&ko=${encodeURIComponent(koKeyword)}`;
+      const r = await fetch(url);
+      if (!r.ok) throw new Error("HTTP " + r.status);
+      const data = await r.json();
+      if (!data || !Array.isArray(data.items)) throw new Error("응답 형식 오류");
+      renderProducts(data.items);
+      resultLabel.textContent = `${data.items.length}개`;
+      return;
+    } catch (e) {
+      setStatus("백엔드 실패 — Jina로 폴백: " + e.message, "err");
+    }
   }
-  resultLabel.textContent = "검색 중…";
+
+  // Jina Reader 직접 호출 — 백엔드 없이 동작 (무료, rate limit 있음)
+  resultLabel.textContent = "Jina 검색 중…";
   try {
-    const url = `${w}/search?q=${encodeURIComponent(zhKeyword)}&ko=${encodeURIComponent(koKeyword)}`;
-    const r = await fetch(url);
-    if (!r.ok) throw new Error("HTTP " + r.status);
-    const data = await r.json();
-    if (!data || !Array.isArray(data.items)) throw new Error("응답 형식 오류");
-    renderProducts(data.items);
-    resultLabel.textContent = `${data.items.length}개`;
+    const items = await searchViaJina(zhKeyword);
+    if (!items.length) {
+      results.innerHTML = `<div class="empty">결과를 못 가져왔어요. 샤오홍슈가 Jina 요청을 차단했거나 키워드가 너무 좁을 수 있어요.<br>"🔗 샤오홍슈에서 직접 보기" 로 확인해보세요.</div>`;
+      resultLabel.textContent = "0개";
+      return;
+    }
+    renderProducts(items);
+    resultLabel.textContent = `${items.length}개 (Jina)`;
   } catch (e) {
-    results.innerHTML = `<div class="empty">백엔드 호출 실패: ${e.message}</div>`;
+    results.innerHTML = `<div class="empty">Jina 검색 실패: ${e.message}<br>⚙️ 백엔드 설정으로 Cloudflare Worker를 배포하면 더 안정적입니다.</div>`;
     resultLabel.textContent = "오류";
   }
+}
+
+// Jina AI Reader: 어떤 URL이든 실제 브라우저로 렌더링해서 콘텐츠 추출.
+// 무료, CORS OK, 약 20 req/min 한도.
+async function searchViaJina(zhKeyword) {
+  const xhsUrl = `https://www.xiaohongshu.com/search_result?keyword=${encodeURIComponent(zhKeyword)}&source=web_search_result_notes`;
+  const jinaUrl = `https://r.jina.ai/${xhsUrl}`;
+  const r = await fetch(jinaUrl, {
+    headers: {
+      "Accept": "application/json",
+      "X-With-Images-Summary": "all",
+      "X-With-Links-Summary": "true",
+    },
+  });
+  if (!r.ok) throw new Error("Jina HTTP " + r.status);
+  const data = await r.json();
+  const payload = data.data || data;
+  return parseJinaResponse(payload, zhKeyword);
+}
+
+function parseJinaResponse(payload, zhKeyword) {
+  const images = payload.images || {};
+  const links = payload.links || {};
+  const content = payload.content || "";
+
+  // 샤오홍슈 이미지 호스트 패턴
+  const xhsImageRe = /sns-(?:img|webpic|avatar)|picasso-static|xhscdn\.com/i;
+  const imageEntries = Object.entries(images).filter(([, u]) => xhsImageRe.test(u));
+
+  // 샤오홍슈 노트 URL 패턴
+  const noteLinkRe = /xiaohongshu\.com\/(?:explore|discovery\/item)\/([0-9a-f]+)/i;
+  const noteLinks = Object.entries(links).filter(([, u]) => noteLinkRe.test(u));
+
+  // markdown 내 ![alt](url) 추가 수집
+  const mdImages = [...content.matchAll(/!\[([^\]]*)\]\((https?:\/\/[^\s)]+)\)/gi)]
+    .filter((m) => xhsImageRe.test(m[2]))
+    .map((m) => ({ alt: m[1] || "", url: m[2] }));
+
+  const items = [];
+  const seen = new Set();
+  for (const [text, url] of noteLinks) {
+    const m = url.match(noteLinkRe);
+    const id = m && m[1];
+    if (!id || seen.has(id)) continue;
+    seen.add(id);
+    const matchedImg = imageEntries[items.length];
+    const md = mdImages[items.length];
+    items.push({
+      id,
+      title: text || "",
+      image: (matchedImg && matchedImg[1]) || (md && md.url) || "",
+      url,
+      keyword: zhKeyword,
+    });
+    if (items.length >= 12) break;
+  }
+
+  // 노트 링크가 안 잡혔으면 이미지만으로 카드 생성
+  if (items.length === 0) {
+    const pool = imageEntries.length
+      ? imageEntries
+      : mdImages.map((m) => [m.alt, m.url]);
+    pool.slice(0, 10).forEach(([alt, url], i) => {
+      items.push({
+        id: "jina-" + i,
+        title: (alt || "").slice(0, 60),
+        image: url || alt,
+        url: "",
+        keyword: zhKeyword,
+      });
+    });
+  }
+  return items;
 }
 
 function renderProducts(items) {
@@ -180,27 +261,51 @@ function onProductPick(idx, item) {
   setStatus(`#${idx + 1} 선택됨: "${item.title || ""}". 같은 제품 찾기는 다음 단계에서 활성화됩니다.`, "ok");
 }
 
-// ===== 추천 키워드 (AI) — 백엔드가 있을 때만 진짜 동작 =====
+// ===== 추천 키워드 =====
+// 백엔드가 있으면 AI(OpenAI) 호출, 없으면 키워드 변형(색상·스타일·계절 조합) 사용
 async function refreshRecommended(koKeyword) {
   const w = getWorkerUrl();
-  if (!w) { recoLabel.textContent = "기본 카테고리"; return; }
-  try {
-    const r = await fetch(`${w}/suggest?ko=${encodeURIComponent(koKeyword)}`);
-    if (!r.ok) throw new Error("HTTP " + r.status);
-    const data = await r.json();
-    if (!data || !Array.isArray(data.suggestions)) return;
-    recommended.innerHTML = "";
-    data.suggestions.slice(0, 12).forEach((kw) => {
-      const chip = document.createElement("span");
-      chip.className = "chip";
-      chip.dataset.q = kw;
-      chip.textContent = kw;
-      recommended.appendChild(chip);
-    });
-    recoLabel.textContent = "AI 추천 (" + koKeyword + " 관련)";
-  } catch {
-    recoLabel.textContent = "기본 카테고리 (AI 추천 실패)";
+  if (w) {
+    try {
+      const r = await fetch(`${w}/suggest?ko=${encodeURIComponent(koKeyword)}`);
+      if (!r.ok) throw new Error("HTTP " + r.status);
+      const data = await r.json();
+      if (data && Array.isArray(data.suggestions) && data.suggestions.length) {
+        renderChips(data.suggestions);
+        recoLabel.textContent = "AI 추천 (" + koKeyword + " 관련)";
+        return;
+      }
+    } catch { /* fallthrough */ }
   }
+  // 폴백: 키워드 변형
+  const list = generateLocalSuggestions(koKeyword);
+  renderChips(list);
+  recoLabel.textContent = `"${koKeyword}" 관련 (자동 변형)`;
+}
+
+function renderChips(list) {
+  recommended.innerHTML = "";
+  list.slice(0, 12).forEach((kw) => {
+    const chip = document.createElement("span");
+    chip.className = "chip";
+    chip.dataset.q = kw;
+    chip.textContent = kw;
+    recommended.appendChild(chip);
+  });
+}
+
+function generateLocalSuggestions(ko) {
+  const parts = ko.trim().split(/\s+/).filter(Boolean);
+  const head = parts.length > 1 ? parts.slice(0, -1).join(" ") : "";
+  const last = parts[parts.length - 1] || ko;
+  const colors = ["블랙", "화이트", "베이지", "핑크", "그린"];
+  const styles = ["미니멀", "빈티지", "캐주얼", "오버사이즈"];
+  const seasons = ["가을", "겨울", "봄", "여름"];
+  const out = new Set();
+  colors.forEach((c) => out.add((head ? head + " " : "") + c + " " + last));
+  styles.forEach((s) => out.add((head ? head + " " : "") + s + " " + last));
+  seasons.forEach((s) => out.add(s + " " + last));
+  return [...out];
 }
 
 // 칩 클릭 → 검색창에 채우고 자동 검색
