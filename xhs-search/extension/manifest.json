@@ -16,6 +16,8 @@
     {
       "matches": [
         "https://kimbany.github.io/*",
+        "https://invedory.com/*",
+        "https://www.invedory.com/*",
         "http://localhost/*",
         "http://127.0.0.1/*",
         "file:///*"
