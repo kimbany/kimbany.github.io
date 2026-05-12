@@ -539,6 +539,8 @@ const PIPED_INSTANCES = [
   "https://pipedapi.adminforge.de",
   "https://piped-api.lunar.icu",
   "https://pipedapi.in.projectsegfau.lt",
+  "https://pipedapi.r4fo.com",
+  "https://pipedapi.darkness.services",
 ];
 
 function setYtStatus(msg, kind = "") {
@@ -559,26 +561,80 @@ async function pipedFetch(path) {
   throw lastErr || new Error("모든 Piped 인스턴스 실패");
 }
 
+// Jina Reader로 YouTube 검색 페이지 가져오기 (Piped 다 죽었을 때 폴백)
+async function youtubeViaJina(keyword) {
+  const url = `https://www.youtube.com/results?search_query=${encodeURIComponent(keyword)}&sp=CAMSAhAB`; // sp = 조회수순
+  const r = await fetch(`https://r.jina.ai/${url}`, {
+    headers: { "Accept": "application/json", "X-With-Links-Summary": "true" },
+  });
+  if (!r.ok) throw new Error("Jina HTTP " + r.status);
+  const data = await r.json();
+  const payload = data.data || data;
+  return parseYouTubeJina(payload);
+}
+
+function parseYouTubeJina(payload) {
+  const links = payload.links || {};
+  const content = payload.content || "";
+  const items = [];
+  const seen = new Set();
+
+  // links: { "텍스트": "url" } — YouTube watch URL 매칭
+  for (const [text, url] of Object.entries(links)) {
+    const m = url.match(/youtube\.com\/watch\?v=([a-zA-Z0-9_-]{11})/);
+    if (!m) continue;
+    const id = m[1];
+    if (seen.has(id)) continue;
+    seen.add(id);
+    // 텍스트가 너무 짧거나 일반적인 경우 스킵
+    if (!text || text.length < 5 || /^(home|shorts|trending|subscribe)$/i.test(text)) continue;
+    items.push({
+      title: text,
+      url: `https://www.youtube.com/watch?v=${id}`,
+      thumbnail: `https://i.ytimg.com/vi/${id}/mqdefault.jpg`,
+      videoId: id,
+      uploaderName: "",
+      views: 0,
+      duration: 0,
+    });
+    if (items.length >= 12) break;
+  }
+
+  return items;
+}
+
 async function searchYouTube(keyword) {
+  if (!keyword) return;
   setYtStatus(`YouTube 검색 중… "${keyword}"`);
   ytResults.innerHTML = "";
+
+  // (1) Piped 시도
+  let items = [];
+  let viaJina = false;
   try {
-    // filter=videos 로 비디오만, 조회수순 정렬은 API에서 직접 지원 안 함 → 결과 받은 뒤 클라이언트에서 정렬
     const { data, base } = await pipedFetch(`/search?q=${encodeURIComponent(keyword)}&filter=videos`);
-    let items = (data.items || []).filter((it) => it.type === "stream" || it.type === "video" || it.url);
-    // views 내림차순 정렬
+    items = (data.items || []).filter((it) => it.type === "stream" || it.type === "video" || it.url);
     items.sort((a, b) => (b.views || 0) - (a.views || 0));
     items = items.slice(0, 12);
-    if (!items.length) {
-      ytResults.innerHTML = `<div class="empty">검색 결과 0개</div>`;
-      setYtStatus("0개", "err");
+    if (items.length) {
+      renderYtResults(items);
+      setYtStatus(`✅ ${items.length}개 (조회수순) — ${new URL(base).host}`, "ok");
       return;
     }
-    renderYtResults(items);
-    setYtStatus(`✅ ${items.length}개 (조회수순) — 인스턴스: ${new URL(base).host}`, "ok");
   } catch (e) {
-    ytResults.innerHTML = `<div class="empty">YouTube 검색 실패: ${e.message}<br>잠시 후 다시 시도하거나, 다른 키워드로 시도하세요.</div>`;
-    setYtStatus("실패: " + e.message, "err");
+    setYtStatus(`Piped 실패 — Jina로 폴백 시도: ${e.message}`);
+  }
+
+  // (2) Jina 폴백
+  try {
+    items = await youtubeViaJina(keyword);
+    viaJina = true;
+    if (!items.length) throw new Error("Jina도 결과 0개");
+    renderYtResults(items);
+    setYtStatus(`✅ ${items.length}개 (Jina, 조회수 정렬 안 됨)`, "ok");
+  } catch (e2) {
+    ytResults.innerHTML = `<div class="empty">YouTube 검색 실패: ${e2.message}<br>잠시 후 다시 시도하거나, 다른 키워드로 시도하세요.</div>`;
+    setYtStatus("실패: " + e2.message, "err");
   }
 }
 
@@ -633,7 +689,17 @@ async function onYtVideoPick(item, videoId) {
     desc = data.description || data.descriptionHtml || "";
     desc = desc.replace(/<[^>]+>/g, "").trim() || "(설명 없음)";
   } catch (e) {
-    desc = "설명 로드 실패: " + e.message;
+    // Piped 실패 → Jina로 영상 페이지 가져오기
+    try {
+      const r = await fetch(`https://r.jina.ai/https://www.youtube.com/watch?v=${videoId}`, {
+        headers: { "Accept": "application/json" },
+      });
+      const data = await r.json();
+      const content = (data.data && data.data.content) || data.content || "";
+      desc = content.slice(0, 4000) || "(설명 없음)";
+    } catch (e2) {
+      desc = "설명 로드 실패: " + e2.message;
+    }
   }
 
   // 후보 제품 키워드 자동 추출 (간단 휴리스틱)
