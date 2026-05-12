@@ -6,7 +6,7 @@
  */
 
 const TAG = "[XHS-Helper]";
-const VERSION = "1.0.0";
+const VERSION = "1.0.1";
 
 // 페이지가 우리 확장의 존재를 감지할 수 있게 표시
 const beacon = document.createElement("meta");

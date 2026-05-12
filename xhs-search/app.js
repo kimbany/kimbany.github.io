@@ -37,7 +37,10 @@ function extensionFetch(url, init) {
       window.removeEventListener("message", handler);
       if (m.error) return reject(new Error(m.error));
       const r = m.response || {};
-      if (!r.ok) return reject(new Error("HTTP " + r.status + ": " + (r.statusText || r.error || "")));
+      if (!r.ok) {
+        const msg = r.error || r.statusText || (r.status ? "HTTP " + r.status : "응답 없음");
+        return reject(new Error(msg));
+      }
       resolve(r);
     };
     window.addEventListener("message", handler);
