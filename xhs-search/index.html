@@ -123,6 +123,11 @@
   <h1>🛍️ 샤오홍슈 한국어 검색기 <span class="badge">BETA</span></h1>
   <div class="sub">① YouTube 인기 영상에서 제품 발견 → ② 한국어 입력 → ③ 자동 중국어 번역 → ④ 샤오홍슈 검색</div>
 
+  <div style="margin-bottom: 14px; display: flex; gap: 8px; flex-wrap: wrap;">
+    <button id="diagBtn" class="ghost">🔧 확장 진단 (XHS 연결 테스트)</button>
+    <span id="diagResult" class="small"></span>
+  </div>
+
   <div class="warn" id="setupWarn">
     <b>⚡ 백엔드 없이 시도 중</b> — Jina AI Reader를 통해 샤오홍슈 결과를 직접 가져옵니다 (무료, 분당 약 20회 한도).
     잘 안 되거나 더 안정적으로 쓰려면 아래 <b>⚙️ 백엔드 설정</b>에서 본인 Cloudflare Worker 배포하세요.
@@ -221,6 +226,6 @@
 
 </div>
 
-<script src="app.js?v=10"></script>
+<script src="app.js?v=11"></script>
 </body>
 </html>
