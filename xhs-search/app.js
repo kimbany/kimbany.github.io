@@ -218,23 +218,28 @@ async function fetchProducts(zhKeyword, koKeyword) {
     }
     if (!items.length) {
       const dbg = lastDebug || {};
+      const isBlocked = !!dbg.blocked;
       results.innerHTML = `
         <div class="empty">
-          <div style="margin-bottom:10px">결과를 못 가져왔어요.</div>
-          <div style="text-align:left;background:#0c0e13;padding:12px;border-radius:8px;font-family:monospace;font-size:11px;color:#9aa3b2">
+          <div style="margin-bottom:12px; font-size:15px; color:#ff6b6b">
+            ${isBlocked
+              ? "🚫 샤오홍슈가 봇으로 탐지해서 검색 결과 대신 일반 홈페이지를 줬어요."
+              : "결과를 못 가져왔어요."}
+          </div>
+          <div style="text-align:left;background:#0c0e13;padding:12px;border-radius:8px;font-family:monospace;font-size:11px;color:#9aa3b2;margin-bottom:12px">
             <div><b>Jina 응답 진단:</b></div>
             <div>· 제목: ${(dbg.title || "(없음)").slice(0, 80)}</div>
             <div>· 콘텐츠 길이: ${dbg.contentLength || 0} 자</div>
-            <div>· 이미지 ${dbg.totalImages || 0}개 (XHS 호스트: ${dbg.xhsImages || 0}개)</div>
-            <div>· 링크 ${dbg.totalLinks || 0}개 (XHS 노트: ${dbg.xhsLinks || 0}개)</div>
-            <div>· 콘텐츠 첫줄: ${(dbg.contentFirstLine || "").slice(0, 80)}</div>
+            <div>· 키워드 포함 여부: ${dbg.keywordInContent ? "✅" : "❌"}</div>
+            <div>· 차단 감지: ${isBlocked ? "✅ (홈페이지 응답)" : "❌"}</div>
+            <div>· 이미지 ${dbg.totalImages || 0}개 (XHS: ${dbg.xhsImages || 0})</div>
+            <div>· 링크 ${dbg.totalLinks || 0}개 (XHS 노트: ${dbg.xhsLinks || 0})</div>
           </div>
-          <div style="margin-top:10px">
-            ${dbg.xhsImages === 0 && dbg.totalImages > 0 ?
-              "샤오홍슈는 응답했지만 호스트가 우리 패턴과 안 맞음. 코드 업데이트 필요." :
-              dbg.totalImages === 0 ?
-              "샤오홍슈가 Jina 봇을 차단했거나 로그인 페이지를 줬어요. Cloudflare Worker 배포 필요." :
-              "어떤 이유인지 불명확. 디버그 정보를 보내주세요."}
+          <div style="text-align:left">
+            <b>해결 방법:</b><br>
+            1. 위쪽 노란 박스에 "✅ 크롬 확장" 메시지 떴는지 확인. 안 떴으면 확장 설치/새로고침 필요<br>
+            2. <b>🔗 샤오홍슈에서 직접 보기</b> 버튼으로 본인 브라우저에서 확인<br>
+            3. 또는 Cloudflare Worker 배포
           </div>
         </div>`;
       resultLabel.textContent = "0개";
@@ -269,6 +274,15 @@ function parseJinaResponse(payload, zhKeyword) {
   const images = payload.images || {};
   const links = payload.links || {};
   const content = payload.content || "";
+  const title = (payload.title || "").trim();
+
+  // 샤오홍슈가 봇 탐지해서 검색 결과 대신 홈페이지를 반환하는 경우 감지
+  // - 페이지 제목이 그냥 "小红书 - 你的生活指南" 같은 홈페이지 타이틀
+  // - 콘텐츠가 너무 짧거나, 키워드/搜索/搜 글자가 콘텐츠에 거의 없음
+  const isXhsHomeTitle = /^小红书(\s*[\-—–]\s*你的生活指南)?$/.test(title);
+  const keywordInContent = zhKeyword && content.indexOf(zhKeyword) >= 0;
+  const looksLikeSearch = /搜索|搜|search/i.test(content.slice(0, 500));
+  const blocked = (isXhsHomeTitle || (!keywordInContent && !looksLikeSearch)) && content.length < 2000;
 
   // 샤오홍슈 이미지 호스트 패턴 (느슨하게)
   const xhsImageRe = /xhscdn|xiaohongshu|sns-(?:img|webpic|avatar|video)|picasso-static/i;
@@ -293,9 +307,17 @@ function parseJinaResponse(payload, zhKeyword) {
     xhsLinks: noteLinks.length,
     mdImages: mdImages.length,
     mdXhsImages: mdXhsImages.length,
+    blocked,
+    keywordInContent,
   };
   console.log("[XHS] Jina 응답 진단:", debug);
   console.log("[XHS] 응답 첫 1000자:", content.slice(0, 1000));
+
+  // 차단 감지 시 잘못된 결과(홈페이지의 인기글) 안 보여주고 비어있는 채로 반환
+  if (blocked) {
+    console.warn("[XHS] 봇 차단 감지 — 홈페이지 인기글이 결과로 잡힐 위험. 빈 결과 반환.");
+    return { items: [], debug };
+  }
 
   const items = [];
   const seen = new Set();
