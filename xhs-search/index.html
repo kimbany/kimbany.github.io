@@ -102,11 +102,32 @@
 <body>
 <div class="wrap">
   <h1>🛍️ 샤오홍슈 한국어 검색기 <span class="badge">BETA</span></h1>
-  <div class="sub">한국어 키워드 → 자동 중국어 번역 → 샤오홍슈 검색 → 같은 제품 골라서 다운로드</div>
+  <div class="sub">① YouTube 인기 영상에서 제품 발견 → ② 한국어 입력 → ③ 자동 중국어 번역 → ④ 샤오홍슈 검색</div>
 
   <div class="warn" id="setupWarn">
     <b>⚡ 백엔드 없이 시도 중</b> — Jina AI Reader를 통해 샤오홍슈 결과를 직접 가져옵니다 (무료, 분당 약 20회 한도).
     잘 안 되거나 더 안정적으로 쓰려면 아래 <b>⚙️ 백엔드 설정</b>에서 본인 Cloudflare Worker 배포하세요.
+  </div>
+
+  <div class="card" style="border-color: #ff0000;">
+    <div style="font-weight:700; margin-bottom: 8px; color:#ff6b6b">🎥 YouTube에서 인기 영상으로 제품 발견</div>
+    <div class="small" style="margin-bottom:12px">
+      예: "쿠팡추천템", "다이소인기템", "올리브영 추천템" 등 → 조회수·좋아요 많은 영상 → 영상 설명에서 제품명 골라서 샤오홍슈 검색
+    </div>
+    <div class="search-row">
+      <input id="ytQ" type="text" placeholder="예: 쿠팡추천템, 다이소인기템, 가을코디 추천템" />
+      <button id="ytSearchBtn" class="primary" style="background: linear-gradient(135deg, #ff0000, #ff6b6b);">🎥 YouTube 검색</button>
+    </div>
+    <div class="chip-row" id="ytQuickChips" style="margin-top:10px">
+      <span class="chip" data-yt="쿠팡추천템">쿠팡추천템</span>
+      <span class="chip" data-yt="쿠팡인기템">쿠팡인기템</span>
+      <span class="chip" data-yt="다이소추천템">다이소추천템</span>
+      <span class="chip" data-yt="다이소인기템">다이소인기템</span>
+      <span class="chip" data-yt="올리브영 추천템">올리브영 추천템</span>
+      <span class="chip" data-yt="알리익스프레스 추천">알리익스프레스 추천</span>
+    </div>
+    <div id="ytStatus" class="status"></div>
+    <div id="ytResults" style="margin-top: 14px;"></div>
   </div>
 
   <div class="card">
@@ -177,6 +198,6 @@
 
 </div>
 
-<script src="app.js?v=4"></script>
+<script src="app.js?v=5"></script>
 </body>
 </html>

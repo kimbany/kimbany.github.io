@@ -525,6 +525,210 @@ copyZh.addEventListener("click", async () => {
   }
 });
 
+// ===== YouTube 검색 (Piped 공개 API 사용) =====
+const ytQ = $("ytQ");
+const ytSearchBtn = $("ytSearchBtn");
+const ytQuickChips = $("ytQuickChips");
+const ytStatus = $("ytStatus");
+const ytResults = $("ytResults");
+
+// 공개 Piped 인스턴스들 (하나 죽으면 다음거 시도)
+const PIPED_INSTANCES = [
+  "https://pipedapi.kavin.rocks",
+  "https://api-piped.mha.fi",
+  "https://pipedapi.adminforge.de",
+  "https://piped-api.lunar.icu",
+  "https://pipedapi.in.projectsegfau.lt",
+];
+
+function setYtStatus(msg, kind = "") {
+  ytStatus.className = "status " + kind;
+  ytStatus.textContent = msg;
+}
+
+async function pipedFetch(path) {
+  let lastErr;
+  for (const base of PIPED_INSTANCES) {
+    try {
+      const r = await fetch(base + path);
+      if (!r.ok) throw new Error("HTTP " + r.status);
+      const data = await r.json();
+      return { data, base };
+    } catch (e) { lastErr = e; }
+  }
+  throw lastErr || new Error("모든 Piped 인스턴스 실패");
+}
+
+async function searchYouTube(keyword) {
+  setYtStatus(`YouTube 검색 중… "${keyword}"`);
+  ytResults.innerHTML = "";
+  try {
+    // filter=videos 로 비디오만, 조회수순 정렬은 API에서 직접 지원 안 함 → 결과 받은 뒤 클라이언트에서 정렬
+    const { data, base } = await pipedFetch(`/search?q=${encodeURIComponent(keyword)}&filter=videos`);
+    let items = (data.items || []).filter((it) => it.type === "stream" || it.type === "video" || it.url);
+    // views 내림차순 정렬
+    items.sort((a, b) => (b.views || 0) - (a.views || 0));
+    items = items.slice(0, 12);
+    if (!items.length) {
+      ytResults.innerHTML = `<div class="empty">검색 결과 0개</div>`;
+      setYtStatus("0개", "err");
+      return;
+    }
+    renderYtResults(items);
+    setYtStatus(`✅ ${items.length}개 (조회수순) — 인스턴스: ${new URL(base).host}`, "ok");
+  } catch (e) {
+    ytResults.innerHTML = `<div class="empty">YouTube 검색 실패: ${e.message}<br>잠시 후 다시 시도하거나, 다른 키워드로 시도하세요.</div>`;
+    setYtStatus("실패: " + e.message, "err");
+  }
+}
+
+function fmtViews(n) {
+  if (!n) return "";
+  if (n >= 10000) return Math.floor(n / 10000) + "만 회";
+  if (n >= 1000) return Math.floor(n / 1000) + "천 회";
+  return n + " 회";
+}
+
+function fmtDuration(seconds) {
+  if (!seconds) return "";
+  const m = Math.floor(seconds / 60);
+  const s = seconds % 60;
+  return m + ":" + String(s).padStart(2, "0");
+}
+
+function renderYtResults(items) {
+  const grid = document.createElement("div");
+  grid.className = "grid";
+  grid.style.gridTemplateColumns = "repeat(auto-fill, minmax(220px, 1fr))";
+  items.forEach((it, i) => {
+    const videoId = (it.url || "").split("v=").pop().split("&")[0];
+    const card = document.createElement("div");
+    card.className = "item";
+    card.innerHTML = `
+      <div class="thumb" style="aspect-ratio: 16/9;">
+        ${it.thumbnail ? `<img src="${it.thumbnail}" referrerpolicy="no-referrer" loading="lazy">` : ""}
+      </div>
+      <div class="num">${i + 1}</div>
+      <div class="meta" style="padding: 10px;">
+        <div class="title" style="height: auto; max-height: 60px; -webkit-line-clamp: 3;">${(it.title || "").replace(/[<>]/g, "")}</div>
+        <div style="font-size:11px; color:var(--muted); margin-top:6px;">
+          ${(it.uploaderName || "").slice(0, 20)}<br>
+          👁 ${fmtViews(it.views)} · ⏱ ${fmtDuration(it.duration)}
+        </div>
+      </div>`;
+    card.style.cursor = "pointer";
+    card.addEventListener("click", () => onYtVideoPick(it, videoId));
+    grid.appendChild(card);
+  });
+  ytResults.innerHTML = "";
+  ytResults.appendChild(grid);
+}
+
+async function onYtVideoPick(item, videoId) {
+  // 영상 설명 가져와서 모달처럼 표시
+  setYtStatus(`영상 정보 가져오는 중…`);
+  let desc = "(설명 로드 실패)";
+  try {
+    const { data } = await pipedFetch(`/streams/${videoId}`);
+    desc = data.description || data.descriptionHtml || "";
+    desc = desc.replace(/<[^>]+>/g, "").trim() || "(설명 없음)";
+  } catch (e) {
+    desc = "설명 로드 실패: " + e.message;
+  }
+
+  // 후보 제품 키워드 자동 추출 (간단 휴리스틱)
+  const candidates = extractProductCandidates(item.title + "\n" + desc);
+
+  showVideoDetail(item, videoId, desc, candidates);
+  setYtStatus("✅ 영상 선택됨 — 제품 키워드를 골라 샤오홍슈 검색하세요", "ok");
+}
+
+function extractProductCandidates(text) {
+  // 간단 휴리스틱:
+  // 1. 명사 + 추천/인기/템 패턴
+  // 2. "* 제품명" 또는 줄 시작의 짧은 텍스트
+  // 3. 브랜드명으로 보이는 영문/한글 단어
+  const set = new Set();
+  // 줄별로
+  text.split(/\r?\n/).forEach((line) => {
+    line = line.trim();
+    if (!line || line.length > 60) return;
+    // 숫자+점/괄호로 시작하는 항목 (예: "1. 아이폰 케이스")
+    const m = line.match(/^(?:[\d①-⑳]+[.\s)】]\s*|[-•★▶]\s*)(.+)$/);
+    if (m && m[1].length <= 30) set.add(m[1].trim());
+    // 줄 안 [브랜드명] 또는 「제품명」
+    [...line.matchAll(/[【\[「][^】\]」]{1,20}[】\]」]/g)].forEach((mm) => {
+      set.add(mm[0].replace(/[【\[「】\]」]/g, "").trim());
+    });
+  });
+  // 제목에서 키워드 분리
+  return [...set].filter(Boolean).slice(0, 20);
+}
+
+function showVideoDetail(item, videoId, desc, candidates) {
+  // 기존 모달 제거
+  document.querySelectorAll(".yt-modal").forEach((el) => el.remove());
+
+  const modal = document.createElement("div");
+  modal.className = "yt-modal";
+  modal.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:9999;overflow:auto;padding:20px;";
+  modal.innerHTML = `
+    <div style="max-width: 800px; margin: 0 auto; background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 24px;">
+      <div style="display:flex; justify-content: space-between; align-items: flex-start; margin-bottom: 16px; gap: 16px;">
+        <div>
+          <div style="font-size: 17px; font-weight: 700; line-height: 1.3; margin-bottom: 6px;">${(item.title || "").replace(/[<>]/g, "")}</div>
+          <div class="small">${(item.uploaderName || "")} · 👁 ${fmtViews(item.views)} · ⏱ ${fmtDuration(item.duration)}</div>
+        </div>
+        <button class="ghost" id="ytClose">✕ 닫기</button>
+      </div>
+      <div style="display: flex; gap: 12px; margin-bottom: 16px; flex-wrap: wrap;">
+        <button class="ghost" id="ytOpen">🔗 YouTube에서 보기</button>
+        <button class="ghost" id="ytCopyDesc">📋 설명 복사</button>
+      </div>
+      <div style="font-weight:600; margin-bottom: 8px;">🔎 추출된 제품 키워드 (클릭하면 샤오홍슈로 검색)</div>
+      <div class="chip-row" id="ytCandidates" style="margin-bottom: 16px;">
+        ${candidates.length ? candidates.map((c) => `<span class="chip" data-kw="${c.replace(/"/g, "&quot;")}">${c}</span>`).join("") :
+          '<div class="small" style="color:var(--muted)">자동 추출된 키워드가 없습니다. 아래 설명에서 직접 골라 검색창에 입력하세요.</div>'}
+      </div>
+      <div style="font-weight:600; margin-bottom: 8px;">📝 영상 설명</div>
+      <div style="background: var(--panel2); border: 1px solid var(--line); border-radius: 8px; padding: 14px; max-height: 360px; overflow: auto; font-size: 13px; line-height: 1.6; white-space: pre-wrap; word-break: break-word;">${desc.replace(/[<>]/g, "")}</div>
+      <div class="small" style="margin-top: 12px;">→ 위 칩 클릭하거나, 설명에서 단어를 골라 메인 검색창에 붙여넣고 🔍 검색하세요.</div>
+    </div>`;
+  document.body.appendChild(modal);
+
+  modal.querySelector("#ytClose").addEventListener("click", () => modal.remove());
+  modal.querySelector("#ytOpen").addEventListener("click", () => {
+    window.open(`https://www.youtube.com/watch?v=${videoId}`, "_blank", "noopener");
+  });
+  modal.querySelector("#ytCopyDesc").addEventListener("click", async () => {
+    try { await navigator.clipboard.writeText(desc); setYtStatus("📋 설명 복사됨", "ok"); }
+    catch {}
+  });
+  modal.querySelector("#ytCandidates").addEventListener("click", (e) => {
+    const chip = e.target.closest(".chip");
+    if (!chip) return;
+    const kw = chip.dataset.kw;
+    q.value = kw;
+    modal.remove();
+    // 자동으로 메인 검색 트리거
+    document.querySelector(".card").scrollIntoView({ behavior: "smooth", block: "start" });
+    search();
+  });
+  // ESC 닫기
+  const onEsc = (ev) => { if (ev.key === "Escape") { modal.remove(); document.removeEventListener("keydown", onEsc); } };
+  document.addEventListener("keydown", onEsc);
+}
+
+// 칩 클릭 → 자동 검색
+ytQuickChips.addEventListener("click", (e) => {
+  const chip = e.target.closest(".chip");
+  if (!chip) return;
+  ytQ.value = chip.dataset.yt || chip.textContent;
+  searchYouTube(ytQ.value);
+});
+ytSearchBtn.addEventListener("click", () => searchYouTube(ytQ.value.trim()));
+ytQ.addEventListener("keydown", (e) => { if (e.key === "Enter") searchYouTube(ytQ.value.trim()); });
+
 // 초기화
 updateWorkerUi();
 
