@@ -400,6 +400,61 @@ function onProductPick(idx, item) {
   setStatus(`#${idx + 1} 선택됨: "${item.title || ""}". 같은 제품 찾기는 다음 단계에서 활성화됩니다.`, "ok");
 }
 
+// ===== 확장 진단 =====
+async function runDiagnostic() {
+  const out = $("diagResult");
+  out.style.color = "var(--muted)";
+  out.innerHTML = "";
+
+  const log = (msg, kind) => {
+    const line = document.createElement("div");
+    line.style.cssText = "padding:2px 0;color:" + (kind === "ok" ? "#38d39f" : kind === "err" ? "#ff6b6b" : "#9aa3b2");
+    line.textContent = msg;
+    out.appendChild(line);
+  };
+
+  // 1. 확장 감지
+  const v = await detectExtension();
+  if (!v) { log("❌ 1단계: 확장 미감지. chrome://extensions 확인 필요.", "err"); return; }
+  log("✅ 1단계: 확장 감지됨 (v" + v + ")", "ok");
+
+  // 2. 간단한 URL 호출 (XHS 홈)
+  log("⏳ 2단계: XHS 홈페이지 호출 시도…");
+  try {
+    const r1 = await extensionFetch("https://www.xiaohongshu.com/");
+    log(`✅ 2단계: HTTP ${r1.status}, ${r1.length}bytes 받음`, "ok");
+  } catch (e) {
+    log(`❌ 2단계 실패: ${e.message}`, "err");
+    log("→ 확장이 XHS에 도달 못함. 확장 권한 또는 네트워크 문제.", "err");
+    return;
+  }
+
+  // 3. 검색 URL 호출
+  log("⏳ 3단계: 검색 페이지 호출 시도…");
+  try {
+    const r2 = await extensionFetch("https://www.xiaohongshu.com/search_result?keyword=" + encodeURIComponent("炊具架") + "&source=web_search_result_notes");
+    log(`✅ 3단계: HTTP ${r2.status}, ${r2.length}bytes`, "ok");
+    // 응답 분석
+    const hasState = /window\.__INITIAL_STATE__/.test(r2.text);
+    const hasLogin = /登录|登陆|please log in/i.test(r2.text.slice(0, 5000));
+    const hasNotes = /\/explore\/[0-9a-f]{20,}/.test(r2.text);
+    log(`   · __INITIAL_STATE__: ${hasState ? "✅ 있음" : "❌ 없음"}`, hasState ? "ok" : "err");
+    log(`   · 로그인 안내 페이지: ${hasLogin ? "⚠️ 있음 (로그인 필요)" : "✅ 없음"}`, hasLogin ? "err" : "ok");
+    log(`   · 노트 링크 패턴: ${hasNotes ? "✅ 있음" : "❌ 없음"}`, hasNotes ? "ok" : "err");
+    if (hasLogin) {
+      log("→ 본인 크롬에서 xiaohongshu.com 로그인 필요. 새 탭에서 로그인 후 다시 시도.", "err");
+    } else if (!hasNotes) {
+      log("→ XHS가 봇으로 탐지 가능성. 다른 검색 키워드로 시도해보세요.", "err");
+    } else {
+      log("✅ 모든 단계 정상. 검색 가능 상태!", "ok");
+    }
+  } catch (e) {
+    log(`❌ 3단계 실패: ${e.message}`, "err");
+  }
+}
+
+document.getElementById("diagBtn").addEventListener("click", runDiagnostic);
+
 // ===== 확장프로그램 경유 샤오홍슈 검색 =====
 async function searchViaExtension(zhKeyword) {
   const url = `https://www.xiaohongshu.com/search_result?keyword=${encodeURIComponent(zhKeyword)}&source=web_search_result_notes`;
