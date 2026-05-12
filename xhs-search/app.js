@@ -277,12 +277,13 @@ function parseJinaResponse(payload, zhKeyword) {
   const title = (payload.title || "").trim();
 
   // 샤오홍슈가 봇 탐지해서 검색 결과 대신 홈페이지를 반환하는 경우 감지
-  // - 페이지 제목이 그냥 "小红书 - 你的生活指南" 같은 홈페이지 타이틀
-  // - 콘텐츠가 너무 짧거나, 키워드/搜索/搜 글자가 콘텐츠에 거의 없음
-  const isXhsHomeTitle = /^小红书(\s*[\-—–]\s*你的生活指南)?$/.test(title);
-  const keywordInContent = zhKeyword && content.indexOf(zhKeyword) >= 0;
-  const looksLikeSearch = /搜索|搜|search/i.test(content.slice(0, 500));
-  const blocked = (isXhsHomeTitle || (!keywordInContent && !looksLikeSearch)) && content.length < 2000;
+  // 핵심 신호: 응답에 검색 키워드가 전혀 없음. 검색 결과 페이지라면 제목·콘텐츠 어디든 키워드 등장.
+  const titleHasKeyword = zhKeyword && title.indexOf(zhKeyword) >= 0;
+  const contentHasKeyword = zhKeyword && content.indexOf(zhKeyword) >= 0;
+  // 키워드 일부 글자도 체크 (예: "炊具架" → "炊具" 만 매칭되어도 검색 페이지로 인정)
+  const partialMatch = zhKeyword && zhKeyword.length >= 2 &&
+    (content.indexOf(zhKeyword.slice(0, -1)) >= 0 || title.indexOf(zhKeyword.slice(0, -1)) >= 0);
+  const blocked = !titleHasKeyword && !contentHasKeyword && !partialMatch;
 
   // 샤오홍슈 이미지 호스트 패턴 (느슨하게)
   const xhsImageRe = /xhscdn|xiaohongshu|sns-(?:img|webpic|avatar|video)|picasso-static/i;
