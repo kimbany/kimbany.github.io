@@ -548,6 +548,44 @@ function setYtStatus(msg, kind = "") {
   ytStatus.textContent = msg;
 }
 
+// 진행률 바: pct=null이면 숨김, 0~100 사이면 보임 + 라벨 갱신
+let _ytProgressTimer = null;
+function setYtProgress(pct, label) {
+  const wrap = $("ytProgress");
+  const bar = $("ytProgressBar");
+  const lbl = $("ytProgressLabel");
+  if (pct === null || pct === undefined) {
+    wrap.classList.remove("shown");
+    bar.style.width = "0%";
+    if (_ytProgressTimer) { clearInterval(_ytProgressTimer); _ytProgressTimer = null; }
+    return;
+  }
+  wrap.classList.add("shown");
+  const target = Math.max(0, Math.min(100, pct));
+  bar.style.width = target + "%";
+  lbl.textContent = label ? `${label} (${Math.floor(target)}%)` : `${Math.floor(target)}%`;
+  if (target >= 100) {
+    setTimeout(() => setYtProgress(null), 600);
+  }
+}
+
+// 단계 사이를 부드럽게 메우는 가짜 증가 (사용자가 멈춘 듯 안 보이게)
+function startYtProgressDrift(from, to, durationMs, label) {
+  if (_ytProgressTimer) clearInterval(_ytProgressTimer);
+  const startTime = Date.now();
+  setYtProgress(from, label);
+  _ytProgressTimer = setInterval(() => {
+    const elapsed = Date.now() - startTime;
+    const ratio = Math.min(1, elapsed / durationMs);
+    const cur = from + (to - from) * ratio;
+    if (cur >= to) {
+      clearInterval(_ytProgressTimer);
+      _ytProgressTimer = null;
+    }
+    setYtProgress(cur, label);
+  }, 100);
+}
+
 async function pipedFetch(path) {
   let lastErr;
   for (const base of PIPED_INSTANCES) {
@@ -610,14 +648,17 @@ async function searchYouTube(keyword) {
 
   // (1) Piped 시도
   let items = [];
-  let viaJina = false;
   try {
+    startYtProgressDrift(5, 45, 4000, "Piped 인스턴스 호출 중");
     const { data, base } = await pipedFetch(`/search?q=${encodeURIComponent(keyword)}&filter=videos`);
+    setYtProgress(70, "응답 파싱 중");
     items = (data.items || []).filter((it) => it.type === "stream" || it.type === "video" || it.url);
     items.sort((a, b) => (b.views || 0) - (a.views || 0));
     items = items.slice(0, 12);
     if (items.length) {
+      setYtProgress(95, "결과 렌더링");
       renderYtResults(items);
+      setYtProgress(100, "완료");
       setYtStatus(`✅ ${items.length}개 (조회수순) — ${new URL(base).host}`, "ok");
       return;
     }
@@ -627,12 +668,15 @@ async function searchYouTube(keyword) {
 
   // (2) Jina 폴백
   try {
+    startYtProgressDrift(50, 85, 5000, "Jina로 YouTube 렌더링 중");
     items = await youtubeViaJina(keyword);
-    viaJina = true;
+    setYtProgress(92, "결과 파싱");
     if (!items.length) throw new Error("Jina도 결과 0개");
     renderYtResults(items);
+    setYtProgress(100, "완료");
     setYtStatus(`✅ ${items.length}개 (Jina, 조회수 정렬 안 됨)`, "ok");
   } catch (e2) {
+    setYtProgress(null);
     ytResults.innerHTML = `<div class="empty">YouTube 검색 실패: ${e2.message}<br>잠시 후 다시 시도하거나, 다른 키워드로 시도하세요.</div>`;
     setYtStatus("실패: " + e2.message, "err");
   }
@@ -685,27 +729,34 @@ async function onYtVideoPick(item, videoId) {
   setYtStatus(`영상 정보 가져오는 중…`);
   let desc = "(설명 로드 실패)";
   try {
+    startYtProgressDrift(10, 50, 3000, "Piped에서 영상 설명 가져오는 중");
     const { data } = await pipedFetch(`/streams/${videoId}`);
+    setYtProgress(75, "설명 정리 중");
     desc = data.description || data.descriptionHtml || "";
     desc = desc.replace(/<[^>]+>/g, "").trim() || "(설명 없음)";
   } catch (e) {
     // Piped 실패 → Jina로 영상 페이지 가져오기
     try {
+      startYtProgressDrift(40, 85, 6000, "Jina로 YouTube 페이지 렌더링 중");
       const r = await fetch(`https://r.jina.ai/https://www.youtube.com/watch?v=${videoId}`, {
         headers: { "Accept": "application/json" },
       });
+      setYtProgress(90, "설명 추출 중");
       const data = await r.json();
       const content = (data.data && data.data.content) || data.content || "";
       desc = content.slice(0, 4000) || "(설명 없음)";
     } catch (e2) {
+      setYtProgress(null);
       desc = "설명 로드 실패: " + e2.message;
     }
   }
+  setYtProgress(95, "키워드 추출 중");
 
   // 후보 제품 키워드 자동 추출 (간단 휴리스틱)
   const candidates = extractProductCandidates(item.title + "\n" + desc);
 
   showVideoDetail(item, videoId, desc, candidates);
+  setYtProgress(100, "완료");
   setYtStatus("✅ 영상 선택됨 — 제품 키워드를 골라 샤오홍슈 검색하세요", "ok");
 }
 

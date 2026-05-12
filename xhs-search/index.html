@@ -85,6 +85,25 @@
   .status.err { color: var(--err); }
   .status.ok { color: var(--ok); }
   .small { font-size: 12px; color: var(--muted); }
+  /* 진행률 바 */
+  .progress { background: var(--panel2); border: 1px solid var(--line);
+    border-radius: 10px; position: relative; height: 28px;
+    margin-top: 10px; overflow: hidden; display: none; }
+  .progress.shown { display: block; }
+  .progress-bar { height: 100%; width: 0%;
+    background: linear-gradient(90deg, #ff2e51, #ff6b6b, #ff2e51);
+    background-size: 200% 100%;
+    border-radius: 8px;
+    transition: width 0.35s cubic-bezier(.2,.8,.2,1);
+    animation: progressShimmer 1.6s linear infinite; }
+  @keyframes progressShimmer {
+    0% { background-position: 0% 50%; }
+    100% { background-position: -200% 50%; }
+  }
+  .progress-label { position: absolute; inset: 0;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 12px; color: #fff; font-weight: 600;
+    text-shadow: 0 1px 2px rgba(0,0,0,0.5); }
   code { background: #0c0e13; padding: 2px 6px; border-radius: 4px; font-size: 12px; }
   details { background: var(--panel2); border: 1px solid var(--line); border-radius: 10px;
     padding: 14px 16px; margin-top: 14px; }
@@ -127,6 +146,10 @@
       <span class="chip" data-yt="알리익스프레스 추천">알리익스프레스 추천</span>
     </div>
     <div id="ytStatus" class="status"></div>
+    <div id="ytProgress" class="progress">
+      <div class="progress-bar" id="ytProgressBar"></div>
+      <div class="progress-label" id="ytProgressLabel">대기 중</div>
+    </div>
     <div id="ytResults" style="margin-top: 14px;"></div>
   </div>
 
@@ -198,6 +221,6 @@
 
 </div>
 
-<script src="app.js?v=6"></script>
+<script src="app.js?v=7"></script>
 </body>
 </html>
