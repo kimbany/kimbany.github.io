@@ -548,42 +548,76 @@ async function searchViaExtension(zhKeyword) {
 }
 
 // __INITIAL_STATE__ JSON 문자열에서 검색 결과 노트 추출
+// state 구조가 자주 바뀌므로 깊이 우선 탐색으로 노트 형태 객체를 어디서든 찾기.
 function parseXhsState(json, zhKeyword) {
   let state;
   try { state = JSON.parse(json); } catch (e) { throw new Error("__INITIAL_STATE__ JSON 파싱 실패: " + e.message); }
-  const items = [];
-  const candidates = [];
-  // 가능한 위치 후보들
-  if (state.search) candidates.push(state.search.feeds, state.search.notes, state.search.searchResult);
-  if (state.feeds) candidates.push(state.feeds);
-  candidates.push(state.searchData, state.note);
 
-  for (let c of candidates) {
-    if (!c) continue;
-    if (c._rawValue) c = c._rawValue;
-    const list = Array.isArray(c) ? c : (c.items || c.list || c.notes || []);
-    if (!Array.isArray(list)) continue;
-    for (const n of list) {
-      const note = n.noteCard || n.note_card || n.note || n;
-      if (!note) continue;
-      const id = note.id || note.noteId || n.id;
-      if (!id) continue;
-      const cover = (note.cover && (note.cover.url || note.cover.urlDefault || note.cover.url_default)) ||
-        (note.imageList && note.imageList[0] && note.imageList[0].url) || "";
-      items.push({
-        id,
-        title: note.displayTitle || note.title || note.desc || "",
-        image: cover,
-        author: (note.user && (note.user.nickname || note.user.nickName)) || "",
-        likes: (note.interactInfo && (note.interactInfo.likedCount || note.interactInfo.liked_count)) || "",
-        url: `https://www.xiaohongshu.com/explore/${id}`,
-        keyword: zhKeyword,
-      });
-      if (items.length >= 12) return items;
-    }
-    if (items.length) return items;
+  const found = [];
+  const SEEN_PATHS = new Set();
+
+  function isNoteLike(node) {
+    if (!node || typeof node !== "object" || Array.isArray(node)) return false;
+    const id = node.id || node.noteId || node.note_id;
+    if (!id || String(id).length < 16) return false; // XHS 노트 ID는 24자 hex
+    const hasMedia =
+      node.cover ||
+      node.imageList || node.image_list ||
+      node.images || node.video ||
+      (node.noteCard && (node.noteCard.cover || node.noteCard.imageList));
+    const hasText = node.displayTitle || node.title || node.desc || (node.noteCard && (node.noteCard.displayTitle || node.noteCard.title));
+    return !!(hasMedia && hasText);
   }
-  console.warn("[XHS] state에서 검색 결과를 못 찾음. state keys:", Object.keys(state || {}));
+
+  function walk(node, path, depth) {
+    if (depth > 8 || node === null || typeof node !== "object") return;
+    if (Array.isArray(node)) {
+      for (let i = 0; i < Math.min(node.length, 100); i++) walk(node[i], path + "[" + i + "]", depth + 1);
+      return;
+    }
+    if (isNoteLike(node) && !SEEN_PATHS.has(path)) {
+      SEEN_PATHS.add(path);
+      found.push({ path, node });
+    }
+    for (const k of Object.keys(node)) {
+      walk(node[k], path ? path + "." + k : k, depth + 1);
+    }
+  }
+  walk(state, "", 0);
+
+  console.log("[XHS] deep scan: 노트 형태 객체", found.length, "개 발견");
+  if (found.length) {
+    console.log("[XHS] 첫 3개 경로:", found.slice(0, 3).map((f) => f.path));
+    console.log("[XHS] 첫 노트 샘플:", found[0].node);
+  } else {
+    console.warn("[XHS] state에서 노트를 못 찾음. state keys:", Object.keys(state || {}));
+    if (state.search) console.warn("[XHS] state.search keys:", Object.keys(state.search));
+  }
+
+  const items = [];
+  const seen = new Set();
+  for (const { node } of found) {
+    // noteCard 안에 있을 수도 있으니 한 번 더 풀어서 보기
+    const inner = node.noteCard || node.note_card || node;
+    const id = inner.id || inner.noteId || inner.note_id || node.id;
+    if (!id || seen.has(id)) continue;
+    seen.add(id);
+    const cover =
+      (inner.cover && (inner.cover.url || inner.cover.urlDefault || inner.cover.url_default || inner.cover.urlPre)) ||
+      (inner.imageList && inner.imageList[0] && (inner.imageList[0].url || inner.imageList[0].urlDefault)) ||
+      (inner.image_list && inner.image_list[0] && (inner.image_list[0].url || inner.image_list[0].url_default)) ||
+      "";
+    items.push({
+      id,
+      title: inner.displayTitle || inner.title || inner.desc || "",
+      image: cover,
+      author: (inner.user && (inner.user.nickname || inner.user.nickName)) || "",
+      likes: (inner.interactInfo && (inner.interactInfo.likedCount || inner.interactInfo.liked_count)) || "",
+      url: `https://www.xiaohongshu.com/explore/${id}`,
+      keyword: zhKeyword,
+    });
+    if (items.length >= 12) break;
+  }
   return items;
 }
 
