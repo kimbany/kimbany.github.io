@@ -3,11 +3,9 @@
  * 본인 브라우저 세션의 쿠키가 자동으로 따라가므로 로그인된 상태로 호출됨.
  */
 
-// 주의: 확장 fetch에서 "User-Agent" 헤더를 명시적으로 설정하면 Chrome이 거부하여 "Failed to fetch" 발생.
-// 브라우저 기본 UA를 그대로 사용.
+// 브라우저 기본 헤더만 사용 (Accept-Language를 zh로 강제하면 IP/UA와 mismatch로 봇 탐지될 수 있음)
 const XHS_HEADERS = {
   "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-  "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8,ko;q=0.7",
 };
 
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
