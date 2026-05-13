@@ -21,28 +21,46 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     searchViaTab(msg.keyword).then(sendResponse).catch((e) => sendResponse({ ok: false, error: e.message }));
     return true;
   }
-  if (msg && msg.type === "XHS_PAGE_STATE" && sender && sender.tab) {
-    onTabState(sender.tab.id, msg);
+  if (msg && msg.type === "XHS_PAGE_DATA" && sender && sender.tab) {
+    onTabData(sender.tab.id, msg);
     return;
   }
 });
 
-// ===== 탭 기반 검색: 백그라운드 탭 열어서 XHS 본인 세션으로 페이지 로드 후 데이터 추출 =====
-const _pendingTabs = new Map(); // tabId -> { resolve, reject, timer }
+// ===== 탭 기반 검색 =====
+// 1) MAIN world 인터셉터가 XHS 검색 API 응답을 가로채면 'xhr' 데이터로 즉시 해결
+// 2) XHR이 안 와도 __INITIAL_STATE__가 오면 보조로 보관, 타임아웃 시 fallback으로 사용
+const _pendingTabs = new Map(); // tabId -> { resolve, reject, timer, savedState }
 
-function onTabState(tabId, msg) {
+function onTabData(tabId, msg) {
   const p = _pendingTabs.get(tabId);
   if (!p) return;
-  clearTimeout(p.timer);
-  _pendingTabs.delete(tabId);
-  try { chrome.tabs.remove(tabId); } catch {}
-  if (msg.error) p.reject(new Error(msg.error));
-  else p.resolve({ ok: true, json: msg.json, url: msg.url });
+
+  if (msg.kind === "xhr" && msg.text) {
+    // 가장 좋은 결과 — 검색 API 응답 JSON
+    clearTimeout(p.timer);
+    _pendingTabs.delete(tabId);
+    setTimeout(() => { try { chrome.tabs.remove(tabId); } catch {} }, 200);
+    p.resolve({ ok: true, kind: "xhr", apiJson: msg.text, apiUrl: msg.url });
+    return;
+  }
+
+  if (msg.kind === "state" && msg.json) {
+    // 보조 — XHR이 안 오면 이걸 사용 (대기는 계속)
+    p.savedState = msg.json;
+    p.savedUrl = msg.url;
+    return;
+  }
+
+  if (msg.kind === "error") {
+    // 오류여도 즉시 reject하지 않고 타임아웃까지 기다림 (다른 메시지가 올 수도 있음)
+    p.lastError = msg.error;
+    return;
+  }
 }
 
 async function searchViaTab(keyword) {
   if (!keyword) throw new Error("keyword 필수");
-  // /search_result 가 막혀있으면 /explore 같은 우회 URL도 시도 가능. 일단 표준 검색 URL.
   const url = `https://www.xiaohongshu.com/search_result?keyword=${encodeURIComponent(keyword)}`;
   return new Promise(async (resolve, reject) => {
     let tab;
@@ -52,10 +70,16 @@ async function searchViaTab(keyword) {
       return reject(new Error("탭 생성 실패: " + e.message));
     }
     const timer = setTimeout(() => {
+      const p = _pendingTabs.get(tab.id);
       _pendingTabs.delete(tab.id);
       try { chrome.tabs.remove(tab.id); } catch {}
-      reject(new Error("탭 응답 타임아웃 (25초)"));
-    }, 25000);
+      if (!p) return;
+      if (p.savedState) {
+        resolve({ ok: true, kind: "state", json: p.savedState, url: p.savedUrl });
+      } else {
+        reject(new Error("탭 응답 타임아웃: XHR도 state도 없음 (30초). " + (p.lastError || "")));
+      }
+    }, 30000);
     _pendingTabs.set(tab.id, { resolve, reject, timer });
   });
 }
