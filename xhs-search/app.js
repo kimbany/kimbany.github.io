@@ -505,22 +505,36 @@ async function captureVideoFrames(videoId, modalEl) {
   setProgress(5, "Piped에서 영상 메타데이터 가져오는 중");
 
   let streamData = null;
+  let pipedError = null;
   try {
     const r = await pipedFetch(`/streams/${videoId}`);
     streamData = r.data;
+    console.log("[Capture] Piped 응답 받음. keys:", Object.keys(streamData || {}));
+    console.log("[Capture] duration:", streamData.duration, "previewFrames 개수:", (streamData.previewFrames || []).length);
+    if (streamData.previewFrames && streamData.previewFrames[0]) {
+      console.log("[Capture] previewFrames[0]:", streamData.previewFrames[0]);
+    }
   } catch (e) {
+    pipedError = e.message;
     console.warn("[Capture] Piped 실패:", e.message);
   }
 
   // (1) 스토리보드 시도 — 정확한 시점, 저화질 (확실)
   const previewFrames = (streamData && streamData.previewFrames) || [];
   const duration = streamData && streamData.duration;
-  if (previewFrames.length && duration) {
+  let storyboardReason = null;
+  if (!streamData) storyboardReason = `Piped 호출 실패 (${pipedError || "원인 미상"})`;
+  else if (!duration) storyboardReason = "Piped 응답에 duration 없음";
+  else if (!previewFrames.length) storyboardReason = "Piped 응답에 previewFrames 없음 (이 영상은 스토리보드를 제공 안 함)";
+
+  if (!storyboardReason) {
     setProgress(20, `스토리보드 사용 (영상 ${Math.round(duration)}초)`);
     // 가장 큰 해상도(보통 마지막)
     const sb = previewFrames[previewFrames.length - 1];
+    console.log("[Capture] 선택된 스토리보드:", { frameWidth: sb.frameWidth, frameHeight: sb.frameHeight, totalCount: sb.totalCount, urls: (sb.urls || []).length });
     const ratios = [0.1, 0.25, 0.5, 0.75, 0.9];
     const frames = [];
+    let lastErr = null;
     for (let i = 0; i < ratios.length; i++) {
       const t = duration * ratios[i];
       setProgress(20 + ((i + 1) / ratios.length) * 70, `프레임 ${i + 1}/${ratios.length} (${Math.round(ratios[i] * 100)}%, ${t.toFixed(1)}초)`);
@@ -528,6 +542,7 @@ async function captureVideoFrames(videoId, modalEl) {
         const dataUrl = await extractStoryboardFrame(sb, t);
         frames.push({ time: t, ratio: ratios[i], dataUrl, label: `${Math.round(ratios[i] * 100)}% — ${t.toFixed(1)}초` });
       } catch (e) {
+        lastErr = e.message;
         console.warn(`[Capture] sb frame ${i} failed:`, e.message);
       }
     }
@@ -535,12 +550,17 @@ async function captureVideoFrames(videoId, modalEl) {
       setProgress(100, `완료 — ${frames.length}장`);
       setTimeout(() => progressEl.classList.remove("shown"), 1500);
       renderFrames(frames, "storyboard");
-      setStatusFrame(`✅ 스토리보드에서 ${frames.length}장 추출 (정확한 시점, 저화질 ${sb.frameWidth}×${sb.frameHeight}px). 우클릭 또는 ⬇ 저장.`, "ok");
+      setStatusFrame(`✅ 스토리보드에서 ${frames.length}장 추출 (정확한 시점, ${sb.frameWidth}×${sb.frameHeight}px). 우클릭 또는 ⬇ 저장.`, "ok");
       btn.disabled = false;
       btn.textContent = "🎬 프레임 캡쳐 (영상에서 제품 잡기)";
       return;
     }
-    setStatusFrame("스토리보드 실패 — 다른 방법 시도", "");
+    storyboardReason = `스토리보드 이미지 추출 실패: ${lastErr || "원인 미상"}`;
+    setStatusFrame(`스토리보드 단계 실패 (${storyboardReason}) — 다른 방법 시도`, "");
+    console.warn("[Capture] 스토리보드 실패:", storyboardReason);
+  } else {
+    console.warn("[Capture] 스토리보드 건너뜀:", storyboardReason);
+    setStatusFrame(`스토리보드 건너뜀: ${storyboardReason} — 다른 방법 시도`, "");
   }
 
   // (2) 직접 영상 URL → canvas (CORS 통과해야 됨)
@@ -615,7 +635,7 @@ async function captureVideoFrames(videoId, modalEl) {
   ];
   renderFrames(ytThumbs, "thumbs");
   setStatusFrame(
-    `⚠️ 정확한 시점 캡쳐 실패. YouTube가 자동 선택한 4장으로 대체 — 25/50/75% 시점이 아니라 "괜찮아 보이는" 프레임 알고리즘 픽.`,
+    `⚠️ 정확한 시점 캡쳐 실패 (${storyboardReason || "원인 미상"}). 대신 YouTube 자동 선택 4장 표시 — 25/50/75% 시점 아님. F12 콘솔의 [Capture] 로그에서 자세한 이유 확인 가능.`,
     "err"
   );
   btn.disabled = false;
