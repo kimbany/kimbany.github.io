@@ -478,7 +478,32 @@ async function runDiagnostic() {
     log(`   · 로그인 페이지인가: ${hasLogin ? "⚠️ YES" : "✅ NO"}`, hasLogin ? "err" : "ok");
     log(`   · 노트 링크 있음: ${hasNotes ? "✅" : "❌"}`, hasNotes ? "ok" : "err");
   } else {
-    log(`\n❌ 모든 검색 URL이 실패. XHS가 검색 엔드포인트만 차단 중. 백엔드(Cloudflare Worker)나 다른 우회 필요.`, "err");
+    log(`\n❌ 모든 검색 URL이 직접 fetch로는 실패.`, "err");
+  }
+
+  // 4. 탭 기반 검색 테스트 (직접 fetch가 안 될 때의 폴백)
+  log(`\n⏳ 4단계: 탭 기반 검색 테스트 (잠깐 백그라운드 탭이 열렸다 닫힘)…`);
+  try {
+    const tabR = await extensionTabSearch("炊具架");
+    if (tabR && tabR.json) {
+      log(`✅ 탭 검색 성공! __INITIAL_STATE__ ${tabR.json.length}자 수신`, "ok");
+      try {
+        const items = parseXhsState(tabR.json, "炊具架");
+        log(`✅ 검색 결과 ${items.length}개 추출 가능`, items.length ? "ok" : "err");
+        if (items.length) {
+          log(`   첫 결과: "${(items[0].title || "").slice(0, 30)}"`, "ok");
+        } else {
+          log(`   ⚠️ JSON은 받았지만 결과를 못 찾음. state 구조가 예상과 다름. F12 콘솔의 [XHS] 로그 확인.`, "err");
+        }
+      } catch (e) {
+        log(`❌ state 파싱 실패: ${e.message}`, "err");
+      }
+    } else {
+      log(`❌ 탭에서 데이터 못 받음`, "err");
+    }
+  } catch (e) {
+    log(`❌ 탭 검색 실패: ${e.message}`, "err");
+    log(`   → 새 탭이 잠깐 열렸나요? 안 열렸으면 확장 'tabs' 권한 확인. ${e.message.includes("타임아웃") ? "타임아웃이면 XHS 페이지가 __INITIAL_STATE__를 늦게 로드하거나, 새 SPA 구조라 변수 이름이 다름." : ""}`, "err");
   }
 }
 
