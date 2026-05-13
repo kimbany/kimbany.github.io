@@ -421,7 +421,45 @@ function onProductPick(idx, item) {
 }
 
 // ===== YouTube 프레임 캡쳐 =====
-// Piped에서 영상 직접 URL을 받아 <video>에 로드, seeking + canvas로 프레임 추출
+// 우선순위: (1) 스토리보드(정확한 시점, 저화질) → (2) 직접 영상 URL canvas(정확한 시점, 고화질, CORS 이슈) → (3) 공개 썸네일(부정확)
+
+// 스토리보드 한 칸 추출
+async function extractStoryboardFrame(sb, timeSeconds) {
+  const { urls, frameWidth, frameHeight, totalCount, framesPerPageX, framesPerPageY, durationPerFrame } = sb;
+  const framesPerPage = framesPerPageX * framesPerPageY;
+  let frameIdx = Math.floor((timeSeconds * 1000) / durationPerFrame);
+  if (frameIdx >= totalCount) frameIdx = totalCount - 1;
+  if (frameIdx < 0) frameIdx = 0;
+  const pageIdx = Math.floor(frameIdx / framesPerPage);
+  const inPage = frameIdx % framesPerPage;
+  const col = inPage % framesPerPageX;
+  const row = Math.floor(inPage / framesPerPageX);
+  const spriteUrl = urls[pageIdx];
+  if (!spriteUrl) throw new Error("스토리보드 페이지 URL 없음");
+
+  const img = new Image();
+  img.crossOrigin = "anonymous";
+  const loaded = new Promise((res, rej) => {
+    img.onload = res;
+    img.onerror = () => rej(new Error("스토리보드 이미지 로드 실패"));
+    setTimeout(() => rej(new Error("스토리보드 로드 타임아웃 (8초)")), 8000);
+  });
+  img.src = spriteUrl;
+  await loaded;
+
+  const canvas = document.createElement("canvas");
+  canvas.width = frameWidth;
+  canvas.height = frameHeight;
+  canvas.getContext("2d").drawImage(
+    img, col * frameWidth, row * frameHeight, frameWidth, frameHeight, 0, 0, frameWidth, frameHeight
+  );
+  try {
+    return canvas.toDataURL("image/jpeg", 0.92);
+  } catch (e) {
+    throw new Error("CORS: 스토리보드 canvas tainted");
+  }
+}
+
 async function captureVideoFrames(videoId, modalEl) {
   const statusEl = modalEl.querySelector("#ytFrameStatus");
   const progressEl = modalEl.querySelector("#ytFrameProgress");
@@ -440,197 +478,148 @@ async function captureVideoFrames(videoId, modalEl) {
     statusEl.textContent = msg;
     statusEl.style.color = kind === "err" ? "#ff6b6b" : kind === "ok" ? "#38d39f" : "var(--muted)";
   };
+  const renderFrames = (frames, modeLabel) => {
+    framesContainer.style.display = "block";
+    framesGrid.innerHTML = "";
+    frames.forEach((f, i) => {
+      const card = document.createElement("div");
+      card.style.cssText = "background: var(--panel2); border: 1px solid var(--line); border-radius: 8px; overflow: hidden; cursor: pointer;";
+      card.innerHTML = `
+        <img src="${f.dataUrl}" style="width:100%; aspect-ratio:16/9; object-fit:cover; display:block; background:#000;" referrerpolicy="no-referrer" />
+        <div style="padding: 6px 10px; font-size: 11px; color: var(--muted); display:flex; justify-content: space-between;">
+          <span>${f.label || (f.time != null ? f.time.toFixed(1) + "초" : "")}</span>
+          <a href="${f.dataUrl}" download="frame_${i + 1}.jpg" target="_blank" rel="noopener" style="color:var(--accent); text-decoration:none;">⬇ 저장</a>
+        </div>`;
+      card.addEventListener("click", (e) => {
+        if (e.target.tagName === "A") return;
+        window.open(f.dataUrl, "_blank");
+      });
+      framesGrid.appendChild(card);
+    });
+  };
 
   btn.disabled = true;
   btn.textContent = "⏳ 캡쳐 중…";
   framesContainer.style.display = "none";
   framesGrid.innerHTML = "";
-  setProgress(5, "Piped에서 영상 스트림 URL 가져오는 중");
+  setProgress(5, "Piped에서 영상 메타데이터 가져오는 중");
 
+  let streamData = null;
   try {
-    // 1) 영상 스트림 URL 가져오기 시도 (Piped)
-    let stream = null;
-    try {
-      const { data: streamData } = await pipedFetch(`/streams/${videoId}`);
-      const streams = (streamData && streamData.videoStreams) || [];
-      if (streams.length) {
-        const sorted = [...streams].sort((a, b) => {
-          const score = (s) => {
-            const q = parseInt((s.quality || "").match(/\d+/) || ["0"])[0];
-            const isMp4 = /mp4/i.test(s.mimeType || "") ? 0 : 1;
-            return isMp4 * 1000 + Math.abs(q - 360);
-          };
-          return score(a) - score(b);
-        });
-        stream = sorted[0];
-      }
-    } catch (e) {
-      console.warn("[FrameCapture] Piped 실패, 썸네일 폴백:", e.message);
-    }
+    const r = await pipedFetch(`/streams/${videoId}`);
+    streamData = r.data;
+  } catch (e) {
+    console.warn("[Capture] Piped 실패:", e.message);
+  }
 
-    // 2) Piped 실패하거나 스트림이 없으면 → YouTube 공개 썸네일 4장 폴백
-    if (!stream) {
-      setProgress(50, "Piped 실패 — YouTube 공개 썸네일로 폴백");
-      const base = `https://img.youtube.com/vi/${videoId}`;
-      const ytThumbs = [
-        { time: 0, dataUrl: `${base}/maxresdefault.jpg`, note: "최고화질" },
-        { time: 1, dataUrl: `${base}/1.jpg`, note: "25%" },
-        { time: 2, dataUrl: `${base}/2.jpg`, note: "50%" },
-        { time: 3, dataUrl: `${base}/3.jpg`, note: "75%" },
-      ];
-      setProgress(100, `완료 — ${ytThumbs.length}장 폴백 썸네일`);
+  // (1) 스토리보드 시도 — 정확한 시점, 저화질 (확실)
+  const previewFrames = (streamData && streamData.previewFrames) || [];
+  const duration = streamData && streamData.duration;
+  if (previewFrames.length && duration) {
+    setProgress(20, `스토리보드 사용 (영상 ${Math.round(duration)}초)`);
+    // 가장 큰 해상도(보통 마지막)
+    const sb = previewFrames[previewFrames.length - 1];
+    const ratios = [0.1, 0.25, 0.5, 0.75, 0.9];
+    const frames = [];
+    for (let i = 0; i < ratios.length; i++) {
+      const t = duration * ratios[i];
+      setProgress(20 + ((i + 1) / ratios.length) * 70, `프레임 ${i + 1}/${ratios.length} (${Math.round(ratios[i] * 100)}%, ${t.toFixed(1)}초)`);
+      try {
+        const dataUrl = await extractStoryboardFrame(sb, t);
+        frames.push({ time: t, ratio: ratios[i], dataUrl, label: `${Math.round(ratios[i] * 100)}% — ${t.toFixed(1)}초` });
+      } catch (e) {
+        console.warn(`[Capture] sb frame ${i} failed:`, e.message);
+      }
+    }
+    if (frames.length) {
+      setProgress(100, `완료 — ${frames.length}장`);
       setTimeout(() => progressEl.classList.remove("shown"), 1500);
-      framesContainer.style.display = "block";
-      ytThumbs.forEach((f, i) => {
-        const card = document.createElement("div");
-        card.style.cssText = "background: var(--panel2); border: 1px solid var(--line); border-radius: 8px; overflow: hidden; cursor: pointer;";
-        card.innerHTML = `
-          <img src="${f.dataUrl}" style="width:100%; aspect-ratio:16/9; object-fit:cover; display:block; background:#000;" referrerpolicy="no-referrer" />
-          <div style="padding: 6px 10px; font-size: 11px; color: var(--muted); display:flex; justify-content: space-between;">
-            <span>${f.note}</span>
-            <a href="${f.dataUrl}" download="thumb_${i + 1}.jpg" target="_blank" rel="noopener" style="color:var(--accent); text-decoration:none;">⬇ 저장</a>
-          </div>`;
-        card.addEventListener("click", (e) => {
-          if (e.target.tagName === "A") return;
-          window.open(f.dataUrl, "_blank");
-        });
-        framesGrid.appendChild(card);
-      });
-      setStatusFrame(
-        `⚠️ Piped로 실제 프레임 캡쳐 실패. YouTube 공개 썸네일 4장으로 대체 (영상의 다른 시점 자동 썸네일).`,
-        "err"
-      );
+      renderFrames(frames, "storyboard");
+      setStatusFrame(`✅ 스토리보드에서 ${frames.length}장 추출 (정확한 시점, 저화질 ${sb.frameWidth}×${sb.frameHeight}px). 우클릭 또는 ⬇ 저장.`, "ok");
+      btn.disabled = false;
+      btn.textContent = "🎬 프레임 캡쳐 (영상에서 제품 잡기)";
       return;
     }
+    setStatusFrame("스토리보드 실패 — 다른 방법 시도", "");
+  }
 
-    setProgress(15, `영상 로드 중 (${stream.quality}, ${stream.mimeType || ""})`);
-    console.log("[FrameCapture] 선택된 스트림:", stream);
-
-    // 2) <video> 엘리먼트 생성
-    const video = document.createElement("video");
-    video.crossOrigin = "anonymous";
-    video.muted = true;
-    video.preload = "auto";
-    video.style.cssText = "position:absolute;left:-9999px;top:-9999px;width:240px;height:auto;";
-    document.body.appendChild(video);
-
+  // (2) 직접 영상 URL → canvas (CORS 통과해야 됨)
+  if (streamData && streamData.videoStreams && streamData.videoStreams.length) {
+    setProgress(40, "스토리보드 없음 — 영상 직접 캡쳐 시도");
+    const sorted = [...streamData.videoStreams].sort((a, b) => {
+      const score = (s) => {
+        const q = parseInt((s.quality || "").match(/\d+/) || ["0"])[0];
+        const isMp4 = /mp4/i.test(s.mimeType || "") ? 0 : 1;
+        return isMp4 * 1000 + Math.abs(q - 360);
+      };
+      return score(a) - score(b);
+    });
+    const stream = sorted[0];
     try {
-      // 3) 메타데이터 로드 대기
+      const video = document.createElement("video");
+      video.crossOrigin = "anonymous";
+      video.muted = true;
+      video.preload = "auto";
+      video.style.cssText = "position:absolute;left:-9999px;top:-9999px;width:240px;height:auto;";
+      document.body.appendChild(video);
       await new Promise((resolve, reject) => {
-        const onMeta = () => { video.removeEventListener("loadedmetadata", onMeta); resolve(); };
-        const onErr = (e) => {
-          video.removeEventListener("error", onErr);
-          reject(new Error("영상 로드 실패: " + (video.error ? video.error.message || video.error.code : "unknown") + " (직접 URL CORS 차단 가능)"));
-        };
-        video.addEventListener("loadedmetadata", onMeta);
-        video.addEventListener("error", onErr);
+        video.addEventListener("loadedmetadata", resolve, { once: true });
+        video.addEventListener("error", () => reject(new Error("영상 로드 실패")), { once: true });
         video.src = stream.url;
-        setTimeout(() => reject(new Error("메타데이터 로드 타임아웃 (20초)")), 20000);
+        setTimeout(() => reject(new Error("메타데이터 로드 타임아웃")), 20000);
       });
-
-      const duration = video.duration;
-      if (!duration || !isFinite(duration) || duration < 1) {
-        throw new Error("영상 길이를 못 읽음 (" + duration + ")");
-      }
-      setProgress(25, `영상 메타데이터 로드 완료 (${Math.round(duration)}초, ${video.videoWidth}x${video.videoHeight})`);
-
-      // 4) 5개 시점에서 프레임 캡쳐
-      const ratios = [0.1, 0.25, 0.45, 0.65, 0.85];
+      const dur = video.duration;
+      if (!isFinite(dur) || dur < 1) throw new Error("영상 길이 못 읽음");
+      const ratios = [0.1, 0.25, 0.5, 0.75, 0.9];
       const frames = [];
       for (let i = 0; i < ratios.length; i++) {
-        const t = duration * ratios[i];
-        const pct = 25 + ((i + 1) / ratios.length) * 70;
-        setProgress(pct, `프레임 ${i + 1}/${ratios.length} 캡쳐 중 (${t.toFixed(1)}초 시점)`);
+        const t = dur * ratios[i];
+        setProgress(40 + ((i + 1) / ratios.length) * 55, `프레임 ${i + 1}/${ratios.length} (${Math.round(ratios[i] * 100)}%)`);
         try {
-          await new Promise((resolve, reject) => {
-            const onSeeked = () => { video.removeEventListener("seeked", onSeeked); resolve(); };
-            video.addEventListener("seeked", onSeeked);
+          await new Promise((res, rej) => {
+            video.addEventListener("seeked", res, { once: true });
             video.currentTime = t;
-            setTimeout(() => { video.removeEventListener("seeked", onSeeked); reject(new Error("seek 타임아웃")); }, 7000);
+            setTimeout(() => rej(new Error("seek 타임아웃")), 7000);
           });
           const canvas = document.createElement("canvas");
-          canvas.width = video.videoWidth;
-          canvas.height = video.videoHeight;
+          canvas.width = video.videoWidth; canvas.height = video.videoHeight;
           canvas.getContext("2d").drawImage(video, 0, 0);
-          let dataUrl;
-          try {
-            dataUrl = canvas.toDataURL("image/jpeg", 0.85);
-          } catch (e) {
-            throw new Error("CORS 차단: canvas가 tainted 됨. 직접 URL이 CORS 허용 안 함");
-          }
-          frames.push({ time: t, dataUrl });
-        } catch (e) {
-          console.warn("[FrameCapture] frame", i, "skipped:", e.message);
-        }
+          const dataUrl = canvas.toDataURL("image/jpeg", 0.85);
+          frames.push({ time: t, ratio: ratios[i], dataUrl, label: `${Math.round(ratios[i] * 100)}% — ${t.toFixed(1)}초` });
+        } catch (e) { console.warn(`frame ${i}:`, e.message); }
       }
-
-      // 5) 정리
-      video.pause();
-      video.removeAttribute("src");
-      video.load();
-      video.remove();
-
-      setProgress(100, `완료 — ${frames.length}장 캡쳐됨`);
-      setTimeout(() => progressEl.classList.remove("shown"), 1500);
-
-      if (!frames.length) throw new Error("모든 프레임 캡쳐 실패");
-
-      framesContainer.style.display = "block";
-      frames.forEach((f, i) => {
-        const card = document.createElement("div");
-        card.style.cssText = "background: var(--panel2); border: 1px solid var(--line); border-radius: 8px; overflow: hidden; cursor: pointer;";
-        card.innerHTML = `
-          <img src="${f.dataUrl}" style="width:100%; aspect-ratio:16/9; object-fit:cover; display:block;" />
-          <div style="padding: 6px 10px; font-size: 11px; color: var(--muted); display:flex; justify-content: space-between;">
-            <span>${f.time.toFixed(1)}초</span>
-            <a href="${f.dataUrl}" download="frame_${i + 1}_${f.time.toFixed(1)}s.jpg" style="color:var(--accent); text-decoration:none;">⬇ 저장</a>
-          </div>`;
-        card.addEventListener("click", (e) => {
-          if (e.target.tagName === "A") return;
-          window.open(f.dataUrl, "_blank");
-        });
-        framesGrid.appendChild(card);
-      });
-      setStatusFrame(`✅ ${frames.length}장 캡쳐 완료. 각 이미지 클릭 시 큰 크기로 열림.`, "ok");
-    } finally {
-      if (video.parentNode) video.remove();
+      video.pause(); video.removeAttribute("src"); video.load(); video.remove();
+      if (frames.length) {
+        setProgress(100, "완료");
+        setTimeout(() => progressEl.classList.remove("shown"), 1500);
+        renderFrames(frames, "direct");
+        setStatusFrame(`✅ 영상에서 직접 ${frames.length}장 캡쳐 (정확한 시점, ${video.videoWidth || "원본"}px 화질).`, "ok");
+        btn.disabled = false;
+        btn.textContent = "🎬 프레임 캡쳐 (영상에서 제품 잡기)";
+        return;
+      }
+    } catch (e) {
+      console.warn("[Capture] 직접 캡쳐 실패:", e.message);
     }
-  } catch (e) {
-    setProgress(100, "실패");
-    setTimeout(() => progressEl.classList.remove("shown"), 1000);
-    // 최후의 폴백: YouTube 공개 썸네일이라도 보여주기
-    try {
-      const base = `https://img.youtube.com/vi/${videoId}`;
-      const ytThumbs = [
-        { dataUrl: `${base}/maxresdefault.jpg`, note: "최고화질" },
-        { dataUrl: `${base}/1.jpg`, note: "25%" },
-        { dataUrl: `${base}/2.jpg`, note: "50%" },
-        { dataUrl: `${base}/3.jpg`, note: "75%" },
-      ];
-      framesContainer.style.display = "block";
-      framesGrid.innerHTML = "";
-      ytThumbs.forEach((f, i) => {
-        const card = document.createElement("div");
-        card.style.cssText = "background: var(--panel2); border: 1px solid var(--line); border-radius: 8px; overflow: hidden; cursor: pointer;";
-        card.innerHTML = `
-          <img src="${f.dataUrl}" style="width:100%; aspect-ratio:16/9; object-fit:cover; display:block; background:#000;" referrerpolicy="no-referrer" />
-          <div style="padding: 6px 10px; font-size: 11px; color: var(--muted); display:flex; justify-content: space-between;">
-            <span>${f.note}</span>
-            <a href="${f.dataUrl}" download="thumb_${i + 1}.jpg" target="_blank" rel="noopener" style="color:var(--accent); text-decoration:none;">⬇ 저장</a>
-          </div>`;
-        card.addEventListener("click", (ev) => {
-          if (ev.target.tagName === "A") return;
-          window.open(f.dataUrl, "_blank");
-        });
-        framesGrid.appendChild(card);
-      });
-    } catch {}
-    setStatusFrame(`❌ ${e.message}. → 대신 YouTube 공개 썸네일 4장 표시.`, "err");
-    console.error("[FrameCapture] 실패:", e);
-  } finally {
-    btn.disabled = false;
-    btn.textContent = "🎬 프레임 캡쳐 (영상에서 제품 잡기)";
   }
+
+  // (3) 최후 폴백: YouTube 공개 썸네일 4장 — NOT 정확한 시점
+  setProgress(100, "폴백 모드");
+  setTimeout(() => progressEl.classList.remove("shown"), 1500);
+  const base = `https://img.youtube.com/vi/${videoId}`;
+  const ytThumbs = [
+    { dataUrl: `${base}/maxresdefault.jpg`, label: "기본 썸네일 (최고화질)" },
+    { dataUrl: `${base}/1.jpg`, label: "자동선택 #1" },
+    { dataUrl: `${base}/2.jpg`, label: "자동선택 #2" },
+    { dataUrl: `${base}/3.jpg`, label: "자동선택 #3" },
+  ];
+  renderFrames(ytThumbs, "thumbs");
+  setStatusFrame(
+    `⚠️ 정확한 시점 캡쳐 실패. YouTube가 자동 선택한 4장으로 대체 — 25/50/75% 시점이 아니라 "괜찮아 보이는" 프레임 알고리즘 픽.`,
+    "err"
+  );
+  btn.disabled = false;
+  btn.textContent = "🎬 프레임 캡쳐 (영상에서 제품 잡기)";
 }
 
 // ===== 확장 진단 =====
