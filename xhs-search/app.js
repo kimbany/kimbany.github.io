@@ -1133,20 +1133,41 @@ async function searchYouTube(keyword) {
   setYtStatus(`YouTube 검색 중… "${keyword}"`);
   ytResults.innerHTML = "";
 
-  // (1) Piped 시도
+  // (1) Piped 시도 — 숏폼/롱폼 둘 다 충분히 받기 위해 nextpage도 1회 추가 시도
   let items = [];
   try {
-    startYtProgressDrift(5, 45, 4000, "Piped 인스턴스 호출 중");
+    startYtProgressDrift(5, 30, 3000, "Piped 인스턴스 호출 중");
     const { data, base } = await pipedFetch(`/search?q=${encodeURIComponent(keyword)}&filter=videos`);
-    setYtProgress(70, "응답 파싱 중");
-    items = (data.items || []).filter((it) => it.type === "stream" || it.type === "video" || it.url);
-    items.sort((a, b) => (b.views || 0) - (a.views || 0));
-    items = items.slice(0, 12);
+    let allItems = (data.items || []).filter((it) => it.type === "stream" || it.type === "video" || it.url);
+    setYtProgress(45, `${allItems.length}개 수신, 다음 페이지 시도 중`);
+
+    // 숏폼/롱폼 분류해서 한 쪽이 10개 미만이면 nextpage 추가 fetch
+    const countByCategory = (list) => {
+      const s = list.filter((it) => it.duration && it.duration <= 60).length;
+      const l = list.filter((it) => it.duration && it.duration > 60).length;
+      return { s, l };
+    };
+    let { s: shortsCount, l: longCount } = countByCategory(allItems);
+
+    if ((shortsCount < 10 || longCount < 10) && data.nextpage) {
+      try {
+        const np = encodeURIComponent(data.nextpage);
+        const { data: data2 } = await pipedFetch(`/nextpage/search?nextpage=${np}&q=${encodeURIComponent(keyword)}&filter=videos`);
+        const moreItems = (data2.items || []).filter((it) => it.type === "stream" || it.type === "video" || it.url);
+        allItems = allItems.concat(moreItems);
+        ({ s: shortsCount, l: longCount } = countByCategory(allItems));
+      } catch (e) {
+        console.warn("[YT] nextpage 실패 (무시 가능):", e.message);
+      }
+    }
+
+    setYtProgress(75, `숏폼 ${shortsCount}개 / 롱폼 ${longCount}개 분류 중`);
+    items = allItems;
     if (items.length) {
       setYtProgress(95, "결과 렌더링");
       renderYtResults(items);
       setYtProgress(100, "완료");
-      setYtStatus(`✅ ${items.length}개 (조회수순) — ${new URL(base).host}`, "ok");
+      setYtStatus(`✅ 총 ${items.length}개 받음 (숏폼 ${shortsCount} · 롱폼 ${longCount}) — ${new URL(base).host}`, "ok");
       return;
     }
   } catch (e) {
@@ -1183,32 +1204,76 @@ function fmtDuration(seconds) {
   return m + ":" + String(s).padStart(2, "0");
 }
 
-function renderYtResults(items) {
+function makeYtCard(it, i) {
+  const videoId = (it.url || "").split("v=").pop().split("&")[0];
+  const isShort = it.duration && it.duration <= 60;
+  const card = document.createElement("div");
+  card.className = "item";
+  card.innerHTML = `
+    <div class="thumb" style="aspect-ratio: ${isShort ? "9/16" : "16/9"};">
+      ${it.thumbnail ? `<img src="${it.thumbnail}" referrerpolicy="no-referrer" loading="lazy">` : ""}
+    </div>
+    <div class="num">${i + 1}</div>
+    <div class="meta" style="padding: 10px;">
+      <div class="title" style="height: auto; max-height: 60px; -webkit-line-clamp: 3;">${(it.title || "").replace(/[<>]/g, "")}</div>
+      <div style="font-size:11px; color:var(--muted); margin-top:6px;">
+        ${(it.uploaderName || "").slice(0, 20)}<br>
+        👁 ${fmtViews(it.views)} · ⏱ ${fmtDuration(it.duration)}
+      </div>
+    </div>`;
+  card.style.cursor = "pointer";
+  card.addEventListener("click", () => onYtVideoPick(it, videoId));
+  return card;
+}
+
+function makeYtGrid(items, isShort) {
   const grid = document.createElement("div");
   grid.className = "grid";
-  grid.style.gridTemplateColumns = "repeat(auto-fill, minmax(220px, 1fr))";
-  items.forEach((it, i) => {
-    const videoId = (it.url || "").split("v=").pop().split("&")[0];
-    const card = document.createElement("div");
-    card.className = "item";
-    card.innerHTML = `
-      <div class="thumb" style="aspect-ratio: 16/9;">
-        ${it.thumbnail ? `<img src="${it.thumbnail}" referrerpolicy="no-referrer" loading="lazy">` : ""}
-      </div>
-      <div class="num">${i + 1}</div>
-      <div class="meta" style="padding: 10px;">
-        <div class="title" style="height: auto; max-height: 60px; -webkit-line-clamp: 3;">${(it.title || "").replace(/[<>]/g, "")}</div>
-        <div style="font-size:11px; color:var(--muted); margin-top:6px;">
-          ${(it.uploaderName || "").slice(0, 20)}<br>
-          👁 ${fmtViews(it.views)} · ⏱ ${fmtDuration(it.duration)}
-        </div>
-      </div>`;
-    card.style.cursor = "pointer";
-    card.addEventListener("click", () => onYtVideoPick(it, videoId));
-    grid.appendChild(card);
-  });
+  // 숏폼은 세로 비율이라 카드 폭을 좁게
+  grid.style.gridTemplateColumns = isShort
+    ? "repeat(auto-fill, minmax(160px, 1fr))"
+    : "repeat(auto-fill, minmax(220px, 1fr))";
+  items.forEach((it, i) => grid.appendChild(makeYtCard(it, i)));
+  return grid;
+}
+
+function renderYtResults(items) {
   ytResults.innerHTML = "";
-  ytResults.appendChild(grid);
+  if (!items.length) {
+    ytResults.innerHTML = `<div class="empty">검색 결과 없음</div>`;
+    return;
+  }
+
+  // 길이로 분류 + 조회수순 정렬 + 상위 10개
+  const byViews = (a, b) => (b.views || 0) - (a.views || 0);
+  const shorts = items.filter((it) => it.duration && it.duration > 0 && it.duration <= 60).sort(byViews).slice(0, 10);
+  const longForm = items.filter((it) => it.duration && it.duration > 60).sort(byViews).slice(0, 10);
+  const noLength = items.filter((it) => !it.duration);
+
+  const addSection = (icon, title, list, color, isShort) => {
+    if (!list.length) return;
+    const head = document.createElement("div");
+    head.style.cssText = `font-weight:700; font-size:15px; margin: 14px 0 8px; color:${color}; display:flex; align-items:center; gap:8px;`;
+    head.innerHTML = `${icon} <span>${title}</span> <span style="font-size:11px; background:var(--panel2); padding:2px 8px; border-radius:6px; color:var(--muted); font-weight:400;">${list.length}개</span>`;
+    ytResults.appendChild(head);
+    ytResults.appendChild(makeYtGrid(list, isShort));
+  };
+
+  addSection("📱", "숏폼 (≤60초)", shorts, "#ff6b6b", true);
+  addSection("🎬", "롱폼 (>60초)", longForm, "#5b8cff", false);
+  // 폴백(Jina 등)으로 길이 정보가 없는 경우
+  if (!shorts.length && !longForm.length && noLength.length) {
+    addSection("🎥", "영상 (길이 정보 없음)", noLength.slice(0, 20), "var(--muted)", false);
+  }
+
+  // 안내: 둘 중 한 쪽이 너무 적으면 표시
+  if (shorts.length < 3 || longForm.length < 3) {
+    const note = document.createElement("div");
+    note.className = "small";
+    note.style.cssText = "margin-top: 10px; color: var(--muted);";
+    note.textContent = `💡 ${shorts.length < 3 ? "숏폼" : "롱폼"}이 부족하면 더 구체적인 키워드(예: "쿠팡 추천템 숏폼", "다이소 신상 리뷰")로 검색해보세요.`;
+    ytResults.appendChild(note);
+  }
 }
 
 async function onYtVideoPick(item, videoId) {
