@@ -420,6 +420,151 @@ function onProductPick(idx, item) {
   setStatus(`#${idx + 1} 선택됨: "${item.title || ""}". 같은 제품 찾기는 다음 단계에서 활성화됩니다.`, "ok");
 }
 
+// ===== YouTube 프레임 캡쳐 =====
+// Piped에서 영상 직접 URL을 받아 <video>에 로드, seeking + canvas로 프레임 추출
+async function captureVideoFrames(videoId, modalEl) {
+  const statusEl = modalEl.querySelector("#ytFrameStatus");
+  const progressEl = modalEl.querySelector("#ytFrameProgress");
+  const progressBar = modalEl.querySelector("#ytFrameProgressBar");
+  const progressLabel = modalEl.querySelector("#ytFrameProgressLabel");
+  const framesContainer = modalEl.querySelector("#ytFrames");
+  const framesGrid = modalEl.querySelector("#ytFramesGrid");
+  const btn = modalEl.querySelector("#ytCaptureFrames");
+
+  const setProgress = (pct, label) => {
+    progressEl.classList.add("shown");
+    progressBar.style.width = Math.min(100, pct) + "%";
+    progressLabel.textContent = label + " (" + Math.floor(pct) + "%)";
+  };
+  const setStatusFrame = (msg, kind) => {
+    statusEl.textContent = msg;
+    statusEl.style.color = kind === "err" ? "#ff6b6b" : kind === "ok" ? "#38d39f" : "var(--muted)";
+  };
+
+  btn.disabled = true;
+  btn.textContent = "⏳ 캡쳐 중…";
+  framesContainer.style.display = "none";
+  framesGrid.innerHTML = "";
+  setProgress(5, "Piped에서 영상 스트림 URL 가져오는 중");
+
+  try {
+    // 1) 영상 스트림 URL 가져오기
+    const { data: streamData } = await pipedFetch(`/streams/${videoId}`);
+    const streams = (streamData && streamData.videoStreams) || [];
+    if (!streams.length) throw new Error("Piped가 영상 스트림 URL을 못 줌");
+    // 빠른 로딩 위해 가능하면 360p 이하, mp4 우선
+    const sorted = [...streams].sort((a, b) => {
+      const score = (s) => {
+        const q = parseInt((s.quality || "").match(/\d+/) || ["0"])[0];
+        const isMp4 = /mp4/i.test(s.mimeType || "") ? 0 : 1;
+        return isMp4 * 1000 + Math.abs(q - 360); // mp4 우선, 360p에 가장 가까운 화질
+      };
+      return score(a) - score(b);
+    });
+    const stream = sorted[0];
+    setProgress(15, `영상 로드 중 (${stream.quality}, ${stream.mimeType || ""})`);
+    console.log("[FrameCapture] 선택된 스트림:", stream);
+
+    // 2) <video> 엘리먼트 생성
+    const video = document.createElement("video");
+    video.crossOrigin = "anonymous";
+    video.muted = true;
+    video.preload = "auto";
+    video.style.cssText = "position:absolute;left:-9999px;top:-9999px;width:240px;height:auto;";
+    document.body.appendChild(video);
+
+    try {
+      // 3) 메타데이터 로드 대기
+      await new Promise((resolve, reject) => {
+        const onMeta = () => { video.removeEventListener("loadedmetadata", onMeta); resolve(); };
+        const onErr = (e) => {
+          video.removeEventListener("error", onErr);
+          reject(new Error("영상 로드 실패: " + (video.error ? video.error.message || video.error.code : "unknown") + " (직접 URL CORS 차단 가능)"));
+        };
+        video.addEventListener("loadedmetadata", onMeta);
+        video.addEventListener("error", onErr);
+        video.src = stream.url;
+        setTimeout(() => reject(new Error("메타데이터 로드 타임아웃 (20초)")), 20000);
+      });
+
+      const duration = video.duration;
+      if (!duration || !isFinite(duration) || duration < 1) {
+        throw new Error("영상 길이를 못 읽음 (" + duration + ")");
+      }
+      setProgress(25, `영상 메타데이터 로드 완료 (${Math.round(duration)}초, ${video.videoWidth}x${video.videoHeight})`);
+
+      // 4) 5개 시점에서 프레임 캡쳐
+      const ratios = [0.1, 0.25, 0.45, 0.65, 0.85];
+      const frames = [];
+      for (let i = 0; i < ratios.length; i++) {
+        const t = duration * ratios[i];
+        const pct = 25 + ((i + 1) / ratios.length) * 70;
+        setProgress(pct, `프레임 ${i + 1}/${ratios.length} 캡쳐 중 (${t.toFixed(1)}초 시점)`);
+        try {
+          await new Promise((resolve, reject) => {
+            const onSeeked = () => { video.removeEventListener("seeked", onSeeked); resolve(); };
+            video.addEventListener("seeked", onSeeked);
+            video.currentTime = t;
+            setTimeout(() => { video.removeEventListener("seeked", onSeeked); reject(new Error("seek 타임아웃")); }, 7000);
+          });
+          const canvas = document.createElement("canvas");
+          canvas.width = video.videoWidth;
+          canvas.height = video.videoHeight;
+          canvas.getContext("2d").drawImage(video, 0, 0);
+          let dataUrl;
+          try {
+            dataUrl = canvas.toDataURL("image/jpeg", 0.85);
+          } catch (e) {
+            throw new Error("CORS 차단: canvas가 tainted 됨. 직접 URL이 CORS 허용 안 함");
+          }
+          frames.push({ time: t, dataUrl });
+        } catch (e) {
+          console.warn("[FrameCapture] frame", i, "skipped:", e.message);
+        }
+      }
+
+      // 5) 정리
+      video.pause();
+      video.removeAttribute("src");
+      video.load();
+      video.remove();
+
+      setProgress(100, `완료 — ${frames.length}장 캡쳐됨`);
+      setTimeout(() => progressEl.classList.remove("shown"), 1500);
+
+      if (!frames.length) throw new Error("모든 프레임 캡쳐 실패");
+
+      framesContainer.style.display = "block";
+      frames.forEach((f, i) => {
+        const card = document.createElement("div");
+        card.style.cssText = "background: var(--panel2); border: 1px solid var(--line); border-radius: 8px; overflow: hidden; cursor: pointer;";
+        card.innerHTML = `
+          <img src="${f.dataUrl}" style="width:100%; aspect-ratio:16/9; object-fit:cover; display:block;" />
+          <div style="padding: 6px 10px; font-size: 11px; color: var(--muted); display:flex; justify-content: space-between;">
+            <span>${f.time.toFixed(1)}초</span>
+            <a href="${f.dataUrl}" download="frame_${i + 1}_${f.time.toFixed(1)}s.jpg" style="color:var(--accent); text-decoration:none;">⬇ 저장</a>
+          </div>`;
+        card.addEventListener("click", (e) => {
+          if (e.target.tagName === "A") return;
+          window.open(f.dataUrl, "_blank");
+        });
+        framesGrid.appendChild(card);
+      });
+      setStatusFrame(`✅ ${frames.length}장 캡쳐 완료. 각 이미지 클릭 시 큰 크기로 열림.`, "ok");
+    } finally {
+      if (video.parentNode) video.remove();
+    }
+  } catch (e) {
+    setProgress(100, "실패");
+    setTimeout(() => progressEl.classList.remove("shown"), 1000);
+    setStatusFrame(`❌ ${e.message}. 영상 직접 URL이 CORS 차단됐을 가능성. 대안: 스토리보드(저화질) 방식으로 전환 가능.`, "err");
+    console.error("[FrameCapture] 실패:", e);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "🎬 프레임 캡쳐 (영상에서 제품 잡기)";
+  }
+}
+
 // ===== 확장 진단 =====
 async function runDiagnostic() {
   const out = $("diagResult");
@@ -1075,6 +1220,16 @@ function showVideoDetail(item, videoId, desc, candidates) {
       <div style="display: flex; gap: 12px; margin-bottom: 16px; flex-wrap: wrap;">
         <button class="ghost" id="ytOpen">🔗 YouTube에서 보기</button>
         <button class="ghost" id="ytCopyDesc">📋 설명 복사</button>
+        <button class="ghost" id="ytCaptureFrames" style="border-color:#ff2e51;color:#ff6b6b">🎬 프레임 캡쳐 (영상에서 제품 잡기)</button>
+      </div>
+      <div id="ytFrameStatus" class="small" style="margin-bottom:8px"></div>
+      <div id="ytFrameProgress" class="progress" style="margin-bottom: 12px;">
+        <div class="progress-bar" id="ytFrameProgressBar"></div>
+        <div class="progress-label" id="ytFrameProgressLabel">대기 중</div>
+      </div>
+      <div id="ytFrames" style="display:none; margin-bottom: 16px;">
+        <div style="font-weight:600; margin-bottom: 8px;">📸 캡쳐된 프레임 (클릭하면 큰 크기로 보기 / 우클릭으로 저장)</div>
+        <div id="ytFramesGrid" style="display:grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 10px;"></div>
       </div>
       <div style="font-weight:600; margin-bottom: 8px;">🔎 추출된 제품 키워드 (클릭하면 샤오홍슈로 검색)</div>
       <div class="chip-row" id="ytCandidates" style="margin-bottom: 16px;">
@@ -1105,6 +1260,7 @@ function showVideoDetail(item, videoId, desc, candidates) {
     document.querySelector(".card").scrollIntoView({ behavior: "smooth", block: "start" });
     search();
   });
+  modal.querySelector("#ytCaptureFrames").addEventListener("click", () => captureVideoFrames(videoId, modal));
   // ESC 닫기
   const onEsc = (ev) => { if (ev.key === "Escape") { modal.remove(); document.removeEventListener("keydown", onEsc); } };
   document.addEventListener("keydown", onEsc);
