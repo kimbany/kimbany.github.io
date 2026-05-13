@@ -429,27 +429,36 @@ async function runDiagnostic() {
     return;
   }
 
-  // 3. 검색 URL 호출
-  log("⏳ 3단계: 검색 페이지 호출 시도…");
-  try {
-    const r2 = await extensionFetch("https://www.xiaohongshu.com/search_result?keyword=" + encodeURIComponent("炊具架") + "&source=web_search_result_notes");
-    log(`✅ 3단계: HTTP ${r2.status}, ${r2.length}bytes`, "ok");
-    // 응답 분석
-    const hasState = /window\.__INITIAL_STATE__/.test(r2.text);
-    const hasLogin = /登录|登陆|please log in/i.test(r2.text.slice(0, 5000));
-    const hasNotes = /\/explore\/[0-9a-f]{20,}/.test(r2.text);
-    log(`   · __INITIAL_STATE__: ${hasState ? "✅ 있음" : "❌ 없음"}`, hasState ? "ok" : "err");
-    log(`   · 로그인 안내 페이지: ${hasLogin ? "⚠️ 있음 (로그인 필요)" : "✅ 없음"}`, hasLogin ? "err" : "ok");
-    log(`   · 노트 링크 패턴: ${hasNotes ? "✅ 있음" : "❌ 없음"}`, hasNotes ? "ok" : "err");
-    if (hasLogin) {
-      log("→ 본인 크롬에서 xiaohongshu.com 로그인 필요. 새 탭에서 로그인 후 다시 시도.", "err");
-    } else if (!hasNotes) {
-      log("→ XHS가 봇으로 탐지 가능성. 다른 검색 키워드로 시도해보세요.", "err");
-    } else {
-      log("✅ 모든 단계 정상. 검색 가능 상태!", "ok");
+  // 3. 검색 URL 변형들 테스트
+  const tests = [
+    { name: "검색 URL (영어 keyword=bag)", url: "https://www.xiaohongshu.com/search_result?keyword=bag" },
+    { name: "검색 URL (중국어 炊具架)", url: "https://www.xiaohongshu.com/search_result?keyword=" + encodeURIComponent("炊具架") },
+    { name: "검색 URL + source 파라미터", url: "https://www.xiaohongshu.com/search_result?keyword=bag&source=web_search_result_notes" },
+    { name: "Explore 페이지", url: "https://www.xiaohongshu.com/explore" },
+  ];
+  let foundWorking = null;
+  for (const t of tests) {
+    log(`⏳ ${t.name}`);
+    try {
+      const r = await extensionFetch(t.url);
+      log(`   ✅ HTTP ${r.status}, ${r.length}bytes`, "ok");
+      if (!foundWorking && r.ok) foundWorking = { test: t, response: r };
+    } catch (e) {
+      log(`   ❌ ${e.message}`, "err");
     }
-  } catch (e) {
-    log(`❌ 3단계 실패: ${e.message}`, "err");
+  }
+
+  if (foundWorking) {
+    const r = foundWorking.response;
+    log(`\n→ 작동 가능 URL 발견: ${foundWorking.test.name}`, "ok");
+    const hasState = /window\.__INITIAL_STATE__/.test(r.text);
+    const hasNotes = /\/explore\/[0-9a-f]{20,}/.test(r.text);
+    const hasLogin = /登录|登陆|please log in/i.test(r.text.slice(0, 5000));
+    log(`   · __INITIAL_STATE__: ${hasState ? "✅" : "❌"}`, hasState ? "ok" : "err");
+    log(`   · 로그인 페이지인가: ${hasLogin ? "⚠️ YES" : "✅ NO"}`, hasLogin ? "err" : "ok");
+    log(`   · 노트 링크 있음: ${hasNotes ? "✅" : "❌"}`, hasNotes ? "ok" : "err");
+  } else {
+    log(`\n❌ 모든 검색 URL이 실패. XHS가 검색 엔드포인트만 차단 중. 백엔드(Cloudflare Worker)나 다른 우회 필요.`, "err");
   }
 }
 
