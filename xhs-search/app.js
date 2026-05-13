@@ -423,7 +423,74 @@ function onProductPick(idx, item) {
 // ===== YouTube 프레임 캡쳐 =====
 // 우선순위: (1) 스토리보드(정확한 시점, 저화질) → (2) 직접 영상 URL canvas(정확한 시점, 고화질, CORS 이슈) → (3) 공개 썸네일(부정확)
 
-// 스토리보드 한 칸 추출
+// Invidious 공개 인스턴스 (Piped와 비슷한 YouTube 미러)
+const INVIDIOUS_INSTANCES = [
+  "https://invidious.snopyta.org",
+  "https://yewtu.be",
+  "https://vid.puffyan.us",
+  "https://invidious.fdn.fr",
+  "https://invidious.osi.kr",
+  "https://invidious.privacydev.net",
+  "https://iv.melmac.space",
+  "https://invidious.protokolla.fi",
+];
+
+async function invidiousFetch(path) {
+  let lastErr;
+  for (const base of INVIDIOUS_INSTANCES) {
+    try {
+      const r = await fetch(base + path);
+      if (!r.ok) throw new Error("HTTP " + r.status);
+      const data = await r.json();
+      return { data, base };
+    } catch (e) { lastErr = e; }
+  }
+  throw lastErr || new Error("모든 Invidious 인스턴스 실패");
+}
+
+// Invidious 응답을 우리 내부 형식(Piped와 동일)으로 변환
+function normalizeInvidiousVideo(invidiousData) {
+  const out = {
+    duration: invidiousData.lengthSeconds || 0,
+    previewFrames: [],
+    videoStreams: [],
+  };
+  // 스토리보드 변환
+  const sbs = invidiousData.storyboards || [];
+  for (const sb of sbs) {
+    if (!sb.count) continue;
+    const urls = [];
+    if (sb.templateUrl) {
+      const sheets = sb.storyboardCount || 1;
+      for (let i = 0; i < sheets; i++) {
+        urls.push(sb.templateUrl.replace(/\$M/g, String(i)));
+      }
+    } else if (sb.url) {
+      urls.push(sb.url);
+    }
+    if (!urls.length) continue;
+    out.previewFrames.push({
+      urls,
+      frameWidth: sb.width,
+      frameHeight: sb.height,
+      totalCount: sb.count,
+      framesPerPageX: sb.storyboardWidth,
+      framesPerPageY: sb.storyboardHeight,
+      durationPerFrame: sb.interval, // ms 단위
+    });
+  }
+  // formatStreams + adaptiveFormats 중 video 스트림
+  const fmts = (invidiousData.formatStreams || []).concat(invidiousData.adaptiveFormats || []);
+  for (const f of fmts) {
+    if (!f.type || !/video/i.test(f.type)) continue;
+    out.videoStreams.push({
+      url: f.url,
+      quality: f.qualityLabel || f.quality || "",
+      mimeType: f.type,
+    });
+  }
+  return out;
+}
 async function extractStoryboardFrame(sb, timeSeconds) {
   const { urls, frameWidth, frameHeight, totalCount, framesPerPageX, framesPerPageY, durationPerFrame } = sb;
   const framesPerPage = framesPerPageX * framesPerPageY;
@@ -506,26 +573,43 @@ async function captureVideoFrames(videoId, modalEl) {
 
   let streamData = null;
   let pipedError = null;
+  let invidiousError = null;
+  let usedSource = null;
+
+  // (a) Piped 먼저
   try {
+    setProgress(7, "Piped에서 영상 메타데이터 가져오는 중");
     const r = await pipedFetch(`/streams/${videoId}`);
     streamData = r.data;
-    console.log("[Capture] Piped 응답 받음. keys:", Object.keys(streamData || {}));
-    console.log("[Capture] duration:", streamData.duration, "previewFrames 개수:", (streamData.previewFrames || []).length);
-    if (streamData.previewFrames && streamData.previewFrames[0]) {
-      console.log("[Capture] previewFrames[0]:", streamData.previewFrames[0]);
-    }
+    usedSource = "Piped";
+    console.log("[Capture] Piped OK. keys:", Object.keys(streamData || {}), "duration:", streamData.duration, "previewFrames:", (streamData.previewFrames || []).length);
   } catch (e) {
     pipedError = e.message;
     console.warn("[Capture] Piped 실패:", e.message);
   }
 
+  // (b) Piped 실패 시 Invidious 시도
+  if (!streamData) {
+    try {
+      setProgress(12, "Invidious 인스턴스 시도 중");
+      const r = await invidiousFetch(`/api/v1/videos/${videoId}`);
+      streamData = normalizeInvidiousVideo(r.data);
+      usedSource = "Invidious (" + new URL(r.base).host + ")";
+      console.log("[Capture] Invidious OK. duration:", streamData.duration, "previewFrames:", streamData.previewFrames.length);
+    } catch (e) {
+      invidiousError = e.message;
+      console.warn("[Capture] Invidious 실패:", e.message);
+    }
+  }
+  if (usedSource) setStatusFrame("📡 데이터 출처: " + usedSource, "");
+
   // (1) 스토리보드 시도 — 정확한 시점, 저화질 (확실)
   const previewFrames = (streamData && streamData.previewFrames) || [];
   const duration = streamData && streamData.duration;
   let storyboardReason = null;
-  if (!streamData) storyboardReason = `Piped 호출 실패 (${pipedError || "원인 미상"})`;
-  else if (!duration) storyboardReason = "Piped 응답에 duration 없음";
-  else if (!previewFrames.length) storyboardReason = "Piped 응답에 previewFrames 없음 (이 영상은 스토리보드를 제공 안 함)";
+  if (!streamData) storyboardReason = `Piped 실패(${pipedError || "?"}), Invidious 실패(${invidiousError || "?"})`;
+  else if (!duration) storyboardReason = `${usedSource} 응답에 duration 없음`;
+  else if (!previewFrames.length) storyboardReason = `${usedSource} 응답에 storyboards 없음 (이 영상은 스토리보드 미제공)`;
 
   if (!storyboardReason) {
     setProgress(20, `스토리보드 사용 (영상 ${Math.round(duration)}초)`);
