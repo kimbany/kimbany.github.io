@@ -485,25 +485,32 @@ async function runDiagnostic() {
   log(`\n⏳ 4단계: 탭 기반 검색 테스트 (잠깐 백그라운드 탭이 열렸다 닫힘)…`);
   try {
     const tabR = await extensionTabSearch("炊具架");
-    if (tabR && tabR.json) {
-      log(`✅ 탭 검색 성공! __INITIAL_STATE__ ${tabR.json.length}자 수신`, "ok");
+    if (!tabR) { log(`❌ 탭에서 데이터 못 받음`, "err"); return; }
+    log(`   결과 종류: ${tabR.kind || "?"}`, "");
+
+    if (tabR.kind === "xhr" && tabR.apiJson) {
+      log(`✅ XHR 인터셉트 성공! 검색 API 응답 ${tabR.apiJson.length}자 수신`, "ok");
+      log(`   API URL: ${tabR.apiUrl}`, "");
+      try {
+        const items = parseXhsApi(tabR.apiJson, "炊具架");
+        log(`   → ${items.length}개 결과 추출`, items.length ? "ok" : "err");
+        if (items[0]) log(`   첫 결과: "${(items[0].title || "").slice(0, 30)}"`, "ok");
+        if (!items.length) console.log("[XHS-Diag] API JSON 첫 3000자:", tabR.apiJson.slice(0, 3000));
+      } catch (e) { log(`❌ API 파싱 실패: ${e.message}`, "err"); }
+    } else if (tabR.kind === "state" && tabR.json) {
+      log(`⚠️ XHR 인터셉트 실패 → state fallback. ${tabR.json.length}자`, "err");
       try {
         const items = parseXhsState(tabR.json, "炊具架");
-        log(`✅ 검색 결과 ${items.length}개 추출 가능`, items.length ? "ok" : "err");
-        if (items.length) {
-          log(`   첫 결과: "${(items[0].title || "").slice(0, 30)}"`, "ok");
-        } else {
-          log(`   ⚠️ JSON은 받았지만 결과를 못 찾음. state 구조가 예상과 다름. F12 콘솔의 [XHS] 로그 확인.`, "err");
+        log(`   → ${items.length}개 결과`, items.length ? "ok" : "err");
+        if (!items.length) {
+          const state = JSON.parse(tabR.json);
+          log(`   · state 키: [${Object.keys(state).slice(0, 8).join(", ")}…]`, "");
+          console.log("[XHS-Diag] state JSON 첫 3000자:", tabR.json.slice(0, 3000));
         }
-      } catch (e) {
-        log(`❌ state 파싱 실패: ${e.message}`, "err");
-      }
-    } else {
-      log(`❌ 탭에서 데이터 못 받음`, "err");
+      } catch (e) { log(`❌ state 파싱 실패: ${e.message}`, "err"); }
     }
   } catch (e) {
     log(`❌ 탭 검색 실패: ${e.message}`, "err");
-    log(`   → 새 탭이 잠깐 열렸나요? 안 열렸으면 확장 'tabs' 권한 확인. ${e.message.includes("타임아웃") ? "타임아웃이면 XHS 페이지가 __INITIAL_STATE__를 늦게 로드하거나, 새 SPA 구조라 변수 이름이 다름." : ""}`, "err");
   }
 }
 
@@ -523,50 +530,128 @@ async function searchViaExtension(zhKeyword) {
     console.log("[XHS] 직접 fetch 실패:", e.message, "→ 탭 모드로 시도");
   }
 
-  // 탭 모드: 본인 브라우저로 실제 페이지 로드 후 __INITIAL_STATE__ 추출
-  setStatus("새 탭으로 샤오홍슈 페이지 로드 중… (잠깐 보였다 닫혀요)", "ok");
+  // 탭 모드: 본인 브라우저로 실제 페이지 로드 + XHR 인터셉터로 검색 API 응답 캐치
+  setStatus("새 탭으로 샤오홍슈 페이지 열고 검색 API 응답 대기 중… (잠깐 보였다 닫혀요)", "ok");
   const tabResult = await extensionTabSearch(zhKeyword);
-  if (!tabResult || !tabResult.json) throw new Error("탭에서 데이터 없음");
-  return parseXhsState(tabResult.json, zhKeyword);
+  if (!tabResult) throw new Error("탭에서 데이터 없음");
+  if (tabResult.kind === "xhr" && tabResult.apiJson) {
+    console.log("[XHS] XHR 인터셉트로 API 응답 받음:", tabResult.apiUrl, tabResult.apiJson.length, "bytes");
+    return parseXhsApi(tabResult.apiJson, zhKeyword);
+  }
+  if (tabResult.kind === "state" && tabResult.json) {
+    console.log("[XHS] state fallback 사용:", tabResult.json.length, "bytes");
+    return parseXhsState(tabResult.json, zhKeyword);
+  }
+  throw new Error("알 수 없는 탭 결과 형식: " + (tabResult.kind || "?"));
+}
+
+// 샤오홍슈 검색 API JSON 응답 파싱
+// API 응답 구조: { success/code, data: { items: [{ id, model_type, note_card: {...} }, ...] } }
+function parseXhsApi(json, zhKeyword) {
+  let data;
+  try { data = JSON.parse(json); } catch (e) { throw new Error("API JSON 파싱 실패: " + e.message); }
+  const items = [];
+  const list = (data.data && (data.data.items || data.data.list || data.data.notes)) ||
+               data.items || data.list || data.notes || [];
+  console.log("[XHS] API 응답 아이템 수:", Array.isArray(list) ? list.length : 0, "data keys:", Object.keys(data || {}));
+  if (!Array.isArray(list)) return items;
+
+  for (const it of list) {
+    const note = it.note_card || it.noteCard || it.note || it;
+    if (!note) continue;
+    const id = it.id || note.id || note.noteId || note.note_id;
+    if (!id) continue;
+    const cover =
+      (note.cover && (note.cover.url_default || note.cover.url || note.cover.urlDefault || note.cover.url_pre)) ||
+      (note.image_list && note.image_list[0] && (note.image_list[0].url_default || note.image_list[0].url)) ||
+      (note.imageList && note.imageList[0] && (note.imageList[0].urlDefault || note.imageList[0].url)) ||
+      "";
+    items.push({
+      id,
+      title: note.display_title || note.displayTitle || note.title || note.desc || "",
+      image: cover,
+      author: (note.user && (note.user.nickname || note.user.nick_name || note.user.nickName)) || "",
+      likes: (note.interact_info && (note.interact_info.liked_count || note.interact_info.likedCount)) ||
+             (note.interactInfo && (note.interactInfo.likedCount || note.interactInfo.liked_count)) || "",
+      url: `https://www.xiaohongshu.com/explore/${id}`,
+      keyword: zhKeyword,
+    });
+    if (items.length >= 12) break;
+  }
+  return items;
 }
 
 // __INITIAL_STATE__ JSON 문자열에서 검색 결과 노트 추출
+// state 구조가 자주 바뀌므로 깊이 우선 탐색으로 노트 형태 객체를 어디서든 찾기.
 function parseXhsState(json, zhKeyword) {
   let state;
   try { state = JSON.parse(json); } catch (e) { throw new Error("__INITIAL_STATE__ JSON 파싱 실패: " + e.message); }
-  const items = [];
-  const candidates = [];
-  // 가능한 위치 후보들
-  if (state.search) candidates.push(state.search.feeds, state.search.notes, state.search.searchResult);
-  if (state.feeds) candidates.push(state.feeds);
-  candidates.push(state.searchData, state.note);
 
-  for (let c of candidates) {
-    if (!c) continue;
-    if (c._rawValue) c = c._rawValue;
-    const list = Array.isArray(c) ? c : (c.items || c.list || c.notes || []);
-    if (!Array.isArray(list)) continue;
-    for (const n of list) {
-      const note = n.noteCard || n.note_card || n.note || n;
-      if (!note) continue;
-      const id = note.id || note.noteId || n.id;
-      if (!id) continue;
-      const cover = (note.cover && (note.cover.url || note.cover.urlDefault || note.cover.url_default)) ||
-        (note.imageList && note.imageList[0] && note.imageList[0].url) || "";
-      items.push({
-        id,
-        title: note.displayTitle || note.title || note.desc || "",
-        image: cover,
-        author: (note.user && (note.user.nickname || note.user.nickName)) || "",
-        likes: (note.interactInfo && (note.interactInfo.likedCount || note.interactInfo.liked_count)) || "",
-        url: `https://www.xiaohongshu.com/explore/${id}`,
-        keyword: zhKeyword,
-      });
-      if (items.length >= 12) return items;
-    }
-    if (items.length) return items;
+  const found = [];
+  const SEEN_PATHS = new Set();
+
+  function isNoteLike(node) {
+    if (!node || typeof node !== "object" || Array.isArray(node)) return false;
+    const id = node.id || node.noteId || node.note_id;
+    if (!id || String(id).length < 16) return false; // XHS 노트 ID는 24자 hex
+    const hasMedia =
+      node.cover ||
+      node.imageList || node.image_list ||
+      node.images || node.video ||
+      (node.noteCard && (node.noteCard.cover || node.noteCard.imageList));
+    const hasText = node.displayTitle || node.title || node.desc || (node.noteCard && (node.noteCard.displayTitle || node.noteCard.title));
+    return !!(hasMedia && hasText);
   }
-  console.warn("[XHS] state에서 검색 결과를 못 찾음. state keys:", Object.keys(state || {}));
+
+  function walk(node, path, depth) {
+    if (depth > 8 || node === null || typeof node !== "object") return;
+    if (Array.isArray(node)) {
+      for (let i = 0; i < Math.min(node.length, 100); i++) walk(node[i], path + "[" + i + "]", depth + 1);
+      return;
+    }
+    if (isNoteLike(node) && !SEEN_PATHS.has(path)) {
+      SEEN_PATHS.add(path);
+      found.push({ path, node });
+    }
+    for (const k of Object.keys(node)) {
+      walk(node[k], path ? path + "." + k : k, depth + 1);
+    }
+  }
+  walk(state, "", 0);
+
+  console.log("[XHS] deep scan: 노트 형태 객체", found.length, "개 발견");
+  if (found.length) {
+    console.log("[XHS] 첫 3개 경로:", found.slice(0, 3).map((f) => f.path));
+    console.log("[XHS] 첫 노트 샘플:", found[0].node);
+  } else {
+    console.warn("[XHS] state에서 노트를 못 찾음. state keys:", Object.keys(state || {}));
+    if (state.search) console.warn("[XHS] state.search keys:", Object.keys(state.search));
+  }
+
+  const items = [];
+  const seen = new Set();
+  for (const { node } of found) {
+    // noteCard 안에 있을 수도 있으니 한 번 더 풀어서 보기
+    const inner = node.noteCard || node.note_card || node;
+    const id = inner.id || inner.noteId || inner.note_id || node.id;
+    if (!id || seen.has(id)) continue;
+    seen.add(id);
+    const cover =
+      (inner.cover && (inner.cover.url || inner.cover.urlDefault || inner.cover.url_default || inner.cover.urlPre)) ||
+      (inner.imageList && inner.imageList[0] && (inner.imageList[0].url || inner.imageList[0].urlDefault)) ||
+      (inner.image_list && inner.image_list[0] && (inner.image_list[0].url || inner.image_list[0].url_default)) ||
+      "";
+    items.push({
+      id,
+      title: inner.displayTitle || inner.title || inner.desc || "",
+      image: cover,
+      author: (inner.user && (inner.user.nickname || inner.user.nickName)) || "",
+      likes: (inner.interactInfo && (inner.interactInfo.likedCount || inner.interactInfo.liked_count)) || "",
+      url: `https://www.xiaohongshu.com/explore/${id}`,
+      keyword: zhKeyword,
+    });
+    if (items.length >= 12) break;
+  }
   return items;
 }
 
