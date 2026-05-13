@@ -487,13 +487,31 @@ async function runDiagnostic() {
     const tabR = await extensionTabSearch("炊具架");
     if (tabR && tabR.json) {
       log(`✅ 탭 검색 성공! __INITIAL_STATE__ ${tabR.json.length}자 수신`, "ok");
+      // state 구조 자세히 보여주기
       try {
+        const state = JSON.parse(tabR.json);
+        const topKeys = Object.keys(state);
+        log(`   · state 최상위 키: [${topKeys.join(", ")}]`, "");
+        // 각 키의 하위 구조 1단계 더 보여주기
+        for (const k of topKeys.slice(0, 10)) {
+          try {
+            const v = state[k];
+            if (v && typeof v === "object") {
+              const subKeys = Object.keys(v).slice(0, 8);
+              log(`     · state.${k}: { ${subKeys.join(", ")} }`, "");
+            } else {
+              log(`     · state.${k} = ${typeof v}`, "");
+            }
+          } catch {}
+        }
         const items = parseXhsState(tabR.json, "炊具架");
-        log(`✅ 검색 결과 ${items.length}개 추출 가능`, items.length ? "ok" : "err");
+        log(`   → 현재 파서가 찾은 결과: ${items.length}개`, items.length ? "ok" : "err");
         if (items.length) {
-          log(`   첫 결과: "${(items[0].title || "").slice(0, 30)}"`, "ok");
+          log(`     첫 결과: "${(items[0].title || "").slice(0, 30)}"`, "ok");
         } else {
-          log(`   ⚠️ JSON은 받았지만 결과를 못 찾음. state 구조가 예상과 다름. F12 콘솔의 [XHS] 로그 확인.`, "err");
+          log(`     ⚠️ 파서가 결과를 못 찾음. 위 state 키 구조를 알려주시면 파서 업데이트 가능.`, "err");
+          // F12 콘솔에 raw JSON 일부 출력 (사용자가 복사하기 쉽게)
+          console.log("[XHS-Diag] state.json (첫 3000자):", tabR.json.slice(0, 3000));
         }
       } catch (e) {
         log(`❌ state 파싱 실패: ${e.message}`, "err");
@@ -503,7 +521,6 @@ async function runDiagnostic() {
     }
   } catch (e) {
     log(`❌ 탭 검색 실패: ${e.message}`, "err");
-    log(`   → 새 탭이 잠깐 열렸나요? 안 열렸으면 확장 'tabs' 권한 확인. ${e.message.includes("타임아웃") ? "타임아웃이면 XHS 페이지가 __INITIAL_STATE__를 늦게 로드하거나, 새 SPA 구조라 변수 이름이 다름." : ""}`, "err");
   }
 }
 
