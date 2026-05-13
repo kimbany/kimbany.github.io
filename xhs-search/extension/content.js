@@ -6,7 +6,7 @@
  */
 
 const TAG = "[XHS-Helper]";
-const VERSION = "1.0.2";
+const VERSION = "1.0.3";
 
 // 페이지가 우리 확장의 존재를 감지할 수 있게 표시
 const beacon = document.createElement("meta");
@@ -37,6 +37,25 @@ window.addEventListener("message", (event) => {
         window.postMessage(
           {
             type: "XHS_HELPER_FETCH_RESULT",
+            requestId: msg.requestId,
+            error: err ? err.message : null,
+            response,
+          },
+          "*"
+        );
+      }
+    );
+    return;
+  }
+
+  if (msg.type === "XHS_HELPER_TAB_SEARCH") {
+    chrome.runtime.sendMessage(
+      { type: "XHS_SEARCH_VIA_TAB", keyword: msg.keyword },
+      (response) => {
+        const err = chrome.runtime.lastError;
+        window.postMessage(
+          {
+            type: "XHS_HELPER_TAB_SEARCH_RESULT",
             requestId: msg.requestId,
             error: err ? err.message : null,
             response,

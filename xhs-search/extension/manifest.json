@@ -2,9 +2,9 @@
   "manifest_version": 3,
   "name": "샤오홍슈 검색기 헬퍼",
   "short_name": "XHS Helper",
-  "version": "1.0.2",
-  "description": "kimbany.github.io/xhs-search/ 에서 본인 브라우저 세션으로 샤오홍슈 검색 결과를 가져옵니다.",
-  "permissions": ["cookies", "storage"],
+  "version": "1.0.3",
+  "description": "kimbany.github.io/xhs-search/ 또는 invedory.com/xhs-search/에서 본인 브라우저 세션으로 샤오홍슈 검색 결과를 가져옵니다.",
+  "permissions": ["cookies", "storage", "tabs", "scripting"],
   "host_permissions": [
     "https://*.xiaohongshu.com/*",
     "https://*.xhscdn.com/*"
@@ -25,9 +25,21 @@
       "js": ["content.js"],
       "run_at": "document_start",
       "all_frames": false
+    },
+    {
+      "matches": ["https://www.xiaohongshu.com/*"],
+      "js": ["xhs-page-main.js"],
+      "run_at": "document_idle",
+      "world": "MAIN"
+    },
+    {
+      "matches": ["https://www.xiaohongshu.com/*"],
+      "js": ["xhs-page-bridge.js"],
+      "run_at": "document_idle"
     }
   ],
   "action": {
     "default_title": "샤오홍슈 검색기 헬퍼 — 활성화됨"
   }
 }
+
