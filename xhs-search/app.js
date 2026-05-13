@@ -448,20 +448,61 @@ async function captureVideoFrames(videoId, modalEl) {
   setProgress(5, "Piped에서 영상 스트림 URL 가져오는 중");
 
   try {
-    // 1) 영상 스트림 URL 가져오기
-    const { data: streamData } = await pipedFetch(`/streams/${videoId}`);
-    const streams = (streamData && streamData.videoStreams) || [];
-    if (!streams.length) throw new Error("Piped가 영상 스트림 URL을 못 줌");
-    // 빠른 로딩 위해 가능하면 360p 이하, mp4 우선
-    const sorted = [...streams].sort((a, b) => {
-      const score = (s) => {
-        const q = parseInt((s.quality || "").match(/\d+/) || ["0"])[0];
-        const isMp4 = /mp4/i.test(s.mimeType || "") ? 0 : 1;
-        return isMp4 * 1000 + Math.abs(q - 360); // mp4 우선, 360p에 가장 가까운 화질
-      };
-      return score(a) - score(b);
-    });
-    const stream = sorted[0];
+    // 1) 영상 스트림 URL 가져오기 시도 (Piped)
+    let stream = null;
+    try {
+      const { data: streamData } = await pipedFetch(`/streams/${videoId}`);
+      const streams = (streamData && streamData.videoStreams) || [];
+      if (streams.length) {
+        const sorted = [...streams].sort((a, b) => {
+          const score = (s) => {
+            const q = parseInt((s.quality || "").match(/\d+/) || ["0"])[0];
+            const isMp4 = /mp4/i.test(s.mimeType || "") ? 0 : 1;
+            return isMp4 * 1000 + Math.abs(q - 360);
+          };
+          return score(a) - score(b);
+        });
+        stream = sorted[0];
+      }
+    } catch (e) {
+      console.warn("[FrameCapture] Piped 실패, 썸네일 폴백:", e.message);
+    }
+
+    // 2) Piped 실패하거나 스트림이 없으면 → YouTube 공개 썸네일 4장 폴백
+    if (!stream) {
+      setProgress(50, "Piped 실패 — YouTube 공개 썸네일로 폴백");
+      const base = `https://img.youtube.com/vi/${videoId}`;
+      const ytThumbs = [
+        { time: 0, dataUrl: `${base}/maxresdefault.jpg`, note: "최고화질" },
+        { time: 1, dataUrl: `${base}/1.jpg`, note: "25%" },
+        { time: 2, dataUrl: `${base}/2.jpg`, note: "50%" },
+        { time: 3, dataUrl: `${base}/3.jpg`, note: "75%" },
+      ];
+      setProgress(100, `완료 — ${ytThumbs.length}장 폴백 썸네일`);
+      setTimeout(() => progressEl.classList.remove("shown"), 1500);
+      framesContainer.style.display = "block";
+      ytThumbs.forEach((f, i) => {
+        const card = document.createElement("div");
+        card.style.cssText = "background: var(--panel2); border: 1px solid var(--line); border-radius: 8px; overflow: hidden; cursor: pointer;";
+        card.innerHTML = `
+          <img src="${f.dataUrl}" style="width:100%; aspect-ratio:16/9; object-fit:cover; display:block; background:#000;" referrerpolicy="no-referrer" />
+          <div style="padding: 6px 10px; font-size: 11px; color: var(--muted); display:flex; justify-content: space-between;">
+            <span>${f.note}</span>
+            <a href="${f.dataUrl}" download="thumb_${i + 1}.jpg" target="_blank" rel="noopener" style="color:var(--accent); text-decoration:none;">⬇ 저장</a>
+          </div>`;
+        card.addEventListener("click", (e) => {
+          if (e.target.tagName === "A") return;
+          window.open(f.dataUrl, "_blank");
+        });
+        framesGrid.appendChild(card);
+      });
+      setStatusFrame(
+        `⚠️ Piped로 실제 프레임 캡쳐 실패. YouTube 공개 썸네일 4장으로 대체 (영상의 다른 시점 자동 썸네일).`,
+        "err"
+      );
+      return;
+    }
+
     setProgress(15, `영상 로드 중 (${stream.quality}, ${stream.mimeType || ""})`);
     console.log("[FrameCapture] 선택된 스트림:", stream);
 
@@ -557,7 +598,34 @@ async function captureVideoFrames(videoId, modalEl) {
   } catch (e) {
     setProgress(100, "실패");
     setTimeout(() => progressEl.classList.remove("shown"), 1000);
-    setStatusFrame(`❌ ${e.message}. 영상 직접 URL이 CORS 차단됐을 가능성. 대안: 스토리보드(저화질) 방식으로 전환 가능.`, "err");
+    // 최후의 폴백: YouTube 공개 썸네일이라도 보여주기
+    try {
+      const base = `https://img.youtube.com/vi/${videoId}`;
+      const ytThumbs = [
+        { dataUrl: `${base}/maxresdefault.jpg`, note: "최고화질" },
+        { dataUrl: `${base}/1.jpg`, note: "25%" },
+        { dataUrl: `${base}/2.jpg`, note: "50%" },
+        { dataUrl: `${base}/3.jpg`, note: "75%" },
+      ];
+      framesContainer.style.display = "block";
+      framesGrid.innerHTML = "";
+      ytThumbs.forEach((f, i) => {
+        const card = document.createElement("div");
+        card.style.cssText = "background: var(--panel2); border: 1px solid var(--line); border-radius: 8px; overflow: hidden; cursor: pointer;";
+        card.innerHTML = `
+          <img src="${f.dataUrl}" style="width:100%; aspect-ratio:16/9; object-fit:cover; display:block; background:#000;" referrerpolicy="no-referrer" />
+          <div style="padding: 6px 10px; font-size: 11px; color: var(--muted); display:flex; justify-content: space-between;">
+            <span>${f.note}</span>
+            <a href="${f.dataUrl}" download="thumb_${i + 1}.jpg" target="_blank" rel="noopener" style="color:var(--accent); text-decoration:none;">⬇ 저장</a>
+          </div>`;
+        card.addEventListener("click", (ev) => {
+          if (ev.target.tagName === "A") return;
+          window.open(f.dataUrl, "_blank");
+        });
+        framesGrid.appendChild(card);
+      });
+    } catch {}
+    setStatusFrame(`❌ ${e.message}. → 대신 YouTube 공개 썸네일 4장 표시.`, "err");
     console.error("[FrameCapture] 실패:", e);
   } finally {
     btn.disabled = false;
