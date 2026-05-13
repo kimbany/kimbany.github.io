@@ -49,6 +49,26 @@ function extensionFetch(url, init) {
   });
 }
 
+// 탭 기반 검색: XHS가 직접 fetch를 차단할 때, 실제 백그라운드 탭으로 페이지를 열어서 데이터 추출
+function extensionTabSearch(keyword) {
+  return new Promise((resolve, reject) => {
+    const id = "tab-" + Math.random().toString(36).slice(2);
+    const handler = (e) => {
+      if (e.source !== window) return;
+      const m = e.data;
+      if (!m || m.type !== "XHS_HELPER_TAB_SEARCH_RESULT" || m.requestId !== id) return;
+      window.removeEventListener("message", handler);
+      if (m.error) return reject(new Error(m.error));
+      const r = m.response || {};
+      if (!r.ok) return reject(new Error(r.error || "탭 검색 실패"));
+      resolve(r);
+    };
+    window.addEventListener("message", handler);
+    window.postMessage({ type: "XHS_HELPER_TAB_SEARCH", requestId: id, keyword }, "*");
+    setTimeout(() => { window.removeEventListener("message", handler); reject(new Error("탭 검색 타임아웃 (30초)")); }, 30000);
+  });
+}
+
 const $ = (id) => document.getElementById(id);
 const q = $("q");
 const searchBtn = $("searchBtn");
@@ -465,10 +485,64 @@ async function runDiagnostic() {
 document.getElementById("diagBtn").addEventListener("click", runDiagnostic);
 
 // ===== 확장프로그램 경유 샤오홍슈 검색 =====
+// 1차: 직접 fetch (빠르지만 XHS가 search_result URL을 차단할 수 있음)
+// 2차: 백그라운드 탭으로 페이지 열어서 __INITIAL_STATE__ 추출 (느리지만 본인 브라우저로 진짜 로드)
 async function searchViaExtension(zhKeyword) {
   const url = `https://www.xiaohongshu.com/search_result?keyword=${encodeURIComponent(zhKeyword)}&source=web_search_result_notes`;
-  const r = await extensionFetch(url);
-  return parseXhsHtml(r.text, zhKeyword);
+  try {
+    const r = await extensionFetch(url);
+    const items = parseXhsHtml(r.text, zhKeyword);
+    if (items.length) return items;
+    console.log("[XHS] 직접 fetch는 성공했지만 items 0개 → 탭 모드로 재시도");
+  } catch (e) {
+    console.log("[XHS] 직접 fetch 실패:", e.message, "→ 탭 모드로 시도");
+  }
+
+  // 탭 모드: 본인 브라우저로 실제 페이지 로드 후 __INITIAL_STATE__ 추출
+  setStatus("새 탭으로 샤오홍슈 페이지 로드 중… (잠깐 보였다 닫혀요)", "ok");
+  const tabResult = await extensionTabSearch(zhKeyword);
+  if (!tabResult || !tabResult.json) throw new Error("탭에서 데이터 없음");
+  return parseXhsState(tabResult.json, zhKeyword);
+}
+
+// __INITIAL_STATE__ JSON 문자열에서 검색 결과 노트 추출
+function parseXhsState(json, zhKeyword) {
+  let state;
+  try { state = JSON.parse(json); } catch (e) { throw new Error("__INITIAL_STATE__ JSON 파싱 실패: " + e.message); }
+  const items = [];
+  const candidates = [];
+  // 가능한 위치 후보들
+  if (state.search) candidates.push(state.search.feeds, state.search.notes, state.search.searchResult);
+  if (state.feeds) candidates.push(state.feeds);
+  candidates.push(state.searchData, state.note);
+
+  for (let c of candidates) {
+    if (!c) continue;
+    if (c._rawValue) c = c._rawValue;
+    const list = Array.isArray(c) ? c : (c.items || c.list || c.notes || []);
+    if (!Array.isArray(list)) continue;
+    for (const n of list) {
+      const note = n.noteCard || n.note_card || n.note || n;
+      if (!note) continue;
+      const id = note.id || note.noteId || n.id;
+      if (!id) continue;
+      const cover = (note.cover && (note.cover.url || note.cover.urlDefault || note.cover.url_default)) ||
+        (note.imageList && note.imageList[0] && note.imageList[0].url) || "";
+      items.push({
+        id,
+        title: note.displayTitle || note.title || note.desc || "",
+        image: cover,
+        author: (note.user && (note.user.nickname || note.user.nickName)) || "",
+        likes: (note.interactInfo && (note.interactInfo.likedCount || note.interactInfo.liked_count)) || "",
+        url: `https://www.xiaohongshu.com/explore/${id}`,
+        keyword: zhKeyword,
+      });
+      if (items.length >= 12) return items;
+    }
+    if (items.length) return items;
+  }
+  console.warn("[XHS] state에서 검색 결과를 못 찾음. state keys:", Object.keys(state || {}));
+  return items;
 }
 
 function parseXhsHtml(html, zhKeyword) {
