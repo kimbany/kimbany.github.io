@@ -520,6 +520,32 @@ function parseYouTubeSearchHtml(html) {
         });
       }
     }
+    // 새 숏폼 형식 (shortsLockupViewModel)
+    if (obj.shortsLockupViewModel) {
+      const v = obj.shortsLockupViewModel;
+      let id =
+        (v.onTap && v.onTap.innertubeCommand && v.onTap.innertubeCommand.reelWatchEndpoint && v.onTap.innertubeCommand.reelWatchEndpoint.videoId) ||
+        (v.navigationEndpoint && v.navigationEndpoint.reelWatchEndpoint && v.navigationEndpoint.reelWatchEndpoint.videoId) ||
+        (v.entityId && String(v.entityId).replace(/^shorts-?/, "")) || "";
+      if (id && !seen.has(id)) {
+        seen.add(id);
+        const title =
+          (v.overlayMetadata && v.overlayMetadata.primaryText && v.overlayMetadata.primaryText.content) ||
+          v.accessibilityText || "";
+        const viewText =
+          (v.overlayMetadata && v.overlayMetadata.secondaryText && v.overlayMetadata.secondaryText.content) || "";
+        const srcs = (v.thumbnail && v.thumbnail.sources) || [];
+        items.push({
+          title,
+          url: `https://www.youtube.com/watch?v=${id}`,
+          thumbnail: srcs.length ? srcs[srcs.length - 1].url : `https://i.ytimg.com/vi/${id}/mqdefault.jpg`,
+          videoId: id,
+          uploaderName: "",
+          views: parseV(viewText),
+          duration: 30,
+        });
+      }
+    }
     for (const k in obj) {
       if (obj[k] && typeof obj[k] === "object") walk(obj[k]);
     }
@@ -1462,13 +1488,34 @@ async function searchYouTube(keyword) {
 
   // (2) 공용 프록시로 YouTube 검색 페이지 직접 파싱 (duration 포함!)
   try {
-    startYtProgressDrift(40, 80, 6000, "공용 프록시로 YouTube 검색 페이지 가져오는 중");
+    startYtProgressDrift(40, 65, 5000, "공용 프록시로 YouTube 검색 페이지 가져오는 중");
     const url = `https://www.youtube.com/results?search_query=${encodeURIComponent(keyword)}`;
     const html = await fetchViaProxies(url, "ytInitialData");
-    setYtProgress(85, "검색 결과 파싱 중");
+    setYtProgress(70, "검색 결과 파싱 중");
     items = parseYouTubeSearchHtml(html);
     if (!items.length) throw new Error("파싱 결과 0개");
-    const sc = items.filter((it) => it.duration && it.duration <= 60).length;
+
+    let sc = items.filter((it) => it.duration && it.duration <= 60).length;
+    // 숏폼이 적으면 숏폼 전용 검색 추가 (sp=EgIYAQ%3D%3D = Shorts 필터)
+    if (sc < 10) {
+      try {
+        setYtProgress(78, `숏폼 ${sc}개뿐 — 숏폼 전용 검색 추가 중`);
+        const shortsUrl = `https://www.youtube.com/results?search_query=${encodeURIComponent(keyword)}&sp=EgIYAQ%3D%3D`;
+        const shortsHtml = await fetchViaProxies(shortsUrl, "ytInitialData");
+        const shortsItems = parseYouTubeSearchHtml(shortsHtml);
+        const existingIds = new Set(items.map((it) => it.videoId));
+        for (const it of shortsItems) {
+          if (existingIds.has(it.videoId)) continue;
+          it.duration = it.duration && it.duration <= 60 ? it.duration : 30; // 숏폼 필터 결과니 숏폼 취급
+          items.push(it);
+          existingIds.add(it.videoId);
+        }
+        sc = items.filter((x) => x.duration && x.duration <= 60).length;
+      } catch (e) {
+        console.warn("[YT] 숏폼 전용 검색 실패 (무시 가능):", e.message);
+      }
+    }
+
     const lc = items.filter((it) => it.duration && it.duration > 60).length;
     setYtProgress(95, "결과 렌더링");
     renderYtResults(items);
