@@ -25,7 +25,49 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     onTabData(sender.tab.id, msg);
     return;
   }
+  if (msg && msg.type === "YT_CAPTURE_VIA_TAB") {
+    captureYtViaTab(msg.videoId).then(sendResponse).catch((e) => sendResponse({ ok: false, error: e.message }));
+    return true;
+  }
+  if (msg && msg.type === "YT_PAGE_DATA" && sender && sender.tab) {
+    onYtTabData(sender.tab.id, msg);
+    return;
+  }
 });
+
+// ===== YouTube 탭 기반 데이터 캡쳐 =====
+// 본인 브라우저로 youtube.com/watch 페이지를 백그라운드 탭에서 열면
+// YouTube가 봇 차단 없이 완전한 ytInitialPlayerResponse를 줌.
+const _pendingYtTabs = new Map(); // tabId -> { resolve, reject, timer }
+
+function onYtTabData(tabId, msg) {
+  const p = _pendingYtTabs.get(tabId);
+  if (!p) return;
+  clearTimeout(p.timer);
+  _pendingYtTabs.delete(tabId);
+  setTimeout(() => { try { chrome.tabs.remove(tabId); } catch {} }, 200);
+  if (msg.error) p.reject(new Error(msg.error));
+  else p.resolve({ ok: true, json: msg.json, url: msg.url });
+}
+
+async function captureYtViaTab(videoId) {
+  if (!videoId) throw new Error("videoId 필수");
+  const url = `https://www.youtube.com/watch?v=${encodeURIComponent(videoId)}`;
+  return new Promise(async (resolve, reject) => {
+    let tab;
+    try {
+      tab = await chrome.tabs.create({ url, active: false });
+    } catch (e) {
+      return reject(new Error("YouTube 탭 생성 실패: " + e.message));
+    }
+    const timer = setTimeout(() => {
+      _pendingYtTabs.delete(tab.id);
+      try { chrome.tabs.remove(tab.id); } catch {}
+      reject(new Error("YouTube 탭 응답 타임아웃 (30초)"));
+    }, 30000);
+    _pendingYtTabs.set(tab.id, { resolve, reject, timer });
+  });
+}
 
 // ===== 탭 기반 검색 =====
 // 1) MAIN world 인터셉터가 XHS 검색 API 응답을 가로채면 'xhr' 데이터로 즉시 해결
