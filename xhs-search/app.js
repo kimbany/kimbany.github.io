@@ -194,12 +194,14 @@ async function analyzeFrameAndSearch(dataUrl, btnEl, modalEl) {
   try {
     const result = await analyzeImageWithGemini(dataUrl);
     btnEl.textContent = "✅ " + (result.korean || result.chinese);
+    btnEl.disabled = false;
     // 메인 검색창에 한국어 키워드 채우고 검색 (한국어 → 자동 중국어 번역 경로 재사용)
     q.value = result.korean || result.chinese;
     // 모달 닫기
     const close = modalEl.querySelector("#ytClose");
     if (close) close.click();
-    document.querySelector(".card").scrollIntoView({ behavior: "smooth", block: "start" });
+    const searchCard = q.closest(".card");
+    if (searchCard) searchCard.scrollIntoView({ behavior: "smooth", block: "start" });
     setStatus(`🔍 AI 인식: "${result.description || result.korean}" → 샤오홍슈 검색 중…`, "ok");
     search();
   } catch (e) {
