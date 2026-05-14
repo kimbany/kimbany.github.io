@@ -423,6 +423,97 @@ function onProductPick(idx, item) {
 // ===== YouTube 프레임 캡쳐 =====
 // 우선순위: (1) 스토리보드(정확한 시점, 저화질) → (2) 직접 영상 URL canvas(정확한 시점, 고화질, CORS 이슈) → (3) 공개 썸네일(부정확)
 
+// YouTube 페이지를 공용 프록시 통해 직접 받아 ytInitialPlayerResponse 안의 스토리보드 spec 추출
+async function fetchYouTubePageHtml(videoId) {
+  const url = `https://www.youtube.com/watch?v=${videoId}`;
+  const proxies = [
+    { make: (u) => `https://r.jina.ai/${u}`, headers: { "X-Return-Format": "html", "X-No-Cache": "false" } },
+    { make: (u) => `https://api.allorigins.win/raw?url=${encodeURIComponent(u)}` },
+    { make: (u) => `https://api.codetabs.com/v1/proxy/?quest=${encodeURIComponent(u)}` },
+    { make: (u) => `https://corsproxy.io/?${encodeURIComponent(u)}` },
+    { make: (u) => `https://thingproxy.freeboard.io/fetch/${u}` },
+  ];
+  let lastErr;
+  for (const p of proxies) {
+    try {
+      const r = await fetch(p.make(url), { headers: p.headers || {} });
+      if (!r.ok) throw new Error("HTTP " + r.status);
+      const text = await r.text();
+      // ytInitialPlayerResponse가 있는지 빠른 체크
+      if (text.length > 30000 && /ytInitialPlayerResponse/.test(text)) return text;
+      throw new Error("응답에 ytInitialPlayerResponse 없음 (" + text.length + " bytes)");
+    } catch (e) { lastErr = e; }
+  }
+  throw lastErr || new Error("모든 프록시 실패");
+}
+
+// YouTube 페이지 HTML에서 스토리보드 spec 파싱 → 내부 형식으로 변환
+function parseStoryboardFromYouTubeHtml(html) {
+  // ytInitialPlayerResponse = {...};
+  let m = html.match(/ytInitialPlayerResponse\s*=\s*(\{[\s\S]+?\})\s*;[\s\S]*?<\/script>/);
+  if (!m) m = html.match(/ytInitialPlayerResponse\s*=\s*(\{[\s\S]+?\})\s*;/);
+  if (!m) throw new Error("ytInitialPlayerResponse 못 찾음");
+  let json;
+  try { json = JSON.parse(m[1]); }
+  catch (e) {
+    // 일부 응답은 끝부분 잘려있을 수 있음 — 첫 닫는 중괄호까지 자르기 시도
+    try {
+      let raw = m[1];
+      let depth = 0, end = -1;
+      for (let i = 0; i < raw.length; i++) {
+        if (raw[i] === "{") depth++;
+        else if (raw[i] === "}") { depth--; if (depth === 0) { end = i + 1; break; } }
+      }
+      if (end > 0) json = JSON.parse(raw.slice(0, end));
+      else throw e;
+    } catch (e2) { throw new Error("JSON 파싱 실패: " + e2.message); }
+  }
+  const spec = json && json.storyboards && json.storyboards.playerStoryboardSpecRenderer && json.storyboards.playerStoryboardSpecRenderer.spec;
+  const duration = (json && json.videoDetails && parseInt(json.videoDetails.lengthSeconds)) || null;
+  if (!spec) throw new Error("playerStoryboardSpecRenderer.spec 없음");
+  // spec format: URL_BASE|L0params|L1params|L2params...
+  const parts = spec.split("|");
+  const urlBase = parts[0];
+  const levels = parts.slice(1);
+  if (!levels.length) throw new Error("L 파라미터 없음");
+  // 가장 큰 화질(보통 마지막)
+  const lastIdx = levels.length - 1;
+  // params: width#height#count#cols#rows#duration#name#signature
+  const p = levels[lastIdx].split("#");
+  if (p.length < 8) throw new Error("L 파라미터 형식 오류 (" + p.length + "개)");
+  const width = parseInt(p[0]);
+  const height = parseInt(p[1]);
+  const count = parseInt(p[2]);
+  const cols = parseInt(p[3]);
+  const rows = parseInt(p[4]);
+  const durMs = parseInt(p[5]);
+  const name = p[6];
+  const sigh = p[7];
+  const framesPerSheet = cols * rows;
+  const sheets = Math.max(1, Math.ceil(count / framesPerSheet));
+  const urls = [];
+  for (let mi = 0; mi < sheets; mi++) {
+    let u = urlBase
+      .replace(/\$L/g, String(lastIdx))
+      .replace(/\$M/g, String(mi))
+      .replace(/\$N/g, name);
+    if (!/[?&]sigh=/.test(u)) u += (u.includes("?") ? "&" : "?") + "sigh=" + sigh;
+    urls.push(u);
+  }
+  return {
+    storyboard: {
+      urls,
+      frameWidth: width,
+      frameHeight: height,
+      totalCount: count,
+      framesPerPageX: cols,
+      framesPerPageY: rows,
+      durationPerFrame: durMs,
+    },
+    duration,
+  };
+}
+
 // Invidious 공개 인스턴스 (Piped와 비슷한 YouTube 미러)
 const INVIDIOUS_INSTANCES = [
   "https://invidious.snopyta.org",
@@ -601,13 +692,34 @@ async function captureVideoFrames(videoId, modalEl) {
       console.warn("[Capture] Invidious 실패:", e.message);
     }
   }
+
+  // (c) Piped/Invidious 다 실패 시 — 공용 CORS 프록시로 YouTube 페이지 직접 파싱
+  let ytScrapeError = null;
+  if (!streamData) {
+    try {
+      setProgress(17, "공용 프록시로 YouTube 페이지 직접 가져오는 중");
+      const html = await fetchYouTubePageHtml(videoId);
+      console.log("[Capture] YouTube 페이지 받음:", html.length, "bytes");
+      const parsed = parseStoryboardFromYouTubeHtml(html);
+      streamData = {
+        duration: parsed.duration,
+        previewFrames: [parsed.storyboard],
+        videoStreams: [],
+      };
+      usedSource = "공용 프록시 + YouTube 직접 파싱";
+      console.log("[Capture] 파싱 성공. duration:", parsed.duration, "스토리보드:", parsed.storyboard);
+    } catch (e) {
+      ytScrapeError = e.message;
+      console.warn("[Capture] YouTube 직접 파싱 실패:", e.message);
+    }
+  }
   if (usedSource) setStatusFrame("📡 데이터 출처: " + usedSource, "");
 
   // (1) 스토리보드 시도 — 정확한 시점, 저화질 (확실)
   const previewFrames = (streamData && streamData.previewFrames) || [];
   const duration = streamData && streamData.duration;
   let storyboardReason = null;
-  if (!streamData) storyboardReason = `Piped 실패(${pipedError || "?"}), Invidious 실패(${invidiousError || "?"})`;
+  if (!streamData) storyboardReason = `Piped(${pipedError || "?"}) + Invidious(${invidiousError || "?"}) + YouTube직접(${ytScrapeError || "?"}) 모두 실패`;
   else if (!duration) storyboardReason = `${usedSource} 응답에 duration 없음`;
   else if (!previewFrames.length) storyboardReason = `${usedSource} 응답에 storyboards 없음 (이 영상은 스토리보드 미제공)`;
 
