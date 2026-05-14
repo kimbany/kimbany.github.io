@@ -520,6 +520,32 @@ function parseYouTubeSearchHtml(html) {
         });
       }
     }
+    // 새 숏폼 형식 (shortsLockupViewModel)
+    if (obj.shortsLockupViewModel) {
+      const v = obj.shortsLockupViewModel;
+      let id =
+        (v.onTap && v.onTap.innertubeCommand && v.onTap.innertubeCommand.reelWatchEndpoint && v.onTap.innertubeCommand.reelWatchEndpoint.videoId) ||
+        (v.navigationEndpoint && v.navigationEndpoint.reelWatchEndpoint && v.navigationEndpoint.reelWatchEndpoint.videoId) ||
+        (v.entityId && String(v.entityId).replace(/^shorts-?/, "")) || "";
+      if (id && !seen.has(id)) {
+        seen.add(id);
+        const title =
+          (v.overlayMetadata && v.overlayMetadata.primaryText && v.overlayMetadata.primaryText.content) ||
+          v.accessibilityText || "";
+        const viewText =
+          (v.overlayMetadata && v.overlayMetadata.secondaryText && v.overlayMetadata.secondaryText.content) || "";
+        const srcs = (v.thumbnail && v.thumbnail.sources) || [];
+        items.push({
+          title,
+          url: `https://www.youtube.com/watch?v=${id}`,
+          thumbnail: srcs.length ? srcs[srcs.length - 1].url : `https://i.ytimg.com/vi/${id}/mqdefault.jpg`,
+          videoId: id,
+          uploaderName: "",
+          views: parseV(viewText),
+          duration: 30,
+        });
+      }
+    }
     for (const k in obj) {
       if (obj[k] && typeof obj[k] === "object") walk(obj[k]);
     }
@@ -528,71 +554,74 @@ function parseYouTubeSearchHtml(html) {
   return items;
 }
 
-// YouTube 페이지 HTML에서 스토리보드 spec 파싱 → 내부 형식으로 변환
+// YouTube 페이지 HTML에서 ytInitialPlayerResponse 파싱 → 스토리보드 + 영상 스트림 + 길이 추출
+// 스토리보드가 없어도 영상 스트림 URL은 반환 (둘 중 하나만 있어도 캡쳐 가능)
 function parseStoryboardFromYouTubeHtml(html) {
-  // ytInitialPlayerResponse = {...};
-  let m = html.match(/ytInitialPlayerResponse\s*=\s*(\{[\s\S]+?\})\s*;[\s\S]*?<\/script>/);
-  if (!m) m = html.match(/ytInitialPlayerResponse\s*=\s*(\{[\s\S]+?\})\s*;/);
+  let m = html.match(/ytInitialPlayerResponse\s*=\s*(\{[\s\S]+)/);
   if (!m) throw new Error("ytInitialPlayerResponse 못 찾음");
   let json;
-  try { json = JSON.parse(m[1]); }
-  catch (e) {
-    // 일부 응답은 끝부분 잘려있을 수 있음 — 첫 닫는 중괄호까지 자르기 시도
-    try {
-      let raw = m[1];
-      let depth = 0, end = -1;
-      for (let i = 0; i < raw.length; i++) {
-        if (raw[i] === "{") depth++;
-        else if (raw[i] === "}") { depth--; if (depth === 0) { end = i + 1; break; } }
-      }
-      if (end > 0) json = JSON.parse(raw.slice(0, end));
-      else throw e;
-    } catch (e2) { throw new Error("JSON 파싱 실패: " + e2.message); }
-  }
-  const spec = json && json.storyboards && json.storyboards.playerStoryboardSpecRenderer && json.storyboards.playerStoryboardSpecRenderer.spec;
+  try { json = JSON.parse(extractBalancedJson(m[1])); }
+  catch (e) { throw new Error("JSON 파싱 실패: " + e.message); }
+
   const duration = (json && json.videoDetails && parseInt(json.videoDetails.lengthSeconds)) || null;
-  if (!spec) throw new Error("playerStoryboardSpecRenderer.spec 없음");
-  // spec format: URL_BASE|L0params|L1params|L2params...
-  const parts = spec.split("|");
-  const urlBase = parts[0];
-  const levels = parts.slice(1);
-  if (!levels.length) throw new Error("L 파라미터 없음");
-  // 가장 큰 화질(보통 마지막)
-  const lastIdx = levels.length - 1;
-  // params: width#height#count#cols#rows#duration#name#signature
-  const p = levels[lastIdx].split("#");
-  if (p.length < 8) throw new Error("L 파라미터 형식 오류 (" + p.length + "개)");
-  const width = parseInt(p[0]);
-  const height = parseInt(p[1]);
-  const count = parseInt(p[2]);
-  const cols = parseInt(p[3]);
-  const rows = parseInt(p[4]);
-  const durMs = parseInt(p[5]);
-  const name = p[6];
-  const sigh = p[7];
-  const framesPerSheet = cols * rows;
-  const sheets = Math.max(1, Math.ceil(count / framesPerSheet));
-  const urls = [];
-  for (let mi = 0; mi < sheets; mi++) {
-    let u = urlBase
-      .replace(/\$L/g, String(lastIdx))
-      .replace(/\$M/g, String(mi))
-      .replace(/\$N/g, name);
-    if (!/[?&]sigh=/.test(u)) u += (u.includes("?") ? "&" : "?") + "sigh=" + sigh;
-    urls.push(u);
+
+  // --- 영상 스트림 URL 추출 (streamingData) ---
+  const videoStreams = [];
+  const sd = json.streamingData || {};
+  const allFormats = (sd.formats || []).concat(sd.adaptiveFormats || []);
+  for (const f of allFormats) {
+    // url이 직접 있는 것만 사용 (signatureCipher는 복호화 필요 → 스킵)
+    if (!f.url) continue;
+    if (!/video/i.test(f.mimeType || "")) continue;
+    videoStreams.push({
+      url: f.url,
+      quality: f.qualityLabel || f.quality || "",
+      mimeType: f.mimeType || "",
+      hasAudio: /audio/i.test(f.mimeType || ""),
+    });
   }
-  return {
-    storyboard: {
-      urls,
-      frameWidth: width,
-      frameHeight: height,
-      totalCount: count,
-      framesPerPageX: cols,
-      framesPerPageY: rows,
-      durationPerFrame: durMs,
-    },
-    duration,
-  };
+
+  // --- 스토리보드 추출 (있으면) ---
+  let storyboard = null;
+  const spec = json && json.storyboards && json.storyboards.playerStoryboardSpecRenderer && json.storyboards.playerStoryboardSpecRenderer.spec;
+  if (spec) {
+    try {
+      const parts = spec.split("|");
+      const urlBase = parts[0];
+      const levels = parts.slice(1);
+      if (levels.length) {
+        const lastIdx = levels.length - 1;
+        const p = levels[lastIdx].split("#");
+        if (p.length >= 8) {
+          const framesPerSheet = parseInt(p[3]) * parseInt(p[4]);
+          const count = parseInt(p[2]);
+          const sheets = Math.max(1, Math.ceil(count / framesPerSheet));
+          const urls = [];
+          for (let mi = 0; mi < sheets; mi++) {
+            let u = urlBase.replace(/\$L/g, String(lastIdx)).replace(/\$M/g, String(mi)).replace(/\$N/g, p[6]);
+            if (!/[?&]sigh=/.test(u)) u += (u.includes("?") ? "&" : "?") + "sigh=" + p[7];
+            urls.push(u);
+          }
+          storyboard = {
+            urls,
+            frameWidth: parseInt(p[0]),
+            frameHeight: parseInt(p[1]),
+            totalCount: count,
+            framesPerPageX: parseInt(p[3]),
+            framesPerPageY: parseInt(p[4]),
+            durationPerFrame: parseInt(p[5]),
+          };
+        }
+      }
+    } catch (e) {
+      console.warn("[Capture] 스토리보드 파싱 실패 (스트림 URL은 유지):", e.message);
+    }
+  }
+
+  if (!storyboard && !videoStreams.length) {
+    throw new Error("스토리보드도 영상 스트림 URL도 없음 (signatureCipher만 있는 영상일 수 있음)");
+  }
+  return { storyboard, duration, videoStreams };
 }
 
 // Invidious 공개 인스턴스 (Piped와 비슷한 YouTube 미러)
@@ -784,11 +813,13 @@ async function captureVideoFrames(videoId, modalEl) {
       const parsed = parseStoryboardFromYouTubeHtml(html);
       streamData = {
         duration: parsed.duration,
-        previewFrames: [parsed.storyboard],
-        videoStreams: [],
+        previewFrames: parsed.storyboard ? [parsed.storyboard] : [],
+        videoStreams: parsed.videoStreams || [],
       };
       usedSource = "공용 프록시 + YouTube 직접 파싱";
-      console.log("[Capture] 파싱 성공. duration:", parsed.duration, "스토리보드:", parsed.storyboard);
+      console.log("[Capture] 파싱 성공. duration:", parsed.duration,
+        "스토리보드:", parsed.storyboard ? "있음" : "없음",
+        "영상스트림:", (parsed.videoStreams || []).length, "개");
     } catch (e) {
       ytScrapeError = e.message;
       console.warn("[Capture] YouTube 직접 파싱 실패:", e.message);
@@ -1462,13 +1493,43 @@ async function searchYouTube(keyword) {
 
   // (2) 공용 프록시로 YouTube 검색 페이지 직접 파싱 (duration 포함!)
   try {
-    startYtProgressDrift(40, 80, 6000, "공용 프록시로 YouTube 검색 페이지 가져오는 중");
+    startYtProgressDrift(40, 65, 5000, "공용 프록시로 YouTube 검색 페이지 가져오는 중");
     const url = `https://www.youtube.com/results?search_query=${encodeURIComponent(keyword)}`;
     const html = await fetchViaProxies(url, "ytInitialData");
-    setYtProgress(85, "검색 결과 파싱 중");
+    setYtProgress(70, "검색 결과 파싱 중");
     items = parseYouTubeSearchHtml(html);
     if (!items.length) throw new Error("파싱 결과 0개");
-    const sc = items.filter((it) => it.duration && it.duration <= 60).length;
+
+    let sc = items.filter((it) => it.duration && it.duration <= 60).length;
+    console.log(`[YT] 메인 검색: 총 ${items.length}개, 숏폼 ${sc}개`);
+
+    // 숏폼이 적으면 "키워드 shorts" 보조 검색으로 숏폼 더 끌어오기
+    if (sc < 10) {
+      const existingIds = new Set(items.map((it) => it.videoId));
+      const shortsQueries = [`${keyword} shorts`, `${keyword} 숏츠`];
+      for (const sq of shortsQueries) {
+        if (sc >= 10) break;
+        try {
+          setYtProgress(78, `숏폼 ${sc}개 — "${sq}" 추가 검색 중`);
+          const sUrl = `https://www.youtube.com/results?search_query=${encodeURIComponent(sq)}`;
+          const sHtml = await fetchViaProxies(sUrl, "ytInitialData");
+          const sItems = parseYouTubeSearchHtml(sHtml);
+          let added = 0;
+          for (const it of sItems) {
+            if (existingIds.has(it.videoId)) continue;
+            // 실제 길이 유지 — shortsLockupViewModel이면 duration=30, videoRenderer면 실제값
+            items.push(it);
+            existingIds.add(it.videoId);
+            added++;
+          }
+          sc = items.filter((x) => x.duration && x.duration <= 60).length;
+          console.log(`[YT] "${sq}" 검색: ${sItems.length}개 받음, ${added}개 추가, 누적 숏폼 ${sc}개`);
+        } catch (e) {
+          console.warn(`[YT] "${sq}" 검색 실패 (무시 가능):`, e.message);
+        }
+      }
+    }
+
     const lc = items.filter((it) => it.duration && it.duration > 60).length;
     setYtProgress(95, "결과 렌더링");
     renderYtResults(items);
