@@ -69,6 +69,26 @@ function extensionTabSearch(keyword) {
   });
 }
 
+// 확장으로 이미지를 fetch해서 dataURL로 받기 — i.ytimg.com 같은 CORS 미허용 호스트 우회
+function extensionFetchImage(url) {
+  return new Promise((resolve, reject) => {
+    const id = "img-" + Math.random().toString(36).slice(2);
+    const handler = (e) => {
+      if (e.source !== window) return;
+      const m = e.data;
+      if (!m || m.type !== "XHS_HELPER_FETCH_IMAGE_RESULT" || m.requestId !== id) return;
+      window.removeEventListener("message", handler);
+      if (m.error) return reject(new Error(m.error));
+      const r = m.response || {};
+      if (!r.ok || !r.dataUrl) return reject(new Error(r.error || "이미지 fetch 실패"));
+      resolve(r.dataUrl);
+    };
+    window.addEventListener("message", handler);
+    window.postMessage({ type: "XHS_HELPER_FETCH_IMAGE", requestId: id, url }, "*");
+    setTimeout(() => { window.removeEventListener("message", handler); reject(new Error("이미지 fetch 타임아웃 (15초)")); }, 15000);
+  });
+}
+
 // 확장으로 YouTube 영상 데이터 캡쳐 — 백그라운드 탭으로 youtube.com 열어 ytInitialPlayerResponse 받기
 function extensionYtCapture(videoId) {
   return new Promise((resolve, reject) => {
@@ -620,7 +640,11 @@ function parsePlayerResponse(json) {
           const sheets = Math.max(1, Math.ceil(count / framesPerSheet));
           const urls = [];
           for (let mi = 0; mi < sheets; mi++) {
-            let u = urlBase.replace(/\$L/g, String(lastIdx)).replace(/\$M/g, String(mi)).replace(/\$N/g, p[6]);
+            // 순서 중요: $N 이 'M$M' 같은 값으로 펼쳐지므로 $N 먼저, $M 나중
+            let u = urlBase
+              .replace(/\$L/g, String(lastIdx))
+              .replace(/\$N/g, p[6])
+              .replace(/\$M/g, String(mi));
             if (!/[?&]sigh=/.test(u)) u += (u.includes("?") ? "&" : "?") + "sigh=" + p[7];
             urls.push(u);
           }
@@ -740,14 +764,27 @@ async function extractStoryboardFrame(sb, timeSeconds) {
   const spriteUrl = urls[pageIdx];
   if (!spriteUrl) throw new Error("스토리보드 페이지 URL 없음");
 
+  // i.ytimg.com은 CORS 헤더를 안 줘서 직접 로드하면 canvas tainted 됨.
+  // 확장이 있으면 확장으로 fetch해서 dataURL로 받음 (dataURL은 same-origin).
+  let imgSrc = spriteUrl;
+  if (extensionDetected) {
+    try {
+      imgSrc = await extensionFetchImage(spriteUrl);
+    } catch (e) {
+      console.warn("[Capture] 확장 이미지 fetch 실패, 직접 로드 시도:", e.message);
+      imgSrc = spriteUrl;
+    }
+  }
+
   const img = new Image();
-  img.crossOrigin = "anonymous";
+  // dataURL이면 crossOrigin 불필요, 일반 URL이면 시도 (대부분 실패하지만 폴백)
+  if (!imgSrc.startsWith("data:")) img.crossOrigin = "anonymous";
   const loaded = new Promise((res, rej) => {
     const to = setTimeout(() => rej(new Error("스토리보드 로드 타임아웃 (8초)")), 8000);
     img.onload = () => { clearTimeout(to); res(); };
     img.onerror = () => { clearTimeout(to); rej(new Error("스토리보드 이미지 로드 실패")); };
   });
-  img.src = spriteUrl;
+  img.src = imgSrc;
   await loaded;
 
   const canvas = document.createElement("canvas");

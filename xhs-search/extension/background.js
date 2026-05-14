@@ -17,6 +17,10 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     handleFetch(msg).then(sendResponse).catch((e) => sendResponse({ ok: false, error: e.message }));
     return true; // async
   }
+  if (msg && msg.type === "XHS_FETCH_IMAGE") {
+    handleFetchImage(msg.url).then(sendResponse).catch((e) => sendResponse({ ok: false, error: e.message }));
+    return true;
+  }
   if (msg && msg.type === "XHS_SEARCH_VIA_TAB") {
     searchViaTab(msg.keyword).then(sendResponse).catch((e) => sendResponse({ ok: false, error: e.message }));
     return true;
@@ -161,5 +165,27 @@ async function handleFetch({ url, init }) {
       name: e.name || "Error",
       url,
     };
+  }
+}
+
+// 이미지 URL을 fetch해서 data URL로 반환 — i.ytimg.com 같은 CORS 미허용 호스트 우회용
+async function handleFetchImage(url) {
+  if (!url) return { ok: false, error: "url 필수" };
+  try {
+    const r = await fetch(url, { credentials: "omit", redirect: "follow" });
+    if (!r.ok) return { ok: false, status: r.status, error: "HTTP " + r.status };
+    const buf = await r.arrayBuffer();
+    const bytes = new Uint8Array(buf);
+    let binary = "";
+    const CHUNK = 0x8000;
+    for (let i = 0; i < bytes.length; i += CHUNK) {
+      binary += String.fromCharCode.apply(null, bytes.subarray(i, i + CHUNK));
+    }
+    const base64 = btoa(binary);
+    const type = r.headers.get("Content-Type") || "image/jpeg";
+    return { ok: true, dataUrl: `data:${type};base64,${base64}`, size: bytes.length };
+  } catch (e) {
+    console.error("[XHS-Helper-BG] 이미지 fetch 실패:", e);
+    return { ok: false, status: 0, error: e.message || String(e) };
   }
 }
