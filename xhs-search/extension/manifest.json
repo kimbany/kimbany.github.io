@@ -2,12 +2,14 @@
   "manifest_version": 3,
   "name": "샤오홍슈 검색기 헬퍼",
   "short_name": "XHS Helper",
-  "version": "1.0.4",
-  "description": "kimbany.github.io/xhs-search/ 또는 invedory.com/xhs-search/에서 본인 브라우저 세션으로 샤오홍슈 검색 결과를 가져옵니다.",
+  "version": "1.0.5",
+  "description": "invedory.com/xhs-search/ 에서 본인 브라우저 세션으로 샤오홍슈 검색 + YouTube 영상 데이터를 가져옵니다.",
   "permissions": ["cookies", "storage", "tabs", "scripting"],
   "host_permissions": [
     "https://*.xiaohongshu.com/*",
-    "https://*.xhscdn.com/*"
+    "https://*.xhscdn.com/*",
+    "https://*.youtube.com/*",
+    "https://*.ytimg.com/*"
   ],
   "background": {
     "service_worker": "background.js"
@@ -35,6 +37,17 @@
     {
       "matches": ["https://www.xiaohongshu.com/*"],
       "js": ["xhs-page-bridge.js"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": ["https://www.youtube.com/watch*"],
+      "js": ["yt-page-main.js"],
+      "run_at": "document_idle",
+      "world": "MAIN"
+    },
+    {
+      "matches": ["https://www.youtube.com/watch*"],
+      "js": ["yt-page-bridge.js"],
       "run_at": "document_idle"
     }
   ],

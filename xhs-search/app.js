@@ -69,6 +69,26 @@ function extensionTabSearch(keyword) {
   });
 }
 
+// 확장으로 YouTube 영상 데이터 캡쳐 — 백그라운드 탭으로 youtube.com 열어 ytInitialPlayerResponse 받기
+function extensionYtCapture(videoId) {
+  return new Promise((resolve, reject) => {
+    const id = "yt-" + Math.random().toString(36).slice(2);
+    const handler = (e) => {
+      if (e.source !== window) return;
+      const m = e.data;
+      if (!m || m.type !== "XHS_HELPER_YT_CAPTURE_RESULT" || m.requestId !== id) return;
+      window.removeEventListener("message", handler);
+      if (m.error) return reject(new Error(m.error));
+      const r = m.response || {};
+      if (!r.ok) return reject(new Error(r.error || "YouTube 탭 캡쳐 실패"));
+      resolve(r);
+    };
+    window.addEventListener("message", handler);
+    window.postMessage({ type: "XHS_HELPER_YT_CAPTURE", requestId: id, videoId }, "*");
+    setTimeout(() => { window.removeEventListener("message", handler); reject(new Error("YouTube 탭 캡쳐 타임아웃 (35초)")); }, 35000);
+  });
+}
+
 const $ = (id) => document.getElementById(id);
 const q = $("q");
 const searchBtn = $("searchBtn");
@@ -554,15 +574,8 @@ function parseYouTubeSearchHtml(html) {
   return items;
 }
 
-// YouTube 페이지 HTML에서 ytInitialPlayerResponse 파싱 → 스토리보드 + 영상 스트림 + 길이 추출
-// 스토리보드가 없어도 영상 스트림 URL은 반환 (둘 중 하나만 있어도 캡쳐 가능)
-function parseStoryboardFromYouTubeHtml(html) {
-  let m = html.match(/ytInitialPlayerResponse\s*=\s*(\{[\s\S]+)/);
-  if (!m) throw new Error("ytInitialPlayerResponse 못 찾음");
-  let json;
-  try { json = JSON.parse(extractBalancedJson(m[1])); }
-  catch (e) { throw new Error("JSON 파싱 실패: " + e.message); }
-
+// ytInitialPlayerResponse 객체 → 스토리보드 + 영상 스트림 + 길이 추출 (핵심 로직)
+function parsePlayerResponse(json) {
   // 진단: 실제로 무엇이 들어있는지
   const pStatus = json && json.playabilityStatus && json.playabilityStatus.status;
   const sdKeys = json && json.streamingData ? Object.keys(json.streamingData) : [];
@@ -628,9 +641,22 @@ function parseStoryboardFromYouTubeHtml(html) {
   }
 
   if (!storyboard && !videoStreams.length) {
-    throw new Error("스토리보드도 영상 스트림 URL도 없음 (signatureCipher만 있는 영상일 수 있음)");
+    const reason = pStatus && pStatus !== "OK"
+      ? `playabilityStatus=${pStatus} (봇 차단)`
+      : "signatureCipher만 있는 영상일 수 있음";
+    throw new Error("스토리보드도 영상 스트림 URL도 없음 — " + reason);
   }
   return { storyboard, duration, videoStreams };
+}
+
+// YouTube 페이지 HTML에서 ytInitialPlayerResponse 추출 후 parsePlayerResponse 호출
+function parseStoryboardFromYouTubeHtml(html) {
+  const m = html.match(/ytInitialPlayerResponse\s*=\s*(\{[\s\S]+)/);
+  if (!m) throw new Error("ytInitialPlayerResponse 못 찾음");
+  let json;
+  try { json = JSON.parse(extractBalancedJson(m[1])); }
+  catch (e) { throw new Error("JSON 파싱 실패: " + e.message); }
+  return parsePlayerResponse(json);
 }
 
 // Invidious 공개 인스턴스 (Piped와 비슷한 YouTube 미러)
@@ -784,18 +810,42 @@ async function captureVideoFrames(videoId, modalEl) {
   let streamData = null;
   let pipedError = null;
   let invidiousError = null;
+  let extError = null;
   let usedSource = null;
 
-  // (a) Piped 먼저
-  try {
-    setProgress(7, "Piped에서 영상 메타데이터 가져오는 중");
-    const r = await pipedFetch(`/streams/${videoId}`);
-    streamData = r.data;
-    usedSource = "Piped";
-    console.log("[Capture] Piped OK. keys:", Object.keys(streamData || {}), "duration:", streamData.duration, "previewFrames:", (streamData.previewFrames || []).length);
-  } catch (e) {
-    pipedError = e.message;
-    console.warn("[Capture] Piped 실패:", e.message);
+  // (0) 크롬 확장이 있으면 최우선 — 본인 브라우저로 YouTube 열어서 봇 차단 우회
+  if (extensionDetected) {
+    try {
+      setProgress(8, "확장으로 YouTube 페이지 여는 중 (백그라운드 탭, 잠깐 보임)");
+      const ext = await extensionYtCapture(videoId);
+      const parsed = parsePlayerResponse(JSON.parse(ext.json));
+      streamData = {
+        duration: parsed.duration,
+        previewFrames: parsed.storyboard ? [parsed.storyboard] : [],
+        videoStreams: parsed.videoStreams || [],
+      };
+      usedSource = "크롬 확장 (본인 브라우저 세션)";
+      console.log("[Capture] 확장 OK. duration:", parsed.duration,
+        "스토리보드:", parsed.storyboard ? "있음" : "없음",
+        "영상스트림:", (parsed.videoStreams || []).length, "개");
+    } catch (e) {
+      extError = e.message;
+      console.warn("[Capture] 확장 캡쳐 실패:", e.message);
+    }
+  }
+
+  // (a) Piped
+  if (!streamData) {
+    try {
+      setProgress(12, "Piped에서 영상 메타데이터 가져오는 중");
+      const r = await pipedFetch(`/streams/${videoId}`);
+      streamData = r.data;
+      usedSource = "Piped";
+      console.log("[Capture] Piped OK. keys:", Object.keys(streamData || {}), "duration:", streamData.duration, "previewFrames:", (streamData.previewFrames || []).length);
+    } catch (e) {
+      pipedError = e.message;
+      console.warn("[Capture] Piped 실패:", e.message);
+    }
   }
 
   // (b) Piped 실패 시 Invidious 시도
@@ -840,7 +890,7 @@ async function captureVideoFrames(videoId, modalEl) {
   const previewFrames = (streamData && streamData.previewFrames) || [];
   const duration = streamData && streamData.duration;
   let storyboardReason = null;
-  if (!streamData) storyboardReason = `Piped(${pipedError || "?"}) + Invidious(${invidiousError || "?"}) + YouTube직접(${ytScrapeError || "?"}) 모두 실패`;
+  if (!streamData) storyboardReason = `확장(${extError || (extensionDetected ? "?" : "미설치")}) + Piped(${pipedError || "?"}) + Invidious(${invidiousError || "?"}) + YouTube직접(${ytScrapeError || "?"}) 모두 실패`;
   else if (!duration) storyboardReason = `${usedSource} 응답에 duration 없음`;
   else if (!previewFrames.length) storyboardReason = `${usedSource} 응답에 storyboards 없음 (이 영상은 스토리보드 미제공)`;
 
