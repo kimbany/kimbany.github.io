@@ -554,71 +554,74 @@ function parseYouTubeSearchHtml(html) {
   return items;
 }
 
-// YouTube 페이지 HTML에서 스토리보드 spec 파싱 → 내부 형식으로 변환
+// YouTube 페이지 HTML에서 ytInitialPlayerResponse 파싱 → 스토리보드 + 영상 스트림 + 길이 추출
+// 스토리보드가 없어도 영상 스트림 URL은 반환 (둘 중 하나만 있어도 캡쳐 가능)
 function parseStoryboardFromYouTubeHtml(html) {
-  // ytInitialPlayerResponse = {...};
-  let m = html.match(/ytInitialPlayerResponse\s*=\s*(\{[\s\S]+?\})\s*;[\s\S]*?<\/script>/);
-  if (!m) m = html.match(/ytInitialPlayerResponse\s*=\s*(\{[\s\S]+?\})\s*;/);
+  let m = html.match(/ytInitialPlayerResponse\s*=\s*(\{[\s\S]+)/);
   if (!m) throw new Error("ytInitialPlayerResponse 못 찾음");
   let json;
-  try { json = JSON.parse(m[1]); }
-  catch (e) {
-    // 일부 응답은 끝부분 잘려있을 수 있음 — 첫 닫는 중괄호까지 자르기 시도
-    try {
-      let raw = m[1];
-      let depth = 0, end = -1;
-      for (let i = 0; i < raw.length; i++) {
-        if (raw[i] === "{") depth++;
-        else if (raw[i] === "}") { depth--; if (depth === 0) { end = i + 1; break; } }
-      }
-      if (end > 0) json = JSON.parse(raw.slice(0, end));
-      else throw e;
-    } catch (e2) { throw new Error("JSON 파싱 실패: " + e2.message); }
-  }
-  const spec = json && json.storyboards && json.storyboards.playerStoryboardSpecRenderer && json.storyboards.playerStoryboardSpecRenderer.spec;
+  try { json = JSON.parse(extractBalancedJson(m[1])); }
+  catch (e) { throw new Error("JSON 파싱 실패: " + e.message); }
+
   const duration = (json && json.videoDetails && parseInt(json.videoDetails.lengthSeconds)) || null;
-  if (!spec) throw new Error("playerStoryboardSpecRenderer.spec 없음");
-  // spec format: URL_BASE|L0params|L1params|L2params...
-  const parts = spec.split("|");
-  const urlBase = parts[0];
-  const levels = parts.slice(1);
-  if (!levels.length) throw new Error("L 파라미터 없음");
-  // 가장 큰 화질(보통 마지막)
-  const lastIdx = levels.length - 1;
-  // params: width#height#count#cols#rows#duration#name#signature
-  const p = levels[lastIdx].split("#");
-  if (p.length < 8) throw new Error("L 파라미터 형식 오류 (" + p.length + "개)");
-  const width = parseInt(p[0]);
-  const height = parseInt(p[1]);
-  const count = parseInt(p[2]);
-  const cols = parseInt(p[3]);
-  const rows = parseInt(p[4]);
-  const durMs = parseInt(p[5]);
-  const name = p[6];
-  const sigh = p[7];
-  const framesPerSheet = cols * rows;
-  const sheets = Math.max(1, Math.ceil(count / framesPerSheet));
-  const urls = [];
-  for (let mi = 0; mi < sheets; mi++) {
-    let u = urlBase
-      .replace(/\$L/g, String(lastIdx))
-      .replace(/\$M/g, String(mi))
-      .replace(/\$N/g, name);
-    if (!/[?&]sigh=/.test(u)) u += (u.includes("?") ? "&" : "?") + "sigh=" + sigh;
-    urls.push(u);
+
+  // --- 영상 스트림 URL 추출 (streamingData) ---
+  const videoStreams = [];
+  const sd = json.streamingData || {};
+  const allFormats = (sd.formats || []).concat(sd.adaptiveFormats || []);
+  for (const f of allFormats) {
+    // url이 직접 있는 것만 사용 (signatureCipher는 복호화 필요 → 스킵)
+    if (!f.url) continue;
+    if (!/video/i.test(f.mimeType || "")) continue;
+    videoStreams.push({
+      url: f.url,
+      quality: f.qualityLabel || f.quality || "",
+      mimeType: f.mimeType || "",
+      hasAudio: /audio/i.test(f.mimeType || ""),
+    });
   }
-  return {
-    storyboard: {
-      urls,
-      frameWidth: width,
-      frameHeight: height,
-      totalCount: count,
-      framesPerPageX: cols,
-      framesPerPageY: rows,
-      durationPerFrame: durMs,
-    },
-    duration,
-  };
+
+  // --- 스토리보드 추출 (있으면) ---
+  let storyboard = null;
+  const spec = json && json.storyboards && json.storyboards.playerStoryboardSpecRenderer && json.storyboards.playerStoryboardSpecRenderer.spec;
+  if (spec) {
+    try {
+      const parts = spec.split("|");
+      const urlBase = parts[0];
+      const levels = parts.slice(1);
+      if (levels.length) {
+        const lastIdx = levels.length - 1;
+        const p = levels[lastIdx].split("#");
+        if (p.length >= 8) {
+          const framesPerSheet = parseInt(p[3]) * parseInt(p[4]);
+          const count = parseInt(p[2]);
+          const sheets = Math.max(1, Math.ceil(count / framesPerSheet));
+          const urls = [];
+          for (let mi = 0; mi < sheets; mi++) {
+            let u = urlBase.replace(/\$L/g, String(lastIdx)).replace(/\$M/g, String(mi)).replace(/\$N/g, p[6]);
+            if (!/[?&]sigh=/.test(u)) u += (u.includes("?") ? "&" : "?") + "sigh=" + p[7];
+            urls.push(u);
+          }
+          storyboard = {
+            urls,
+            frameWidth: parseInt(p[0]),
+            frameHeight: parseInt(p[1]),
+            totalCount: count,
+            framesPerPageX: parseInt(p[3]),
+            framesPerPageY: parseInt(p[4]),
+            durationPerFrame: parseInt(p[5]),
+          };
+        }
+      }
+    } catch (e) {
+      console.warn("[Capture] 스토리보드 파싱 실패 (스트림 URL은 유지):", e.message);
+    }
+  }
+
+  if (!storyboard && !videoStreams.length) {
+    throw new Error("스토리보드도 영상 스트림 URL도 없음 (signatureCipher만 있는 영상일 수 있음)");
+  }
+  return { storyboard, duration, videoStreams };
 }
 
 // Invidious 공개 인스턴스 (Piped와 비슷한 YouTube 미러)
@@ -810,11 +813,13 @@ async function captureVideoFrames(videoId, modalEl) {
       const parsed = parseStoryboardFromYouTubeHtml(html);
       streamData = {
         duration: parsed.duration,
-        previewFrames: [parsed.storyboard],
-        videoStreams: [],
+        previewFrames: parsed.storyboard ? [parsed.storyboard] : [],
+        videoStreams: parsed.videoStreams || [],
       };
       usedSource = "공용 프록시 + YouTube 직접 파싱";
-      console.log("[Capture] 파싱 성공. duration:", parsed.duration, "스토리보드:", parsed.storyboard);
+      console.log("[Capture] 파싱 성공. duration:", parsed.duration,
+        "스토리보드:", parsed.storyboard ? "있음" : "없음",
+        "영상스트림:", (parsed.videoStreams || []).length, "개");
     } catch (e) {
       ytScrapeError = e.message;
       console.warn("[Capture] YouTube 직접 파싱 실패:", e.message);
