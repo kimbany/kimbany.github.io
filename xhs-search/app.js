@@ -128,12 +128,86 @@ const workerStatus = $("workerStatus");
 const setupWarn = $("setupWarn");
 
 const LS_KEY_WORKER = "xhs-search.workerUrl";
+const LS_KEY_GEMINI = "xhs-search.geminiKey";
 
 let lastTranslation = ""; // 마지막 번역 결과 캐시
 
 function setStatus(msg, kind = "") {
   statusEl.className = "status " + kind;
   statusEl.textContent = msg;
+}
+
+function getGeminiKey() {
+  return (localStorage.getItem(LS_KEY_GEMINI) || "").trim();
+}
+
+// Gemini Vision으로 이미지 분석 → { korean, chinese, description }
+async function analyzeImageWithGemini(dataUrl) {
+  const key = getGeminiKey();
+  if (!key) throw new Error("Gemini API 키 미설정 — 하단 ⚙️ 설정에서 등록하세요");
+  const m = dataUrl.match(/^data:(image\/[\w.+-]+);base64,(.+)$/);
+  if (!m) throw new Error("이미지 형식 오류 (dataURL 아님)");
+  const mimeType = m[1];
+  const base64 = m[2];
+
+  const prompt = `이 이미지는 한국 유튜브 제품 리뷰/추천 영상의 한 장면입니다.
+이미지에서 가장 눈에 띄는 "판매 상품" 하나를 식별하세요.
+샤오홍슈(중국 쇼핑 SNS)에서 같거나 비슷한 제품을 찾을 수 있도록 검색 키워드를 만들어주세요.
+JSON만 출력. 형식: {"korean":"한국어 검색어(3~6단어)","chinese":"중국어 검색어","description":"제품 한 줄 설명"}`;
+
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${encodeURIComponent(key)}`;
+  const r = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      contents: [{ parts: [
+        { text: prompt },
+        { inline_data: { mime_type: mimeType, data: base64 } },
+      ] }],
+      generationConfig: { temperature: 0.4, responseMimeType: "application/json" },
+    }),
+  });
+  if (!r.ok) {
+    const t = await r.text();
+    throw new Error("Gemini HTTP " + r.status + " — " + t.slice(0, 160));
+  }
+  const data = await r.json();
+  const text = (data.candidates && data.candidates[0] && data.candidates[0].content &&
+    data.candidates[0].content.parts && data.candidates[0].content.parts[0] &&
+    data.candidates[0].content.parts[0].text) || "";
+  let parsed;
+  try { parsed = JSON.parse(text); }
+  catch {
+    const jm = text.match(/\{[\s\S]*\}/);
+    if (!jm) throw new Error("Gemini 응답 파싱 실패: " + text.slice(0, 120));
+    parsed = JSON.parse(jm[0]);
+  }
+  if (!parsed.korean && !parsed.chinese) throw new Error("Gemini가 제품을 식별 못 함");
+  return parsed;
+}
+
+// 프레임 분석 → 검색창 채우고 XHS 검색 트리거
+async function analyzeFrameAndSearch(dataUrl, btnEl, modalEl) {
+  const orig = btnEl.textContent;
+  btnEl.disabled = true;
+  btnEl.textContent = "⏳ AI 제품 인식 중…";
+  try {
+    const result = await analyzeImageWithGemini(dataUrl);
+    btnEl.textContent = "✅ " + (result.korean || result.chinese);
+    btnEl.disabled = false;
+    // 메인 검색창에 한국어 키워드 채우고 검색 (한국어 → 자동 중국어 번역 경로 재사용)
+    q.value = result.korean || result.chinese;
+    // 모달 닫기
+    const close = modalEl.querySelector("#ytClose");
+    if (close) close.click();
+    const searchCard = q.closest(".card");
+    if (searchCard) searchCard.scrollIntoView({ behavior: "smooth", block: "start" });
+    setStatus(`🔍 AI 인식: "${result.description || result.korean}" → 샤오홍슈 검색 중…`, "ok");
+    search();
+  } catch (e) {
+    btnEl.textContent = "❌ " + e.message.slice(0, 40);
+    setTimeout(() => { btnEl.textContent = orig; btnEl.disabled = false; }, 4000);
+  }
 }
 
 function getWorkerUrl() {
@@ -823,16 +897,17 @@ async function captureVideoFrames(videoId, modalEl) {
     framesGrid.innerHTML = "";
     frames.forEach((f, i) => {
       const card = document.createElement("div");
-      card.style.cssText = "background: var(--panel2); border: 1px solid var(--line); border-radius: 8px; overflow: hidden; cursor: pointer;";
+      card.style.cssText = "background: var(--panel2); border: 1px solid var(--line); border-radius: 8px; overflow: hidden;";
       card.innerHTML = `
-        <img src="${f.dataUrl}" style="width:100%; aspect-ratio:16/9; object-fit:cover; display:block; background:#000;" referrerpolicy="no-referrer" />
+        <img src="${f.dataUrl}" style="width:100%; aspect-ratio:16/9; object-fit:cover; display:block; background:#000; cursor:pointer;" referrerpolicy="no-referrer" />
         <div style="padding: 6px 10px; font-size: 11px; color: var(--muted); display:flex; justify-content: space-between;">
           <span>${f.label || (f.time != null ? f.time.toFixed(1) + "초" : "")}</span>
           <a href="${f.dataUrl}" download="frame_${i + 1}.jpg" target="_blank" rel="noopener" style="color:var(--accent); text-decoration:none;">⬇ 저장</a>
-        </div>`;
-      card.addEventListener("click", (e) => {
-        if (e.target.tagName === "A") return;
-        window.open(f.dataUrl, "_blank");
+        </div>
+        <button class="ai-search-btn" style="width:100%; padding:8px; border:0; border-top:1px solid var(--line); background:linear-gradient(135deg,#5b8cff,#8a5bff); color:#fff; font-size:12px; font-weight:600; cursor:pointer;">🔍 이 제품으로 샤오홍슈 검색</button>`;
+      card.querySelector("img").addEventListener("click", () => window.open(f.dataUrl, "_blank"));
+      card.querySelector(".ai-search-btn").addEventListener("click", (ev) => {
+        analyzeFrameAndSearch(f.dataUrl, ev.target, modalEl);
       });
       framesGrid.appendChild(card);
     });
@@ -1879,8 +1954,39 @@ ytQuickChips.addEventListener("click", (e) => {
 ytSearchBtn.addEventListener("click", () => searchYouTube(ytQ.value.trim()));
 ytQ.addEventListener("keydown", (e) => { if (e.key === "Enter") searchYouTube(ytQ.value.trim()); });
 
+// ===== Gemini 키 설정 UI =====
+const geminiKeyInput = $("geminiKey");
+const saveGemini = $("saveGemini");
+const geminiStatus = $("geminiStatus");
+
+function updateGeminiUi() {
+  const k = getGeminiKey();
+  if (k) {
+    geminiKeyInput.value = k;
+    geminiStatus.textContent = "✅ Gemini 키 등록됨 — 프레임 캡쳐 후 '🔍 이 제품으로 검색' 사용 가능";
+    geminiStatus.style.color = "#38d39f";
+  } else {
+    geminiStatus.textContent = "⚠️ 미설정 — 영상 프레임 제품 인식 기능을 쓰려면 키 등록 필요";
+    geminiStatus.style.color = "";
+  }
+}
+saveGemini.addEventListener("click", () => {
+  const k = geminiKeyInput.value.trim();
+  if (!k) {
+    localStorage.removeItem(LS_KEY_GEMINI);
+  } else if (!/^AIza[\w-]{20,}$/.test(k)) {
+    geminiStatus.textContent = "❌ 키 형식이 이상해요 (보통 'AIza'로 시작). 다시 확인하세요.";
+    geminiStatus.style.color = "#ff6b6b";
+    return;
+  } else {
+    localStorage.setItem(LS_KEY_GEMINI, k);
+  }
+  updateGeminiUi();
+});
+
 // 초기화
 updateWorkerUi();
+updateGeminiUi();
 
 (async () => {
   const v = await detectExtension();
