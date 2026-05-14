@@ -1496,23 +1496,32 @@ async function searchYouTube(keyword) {
     if (!items.length) throw new Error("파싱 결과 0개");
 
     let sc = items.filter((it) => it.duration && it.duration <= 60).length;
-    // 숏폼이 적으면 숏폼 전용 검색 추가 (sp=EgIYAQ%3D%3D = Shorts 필터)
+    console.log(`[YT] 메인 검색: 총 ${items.length}개, 숏폼 ${sc}개`);
+
+    // 숏폼이 적으면 "키워드 shorts" 보조 검색으로 숏폼 더 끌어오기
     if (sc < 10) {
-      try {
-        setYtProgress(78, `숏폼 ${sc}개뿐 — 숏폼 전용 검색 추가 중`);
-        const shortsUrl = `https://www.youtube.com/results?search_query=${encodeURIComponent(keyword)}&sp=EgIYAQ%3D%3D`;
-        const shortsHtml = await fetchViaProxies(shortsUrl, "ytInitialData");
-        const shortsItems = parseYouTubeSearchHtml(shortsHtml);
-        const existingIds = new Set(items.map((it) => it.videoId));
-        for (const it of shortsItems) {
-          if (existingIds.has(it.videoId)) continue;
-          it.duration = it.duration && it.duration <= 60 ? it.duration : 30; // 숏폼 필터 결과니 숏폼 취급
-          items.push(it);
-          existingIds.add(it.videoId);
+      const existingIds = new Set(items.map((it) => it.videoId));
+      const shortsQueries = [`${keyword} shorts`, `${keyword} 숏츠`];
+      for (const sq of shortsQueries) {
+        if (sc >= 10) break;
+        try {
+          setYtProgress(78, `숏폼 ${sc}개 — "${sq}" 추가 검색 중`);
+          const sUrl = `https://www.youtube.com/results?search_query=${encodeURIComponent(sq)}`;
+          const sHtml = await fetchViaProxies(sUrl, "ytInitialData");
+          const sItems = parseYouTubeSearchHtml(sHtml);
+          let added = 0;
+          for (const it of sItems) {
+            if (existingIds.has(it.videoId)) continue;
+            // 실제 길이 유지 — shortsLockupViewModel이면 duration=30, videoRenderer면 실제값
+            items.push(it);
+            existingIds.add(it.videoId);
+            added++;
+          }
+          sc = items.filter((x) => x.duration && x.duration <= 60).length;
+          console.log(`[YT] "${sq}" 검색: ${sItems.length}개 받음, ${added}개 추가, 누적 숏폼 ${sc}개`);
+        } catch (e) {
+          console.warn(`[YT] "${sq}" 검색 실패 (무시 가능):`, e.message);
         }
-        sc = items.filter((x) => x.duration && x.duration <= 60).length;
-      } catch (e) {
-        console.warn("[YT] 숏폼 전용 검색 실패 (무시 가능):", e.message);
       }
     }
 
