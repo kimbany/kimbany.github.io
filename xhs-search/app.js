@@ -424,10 +424,9 @@ function onProductPick(idx, item) {
 // 우선순위: (1) 스토리보드(정확한 시점, 저화질) → (2) 직접 영상 URL canvas(정확한 시점, 고화질, CORS 이슈) → (3) 공개 썸네일(부정확)
 
 // YouTube 페이지를 공용 프록시 통해 직접 받아 ytInitialPlayerResponse 안의 스토리보드 spec 추출
-async function fetchYouTubePageHtml(videoId) {
-  const url = `https://www.youtube.com/watch?v=${videoId}`;
+async function fetchViaProxies(url, mustContain) {
   const proxies = [
-    { make: (u) => `https://r.jina.ai/${u}`, headers: { "X-Return-Format": "html", "X-No-Cache": "false" } },
+    { make: (u) => `https://r.jina.ai/${u}`, headers: { "X-Return-Format": "html" } },
     { make: (u) => `https://api.allorigins.win/raw?url=${encodeURIComponent(u)}` },
     { make: (u) => `https://api.codetabs.com/v1/proxy/?quest=${encodeURIComponent(u)}` },
     { make: (u) => `https://corsproxy.io/?${encodeURIComponent(u)}` },
@@ -439,12 +438,94 @@ async function fetchYouTubePageHtml(videoId) {
       const r = await fetch(p.make(url), { headers: p.headers || {} });
       if (!r.ok) throw new Error("HTTP " + r.status);
       const text = await r.text();
-      // ytInitialPlayerResponse가 있는지 빠른 체크
-      if (text.length > 30000 && /ytInitialPlayerResponse/.test(text)) return text;
-      throw new Error("응답에 ytInitialPlayerResponse 없음 (" + text.length + " bytes)");
+      if (text.length > 20000 && (!mustContain || text.includes(mustContain))) return text;
+      throw new Error("응답 부적합 (" + text.length + "b)");
     } catch (e) { lastErr = e; }
   }
   throw lastErr || new Error("모든 프록시 실패");
+}
+
+async function fetchYouTubePageHtml(videoId) {
+  return fetchViaProxies(`https://www.youtube.com/watch?v=${videoId}`, "ytInitialPlayerResponse");
+}
+
+// 중괄호 균형 맞춰 완전한 JSON 객체 문자열 추출
+function extractBalancedJson(str) {
+  let depth = 0, inStr = false, esc = false;
+  for (let i = 0; i < str.length; i++) {
+    const c = str[i];
+    if (esc) { esc = false; continue; }
+    if (c === "\\") { esc = true; continue; }
+    if (c === '"') { inStr = !inStr; continue; }
+    if (inStr) continue;
+    if (c === "{") depth++;
+    else if (c === "}") { depth--; if (depth === 0) return str.slice(0, i + 1); }
+  }
+  return str;
+}
+
+// YouTube 검색 결과 페이지 HTML에서 영상 목록 파싱 (duration 포함!)
+function parseYouTubeSearchHtml(html) {
+  const m = html.match(/ytInitialData\s*=\s*(\{[\s\S]+)/);
+  if (!m) throw new Error("ytInitialData 못 찾음");
+  let data;
+  try { data = JSON.parse(extractBalancedJson(m[1])); }
+  catch (e) { throw new Error("ytInitialData JSON 파싱 실패: " + e.message); }
+
+  const items = [];
+  const seen = new Set();
+  const parseDur = (t) => {
+    if (!t) return 0;
+    const p = String(t).trim().split(":").map((x) => parseInt(x) || 0);
+    if (p.length === 3) return p[0] * 3600 + p[1] * 60 + p[2];
+    if (p.length === 2) return p[0] * 60 + p[1];
+    return 0;
+  };
+  const parseV = (t) => { const d = String(t || "").replace(/[^\d]/g, ""); return d ? parseInt(d) : 0; };
+  const txt = (o) => !o ? "" : (o.simpleText || (o.runs ? o.runs.map((r) => r.text).join("") : ""));
+
+  function walk(obj) {
+    if (!obj || typeof obj !== "object") return;
+    if (obj.videoRenderer) {
+      const v = obj.videoRenderer;
+      const id = v.videoId;
+      if (id && !seen.has(id)) {
+        seen.add(id);
+        const th = (v.thumbnail && v.thumbnail.thumbnails) || [];
+        items.push({
+          title: txt(v.title),
+          url: `https://www.youtube.com/watch?v=${id}`,
+          thumbnail: th.length ? th[th.length - 1].url : `https://i.ytimg.com/vi/${id}/mqdefault.jpg`,
+          videoId: id,
+          uploaderName: txt(v.ownerText) || txt(v.longBylineText),
+          views: parseV(txt(v.viewCountText)),
+          duration: parseDur(txt(v.lengthText)),
+        });
+      }
+    }
+    if (obj.reelItemRenderer) {
+      const v = obj.reelItemRenderer;
+      const id = v.videoId;
+      if (id && !seen.has(id)) {
+        seen.add(id);
+        const th = (v.thumbnail && v.thumbnail.thumbnails) || [];
+        items.push({
+          title: txt(v.headline),
+          url: `https://www.youtube.com/watch?v=${id}`,
+          thumbnail: th.length ? th[th.length - 1].url : `https://i.ytimg.com/vi/${id}/mqdefault.jpg`,
+          videoId: id,
+          uploaderName: "",
+          views: parseV(txt(v.viewCountText)),
+          duration: 30,
+        });
+      }
+    }
+    for (const k in obj) {
+      if (obj[k] && typeof obj[k] === "object") walk(obj[k]);
+    }
+  }
+  walk(data);
+  return items;
 }
 
 // YouTube 페이지 HTML에서 스토리보드 spec 파싱 → 내부 형식으로 변환
@@ -1376,18 +1457,38 @@ async function searchYouTube(keyword) {
       return;
     }
   } catch (e) {
-    setYtStatus(`Piped 실패 — Jina로 폴백 시도: ${e.message}`);
+    setYtStatus(`Piped 실패 — 공용 프록시로 YouTube 직접 파싱 시도: ${e.message}`);
   }
 
-  // (2) Jina 폴백
+  // (2) 공용 프록시로 YouTube 검색 페이지 직접 파싱 (duration 포함!)
   try {
-    startYtProgressDrift(50, 85, 5000, "Jina로 YouTube 렌더링 중");
+    startYtProgressDrift(40, 80, 6000, "공용 프록시로 YouTube 검색 페이지 가져오는 중");
+    const url = `https://www.youtube.com/results?search_query=${encodeURIComponent(keyword)}`;
+    const html = await fetchViaProxies(url, "ytInitialData");
+    setYtProgress(85, "검색 결과 파싱 중");
+    items = parseYouTubeSearchHtml(html);
+    if (!items.length) throw new Error("파싱 결과 0개");
+    const sc = items.filter((it) => it.duration && it.duration <= 60).length;
+    const lc = items.filter((it) => it.duration && it.duration > 60).length;
+    setYtProgress(95, "결과 렌더링");
+    renderYtResults(items);
+    setYtProgress(100, "완료");
+    setYtStatus(`✅ 총 ${items.length}개 (숏폼 ${sc} · 롱폼 ${lc}) — 공용 프록시 직접 파싱`, "ok");
+    return;
+  } catch (e1) {
+    console.warn("[YT] 프록시 직접 파싱 실패:", e1.message);
+    setYtStatus(`프록시 파싱 실패 — Jina 폴백: ${e1.message}`);
+  }
+
+  // (3) Jina 폴백 (길이 정보 없음)
+  try {
+    startYtProgressDrift(60, 90, 5000, "Jina로 YouTube 렌더링 중");
     items = await youtubeViaJina(keyword);
-    setYtProgress(92, "결과 파싱");
+    setYtProgress(95, "결과 파싱");
     if (!items.length) throw new Error("Jina도 결과 0개");
     renderYtResults(items);
     setYtProgress(100, "완료");
-    setYtStatus(`✅ ${items.length}개 (Jina, 조회수 정렬 안 됨)`, "ok");
+    setYtStatus(`⚠️ ${items.length}개 (Jina — 길이 정보 없어서 숏폼/롱폼 분류 불가)`, "err");
   } catch (e2) {
     setYtProgress(null);
     ytResults.innerHTML = `<div class="empty">YouTube 검색 실패: ${e2.message}<br>잠시 후 다시 시도하거나, 다른 키워드로 시도하세요.</div>`;
