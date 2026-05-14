@@ -563,6 +563,15 @@ function parseStoryboardFromYouTubeHtml(html) {
   try { json = JSON.parse(extractBalancedJson(m[1])); }
   catch (e) { throw new Error("JSON 파싱 실패: " + e.message); }
 
+  // 진단: 실제로 무엇이 들어있는지
+  const pStatus = json && json.playabilityStatus && json.playabilityStatus.status;
+  const sdKeys = json && json.streamingData ? Object.keys(json.streamingData) : [];
+  console.log("[Capture] ytInitialPlayerResponse keys:", Object.keys(json || {}));
+  console.log("[Capture] playabilityStatus:", pStatus,
+    json && json.playabilityStatus && json.playabilityStatus.reason ? "/ reason: " + json.playabilityStatus.reason : "");
+  console.log("[Capture] streamingData keys:", sdKeys,
+    "/ storyboards 있음:", !!(json && json.storyboards));
+
   const duration = (json && json.videoDetails && parseInt(json.videoDetails.lengthSeconds)) || null;
 
   // --- 영상 스트림 URL 추출 (streamingData) ---
