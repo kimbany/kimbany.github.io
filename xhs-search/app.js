@@ -332,7 +332,7 @@ function parseJinaResponse(payload, zhKeyword) {
     mdImages: mdImages.length,
     mdXhsImages: mdXhsImages.length,
     blocked,
-    keywordInContent,
+    keywordInContent: contentHasKeyword,
   };
   console.log("[XHS] Jina 응답 진단:", debug);
   console.log("[XHS] 응답 첫 1000자:", content.slice(0, 1000));
@@ -717,9 +717,9 @@ async function extractStoryboardFrame(sb, timeSeconds) {
   const img = new Image();
   img.crossOrigin = "anonymous";
   const loaded = new Promise((res, rej) => {
-    img.onload = res;
-    img.onerror = () => rej(new Error("스토리보드 이미지 로드 실패"));
-    setTimeout(() => rej(new Error("스토리보드 로드 타임아웃 (8초)")), 8000);
+    const to = setTimeout(() => rej(new Error("스토리보드 로드 타임아웃 (8초)")), 8000);
+    img.onload = () => { clearTimeout(to); res(); };
+    img.onerror = () => { clearTimeout(to); rej(new Error("스토리보드 이미지 로드 실패")); };
   });
   img.src = spriteUrl;
   await loaded;
@@ -892,21 +892,22 @@ async function captureVideoFrames(videoId, modalEl) {
       return score(a) - score(b);
     });
     const stream = sorted[0];
+    const video = document.createElement("video");
+    video.crossOrigin = "anonymous";
+    video.muted = true;
+    video.preload = "auto";
+    video.style.cssText = "position:absolute;left:-9999px;top:-9999px;width:240px;height:auto;";
+    document.body.appendChild(video);
     try {
-      const video = document.createElement("video");
-      video.crossOrigin = "anonymous";
-      video.muted = true;
-      video.preload = "auto";
-      video.style.cssText = "position:absolute;left:-9999px;top:-9999px;width:240px;height:auto;";
-      document.body.appendChild(video);
       await new Promise((resolve, reject) => {
-        video.addEventListener("loadedmetadata", resolve, { once: true });
-        video.addEventListener("error", () => reject(new Error("영상 로드 실패")), { once: true });
+        const to = setTimeout(() => reject(new Error("메타데이터 로드 타임아웃")), 20000);
+        video.addEventListener("loadedmetadata", () => { clearTimeout(to); resolve(); }, { once: true });
+        video.addEventListener("error", () => { clearTimeout(to); reject(new Error("영상 로드 실패")); }, { once: true });
         video.src = stream.url;
-        setTimeout(() => reject(new Error("메타데이터 로드 타임아웃")), 20000);
       });
       const dur = video.duration;
       if (!isFinite(dur) || dur < 1) throw new Error("영상 길이 못 읽음");
+      const vw = video.videoWidth;
       const ratios = [0.1, 0.25, 0.5, 0.75, 0.9];
       const frames = [];
       for (let i = 0; i < ratios.length; i++) {
@@ -914,9 +915,9 @@ async function captureVideoFrames(videoId, modalEl) {
         setProgress(40 + ((i + 1) / ratios.length) * 55, `프레임 ${i + 1}/${ratios.length} (${Math.round(ratios[i] * 100)}%)`);
         try {
           await new Promise((res, rej) => {
-            video.addEventListener("seeked", res, { once: true });
+            const to = setTimeout(() => rej(new Error("seek 타임아웃")), 7000);
+            video.addEventListener("seeked", () => { clearTimeout(to); res(); }, { once: true });
             video.currentTime = t;
-            setTimeout(() => rej(new Error("seek 타임아웃")), 7000);
           });
           const canvas = document.createElement("canvas");
           canvas.width = video.videoWidth; canvas.height = video.videoHeight;
@@ -925,18 +926,22 @@ async function captureVideoFrames(videoId, modalEl) {
           frames.push({ time: t, ratio: ratios[i], dataUrl, label: `${Math.round(ratios[i] * 100)}% — ${t.toFixed(1)}초` });
         } catch (e) { console.warn(`frame ${i}:`, e.message); }
       }
-      video.pause(); video.removeAttribute("src"); video.load(); video.remove();
       if (frames.length) {
         setProgress(100, "완료");
         setTimeout(() => progressEl.classList.remove("shown"), 1500);
         renderFrames(frames, "direct");
-        setStatusFrame(`✅ 영상에서 직접 ${frames.length}장 캡쳐 (정확한 시점, ${video.videoWidth || "원본"}px 화질).`, "ok");
+        setStatusFrame(`✅ 영상에서 직접 ${frames.length}장 캡쳐 (정확한 시점, ${vw || "원본"}px 화질).`, "ok");
         btn.disabled = false;
         btn.textContent = "🎬 프레임 캡쳐 (영상에서 제품 잡기)";
         return;
       }
+      storyboardReason = (storyboardReason || "") + " / 직접 캡쳐: 모든 프레임 실패";
     } catch (e) {
       console.warn("[Capture] 직접 캡쳐 실패:", e.message);
+      storyboardReason = (storyboardReason || "") + " / 직접 캡쳐 실패: " + e.message;
+    } finally {
+      try { video.pause(); video.removeAttribute("src"); video.load(); } catch {}
+      video.remove();
     }
   }
 
@@ -1580,9 +1585,8 @@ function fmtDuration(seconds) {
   return m + ":" + String(s).padStart(2, "0");
 }
 
-function makeYtCard(it, i) {
-  const videoId = (it.url || "").split("v=").pop().split("&")[0];
-  const isShort = it.duration && it.duration <= 60;
+function makeYtCard(it, i, isShort) {
+  const videoId = it.videoId || (it.url || "").split("v=").pop().split("&")[0];
   const card = document.createElement("div");
   card.className = "item";
   card.innerHTML = `
@@ -1609,7 +1613,7 @@ function makeYtGrid(items, isShort) {
   grid.style.gridTemplateColumns = isShort
     ? "repeat(auto-fill, minmax(160px, 1fr))"
     : "repeat(auto-fill, minmax(220px, 1fr))";
-  items.forEach((it, i) => grid.appendChild(makeYtCard(it, i)));
+  items.forEach((it, i) => grid.appendChild(makeYtCard(it, i, isShort)));
   return grid;
 }
 
@@ -1751,27 +1755,30 @@ function showVideoDetail(item, videoId, desc, candidates) {
     </div>`;
   document.body.appendChild(modal);
 
-  modal.querySelector("#ytClose").addEventListener("click", () => modal.remove());
+  // 모달 닫을 때 ESC 리스너도 항상 같이 정리
+  const onEsc = (ev) => { if (ev.key === "Escape") closeModal(); };
+  const closeModal = () => {
+    modal.remove();
+    document.removeEventListener("keydown", onEsc);
+  };
+
+  modal.querySelector("#ytClose").addEventListener("click", closeModal);
   modal.querySelector("#ytOpen").addEventListener("click", () => {
     window.open(`https://www.youtube.com/watch?v=${videoId}`, "_blank", "noopener");
   });
   modal.querySelector("#ytCopyDesc").addEventListener("click", async () => {
     try { await navigator.clipboard.writeText(desc); setYtStatus("📋 설명 복사됨", "ok"); }
-    catch {}
+    catch { setYtStatus("복사 실패 — 설명을 직접 선택해 복사하세요", "err"); }
   });
   modal.querySelector("#ytCandidates").addEventListener("click", (e) => {
     const chip = e.target.closest(".chip");
     if (!chip) return;
-    const kw = chip.dataset.kw;
-    q.value = kw;
-    modal.remove();
-    // 자동으로 메인 검색 트리거
+    q.value = chip.dataset.kw;
+    closeModal();
     document.querySelector(".card").scrollIntoView({ behavior: "smooth", block: "start" });
     search();
   });
   modal.querySelector("#ytCaptureFrames").addEventListener("click", () => captureVideoFrames(videoId, modal));
-  // ESC 닫기
-  const onEsc = (ev) => { if (ev.key === "Escape") { modal.remove(); document.removeEventListener("keydown", onEsc); } };
   document.addEventListener("keydown", onEsc);
 }
 
