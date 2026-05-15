@@ -192,6 +192,12 @@ JSON만 출력. 형식: {"korean":"한국어 검색어(3~6단어)","chinese":"�
   });
   if (!r.ok) {
     const t = await r.text();
+    if (r.status === 429) {
+      throw new Error("분당 요청 한도 초과 — 1분 후 다시 시도하세요 (Gemini 무료: 15회/분)");
+    }
+    if (r.status === 403 || r.status === 401) {
+      throw new Error("Gemini 키가 거부됨 (HTTP " + r.status + ") — 키가 맞는지 확인");
+    }
     throw new Error("Gemini HTTP " + r.status + " — " + t.slice(0, 160));
   }
   const data = await r.json();
@@ -228,8 +234,10 @@ async function analyzeFrameAndSearch(dataUrl, btnEl, modalEl) {
     setStatus(`🔍 AI 인식: "${result.description || result.korean}" → 샤오홍슈 검색 중…`, "ok");
     search();
   } catch (e) {
-    btnEl.textContent = "❌ " + e.message.slice(0, 40);
-    setTimeout(() => { btnEl.textContent = orig; btnEl.disabled = false; }, 4000);
+    btnEl.textContent = "❌ " + e.message.slice(0, 36);
+    btnEl.title = e.message;
+    setStatus("❌ AI 인식 실패: " + e.message, "err");
+    setTimeout(() => { btnEl.textContent = orig; btnEl.disabled = false; btnEl.title = ""; }, 6000);
   }
 }
 
