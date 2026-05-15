@@ -163,11 +163,18 @@ async function ensureDataUrl(src) {
   });
 }
 
-// Gemini Vision으로 이미지 분석 → { korean, chinese, description }
+// AI Vision으로 이미지 분석 → { korean, chinese, description }
+// 키 형식에 따라 Gemini(AIza...) 또는 Groq(gsk_...) 자동 라우팅
 async function analyzeImageWithGemini(imgSrc) {
   const key = getGeminiKey();
-  if (!key) throw new Error("Gemini API 키 미설정 — 하단 ⚙️ 설정에서 등록하세요");
+  if (!key) throw new Error("AI API 키 미설정 — 하단 ⚙️ 설정에서 Gemini 또는 Groq 키 등록");
   const dataUrl = await ensureDataUrl(imgSrc);
+
+  if (/^gsk_/.test(key)) return await analyzeWithGroq(dataUrl, key);
+  return await analyzeWithGeminiKey(dataUrl, key);
+}
+
+async function analyzeWithGeminiKey(dataUrl, key) {
   const m = dataUrl.match(/^data:(image\/[\w.+-]+);base64,(.+)$/);
   if (!m) throw new Error("이미지 변환 결과가 dataURL 아님");
   const mimeType = m[1];
@@ -232,6 +239,51 @@ JSON만 출력. 형식: {"korean":"한국어 검색어(3~6단어)","chinese":"�
     parsed = JSON.parse(jm[0]);
   }
   if (!parsed.korean && !parsed.chinese) throw new Error("Gemini가 제품을 식별 못 함");
+  return parsed;
+}
+
+// Groq Vision (OpenAI 호환 API) — 무료, 카드 등록 불필요
+async function analyzeWithGroq(dataUrl, key) {
+  const prompt = `이 이미지는 한국 유튜브 제품 리뷰/추천 영상의 한 장면입니다.
+이미지에서 가장 눈에 띄는 "판매 상품" 하나를 식별하세요.
+샤오홍슈(중국 쇼핑 SNS)에서 같거나 비슷한 제품을 찾을 수 있도록 검색 키워드를 만들어주세요.
+오직 JSON 형식으로만 응답: {"korean":"한국어 검색어(3~6단어)","chinese":"중국어 검색어","description":"제품 한 줄 설명"}`;
+
+  const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": "Bearer " + key,
+    },
+    body: JSON.stringify({
+      model: "meta-llama/llama-4-scout-17b-16e-instruct",
+      messages: [{
+        role: "user",
+        content: [
+          { type: "text", text: prompt },
+          { type: "image_url", image_url: { url: dataUrl } },
+        ],
+      }],
+      temperature: 0.4,
+      response_format: { type: "json_object" },
+    }),
+  });
+  if (!r.ok) {
+    const t = await r.text();
+    if (r.status === 429) throw new Error("Groq 분당 한도 초과 — 잠시 후 재시도");
+    if (r.status === 401 || r.status === 403) throw new Error("Groq 키가 거부됨 (HTTP " + r.status + ")");
+    throw new Error("Groq HTTP " + r.status + " — " + t.slice(0, 160));
+  }
+  const data = await r.json();
+  const text = (data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content) || "";
+  let parsed;
+  try { parsed = JSON.parse(text); }
+  catch {
+    const jm = text.match(/\{[\s\S]*\}/);
+    if (!jm) throw new Error("Groq 응답 파싱 실패: " + text.slice(0, 120));
+    parsed = JSON.parse(jm[0]);
+  }
+  if (!parsed.korean && !parsed.chinese) throw new Error("Groq가 제품을 식별 못 함");
   return parsed;
 }
 
@@ -2047,7 +2099,8 @@ function updateGeminiUi() {
   const k = getGeminiKey();
   if (k) {
     geminiKeyInput.value = k;
-    geminiStatus.textContent = "✅ Gemini 키 등록됨 — 프레임 캡쳐 후 '🔍 이 제품으로 검색' 사용 가능";
+    const provider = /^gsk_/.test(k) ? "Groq (Llama 4 Scout)" : "Gemini";
+    geminiStatus.textContent = `✅ ${provider} 키 등록됨 — 프레임 캡쳐 후 '🔍 이 제품으로 검색' 사용 가능`;
     geminiStatus.style.color = "#38d39f";
   } else {
     geminiStatus.textContent = "⚠️ 미설정 — 영상 프레임 제품 인식 기능을 쓰려면 키 등록 필요";
@@ -2058,8 +2111,8 @@ saveGemini.addEventListener("click", () => {
   const k = geminiKeyInput.value.trim();
   if (!k) {
     localStorage.removeItem(LS_KEY_GEMINI);
-  } else if (!/^AIza[\w-]{20,}$/.test(k)) {
-    geminiStatus.textContent = "❌ 키 형식이 이상해요 (보통 'AIza'로 시작). 다시 확인하세요.";
+  } else if (!/^AIza[\w-]{20,}$/.test(k) && !/^gsk_[\w]{20,}$/.test(k)) {
+    geminiStatus.textContent = "❌ 키 형식이 이상해요 (Gemini는 'AIza'로 시작, Groq는 'gsk_'로 시작)";
     geminiStatus.style.color = "#ff6b6b";
     return;
   } else {

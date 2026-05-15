@@ -210,16 +210,29 @@
   </div>
 
   <details open>
-    <summary>🤖 Gemini API 키 설정 (영상 프레임 → 제품 인식용)</summary>
+    <summary>🤖 AI 키 설정 (영상 프레임 → 제품 인식용 — Gemini 또는 Groq)</summary>
     <div style="margin-top:12px" class="small">
-      <p>캡쳐한 영상 프레임에서 제품을 자동 인식하려면 Google Gemini API 키가 필요합니다. <b>무료</b>입니다 (분당 15회 한도).</p>
-      <ol>
-        <li><a href="https://aistudio.google.com/app/apikey" target="_blank" style="color:#9bf">Google AI Studio</a> 접속 (구글 계정 로그인)</li>
-        <li><b>"Create API key"</b> 클릭 → 키 복사 (AIza... 로 시작)</li>
-        <li>아래에 붙여넣고 저장:</li>
-      </ol>
+      <p>캡쳐한 영상 프레임에서 제품을 자동 인식하려면 AI Vision API 키가 필요합니다. 둘 중 아무거나 골라서 입력하세요.</p>
+
+      <div style="background: var(--panel2); border: 1px solid var(--line); border-radius: 8px; padding: 10px 14px; margin: 10px 0;">
+        <b style="color:#38d39f">⭐ 추천: Groq (카드 등록 불필요, 진짜 무료)</b>
+        <ol style="margin: 6px 0 0 18px;">
+          <li><a href="https://console.groq.com/keys" target="_blank" style="color:#9bf">console.groq.com/keys</a> 접속 (구글/깃허브 로그인)</li>
+          <li><b>"Create API Key"</b> → 키 복사 (<code>gsk_...</code> 로 시작)</li>
+          <li>분당 30회, 일일 14,400회 무료 (Llama 4 Scout 모델)</li>
+        </ol>
+      </div>
+
+      <div style="background: var(--panel2); border: 1px solid var(--line); border-radius: 8px; padding: 10px 14px; margin: 10px 0;">
+        <b>또는: Google Gemini (요즘은 카드 등록 필요할 수 있음)</b>
+        <ol style="margin: 6px 0 0 18px;">
+          <li><a href="https://aistudio.google.com/app/apikey" target="_blank" style="color:#9bf">aistudio.google.com</a> → "Create API key"</li>
+          <li>키(<code>AIza...</code>)가 안 되면 (limit=0) Google Cloud Console에서 결제 등록 필요</li>
+        </ol>
+      </div>
+
       <div class="search-row" style="margin-top: 10px;">
-        <input id="geminiKey" class="url-cfg" type="password" placeholder="AIza... (Gemini API 키)" />
+        <input id="geminiKey" class="url-cfg" type="password" placeholder="gsk_... (Groq) 또는 AIza... (Gemini)" />
         <button id="saveGemini" class="ghost">💾 저장</button>
       </div>
       <p style="margin-top: 8px;" id="geminiStatus" class="small"></p>
@@ -249,6 +262,6 @@
 
 </div>
 
-<script src="app.js?v=39"></script>
+<script src="app.js?v=40"></script>
 </body>
 </html>
