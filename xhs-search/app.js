@@ -178,7 +178,9 @@ async function analyzeImageWithGemini(imgSrc) {
 샤오홍슈(중국 쇼핑 SNS)에서 같거나 비슷한 제품을 찾을 수 있도록 검색 키워드를 만들어주세요.
 JSON만 출력. 형식: {"korean":"한국어 검색어(3~6단어)","chinese":"중국어 검색어","description":"제품 한 줄 설명"}`;
 
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${encodeURIComponent(key)}`;
+  // gemini-2.0-flash-lite: 무료 30 RPM (gemini-2.0-flash는 15 RPM)
+  const model = "gemini-2.0-flash-lite";
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(key)}`;
   const r = await fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -210,7 +212,8 @@ JSON만 출력. 형식: {"korean":"한국어 검색어(3~6단어)","chinese":"�
           if (d.retryDelay) retryAfter = " · " + d.retryDelay + " 후 재시도 권장";
         }
       } catch {}
-      throw new Error(kind + retryAfter + " — 다른 모델/유료 전환은 설정 참고");
+      console.warn("[Gemini] 429 응답 본문:", t);
+      throw new Error(kind + retryAfter + " (자세한 내용은 F12 콘솔)");
     }
     if (r.status === 403 || r.status === 401) {
       throw new Error("Gemini 키가 거부됨 (HTTP " + r.status + ") — 키가 맞는지 확인");
