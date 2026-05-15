@@ -626,7 +626,19 @@ function parseYouTubeSearchHtml(html) {
     if (p.length === 2) return p[0] * 60 + p[1];
     return 0;
   };
-  const parseV = (t) => { const d = String(t || "").replace(/[^\d]/g, ""); return d ? parseInt(d) : 0; };
+  // 조회수 파싱 — "1,234 views" / "조회수 12,345회" / "1.2M views" / "1.2만 조회수" 모두 처리
+  const parseV = (t) => {
+    if (!t) return 0;
+    const s = String(t);
+    // 숫자(쉼표/점 가능) + 선택적 단위(만/천/억/K/M/B)
+    const m = s.match(/([\d][\d,.]*)\s*([만천억억KkMmBb])?/);
+    if (!m) return 0;
+    const num = parseFloat(m[1].replace(/,/g, ""));
+    if (!isFinite(num)) return 0;
+    const sfx = (m[2] || "").toLowerCase();
+    const mult = { "만": 1e4, "천": 1e3, "억": 1e8, "k": 1e3, "m": 1e6, "b": 1e9 }[sfx] || 1;
+    return Math.round(num * mult);
+  };
   const txt = (o) => !o ? "" : (o.simpleText || (o.runs ? o.runs.map((r) => r.text).join("") : ""));
 
   function walk(obj) {
