@@ -193,7 +193,24 @@ JSON만 출력. 형식: {"korean":"한국어 검색어(3~6단어)","chinese":"�
   if (!r.ok) {
     const t = await r.text();
     if (r.status === 429) {
-      throw new Error("분당 요청 한도 초과 — 1분 후 다시 시도하세요 (Gemini 무료: 15회/분)");
+      // 분당 vs 하루 한도 구분
+      let kind = "한도 초과";
+      let retryAfter = "";
+      try {
+        const err = JSON.parse(t);
+        const details = (err && err.error && err.error.details) || [];
+        for (const d of details) {
+          const violations = d.violations || [];
+          for (const v of violations) {
+            const id = (v.quotaId || v.quotaMetric || "").toLowerCase();
+            if (id.includes("perminute") || id.includes("per_minute")) kind = "분당 한도 초과 (15회/분)";
+            else if (id.includes("perday") || id.includes("per_day")) kind = "🚫 하루 한도 초과 (1,500회/일) — 미국 자정 PT(한국시간 ~오후 5시) 이후 리셋";
+            else if (id.includes("tokens") || id.includes("token")) kind = "토큰 한도 초과";
+          }
+          if (d.retryDelay) retryAfter = " · " + d.retryDelay + " 후 재시도 권장";
+        }
+      } catch {}
+      throw new Error(kind + retryAfter + " — 다른 모델/유료 전환은 설정 참고");
     }
     if (r.status === 403 || r.status === 401) {
       throw new Error("Gemini 키가 거부됨 (HTTP " + r.status + ") — 키가 맞는지 확인");
