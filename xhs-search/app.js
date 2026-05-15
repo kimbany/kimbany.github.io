@@ -141,12 +141,35 @@ function getGeminiKey() {
   return (localStorage.getItem(LS_KEY_GEMINI) || "").trim();
 }
 
+// 어떤 이미지 소스든 base64 dataURL로 변환 (Gemini는 dataURL/base64 필요)
+async function ensureDataUrl(src) {
+  if (!src) throw new Error("이미지 소스 없음");
+  if (src.startsWith("data:")) return src;
+  // (1) 확장 이미지 fetch (ytimg.com 같은 CORS 미허용 호스트 통과 가능)
+  if (extensionDetected) {
+    try { return await extensionFetchImage(src); } catch (e) {
+      console.warn("[Gemini] 확장 fetch 실패, 직접 시도:", e.message);
+    }
+  }
+  // (2) 직접 fetch + FileReader
+  const r = await fetch(src);
+  if (!r.ok) throw new Error("이미지 fetch HTTP " + r.status);
+  const blob = await r.blob();
+  return await new Promise((resolve, reject) => {
+    const fr = new FileReader();
+    fr.onload = () => resolve(fr.result);
+    fr.onerror = () => reject(new Error("FileReader 변환 실패"));
+    fr.readAsDataURL(blob);
+  });
+}
+
 // Gemini Vision으로 이미지 분석 → { korean, chinese, description }
-async function analyzeImageWithGemini(dataUrl) {
+async function analyzeImageWithGemini(imgSrc) {
   const key = getGeminiKey();
   if (!key) throw new Error("Gemini API 키 미설정 — 하단 ⚙️ 설정에서 등록하세요");
+  const dataUrl = await ensureDataUrl(imgSrc);
   const m = dataUrl.match(/^data:(image\/[\w.+-]+);base64,(.+)$/);
-  if (!m) throw new Error("이미지 형식 오류 (dataURL 아님)");
+  if (!m) throw new Error("이미지 변환 결과가 dataURL 아님");
   const mimeType = m[1];
   const base64 = m[2];
 
