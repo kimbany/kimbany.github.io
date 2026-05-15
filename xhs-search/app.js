@@ -1817,11 +1817,24 @@ function renderYtResults(items) {
     return;
   }
 
+  // 조회수 필터: views >= minViews (조회수 정보 없는 항목은 통과 — Jina 폴백 대응)
+  const minViewsInput = document.getElementById("ytMinViews");
+  const minViews = Math.max(0, parseInt((minViewsInput && minViewsInput.value) || "10000") || 0);
+  const passesFilter = (it) => !it.views || it.views >= minViews;
+  const filteredOut = items.filter((it) => !passesFilter(it)).length;
+  const passingItems = items.filter(passesFilter);
+
   // 길이로 분류 + 조회수순 정렬 + 상위 10개
   const byViews = (a, b) => (b.views || 0) - (a.views || 0);
-  const shorts = items.filter((it) => it.duration && it.duration > 0 && it.duration <= 60).sort(byViews).slice(0, 10);
-  const longForm = items.filter((it) => it.duration && it.duration > 60).sort(byViews).slice(0, 10);
-  const noLength = items.filter((it) => !it.duration);
+  const shorts = passingItems.filter((it) => it.duration && it.duration > 0 && it.duration <= 60).sort(byViews).slice(0, 10);
+  const longForm = passingItems.filter((it) => it.duration && it.duration > 60).sort(byViews).slice(0, 10);
+  const noLength = passingItems.filter((it) => !it.duration);
+
+  // 필터로 모두 걸러진 경우 안내
+  if (!shorts.length && !longForm.length && !noLength.length) {
+    ytResults.innerHTML = `<div class="empty">조회수 ${minViews.toLocaleString()} 이상 영상이 없어요 (전체 ${items.length}개 중 ${filteredOut}개 필터됨).<br>최소 조회수를 낮추거나 다른 키워드로 시도해보세요.</div>`;
+    return;
+  }
 
   const addSection = (icon, title, list, color, isShort) => {
     if (!list.length) return;
@@ -1839,6 +1852,14 @@ function renderYtResults(items) {
     addSection("🎥", "영상 (길이 정보 없음)", noLength.slice(0, 20), "var(--muted)", false);
   }
 
+  // 필터로 걸러진 영상 개수 안내
+  if (filteredOut > 0) {
+    const flt = document.createElement("div");
+    flt.className = "small";
+    flt.style.cssText = "margin-top: 10px; color: var(--muted);";
+    flt.textContent = `🔇 조회수 ${minViews.toLocaleString()} 미만 ${filteredOut}개 숨김. 최소 조회수 입력란에서 조정 가능.`;
+    ytResults.appendChild(flt);
+  }
   // 안내: 둘 중 한 쪽이 너무 적으면 표시
   if (shorts.length < 3 || longForm.length < 3) {
     const note = document.createElement("div");
