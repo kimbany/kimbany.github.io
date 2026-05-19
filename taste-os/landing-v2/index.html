@@ -1,0 +1,389 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#0E0C0B" />
+  <title>Taste OS — 당신은 계속 변하고 있습니다</title>
+  <meta name="description" content="취향은 단순한 선호가 아니라, 당신이라는 사람의 분위기입니다." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;1,300;1,400&family=Inter:wght@300;400;500&family=JetBrains+Mono:wght@300&family=Noto+Serif+KR:wght@300;400&display=swap" />
+  <link rel="stylesheet" href="./style.css" />
+</head>
+<body>
+
+  <!-- ambient layers -->
+  <div class="orb orb-rose orb-1" aria-hidden="true"></div>
+  <div class="orb orb-silver orb-2" aria-hidden="true"></div>
+  <div class="orb orb-rose orb-3" aria-hidden="true"></div>
+  <div class="orb orb-sand orb-4" aria-hidden="true"></div>
+
+  <!-- dust particles container (filled by JS) -->
+  <div class="dust-field" aria-hidden="true"></div>
+
+  <!-- sigil -->
+  <div class="sigil" aria-hidden="true">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round">
+      <path d="M12 3.5 A 8.5 8.5 0 1 0 20.4 11.2" />
+    </svg>
+  </div>
+
+  <!-- ACT I — HERO -->
+  <section class="hero" data-section="hero">
+    <div class="hero-inner">
+
+      <h1 class="display-hero italic" data-reveal="blur" data-delay="2000">
+        당신은 계속<br />변하고 있습니다.
+      </h1>
+
+      <hr class="hairline narrow" data-reveal="fade" data-delay="4000" />
+
+      <p class="sub-headline" data-reveal="fade" data-delay="4400">
+        취향은 단순한 선호가 아니라,<br />
+        당신이라는 사람의 분위기입니다.
+      </p>
+
+      <div class="beacon-wrap" data-reveal="fade" data-delay="5600">
+        <button class="beacon ceremonial" type="button" aria-label="find your atmosphere">
+          <span class="dash">───</span>
+          <span class="beacon-label">나의 분위기 탐색하기</span>
+          <span class="dash">───</span>
+        </button>
+      </div>
+
+      <p class="wordmark" data-reveal="fade" data-delay="6600">Taste OS</p>
+
+    </div>
+
+    <p class="scroll-hint" data-reveal="fade" data-delay="9000">↓ 천천히 가요</p>
+  </section>
+
+  <!-- ACT II — ATMOSPHERE -->
+  <section class="atmosphere atm-1" data-section="atm-1">
+    <div class="atm-inner">
+      <p class="section-label" data-reveal="fade">─ 하나</p>
+      <p class="atm-lead" data-reveal="blur" data-delay="200">
+        당신이 모은 것들에는 패턴이 있어요.
+      </p>
+      <p class="atm-trail" data-reveal="fade" data-delay="1100">
+        사진, 음악, 단어, 마음이 머문 자리 — 그것들 모두 당신입니다.
+      </p>
+    </div>
+  </section>
+
+  <section class="atmosphere atm-2" data-section="atm-2">
+    <div class="atm-inner">
+      <p class="section-label" data-reveal="fade">─ 둘</p>
+      <p class="atm-lead" data-reveal="blur" data-delay="200">
+        그 패턴에는 분위기가 있고요.
+      </p>
+      <p class="atm-trail" data-reveal="fade" data-delay="1100">
+        어떤 빛, 어떤 시간, 어떤 온도. 당신만의 공기입니다.
+      </p>
+    </div>
+  </section>
+
+  <section class="atmosphere atm-3" data-section="atm-3">
+    <div class="atm-inner">
+      <p class="section-label" data-reveal="fade">─ 셋</p>
+      <p class="atm-lead" data-reveal="blur" data-delay="200">
+        그리고 그 분위기는 천천히 변해갑니다.
+      </p>
+      <p class="atm-trail" data-reveal="fade" data-delay="1100">
+        당신의 마음이 그러는 것처럼.
+      </p>
+    </div>
+  </section>
+
+  <!-- ACT III — TASTE PREVIEW (4 cards) -->
+  <section class="preview" data-section="preview">
+    <div class="preview-inner">
+
+      <p class="section-label" data-reveal="fade">─ 풍경은 사람마다 다릅니다.</p>
+
+      <div class="taste-grid">
+
+        <!-- Card 1 — Quiet Warmth -->
+        <article class="taste-card" data-card="0">
+          <div class="t-card-mark" aria-hidden="true">◌</div>
+
+          <h3 class="t-card-name">Quiet<br /><em>Warmth</em></h3>
+          <p class="t-card-name-ko">조용한 따뜻함</p>
+
+          <div class="palette">
+            <span class="swatch" style="background:#3A2620"></span>
+            <span class="swatch" style="background:#7A5040"></span>
+            <span class="swatch" style="background:#B07672"></span>
+            <span class="swatch" style="background:#C8B69B"></span>
+            <span class="swatch" style="background:#D8C7AC"></span>
+          </div>
+
+          <div class="t-card-portrait">
+            <p>혼자 있을 때 가장 또렷한 사람.</p>
+            <p>따뜻함을 작게, 그리고 자주 모읍니다.</p>
+          </div>
+
+          <hr class="micro-rule" />
+
+          <blockquote class="t-card-mirror">
+            큰 빛보다, 작은 빛이<br />오래 가는 걸 알아요.
+          </blockquote>
+
+          <p class="t-card-atmosphere">늦은 오후 · 단일 광원 · 린넨</p>
+        </article>
+
+        <!-- Card 2 — Urban Nostalgia -->
+        <article class="taste-card" data-card="1">
+          <div class="t-card-mark" aria-hidden="true">◌</div>
+
+          <h3 class="t-card-name">Urban<br /><em>Nostalgia</em></h3>
+          <p class="t-card-name-ko">도시의 향수</p>
+
+          <div class="palette">
+            <span class="swatch" style="background:#0F1620"></span>
+            <span class="swatch" style="background:#3A4555"></span>
+            <span class="swatch" style="background:#8FA0AC"></span>
+            <span class="swatch" style="background:#B07672"></span>
+            <span class="swatch" style="background:#C8B69B"></span>
+          </div>
+
+          <div class="t-card-portrait">
+            <p>비 온 다음의 거리. 늦은 지하철.</p>
+            <p>도시가 조용해질 때를 기다립니다.</p>
+          </div>
+
+          <hr class="micro-rule" />
+
+          <blockquote class="t-card-mirror">
+            사람들로 가득한 곳에서<br />가장 자기 자신이에요.
+          </blockquote>
+
+          <p class="t-card-atmosphere">자정 · 도시 · 비 온 직후</p>
+        </article>
+
+        <!-- Card 3 — Emotional Minimalism -->
+        <article class="taste-card" data-card="2">
+          <div class="t-card-mark" aria-hidden="true">◌</div>
+
+          <h3 class="t-card-name">Emotional<br /><em>Minimalism</em></h3>
+          <p class="t-card-name-ko">감정의 미니멀리즘</p>
+
+          <div class="palette">
+            <span class="swatch" style="background:#1A1714"></span>
+            <span class="swatch" style="background:#443E37"></span>
+            <span class="swatch" style="background:#9A8E81"></span>
+            <span class="swatch" style="background:#C8B69B"></span>
+            <span class="swatch" style="background:#D8C7AC"></span>
+          </div>
+
+          <div class="t-card-portrait">
+            <p>적게 둡니다. 남긴 것들에는 이유가 있고요.</p>
+            <p>비어 있는 자리도 풍경의 일부입니다.</p>
+          </div>
+
+          <hr class="micro-rule" />
+
+          <blockquote class="t-card-mirror">
+            조용한 것이 깊을 수 있다는 걸,<br />일찍부터 알았어요.
+          </blockquote>
+
+          <p class="t-card-atmosphere">정오 · 단일 색 · 여백</p>
+        </article>
+
+        <!-- Card 4 — Warm Futurism -->
+        <article class="taste-card" data-card="3">
+          <div class="t-card-mark" aria-hidden="true">◌</div>
+
+          <h3 class="t-card-name">Warm<br /><em>Futurism</em></h3>
+          <p class="t-card-name-ko">따뜻한 미래</p>
+
+          <div class="palette">
+            <span class="swatch" style="background:#1A2030"></span>
+            <span class="swatch" style="background:#5A6878"></span>
+            <span class="swatch" style="background:#8FA0AC"></span>
+            <span class="swatch" style="background:#B07672"></span>
+            <span class="swatch" style="background:#D9A66C"></span>
+          </div>
+
+          <div class="t-card-portrait">
+            <p>차가운 기술 안에서 따뜻함을 찾습니다.</p>
+            <p>미래는 차가워야 한다는 가정에 동의하지 않으세요.</p>
+          </div>
+
+          <hr class="micro-rule" />
+
+          <blockquote class="t-card-mirror">
+            내일도 다정할 수 있다고<br />믿어요.
+          </blockquote>
+
+          <p class="t-card-atmosphere">새벽 · 빛 · 부드러운 금속</p>
+        </article>
+
+      </div>
+
+      <div class="preview-caveat">
+        <p>당신의 풍경은 이 넷 중 하나가 아닐 거예요.</p>
+        <p class="mist">완전히 다른 무언가일 가능성이 더 큽니다.</p>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ACT IV — IDENTITY EVOLUTION -->
+  <section class="evolution" data-section="evolution">
+    <div class="evolution-inner">
+
+      <p class="section-label" data-reveal="fade">─ 시간이 지나면, 풍경도 함께 변해갑니다.</p>
+
+      <div class="chapters">
+
+        <article class="chapter">
+          <p class="season">봄</p>
+          <hr class="micro-rule" />
+          <h3 class="chapter-name">새것을<br />사랑하던<br /><em>계절</em></h3>
+          <div class="palette small">
+            <span class="swatch" style="background:#5A6878"></span>
+            <span class="swatch" style="background:#8FA0AC"></span>
+            <span class="swatch" style="background:#C8B69B"></span>
+            <span class="swatch" style="background:#D8C7AC"></span>
+            <span class="swatch" style="background:#443E37"></span>
+          </div>
+          <p class="observation">처음 만나는 것들에<br />자주 멈춰 섰어요.</p>
+        </article>
+
+        <article class="chapter">
+          <p class="season">여름</p>
+          <hr class="micro-rule" />
+          <h3 class="chapter-name">빛이<br />길어진<br /><em>계절</em></h3>
+          <div class="palette small">
+            <span class="swatch" style="background:#7A5040"></span>
+            <span class="swatch" style="background:#C8B69B"></span>
+            <span class="swatch" style="background:#D9A66C"></span>
+            <span class="swatch" style="background:#8FA0AC"></span>
+            <span class="swatch" style="background:#443E37"></span>
+          </div>
+          <p class="observation">조금 더 멀리,<br />자주 나갔어요.</p>
+        </article>
+
+        <article class="chapter">
+          <p class="season">가을</p>
+          <hr class="micro-rule" />
+          <h3 class="chapter-name">안으로<br />돌아온<br /><em>계절</em></h3>
+          <div class="palette small">
+            <span class="swatch" style="background:#3A2620"></span>
+            <span class="swatch" style="background:#7A5040"></span>
+            <span class="swatch" style="background:#B07672"></span>
+            <span class="swatch" style="background:#C8B69B"></span>
+            <span class="swatch" style="background:#1A1714"></span>
+          </div>
+          <p class="observation">다시 한 방, 한 창,<br />한 사람으로 좁아졌어요.</p>
+        </article>
+
+      </div>
+
+      <hr class="hairline thin" />
+
+      <blockquote class="year-quote" data-reveal="blur">
+        한 해 동안 천천히 다른 사람이 되어가셨습니다.<br />
+        그게 변하는 것이 아니라,<br />
+        자기 자신에 가까워지는 일이라는 걸,<br />
+        이제는 아실 거예요.
+      </blockquote>
+
+    </div>
+  </section>
+
+  <!-- ACT V — SHARING -->
+  <section class="sharing" data-section="sharing">
+    <div class="sharing-inner">
+
+      <p class="section-label" data-reveal="fade">─ 누군가에게 보내고 싶을 때가 있습니다.</p>
+
+      <div class="share-cards">
+
+        <article class="share-card" style="--tilt: 1.2deg">
+          <div class="card-mark" aria-hidden="true">◌</div>
+          <p class="card-sender">j.</p>
+          <hr class="micro-rule" />
+          <p class="card-content">
+            아침을 견디는<br />사람
+          </p>
+          <hr class="micro-rule" />
+          <p class="card-date">feb 14, 2026</p>
+          <p class="card-type">Mirror Card</p>
+        </article>
+
+        <article class="share-card" style="--tilt: -0.4deg">
+          <div class="card-mark" aria-hidden="true">◌</div>
+          <p class="card-sender">m.</p>
+          <hr class="micro-rule" />
+          <p class="card-content">
+            <em>옻칠한 황혼</em>
+          </p>
+          <div class="palette small centered">
+            <span class="swatch" style="background:#3A2620"></span>
+            <span class="swatch" style="background:#7A5040"></span>
+            <span class="swatch" style="background:#B07672"></span>
+            <span class="swatch" style="background:#C8B69B"></span>
+            <span class="swatch" style="background:#D8C7AC"></span>
+          </div>
+          <p class="card-caption">oak · brown · rose · sand · beige</p>
+          <hr class="micro-rule" />
+          <p class="card-date">feb 12, 2026</p>
+          <p class="card-type">Atmosphere Card</p>
+        </article>
+
+        <article class="share-card" style="--tilt: 0.8deg">
+          <div class="card-mark" aria-hidden="true">◌</div>
+          <p class="card-sender">s.</p>
+          <hr class="micro-rule" />
+          <p class="card-content">
+            잠시,<br />너의 자리.
+          </p>
+          <hr class="micro-rule" />
+          <p class="card-date">feb 10, 2026</p>
+          <p class="card-type">Threshold Card</p>
+        </article>
+
+      </div>
+
+      <div class="sharing-footer">
+        <p>카드는 다른 사람의 피드에 들어가지 않습니다.</p>
+        <p class="mist">필요한 사람에게, 직접 가요.</p>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ACT VI — FINAL CTA -->
+  <section class="final" data-section="final">
+    <div class="final-inner">
+      <div class="door" aria-hidden="true"></div>
+
+      <p class="closing-line" data-reveal="blur">
+        조금 더<br />나다운 방향으로.
+      </p>
+
+      <div class="beacon-wrap">
+        <button class="beacon ceremonial" type="button" aria-label="begin taste os">
+          <span class="dash">───</span>
+          <span class="beacon-label">Taste OS 시작하기</span>
+          <span class="dash">───</span>
+        </button>
+      </div>
+
+      <p class="closing-whisper mist">어디서든, 잠시 머물러도 좋아요.</p>
+    </div>
+
+    <footer class="footer">
+      <p>taste.os · 2026 · <a href="#">개인정보</a> · <a href="#">문의</a></p>
+    </footer>
+  </section>
+
+  <!-- grain overlay -->
+  <div class="grain" aria-hidden="true"></div>
+
+  <script src="./script.js"></script>
+</body>
+</html>
