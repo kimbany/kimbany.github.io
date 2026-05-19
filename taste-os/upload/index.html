@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#0E0C0B" />
+  <title>Taste OS — 두기 / 당신의 자리에</title>
+  <meta name="description" content="좋아하는 것을, 천천히, 당신의 자리에 두어보세요." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;1,300;1,400&family=Inter:wght@300;400;500&family=JetBrains+Mono:wght@300&family=Noto+Serif+KR:wght@300;400&display=swap" />
+  <link rel="stylesheet" href="./style.css" />
+</head>
+<body>
+
+  <!-- ambient layers -->
+  <div class="orb orb-rose orb-1" aria-hidden="true"></div>
+  <div class="orb orb-silver orb-2" aria-hidden="true"></div>
+  <div class="orb orb-sand orb-3" aria-hidden="true"></div>
+
+  <div class="sigil" aria-hidden="true">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round">
+      <path d="M12 3.5 A 8.5 8.5 0 1 0 20.4 11.2" />
+    </svg>
+  </div>
+
+  <!-- drag-drop indicator (full page) -->
+  <div class="drop-glow" aria-hidden="true"></div>
+
+  <main class="page">
+
+    <!-- ============================================================
+         HEADER
+         ============================================================ -->
+    <header class="page-header">
+      <p class="header-prompt" data-state="empty">
+        당신의 자리에 둘 것이 있어요?
+      </p>
+      <p class="header-counter" data-counter>
+        지금까지 <span data-count>0</span>개를 두셨어요.
+      </p>
+    </header>
+
+    <!-- ============================================================
+         EMPTY STATE (initial)
+         ============================================================ -->
+    <section class="empty-state" data-empty>
+      <div class="empty-inner">
+        <h1 class="display-hero italic">
+          당신의 자리에<br />
+          둘 것이 있어요?
+        </h1>
+        <p class="empty-hint">
+          여기로 드래그하거나, 아래에서 골라보세요.
+        </p>
+      </div>
+    </section>
+
+    <!-- ============================================================
+         CANVAS / STAGE — items go here
+         ============================================================ -->
+    <section class="canvas" data-canvas></section>
+
+    <!-- "잘 두었어요" temporary toast -->
+    <div class="placed-toast" data-toast>잘 두었어요.</div>
+
+    <!-- ============================================================
+         MODE SWITCHER
+         ============================================================ -->
+    <nav class="mode-switcher" aria-label="입력 방식">
+      <button class="mode-btn" type="button" data-mode="image">
+        <span class="mode-glyph">◆</span>
+        <span class="mode-label">이미지</span>
+      </button>
+      <button class="mode-btn" type="button" data-mode="music">
+        <span class="mode-glyph">◯</span>
+        <span class="mode-label">소리</span>
+      </button>
+      <button class="mode-btn" type="button" data-mode="quote">
+        <span class="mode-glyph">─</span>
+        <span class="mode-label">말</span>
+      </button>
+      <button class="mode-btn" type="button" data-mode="atmosphere">
+        <span class="mode-glyph">·</span>
+        <span class="mode-label">공기</span>
+      </button>
+    </nav>
+
+    <!-- ============================================================
+         INPUT PANEL (slides up from bottom for music/quote/atmosphere)
+         ============================================================ -->
+    <div class="input-panel" data-panel data-state="hidden" aria-hidden="true">
+      <div class="input-inner">
+        <p class="input-hint" data-hint>곡 이름이나 링크. 무엇이든.</p>
+
+        <textarea
+          class="input-area"
+          data-input
+          rows="2"
+          maxlength="160"
+          placeholder=""
+        ></textarea>
+
+        <div class="input-actions">
+          <button class="beacon ceremonial" type="button" data-action="place" disabled>
+            <span class="dash">───</span>
+            <span class="beacon-label">두기</span>
+            <span class="dash">───</span>
+          </button>
+          <button class="skip-link" type="button" data-action="cancel">취소</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- panel scrim (click-to-close) -->
+    <div class="panel-scrim" data-scrim></div>
+
+    <!-- hidden file input -->
+    <input type="file" accept="image/*" multiple class="file-hidden" data-file />
+
+    <!-- ============================================================
+         EXPANDED VIEW (cinematic single-item)
+         ============================================================ -->
+    <div class="expanded" data-expanded data-state="hidden" aria-hidden="true">
+      <div class="expanded-scrim" data-expanded-scrim></div>
+      <div class="expanded-stage" data-expanded-stage>
+        <!-- expanded card injected by JS -->
+      </div>
+      <div class="expanded-meta" data-expanded-meta>
+        <p class="meta-when" data-when></p>
+        <p class="meta-atmosphere" data-atmosphere-meta></p>
+      </div>
+      <div class="expanded-actions">
+        <button class="beacon" type="button" data-action="close">
+          <span class="dash">───</span>
+          <span class="beacon-label">닫기</span>
+          <span class="dash">───</span>
+        </button>
+        <button class="beacon release" type="button" data-action="release">
+          <span class="dash">───</span>
+          <span class="beacon-label">내려놓기</span>
+          <span class="dash">───</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- ============================================================
+         UNDO TOAST
+         ============================================================ -->
+    <div class="undo-toast" data-undo data-state="hidden">
+      <p>내려놓았어요. <button data-action="undo">되돌릴까요?</button></p>
+    </div>
+
+  </main>
+
+  <!-- grain overlay -->
+  <div class="grain" aria-hidden="true"></div>
+
+  <script src="./script.js"></script>
+</body>
+</html>
