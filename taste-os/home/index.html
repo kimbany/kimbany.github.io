@@ -1,0 +1,220 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#0E0C0B" />
+  <title>Taste OS — 조용한 감정의 방</title>
+  <meta name="description" content="당신의 분위기가 머무는 작은 방." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;1,300;1,400&family=Inter:wght@300;400;500&family=Noto+Serif+KR:wght@300;400&display=swap" />
+  <link rel="stylesheet" href="./style.css" />
+</head>
+<body class="time-day">
+
+  <!-- Persistent ambient -->
+  <div class="orb orb-1" aria-hidden="true"></div>
+  <div class="orb orb-2" aria-hidden="true"></div>
+  <div class="orb orb-3" aria-hidden="true"></div>
+  <div class="orb orb-4" aria-hidden="true"></div>
+
+  <div class="dust-field" aria-hidden="true"></div>
+
+  <div class="sigil" aria-hidden="true">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round">
+      <path d="M12 3.5 A 8.5 8.5 0 1 0 20.4 11.2" />
+    </svg>
+  </div>
+
+  <!-- Tiny time tag — top right -->
+  <p class="time-tag" data-time-tag aria-hidden="true">
+    <span class="time-tag-dot"></span>
+    <span class="time-tag-label" data-time-label>오후의 공기</span>
+  </p>
+
+  <!-- ============================================================
+       01 — ATMOSPHERE ORB (Hero)
+       ============================================================ -->
+  <section class="section hero-section" data-section="hero">
+    <div class="hero-inner">
+
+      <div class="atmosphere-orb" data-atmosphere-orb aria-hidden="true">
+        <div class="orb-core"></div>
+        <div class="orb-halo"></div>
+        <div class="orb-mist"></div>
+      </div>
+
+      <p class="hero-genome" data-reveal data-reveal-delay="600">
+        <span class="genome-en">Quiet Warmth</span>
+      </p>
+
+      <p class="hero-sub" data-reveal data-reveal-delay="1400">
+        조용한 따뜻함 속에서<br />
+        머무르고 있어요.
+      </p>
+
+      <p class="last-visit mist" data-reveal data-reveal-delay="2400" data-last-visit>
+        <span class="visit-dash">────</span>
+        <span data-last-visit-text>어제 22:14에 다녀가셨어요.</span>
+      </p>
+
+    </div>
+  </section>
+
+  <!-- ============================================================
+       02 — DAILY ATMOSPHERE
+       ============================================================ -->
+  <section class="section daily-section" data-section="daily">
+    <div class="section-inner">
+
+      <p class="eyebrow" data-reveal>오늘의 결</p>
+
+      <p class="daily-line primary" data-reveal data-reveal-delay="400" data-daily-primary>
+        오늘은 조용한 따뜻함이<br />
+        오래 머무르고 있어요.
+      </p>
+
+      <hr class="hairline-mark" data-reveal data-reveal-delay="900" />
+
+      <p class="daily-line secondary mist" data-reveal data-reveal-delay="1200" data-daily-secondary>
+        최근 당신은 차가운 고독감보다<br />
+        인간적인 온기에 더 끌리고 있어요.
+      </p>
+
+    </div>
+  </section>
+
+  <!-- ============================================================
+       03 — VISUAL MEMORY SPACE
+       ============================================================ -->
+  <section class="section memory-section" data-section="memory">
+    <div class="section-inner">
+
+      <p class="eyebrow" data-reveal>당신이 머물렀던 결들</p>
+
+      <div class="memory-field" data-memory-field>
+        <!-- Memory fragments are mounted by JS -->
+      </div>
+
+      <p class="memory-foot mist" data-reveal>
+        조용히 떠다니는 결을 따라가 보세요.
+      </p>
+
+    </div>
+  </section>
+
+  <!-- Visual echo overlay — fades a fragment across the whole page on click -->
+  <div class="echo-overlay" data-echo-overlay aria-hidden="true"></div>
+
+  <!-- ============================================================
+       04 — EMOTIONAL REFLECTIONS
+       ============================================================ -->
+  <section class="section reflection-section" data-section="reflection">
+    <div class="section-inner">
+
+      <p class="eyebrow" data-reveal>조용한 알아챔</p>
+
+      <ul class="reflection-list" data-reveal-list>
+        <li>
+          <span class="reflection-mark">─</span>
+          <p class="reflection-text">
+            당신은 완벽함보다 인간적인 흔적 속에서<br />
+            더 깊은 안정감을 느끼고 있어요.
+          </p>
+        </li>
+        <li>
+          <span class="reflection-mark">─</span>
+          <p class="reflection-text">
+            예전보다 조금 더 따뜻한 공기를<br />
+            오래 바라보고 있습니다.
+          </p>
+        </li>
+        <li>
+          <span class="reflection-mark">─</span>
+          <p class="reflection-text">
+            이번 주의 당신은<br />
+            조금 더 자기 자신에 머무르고 있어요.
+          </p>
+        </li>
+      </ul>
+
+    </div>
+  </section>
+
+  <!-- ============================================================
+       05 — ATMOSPHERE EVOLUTION PREVIEW
+       ============================================================ -->
+  <section class="section evolution-section" data-section="evolution">
+    <div class="section-inner">
+
+      <p class="eyebrow" data-reveal>당신의 분위기는 이렇게 흘러왔어요</p>
+
+      <ol class="evolution-track" data-reveal-list>
+        <li class="evolution-step" data-step="0" style="--tone: rgba(143, 160, 172, 0.7);">
+          <span class="step-dot" style="--size: 10px;"></span>
+          <span class="step-label">4주 전</span>
+          <span class="step-tone mist">차가운 새벽</span>
+        </li>
+        <li class="evolution-step" data-step="1" style="--tone: rgba(154, 142, 129, 0.7);">
+          <span class="step-dot" style="--size: 12px;"></span>
+          <span class="step-label">3주 전</span>
+          <span class="step-tone mist">먼지 같은 mist</span>
+        </li>
+        <li class="evolution-step" data-step="2" style="--tone: rgba(176, 118, 114, 0.75);">
+          <span class="step-dot" style="--size: 14px;"></span>
+          <span class="step-label">2주 전</span>
+          <span class="step-tone mist">조용한 rose</span>
+        </li>
+        <li class="evolution-step" data-step="3" style="--tone: rgba(217, 166, 108, 0.8);">
+          <span class="step-dot" style="--size: 16px;"></span>
+          <span class="step-label">지난주</span>
+          <span class="step-tone mist">ember 가 짙어짐</span>
+        </li>
+        <li class="evolution-step current" data-step="4" style="--tone: rgba(216, 199, 172, 0.95);">
+          <span class="step-dot" style="--size: 20px;"></span>
+          <span class="step-label">이번 주</span>
+          <span class="step-tone mist">rose + ember + beige</span>
+        </li>
+      </ol>
+
+    </div>
+  </section>
+
+  <!-- ============================================================
+       06 — QUIET SPACE (intentional emptiness)
+       ============================================================ -->
+  <section class="section quiet-section" data-section="quiet">
+    <div class="quiet-inner">
+      <span class="quiet-dot" aria-hidden="true"></span>
+      <p class="quiet-line" data-reveal>
+        잠시,<br />
+        여기서 멈춰가세요.
+      </p>
+      <span class="quiet-dot" aria-hidden="true"></span>
+    </div>
+  </section>
+
+  <!-- ============================================================
+       07 — SOFT CONTINUATION
+       ============================================================ -->
+  <section class="section continuation-section" data-section="continuation">
+    <div class="continuation-inner">
+      <hr class="hairline-mark" data-reveal />
+      <button class="beacon ceremonial" type="button" data-reveal data-reveal-delay="500" data-action="continue">
+        <span class="dash">────</span>
+        <span class="beacon-label">나의 변화 이어보기</span>
+        <span class="dash">────</span>
+      </button>
+      <p class="continuation-foot mist" data-reveal data-reveal-delay="1000">
+        그동안 흘러온 결을 따라가 볼게요.
+      </p>
+    </div>
+  </section>
+
+  <!-- Grain -->
+  <div class="grain" aria-hidden="true"></div>
+
+  <script src="./script.js"></script>
+</body>
+</html>
