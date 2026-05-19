@@ -1,0 +1,258 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#0E0C0B" />
+  <title>Taste OS — 집</title>
+  <meta name="description" content="당신이 돌아오는 자리. 천천히 변해가는 풍경." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;1,300;1,400&family=Inter:wght@300;400;500&family=JetBrains+Mono:wght@300&family=Noto+Serif+KR:wght@300;400&display=swap" />
+  <link rel="stylesheet" href="./style.css" />
+</head>
+<body>
+
+  <!-- ambient layers -->
+  <div class="orb orb-rose orb-1" aria-hidden="true"></div>
+  <div class="orb orb-silver orb-2" aria-hidden="true"></div>
+  <div class="orb orb-sand orb-3" aria-hidden="true"></div>
+  <div class="orb orb-rose orb-4" aria-hidden="true"></div>
+
+  <div class="sigil" aria-hidden="true">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round">
+      <path d="M12 3.5 A 8.5 8.5 0 1 0 20.4 11.2" />
+    </svg>
+  </div>
+
+  <!-- time band -->
+  <div class="time-band" data-time-band aria-hidden="true">
+    <span data-day>화</span>
+    ·
+    <span data-clock>16:12</span>
+  </div>
+
+  <main class="home">
+
+    <!-- ============================================================
+         SECTION 1 — 지금의 공기
+         ============================================================ -->
+    <section class="section section-now" data-section>
+      <div class="section-inner narrow">
+
+        <p class="section-label" data-reveal>─ 지금의 공기</p>
+
+        <p class="time-line" data-reveal data-delay="400" data-time-line></p>
+
+        <h1 class="taste-name" data-reveal data-delay="1800">
+          <span class="word word-1">옻칠한</span>
+          <span class="word word-2">황혼</span>
+        </h1>
+
+        <div class="palette-block" data-reveal data-delay="3800">
+          <div class="palette-row">
+            <span class="palette-swatch" style="background:#4A3D2C"></span>
+            <span class="palette-swatch" style="background:#7A6F60"></span>
+            <span class="palette-swatch" style="background:#D9A66C"></span>
+            <span class="palette-swatch" style="background:#A8A29E"></span>
+            <span class="palette-swatch" style="background:#1A1A1E"></span>
+          </div>
+          <p class="palette-names">oak · ash · ember · fog · ink</p>
+        </div>
+
+        <p class="status-line" data-reveal data-delay="4600">
+          14주째 같은 풍경입니다. 천천히 변하는 중이고요.
+        </p>
+
+      </div>
+    </section>
+
+    <!-- ============================================================
+         SECTION 2 — 흐름
+         ============================================================ -->
+    <section class="section section-patterns" data-section>
+      <div class="section-inner narrow">
+
+        <p class="section-label" data-reveal>─ 흐름</p>
+
+        <div class="patterns">
+
+          <p class="pattern" data-reveal data-delay="200">
+            당신은 조용한 따뜻함에<br />
+            반복적으로 끌리고 있어요.
+          </p>
+
+          <hr class="hairline" data-reveal data-delay="900" />
+
+          <p class="pattern" data-reveal data-delay="1100">
+            최근에는 완벽함보다<br />
+            인간적인 흔적에<br />
+            더 오래 머물고 있어요.
+          </p>
+
+          <hr class="hairline" data-reveal data-delay="1900" />
+
+          <p class="pattern" data-reveal data-delay="2100">
+            낮 시간보다 늦은 오후에<br />
+            두는 것이 많아졌어요.
+          </p>
+
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================================================
+         SECTION 3 — 풍경의 모음
+         ============================================================ -->
+    <section class="section section-universe" data-section>
+      <div class="section-inner wide">
+
+        <p class="section-label" data-reveal>─ 풍경의 모음</p>
+
+        <div class="universe-grid">
+
+          <article class="u-card u-image" style="--tilt: 1.2deg; --drift: 0s">
+            <div class="img" style="background:linear-gradient(135deg, #3A4555 0%, #5A6878 55%, #9A8E81 100%)"></div>
+            <p class="u-caption">북향의 오후</p>
+          </article>
+
+          <article class="u-card u-music" style="--tilt: -0.6deg; --drift: 1.5s">
+            <div class="disc"></div>
+            <p class="u-title">Glósóli</p>
+            <p class="u-sub">Sigur Rós</p>
+          </article>
+
+          <article class="u-card u-quote" style="--tilt: 0.8deg; --drift: 3s">
+            <p class="quote-text">어떤 것들은<br />한 번 보는 걸로<br />충분해요.</p>
+          </article>
+
+          <article class="u-card u-image" style="--tilt: -0.8deg; --drift: 0.8s">
+            <div class="img" style="background:linear-gradient(135deg, #1A1714 0%, #7A6F60 60%, #D8C7AC 100%)"></div>
+            <p class="u-caption">단 하나의 창</p>
+          </article>
+
+          <article class="u-card u-image" style="--tilt: 1.5deg; --drift: 2.2s">
+            <div class="img" style="background:linear-gradient(135deg, #1A1F28 0%, #3A4555 50%, #5A6878 100%)"></div>
+            <p class="u-caption">비 온 뒤 거리</p>
+          </article>
+
+          <article class="u-card u-image" style="--tilt: -1.0deg; --drift: 4s">
+            <div class="img" style="background:linear-gradient(135deg, #1A0F08 0%, #3A2620 50%, #D9A66C 100%)"></div>
+            <p class="u-caption">늦은 카페</p>
+          </article>
+
+          <article class="u-card u-quote" style="--tilt: 1.0deg; --drift: 5s">
+            <p class="quote-text">조용한 것이<br />깊을 수 있다는 걸,<br />일찍부터 알았어요.</p>
+          </article>
+
+          <article class="u-card u-image" style="--tilt: -1.2deg; --drift: 6s">
+            <div class="img" style="background:linear-gradient(135deg, #2A1F18 0%, #5A3D25 50%, #9A7060 100%)"></div>
+            <p class="u-caption">오래된 책방</p>
+          </article>
+
+          <article class="u-card u-music" style="--tilt: 0.4deg; --drift: 7s">
+            <div class="disc"></div>
+            <p class="u-title">Petals</p>
+            <p class="u-sub">Saariaho</p>
+          </article>
+
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================================================
+         SECTION 4 — 자꾸 돌아오는 것들 (Echoes)
+         ============================================================ -->
+    <section class="section section-echoes" data-section>
+      <div class="section-inner narrow">
+
+        <p class="section-label" data-reveal>─ 자꾸 돌아오는 것들</p>
+
+        <div class="echoes">
+
+          <article class="echo" data-reveal data-delay="200">
+            <h3 class="echo-motif">비 오는 일요일 오후의 정적</h3>
+            <p class="echo-frequency">─ 지난 봄부터 일곱 번 돌아왔어요.</p>
+          </article>
+
+          <article class="echo" data-reveal data-delay="900">
+            <h3 class="echo-motif">단 하나의 창</h3>
+            <p class="echo-frequency">─ 온보딩 때부터 줄곧.</p>
+          </article>
+
+          <article class="echo" data-reveal data-delay="1600">
+            <h3 class="echo-motif">낯선 곳의 늦은 카페</h3>
+            <p class="echo-frequency">─ 짧게, 자주.</p>
+          </article>
+
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================================================
+         SECTION 5 — 오늘의 글
+         ============================================================ -->
+    <section class="section section-reflection" data-section>
+      <div class="section-inner narrow">
+
+        <p class="section-label" data-reveal>─ 오늘의 글</p>
+
+        <div class="reflection">
+
+          <p data-reveal data-delay="200">
+            이번 주, 당신은 도시의 소음 한가운데에서<br />
+            조용한 것들을 더 많이 발견했어요.
+          </p>
+
+          <p data-reveal data-delay="1000">
+            작은 것을 작은 채로 두는 일이 점점 능숙해지고
+            있는 것 같아요. 큰 사건을 만들지 않고도, 어떤
+            오후들은 충분히 의미 있게 지나갑니다.
+          </p>
+
+          <p data-reveal data-delay="2000" class="reflection-farewell">
+            다음 주에 또 만나요. 천천히.
+          </p>
+
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================================================
+         SECTION 6 — 오늘의 결
+         ============================================================ -->
+    <section class="section section-weather" data-section>
+      <div class="weather-bg" aria-hidden="true"></div>
+
+      <div class="section-inner narrow">
+
+        <p class="section-label" data-reveal>─ 오늘의 결</p>
+
+        <h2 class="weather-word" data-reveal data-delay="600" data-weather-word>차분함</h2>
+
+        <p class="weather-phrase" data-reveal data-delay="1400" data-weather-phrase>
+          조용한 호수의 표면 같은 하루예요.
+        </p>
+
+      </div>
+    </section>
+
+    <!-- ============================================================
+         FOOTER — quiet farewell
+         ============================================================ -->
+    <footer class="home-footer">
+      <p>내일도 같은 자리에 있을게요.</p>
+    </footer>
+
+  </main>
+
+  <!-- grain overlay -->
+  <div class="grain" aria-hidden="true"></div>
+
+  <script src="./script.js"></script>
+</body>
+</html>

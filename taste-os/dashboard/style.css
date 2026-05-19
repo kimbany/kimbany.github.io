@@ -1,0 +1,722 @@
+/* ==========================================================
+   Taste OS — Identity Dashboard / 집
+   palette: landing-v2 (rose + silver-blue on warm dark)
+   ========================================================== */
+
+:root {
+  --c-night:        #0E0C0B;
+  --c-coal:         #1A1714;
+  --c-ash:          #2A2622;
+  --c-bone:         #443E37;
+  --c-mist:         #9A8E81;
+  --c-sand:         #C8B69B;
+  --c-beige:        #D8C7AC;
+  --c-silver-blue:  #8FA0AC;
+  --c-rose:         #B07672;
+  --c-rose-deep:    #8A5552;
+
+  --font-display: 'Cormorant Garamond', 'Noto Serif KR', serif;
+  --font-text:    'Inter', 'Pretendard', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-mono:    'JetBrains Mono', ui-monospace, SFMono-Regular, monospace;
+
+  --s-1: 4px;   --s-2: 8px;   --s-3: 12px;
+  --s-4: 16px;  --s-5: 24px;  --s-6: 32px;
+  --br-1: 64px; --br-2: 112px; --br-3: 176px; --br-4: 240px;
+
+  --t-fast:       0.20s;
+  --t-base:       0.7s;
+  --t-breath-in:  1.0s;
+  --t-breath-out: 1.6s;
+  --t-reveal:     1.8s;
+  --t-reveal-slow: 2.0s;
+
+  --e-breath-in:  cubic-bezier(0.16, 1, 0.30, 1);
+  --e-breath-out: cubic-bezier(0.70, 0, 0.84, 0);
+  --e-settle:     cubic-bezier(0.34, 1.18, 0.64, 1);
+}
+
+/* ============================================================
+   RESET
+   ============================================================ */
+
+*, *::before, *::after { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+img, svg { display: block; max-width: 100%; }
+button { font: inherit; color: inherit; background: none; border: 0; cursor: pointer; }
+a { color: inherit; text-decoration: none; }
+hr { border: 0; }
+ul, li, ol { margin: 0; padding: 0; list-style: none; }
+blockquote, p, h1, h2, h3 { margin: 0; }
+em { font-style: italic; }
+
+html {
+  background: var(--c-night);
+  color: var(--c-beige);
+  font-family: var(--font-text);
+  font-weight: 350;
+  font-size: 16px;
+  line-height: 1.65;
+  letter-spacing: 0.01em;
+  font-variant-numeric: tabular-nums slashed-zero;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  background: var(--c-night);
+  min-height: 100vh;
+  overflow-x: hidden;
+  position: relative;
+}
+
+/* ============================================================
+   AMBIENT
+   ============================================================ */
+
+.orb {
+  position: fixed;
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 1;
+  mix-blend-mode: screen;
+  filter: blur(60px);
+  opacity: 0;
+  will-change: transform, opacity;
+  animation:
+    orb-fade 2.4s ease 0.6s forwards,
+    orb-drift 64s ease-in-out infinite;
+}
+
+.orb-rose   { background: radial-gradient(circle, rgba(176, 118, 114, 0.18), transparent 70%); }
+.orb-silver { background: radial-gradient(circle, rgba(143, 160, 172, 0.12), transparent 70%); }
+.orb-sand   { background: radial-gradient(circle, rgba(216, 199, 172, 0.10), transparent 70%); }
+
+.orb-1 { top:  4%; left:  4%; width: 420px; height: 420px; animation-delay: 0.6s, 0s; }
+.orb-2 { top: 32%; left: 76%; width: 360px; height: 360px; animation-delay: 1.0s, -16s; }
+.orb-3 { top: 60%; left: 14%; width: 400px; height: 400px; animation-delay: 1.4s, -32s; }
+.orb-4 { top: 84%; left: 72%; width: 340px; height: 340px; animation-delay: 1.6s, -48s; }
+
+@keyframes orb-fade  { to { opacity: 1; } }
+@keyframes orb-drift {
+  0%   { transform: translate(0, 0); }
+  33%  { transform: translate(50px, -40px); }
+  66%  { transform: translate(-30px, 50px); }
+  100% { transform: translate(0, 0); }
+}
+
+.grain {
+  position: fixed;
+  inset: -50%;
+  width: 200%;
+  height: 200%;
+  pointer-events: none;
+  z-index: 100;
+  opacity: 0;
+  mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml;utf8,<svg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 0.28 0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
+  animation: grain-fade 1.4s ease 0.4s forwards, grain-shift 0.6s steps(4) infinite;
+}
+
+@keyframes grain-fade  { to { opacity: 0.055; } }
+@keyframes grain-shift {
+  0%   { transform: translate(0,    0); }
+  25%  { transform: translate(-5%,  4%); }
+  50%  { transform: translate(5%,  -3%); }
+  75%  { transform: translate(-3%, -5%); }
+  100% { transform: translate(2%,   3%); }
+}
+
+/* ============================================================
+   SIGIL + TIME BAND
+   ============================================================ */
+
+.sigil {
+  position: fixed;
+  top: 32px;
+  left: 32px;
+  color: var(--c-mist);
+  opacity: 0;
+  z-index: 50;
+  animation: sigil-appear 1.4s ease 1.0s forwards,
+             sigil-breath 3.6s ease-in-out 2.4s infinite;
+}
+
+@keyframes sigil-appear { to { opacity: 0.22; } }
+@keyframes sigil-breath {
+  0%, 100% { opacity: 0.18; }
+  50%      { opacity: 0.32; }
+}
+
+.time-band {
+  position: fixed;
+  top: 36px;
+  right: 32px;
+  z-index: 50;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.10em;
+  color: var(--c-mist);
+  opacity: 0;
+  animation: sigil-appear 1.4s ease 1.2s forwards;
+  text-transform: lowercase;
+}
+
+/* ============================================================
+   LAYOUT — sections
+   ============================================================ */
+
+.home {
+  position: relative;
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+}
+
+.section {
+  width: 100%;
+  padding: var(--br-3) var(--s-5);
+  position: relative;
+}
+
+.section-inner {
+  width: 100%;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--br-1);
+}
+
+.section-inner.narrow { max-width: 640px; }
+.section-inner.wide   { max-width: 1080px; }
+
+.section-label {
+  font-family: var(--font-text);
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  color: var(--c-mist);
+  opacity: 0.65;
+  text-transform: lowercase;
+}
+
+/* reveal */
+
+[data-reveal] {
+  opacity: 0;
+  transition:
+    opacity var(--t-reveal) var(--e-breath-in),
+    filter var(--t-reveal) var(--e-breath-in),
+    letter-spacing var(--t-reveal) var(--e-breath-in),
+    transform var(--t-breath-in) var(--e-breath-in);
+  filter: blur(8px);
+  transform: translateY(6px);
+}
+
+[data-reveal].is-revealed {
+  opacity: 1;
+  filter: blur(0);
+  letter-spacing: inherit;
+  transform: translateY(0);
+}
+
+hr[data-reveal] {
+  transform-origin: center;
+  transform: scaleX(0);
+  filter: none;
+  transition: transform 0.8s var(--e-breath-in), opacity 0.6s ease;
+}
+
+hr[data-reveal].is-revealed {
+  transform: scaleX(1);
+  opacity: 0.4;
+}
+
+/* ============================================================
+   SECTION 1 — 지금의 공기
+   ============================================================ */
+
+.section-now {
+  min-height: 80vh;
+  display: flex;
+  align-items: center;
+  padding-top: var(--br-2);
+  padding-bottom: var(--br-2);
+}
+
+.section-now::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse at 30% 40%, rgba(176, 118, 114, 0.06), transparent 50%);
+  pointer-events: none;
+}
+
+.section-now .section-inner {
+  position: relative;
+  z-index: 1;
+  align-items: flex-start;
+  gap: var(--s-6);
+}
+
+.time-line {
+  font-family: var(--font-display);
+  font-style: italic;
+  font-weight: 300;
+  font-size: clamp(18px, 2vw, 22px);
+  color: var(--c-mist);
+  letter-spacing: -0.005em;
+}
+
+.taste-name {
+  font-family: var(--font-display);
+  font-weight: 300;
+  font-style: italic;
+  font-size: clamp(48px, 8.5vw, 88px);
+  line-height: 0.95;
+  letter-spacing: -0.018em;
+  color: var(--c-beige);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.taste-name .word { display: inline-block; }
+.taste-name .word-2 { color: var(--c-rose); }
+
+.palette-block {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+}
+
+.palette-row {
+  display: flex;
+  gap: 0;
+}
+
+.palette-swatch {
+  width: 40px;
+  height: 40px;
+}
+
+.palette-names {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  color: var(--c-mist);
+  opacity: 0.7;
+  text-transform: lowercase;
+}
+
+.status-line {
+  font-family: var(--font-text);
+  font-size: 14px;
+  line-height: 1.7;
+  color: var(--c-mist);
+  letter-spacing: 0.005em;
+  opacity: 0.85;
+  margin-top: var(--s-3);
+}
+
+/* ============================================================
+   SECTION 2 — 흐름
+   ============================================================ */
+
+.patterns {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-5);
+}
+
+.pattern {
+  font-family: var(--font-display);
+  font-style: italic;
+  font-weight: 300;
+  font-size: clamp(22px, 2.6vw, 28px);
+  line-height: 1.4;
+  letter-spacing: -0.005em;
+  color: var(--c-beige);
+  opacity: 0.92;
+}
+
+.hairline {
+  width: 56px;
+  height: 1px;
+  background: var(--c-bone);
+  opacity: 0.3;
+}
+
+/* ============================================================
+   SECTION 3 — 풍경의 모음
+   ============================================================ */
+
+.section-universe::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse at 70% 50%, rgba(143, 160, 172, 0.04), transparent 60%);
+  pointer-events: none;
+}
+
+.universe-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--s-6) var(--br-1);
+  position: relative;
+  z-index: 1;
+  width: 100%;
+}
+
+.u-card {
+  --tilt: 0deg;
+  --drift: 0s;
+  position: relative;
+  cursor: pointer;
+  transform: rotate(var(--tilt));
+  transition:
+    transform var(--t-base) var(--e-settle),
+    filter var(--t-base) ease;
+  animation: u-card-drift 9s ease-in-out infinite;
+  animation-delay: var(--drift);
+  will-change: transform;
+}
+
+@keyframes u-card-drift {
+  0%, 100% { transform: rotate(var(--tilt)) translateY(0); }
+  50%      { transform: rotate(var(--tilt)) translateY(-3px); }
+}
+
+.u-card:hover {
+  transform: rotate(var(--tilt)) translateY(-3px);
+  filter: brightness(1.05) saturate(1.05);
+  animation-play-state: paused;
+}
+
+/* image card */
+.u-image .img {
+  aspect-ratio: 4 / 5;
+  border-radius: 2px;
+  background-size: cover;
+  background-position: center;
+  filter: saturate(0.92);
+  transition: filter var(--t-base) ease;
+}
+
+.u-image:hover .img { filter: saturate(1.04); }
+
+.u-image .u-caption {
+  font-family: var(--font-display);
+  font-style: italic;
+  font-size: 14px;
+  letter-spacing: -0.002em;
+  color: var(--c-mist);
+  margin-top: var(--s-3);
+  opacity: 0.85;
+}
+
+/* music card */
+.u-music {
+  aspect-ratio: 4 / 5;
+  background: var(--c-coal);
+  border: 1px solid rgba(68, 62, 55, 0.55);
+  border-radius: 2px;
+  padding: var(--s-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+}
+
+.u-music .disc {
+  width: 100%;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 50% 50%, rgba(176, 118, 114, 0.10) 0%, transparent 18%),
+    repeating-radial-gradient(circle at 50% 50%,
+      rgba(216, 199, 172, 0.04) 0px,
+      rgba(216, 199, 172, 0.04) 4px,
+      rgba(176, 118, 114, 0.08) 5px,
+      rgba(176, 118, 114, 0.08) 6px),
+    var(--c-night);
+  border: 1px solid rgba(176, 118, 114, 0.18);
+  position: relative;
+  animation: disc-spin 16s linear infinite;
+}
+
+.u-music .disc::after {
+  content: "";
+  position: absolute;
+  top: 50%; left: 50%;
+  width: 10px; height: 10px;
+  border-radius: 50%;
+  background: var(--c-rose);
+  transform: translate(-50%, -50%);
+  opacity: 0.55;
+}
+
+@keyframes disc-spin { to { transform: rotate(360deg); } }
+
+.u-music .u-title {
+  font-family: var(--font-display);
+  font-style: italic;
+  font-size: 15px;
+  color: var(--c-beige);
+  letter-spacing: -0.005em;
+  margin-top: auto;
+}
+
+.u-music .u-sub {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  color: var(--c-mist);
+  opacity: 0.6;
+  text-transform: lowercase;
+}
+
+/* quote card */
+.u-quote {
+  aspect-ratio: 4 / 5;
+  background:
+    radial-gradient(ellipse at top left, rgba(244, 241, 234, 0.025), transparent 60%),
+    var(--c-coal);
+  border: 1px solid rgba(68, 62, 55, 0.55);
+  border-radius: 2px;
+  padding: var(--s-6);
+  display: flex;
+  align-items: center;
+}
+
+.u-quote .quote-text {
+  font-family: var(--font-display);
+  font-style: italic;
+  font-weight: 300;
+  font-size: 17px;
+  line-height: 1.55;
+  color: var(--c-beige);
+  letter-spacing: -0.002em;
+}
+
+/* ============================================================
+   SECTION 4 — 자꾸 돌아오는 것들 (Echoes)
+   ============================================================ */
+
+.echoes {
+  display: flex;
+  flex-direction: column;
+  gap: var(--br-2);
+}
+
+.echo {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+}
+
+.echo-motif {
+  font-family: var(--font-display);
+  font-style: italic;
+  font-weight: 300;
+  font-size: clamp(22px, 2.4vw, 26px);
+  line-height: 1.32;
+  color: var(--c-beige);
+  letter-spacing: -0.005em;
+}
+
+.echo-frequency {
+  font-family: var(--font-text);
+  font-size: 13px;
+  letter-spacing: 0.01em;
+  color: var(--c-mist);
+  opacity: 0.75;
+}
+
+/* ============================================================
+   SECTION 5 — 오늘의 글
+   ============================================================ */
+
+.section-reflection::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse at 50% 50%, rgba(176, 118, 114, 0.04), transparent 60%);
+  pointer-events: none;
+}
+
+.reflection {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-5);
+  position: relative;
+  z-index: 1;
+}
+
+.reflection p {
+  font-family: var(--font-text);
+  font-weight: 350;
+  font-size: 17px;
+  line-height: 1.78;
+  color: var(--c-beige);
+  letter-spacing: 0.005em;
+  opacity: 0.92;
+}
+
+.reflection-farewell {
+  font-family: var(--font-display) !important;
+  font-style: italic;
+  font-size: 18px !important;
+  color: var(--c-mist) !important;
+  margin-top: var(--s-5);
+  letter-spacing: -0.002em;
+}
+
+/* ============================================================
+   SECTION 6 — 오늘의 결
+   ============================================================ */
+
+.section-weather {
+  min-height: 80vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  overflow: hidden;
+}
+
+.weather-bg {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 60% 50% at 30% 40%, rgba(176, 118, 114, 0.08), transparent 60%),
+    radial-gradient(ellipse 50% 40% at 70% 60%, rgba(143, 160, 172, 0.06), transparent 60%);
+  animation: weather-drift 60s ease-in-out infinite;
+  pointer-events: none;
+  filter: blur(20px);
+}
+
+@keyframes weather-drift {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  25%      { transform: translate(20px, -10px) scale(1.04); }
+  50%      { transform: translate(-15px, 15px) scale(1.02); }
+  75%      { transform: translate(10px, -20px) scale(1.06); }
+}
+
+.section-weather .section-inner {
+  position: relative;
+  z-index: 1;
+  align-items: center;
+  text-align: center;
+  gap: var(--br-1);
+}
+
+.weather-word {
+  font-family: var(--font-display);
+  font-style: italic;
+  font-weight: 300;
+  font-size: clamp(64px, 10vw, 96px);
+  line-height: 1;
+  letter-spacing: -0.018em;
+  color: var(--c-beige);
+}
+
+.weather-phrase {
+  font-family: var(--font-display);
+  font-style: italic;
+  font-weight: 300;
+  font-size: clamp(18px, 2.2vw, 22px);
+  color: var(--c-mist);
+  letter-spacing: -0.002em;
+  max-width: 480px;
+  line-height: 1.55;
+}
+
+/* ============================================================
+   FOOTER
+   ============================================================ */
+
+.home-footer {
+  padding: var(--br-2) var(--s-5) var(--br-3);
+  text-align: center;
+}
+
+.home-footer p {
+  font-family: var(--font-display);
+  font-style: italic;
+  font-size: 13px;
+  color: var(--c-mist);
+  opacity: 0.4;
+  letter-spacing: -0.002em;
+}
+
+/* ============================================================
+   RESPONSIVE
+   ============================================================ */
+
+@media (max-width: 1024px) {
+  .universe-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: var(--s-5) var(--s-6);
+  }
+}
+
+@media (max-width: 768px) {
+  .sigil { top: 20px; left: 20px; }
+  .time-band { top: 22px; right: 20px; font-size: 10px; }
+
+  .section { padding: var(--br-2) var(--s-4); }
+
+  .section-now {
+    min-height: 70vh;
+    padding-top: var(--br-1);
+  }
+
+  .section-inner.narrow,
+  .section-inner.wide {
+    max-width: 100%;
+  }
+
+  .taste-name { font-size: clamp(40px, 14vw, 64px); }
+
+  .palette-swatch { width: 32px; height: 32px; }
+
+  .universe-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--s-4);
+  }
+
+  .pattern { font-size: clamp(20px, 5vw, 24px); }
+
+  .echo-motif { font-size: 20px; }
+
+  .weather-word { font-size: clamp(48px, 14vw, 64px); }
+
+  .reflection p { font-size: 15px; }
+}
+
+/* ============================================================
+   REDUCED MOTION
+   ============================================================ */
+
+@media (prefers-reduced-motion: reduce) {
+  .orb, .sigil, .u-card, .u-music .disc, .weather-bg {
+    animation: none !important;
+  }
+  [data-reveal] {
+    transition: opacity 0.4s ease !important;
+    filter: none !important;
+    transform: none !important;
+    letter-spacing: inherit !important;
+  }
+  hr[data-reveal] { transform: scaleX(1) !important; opacity: 0.4; }
+  .grain { animation: grain-fade 1.4s ease 0.4s forwards; }
+}
+
+/* ============================================================
+   SELECTION & FOCUS
+   ============================================================ */
+
+::selection { background: rgba(176, 118, 114, 0.40); color: var(--c-beige); }
+:focus-visible {
+  outline: 1px solid rgba(176, 118, 114, 0.55);
+  outline-offset: 4px;
+  border-radius: 2px;
+}
