@@ -1,0 +1,310 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#0E0C0B" />
+  <title>Taste OS — 당신 안에는 이런 분위기가 흐르고 있었어요</title>
+  <meta name="description" content="당신만의 분위기를 한 편의 시처럼 마주하는 시간." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;1,300;1,400&family=Inter:wght@300;400;500&family=Noto+Serif+KR:wght@300;400&display=swap" />
+  <link rel="stylesheet" href="./style.css" />
+</head>
+<body class="tier-dawn">
+
+  <!-- Persistent Ambient layers -->
+  <div class="orb orb-1" aria-hidden="true"></div>
+  <div class="orb orb-2" aria-hidden="true"></div>
+  <div class="orb orb-3" aria-hidden="true"></div>
+  <div class="orb orb-4" aria-hidden="true"></div>
+
+  <div class="dust-field" aria-hidden="true"></div>
+
+  <div class="sigil" aria-hidden="true">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round">
+      <path d="M12 3.5 A 8.5 8.5 0 1 0 20.4 11.2" />
+    </svg>
+  </div>
+
+  <!-- A subtle, persistent atmosphere meter — top right -->
+  <div class="atmosphere-meter" data-atmosphere-meter aria-hidden="true">
+    <span class="meter-dot" data-dot="0"></span>
+    <span class="meter-dot" data-dot="1"></span>
+    <span class="meter-dot" data-dot="2"></span>
+    <span class="meter-dot" data-dot="3"></span>
+  </div>
+
+  <!-- ============================================================
+       01 — OPENING REVEAL
+       ============================================================ -->
+  <section class="section opening-section" data-section="opening" data-tier-hint="dawn">
+    <div class="opening-inner">
+      <h1 class="cinematic-head" data-reveal>
+        당신 안에는 이런 분위기가<br />
+        흐르고 있었어요.
+      </h1>
+      <hr class="hairline-mark" data-reveal data-reveal-delay="900" />
+      <p class="opening-foot mist" data-reveal data-reveal-delay="1500">
+        한 편의 시처럼, 천천히 내려가 주세요.
+      </p>
+      <div class="scroll-cue" aria-hidden="true" data-reveal data-reveal-delay="3000">
+        <span class="cue-line"></span>
+        <span class="cue-label">아래로 스크롤</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================
+       02 — GENOME CONSTELLATION
+       ============================================================ -->
+  <section class="section genome-section" data-section="genome" data-tier-hint="dawn">
+    <div class="section-inner">
+      <p class="eyebrow" data-reveal>당신의 감정 별자리</p>
+
+      <div class="genome-constellation" data-constellation>
+        <svg class="constellation-lines" viewBox="0 0 1000 600" aria-hidden="true" preserveAspectRatio="none">
+          <!-- Lines connecting every pair of stars -->
+          <line x1="280" y1="180" x2="720" y2="180" data-line="0-1" />
+          <line x1="280" y1="180" x2="280" y2="420" data-line="0-2" />
+          <line x1="280" y1="180" x2="720" y2="420" data-line="0-3" />
+          <line x1="720" y1="180" x2="280" y2="420" data-line="1-2" />
+          <line x1="720" y1="180" x2="720" y2="420" data-line="1-3" />
+          <line x1="280" y1="420" x2="720" y2="420" data-line="2-3" />
+        </svg>
+
+        <span class="genome-star" data-star="0" style="--x:28%; --y:30%;">
+          <span class="star-dot" aria-hidden="true"></span>
+          <span class="star-word">Quiet Warmth</span>
+        </span>
+        <span class="genome-star" data-star="1" style="--x:72%; --y:30%;">
+          <span class="star-dot" aria-hidden="true"></span>
+          <span class="star-word">Urban Nostalgia</span>
+        </span>
+        <span class="genome-star" data-star="2" style="--x:28%; --y:70%;">
+          <span class="star-dot" aria-hidden="true"></span>
+          <span class="star-word">Emotional Minimalism</span>
+        </span>
+        <span class="genome-star" data-star="3" style="--x:72%; --y:70%;">
+          <span class="star-dot" aria-hidden="true"></span>
+          <span class="star-word">Warm Futurism</span>
+        </span>
+      </div>
+
+      <p class="genome-translation mist" data-reveal data-reveal-delay="2400">
+        조용한 따뜻함 · 도시의 향수 · 감정의 미니멀리즘 · 따뜻한 미래감
+      </p>
+    </div>
+  </section>
+
+  <!-- ============================================================
+       03 — NARRATION I
+       ============================================================ -->
+  <section class="section narration-section" data-section="narration-1" data-tier-hint="warming">
+    <div class="narration-inner">
+      <hr class="hairline-frame" data-reveal />
+      <p class="cinematic-narration" data-reveal data-reveal-delay="600">
+        당신은 조용한 따뜻함 속에서<br />
+        가장 오래 머무르는 사람입니다.
+      </p>
+      <hr class="hairline-frame" data-reveal data-reveal-delay="1200" />
+    </div>
+  </section>
+
+  <!-- ============================================================
+       04 — ATTRACTION LAYER
+       ============================================================ -->
+  <section class="section layer-section attraction-section" data-section="attraction" data-tier-hint="warming">
+    <div class="section-inner">
+      <p class="eyebrow" data-reveal>당신이 이끌리는 것들</p>
+
+      <ul class="phrase-list" data-reveal-list>
+        <li><span class="phrase-mark">─</span><span class="phrase-text">오래 머무는 빛</span></li>
+        <li><span class="phrase-mark">─</span><span class="phrase-text">낡은 종이의 결</span></li>
+        <li><span class="phrase-mark">─</span><span class="phrase-text">혼자만의 음악</span></li>
+        <li><span class="phrase-mark">─</span><span class="phrase-text">느린 손길</span></li>
+        <li><span class="phrase-mark">─</span><span class="phrase-text">저녁 6시의 그림자</span></li>
+        <li><span class="phrase-mark">─</span><span class="phrase-text">누군가의 흔적</span></li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- ============================================================
+       05 — NARRATION II
+       ============================================================ -->
+  <section class="section narration-section" data-section="narration-2" data-tier-hint="noon">
+    <div class="narration-inner">
+      <hr class="hairline-frame" data-reveal />
+      <p class="cinematic-narration" data-reveal data-reveal-delay="600">
+        완벽함보다는 인간적인 흔적에<br />
+        마음이 끌리고 있어요.
+      </p>
+      <hr class="hairline-frame" data-reveal data-reveal-delay="1200" />
+    </div>
+  </section>
+
+  <!-- ============================================================
+       06 — RHYTHM LAYER
+       ============================================================ -->
+  <section class="section layer-section rhythm-section" data-section="rhythm" data-tier-hint="noon">
+    <div class="section-inner">
+      <p class="eyebrow" data-reveal>반복되는 분위기</p>
+
+      <ul class="rhythm-list" data-reveal-list>
+        <li class="rhythm-row">
+          <span class="rhythm-name">새벽</span>
+          <span class="rhythm-line" style="--w: 92%;"></span>
+          <span class="rhythm-tag">가장 자주</span>
+        </li>
+        <li class="rhythm-row">
+          <span class="rhythm-name">필름톤</span>
+          <span class="rhythm-line" style="--w: 78%;"></span>
+          <span class="rhythm-tag">자주</span>
+        </li>
+        <li class="rhythm-row">
+          <span class="rhythm-name">종이의 결</span>
+          <span class="rhythm-line" style="--w: 62%;"></span>
+          <span class="rhythm-tag">종종</span>
+        </li>
+        <li class="rhythm-row">
+          <span class="rhythm-name">조명 하나</span>
+          <span class="rhythm-line" style="--w: 56%;"></span>
+          <span class="rhythm-tag">종종</span>
+        </li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- ============================================================
+       07 — NARRATION III
+       ============================================================ -->
+  <section class="section narration-section" data-section="narration-3" data-tier-hint="noon">
+    <div class="narration-inner">
+      <hr class="hairline-frame" data-reveal />
+      <p class="cinematic-narration" data-reveal data-reveal-delay="600">
+        차가운 도시의 고독감 속에서도<br />
+        따뜻한 감정을 찾고 있습니다.
+      </p>
+      <hr class="hairline-frame" data-reveal data-reveal-delay="1200" />
+    </div>
+  </section>
+
+  <!-- ============================================================
+       08 — CONTRAST LAYER
+       ============================================================ -->
+  <section class="section layer-section contrast-section" data-section="contrast" data-tier-hint="deep">
+    <div class="section-inner">
+      <p class="eyebrow" data-reveal>당신 안에는 함께 흐르는 결이 있어요</p>
+
+      <ul class="contrast-list" data-reveal-list>
+        <li class="contrast-pair">
+          <span class="contrast-side left">고독</span>
+          <span class="contrast-bridge" aria-hidden="true">↔</span>
+          <span class="contrast-side right">온기</span>
+        </li>
+        <li class="contrast-pair">
+          <span class="contrast-side left">미니멀</span>
+          <span class="contrast-bridge" aria-hidden="true">↔</span>
+          <span class="contrast-side right">풍성한 결</span>
+        </li>
+        <li class="contrast-pair">
+          <span class="contrast-side left">도시</span>
+          <span class="contrast-bridge" aria-hidden="true">↔</span>
+          <span class="contrast-side right">자연의 호흡</span>
+        </li>
+        <li class="contrast-pair">
+          <span class="contrast-side left">새벽</span>
+          <span class="contrast-bridge" aria-hidden="true">↔</span>
+          <span class="contrast-side right">해질녘</span>
+        </li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- ============================================================
+       09 — FRAGMENT LAYER
+       ============================================================ -->
+  <section class="section layer-section fragment-section" data-section="fragment" data-tier-hint="deep">
+    <div class="section-inner">
+      <p class="eyebrow" data-reveal>당신의 결을 이루는 조각들</p>
+
+      <div class="fragment-grid" data-reveal-list>
+        <article class="fragment-card card-palette">
+          <div class="card-visual visual-palette" aria-hidden="true">
+            <span class="palette-band"></span>
+            <span class="palette-band"></span>
+            <span class="palette-band"></span>
+            <span class="palette-band"></span>
+          </div>
+          <p class="card-label">팔레트</p>
+          <p class="card-detail mist">rose · bone · ember · beige</p>
+        </article>
+
+        <article class="fragment-card card-texture">
+          <div class="card-visual visual-texture" aria-hidden="true">
+            <span class="texture-line"></span>
+            <span class="texture-line"></span>
+            <span class="texture-line"></span>
+            <span class="texture-line"></span>
+          </div>
+          <p class="card-label">결</p>
+          <p class="card-detail mist">낡은 종이의 표면</p>
+        </article>
+
+        <article class="fragment-card card-light">
+          <div class="card-visual visual-light" aria-hidden="true">
+            <span class="light-glow"></span>
+          </div>
+          <p class="card-label">빛</p>
+          <p class="card-detail mist">저녁 6시의 호박색</p>
+        </article>
+
+        <article class="fragment-card card-sound">
+          <div class="card-visual visual-sound" aria-hidden="true">
+            <span class="sound-ring"></span>
+            <span class="sound-ring"></span>
+            <span class="sound-ring"></span>
+          </div>
+          <p class="card-label">소리</p>
+          <p class="card-detail mist">낮게 깔린 ambient drone</p>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================
+       10 — ENDING REFLECTION
+       ============================================================ -->
+  <section class="section ending-section" data-section="ending" data-tier-hint="deep">
+    <div class="ending-inner">
+      <p class="cinematic-head ending-head">
+        <span class="ending-line" data-reveal>당신은 계속 변하고 있습니다.</span>
+        <span class="ending-line" data-reveal data-reveal-delay="900">그리고 그 변화 속에도,</span>
+        <span class="ending-line" data-reveal data-reveal-delay="1800">당신만의 분위기는 조용히 이어지고 있어요.</span>
+      </p>
+    </div>
+  </section>
+
+  <!-- ============================================================
+       11 — SOFT CTA
+       ============================================================ -->
+  <section class="section cta-section" data-section="cta" data-tier-hint="deep">
+    <div class="cta-inner">
+      <hr class="hairline-mark" data-reveal />
+      <button class="beacon ceremonial" type="button" data-reveal data-reveal-delay="800" data-action="forward">
+        <span class="dash">────</span>
+        <span class="beacon-label">나의 감정 공간으로 이어가기</span>
+        <span class="dash">────</span>
+      </button>
+      <p class="cta-foot mist" data-reveal data-reveal-delay="1600">
+        잠시 머무르셨던 시간이, 당신에게 닿았기를.
+      </p>
+    </div>
+  </section>
+
+  <!-- Grain -->
+  <div class="grain" aria-hidden="true"></div>
+
+  <script src="./script.js"></script>
+</body>
+</html>
