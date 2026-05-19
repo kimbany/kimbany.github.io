@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#0E0C0B" />
+  <title>Taste OS — 마음의 결을 묻다</title>
+  <meta name="description" content="우리는 생각보다 많은 감정을 지나쳐 살아갑니다." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;1,300;1,400&family=Inter:wght@300;400;500&family=Noto+Serif+KR:wght@300;400&display=swap" />
+  <link rel="stylesheet" href="./style.css" />
+</head>
+<body class="ref-zero">
+
+  <!-- Ambient layers -->
+  <div class="orb orb-1" aria-hidden="true"></div>
+  <div class="orb orb-2" aria-hidden="true"></div>
+  <div class="orb orb-3" aria-hidden="true"></div>
+  <div class="orb orb-4" aria-hidden="true"></div>
+
+  <div class="dust-field" aria-hidden="true"></div>
+
+  <div class="sigil" aria-hidden="true">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round">
+      <path d="M12 3.5 A 8.5 8.5 0 1 0 20.4 11.2" />
+    </svg>
+  </div>
+
+  <!-- ============================================================
+       STATE A — INTRO
+       ============================================================ -->
+  <main class="intro" data-phase="active">
+    <div class="intro-inner">
+
+      <h1 class="intro-headline" data-reveal="headline">
+        우리는 생각보다 많은 감정을<br />
+        지나쳐 살아갑니다.
+      </h1>
+
+      <hr class="hairline" data-reveal="hairline" />
+
+      <p class="intro-sub-single" data-reveal="sub-1">
+        잠시, 당신의 마음에<br />
+        조용히 머물러 볼까요.
+      </p>
+
+      <button class="beacon" type="button" data-reveal="cta" data-action="start">
+        <span class="dash">────</span>
+        <span class="beacon-label">시작하기</span>
+        <span class="dash">────</span>
+      </button>
+
+    </div>
+  </main>
+
+  <!-- ============================================================
+       STATE B — REFLECTION CANVAS
+       6 questions, one at a time, atmosphere tier deepens
+       ============================================================ -->
+  <main class="canvas-state" data-phase="hidden">
+
+    <header class="canvas-header">
+      <p class="canvas-hint">대답이 떠오르지 않으면, 그냥 지나가셔도 괜찮아요.</p>
+    </header>
+
+    <section class="question-stage" data-question-stage>
+      <!-- One question card mounted at a time -->
+    </section>
+
+    <footer class="canvas-footer">
+      <button class="quiet-link" type="button" data-action="skip">
+        <span class="quiet-dash">─</span>
+        <span>이번엔 지나갈게요</span>
+        <span class="quiet-dash">─</span>
+      </button>
+
+      <button class="beacon ceremonial cta-forward" type="button" data-action="forward" data-state="hidden">
+        <span class="dash">────</span>
+        <span class="beacon-label">이제 당신의 분위기를 천천히 이해해볼게요</span>
+        <span class="dash">────</span>
+      </button>
+    </footer>
+
+  </main>
+
+  <!-- ============================================================
+       STATE C — FORWARD THRESHOLD BEAT
+       ============================================================ -->
+  <div class="forward-beat" data-phase="hidden" aria-hidden="true">
+    <p class="beat-line" data-line="0">여기까지 함께 머물러 주셔서 고마워요.</p>
+    <p class="beat-line" data-line="1">이제, 당신을 천천히 만나볼게요.</p>
+  </div>
+
+  <!-- Grain -->
+  <div class="grain" aria-hidden="true"></div>
+
+  <script src="./script.js"></script>
+</body>
+</html>
