@@ -1,0 +1,291 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#0E0C0B" />
+  <title>Taste OS — 잠시, 머물러도 좋아요</title>
+  <meta name="description" content="당신이 보여준 작은 것들로, 천천히 풍경을 만들어요." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;1,300;1,400&family=Inter:wght@300;400;500&family=JetBrains+Mono:wght@300&family=Noto+Serif+KR:wght@300;400&display=swap" />
+  <link rel="stylesheet" href="./style.css" />
+</head>
+<body>
+
+  <!-- ambient layers -->
+  <div class="orb orb-rose orb-1" aria-hidden="true"></div>
+  <div class="orb orb-silver orb-2" aria-hidden="true"></div>
+  <div class="orb orb-sand orb-3" aria-hidden="true"></div>
+
+  <div class="sigil" aria-hidden="true">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round">
+      <path d="M12 3.5 A 8.5 8.5 0 1 0 20.4 11.2" />
+    </svg>
+  </div>
+
+  <!-- quiet progress indicator (dots) -->
+  <div class="progress" aria-hidden="true">
+    <span class="dot is-active"></span>
+    <span class="dot"></span>
+    <span class="dot"></span>
+    <span class="dot"></span>
+    <span class="dot"></span>
+    <span class="dot"></span>
+    <span class="dot"></span>
+  </div>
+
+  <main class="stage">
+
+    <!-- ============================================================
+         SCREEN 1 — 도착
+         ============================================================ -->
+    <section class="screen screen-arrival is-active" data-step="1">
+      <div class="screen-inner narrow">
+
+        <h1 class="display-hero italic" data-reveal="blur" data-delay="1200">
+          괜히 자꾸<br />
+          저장하게 되는 것들이<br />
+          있어요.
+        </h1>
+
+        <hr class="hairline narrow" data-reveal="fade" data-delay="4000" />
+
+        <p class="sub-headline" data-reveal="fade" data-delay="4400">
+          그 작은 것들이 사실<br />
+          당신을 가장 잘 말해요.
+        </p>
+
+        <div class="beacon-wrap" data-reveal="fade" data-delay="6000">
+          <button class="beacon ceremonial" type="button" data-action="next">
+            <span class="dash">───</span>
+            <span class="beacon-label">들어가기</span>
+            <span class="dash">───</span>
+          </button>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================================================
+         SCREEN 2 — 이미지
+         ============================================================ -->
+    <section class="screen screen-images" data-step="2">
+      <div class="screen-inner">
+
+        <header class="screen-header">
+          <p class="section-label">─ 둘 가운데 첫</p>
+          <h2 class="screen-question">괜히 자꾸 저장하게 되는<br />장면들이 있나요?</h2>
+          <p class="screen-hint">6장에서 12장. 설명할 필요 없어요.</p>
+        </header>
+
+        <div class="image-grid" data-grid="images">
+          <!-- 16 gradient cards, filled by JS -->
+        </div>
+
+        <footer class="screen-footer">
+          <p class="counter" data-counter="images">고른 만큼만, 잠시 보세요.</p>
+          <div class="footer-actions">
+            <button class="beacon ceremonial" type="button" data-action="next" data-min="6" disabled>
+              <span class="dash">───</span>
+              <span class="beacon-label">다음</span>
+              <span class="dash">───</span>
+            </button>
+            <button class="skip-link" type="button" data-action="skip">오늘은 아니에요</button>
+          </div>
+        </footer>
+
+      </div>
+    </section>
+
+    <!-- ============================================================
+         SCREEN 3 — 소리
+         ============================================================ -->
+    <section class="screen screen-music" data-step="3">
+      <div class="screen-inner">
+
+        <header class="screen-header">
+          <p class="section-label">─ 다음</p>
+          <h2 class="screen-question">마음 안의 세계는<br />어떤 소리를 가지고 있나요?</h2>
+          <p class="screen-hint">3개에서 5개. 들리는 것들로.</p>
+        </header>
+
+        <div class="sound-grid" data-grid="sounds">
+          <!-- 9 sound cards, filled by JS -->
+        </div>
+
+        <footer class="screen-footer">
+          <p class="counter" data-counter="sounds">조용히 들리는 것이라도.</p>
+          <div class="footer-actions">
+            <button class="beacon ceremonial" type="button" data-action="next" data-min="3" disabled>
+              <span class="dash">───</span>
+              <span class="beacon-label">다음</span>
+              <span class="dash">───</span>
+            </button>
+            <button class="skip-link" type="button" data-action="skip">오늘은 아니에요</button>
+          </div>
+        </footer>
+
+      </div>
+    </section>
+
+    <!-- ============================================================
+         SCREEN 4 — 말
+         ============================================================ -->
+    <section class="screen screen-quotes" data-step="4">
+      <div class="screen-inner narrow">
+
+        <header class="screen-header">
+          <p class="section-label">─ 다음</p>
+          <h2 class="screen-question">마음에 자주 돌아오는<br />한 줄이 있어요.</h2>
+          <p class="screen-hint">두 개에서 다섯 개. 마음이 멈춘 곳에.</p>
+        </header>
+
+        <div class="quote-list" data-grid="quotes">
+          <!-- quote cards, filled by JS -->
+        </div>
+
+        <div class="quote-custom">
+          <p class="quote-custom-label">기억에 남은 다른 줄이 있다면</p>
+          <textarea class="quote-input" rows="2" maxlength="140" placeholder="직접 적어볼게요"></textarea>
+        </div>
+
+        <footer class="screen-footer">
+          <p class="counter" data-counter="quotes">충분해요. 더 두어도 좋고요.</p>
+          <div class="footer-actions">
+            <button class="beacon ceremonial" type="button" data-action="next" data-min="2" disabled>
+              <span class="dash">───</span>
+              <span class="beacon-label">다음</span>
+              <span class="dash">───</span>
+            </button>
+            <button class="skip-link" type="button" data-action="skip">오늘은 아니에요</button>
+          </div>
+        </footer>
+
+      </div>
+    </section>
+
+    <!-- ============================================================
+         SCREEN 5 — 공간
+         ============================================================ -->
+    <section class="screen screen-spaces" data-step="5">
+      <div class="screen-inner">
+
+        <header class="screen-header">
+          <p class="section-label">─ 다음</p>
+          <h2 class="screen-question">마음이 이미 살고 있는<br />방을 골라보세요.</h2>
+          <p class="screen-hint">셋에서 다섯. 들어가본 적 있는 것처럼.</p>
+        </header>
+
+        <div class="space-grid" data-grid="spaces">
+          <!-- 9 space cards, filled by JS -->
+        </div>
+
+        <footer class="screen-footer">
+          <p class="counter" data-counter="spaces">그 자리에 잠시 머물러요.</p>
+          <div class="footer-actions">
+            <button class="beacon ceremonial" type="button" data-action="next" data-min="3" disabled>
+              <span class="dash">───</span>
+              <span class="beacon-label">다음</span>
+              <span class="dash">───</span>
+            </button>
+            <button class="skip-link" type="button" data-action="skip">오늘은 아니에요</button>
+          </div>
+        </footer>
+
+      </div>
+    </section>
+
+    <!-- ============================================================
+         SCREEN 6 — 느낌
+         ============================================================ -->
+    <section class="screen screen-feeling" data-step="6">
+      <div class="screen-inner narrow">
+
+        <header class="screen-header center">
+          <p class="screen-question subtle">정답은 없어요.<br />마음이 가는 쪽으로, 천천히.</p>
+        </header>
+
+        <div class="slider-stage">
+          <div class="slider-poles">
+            <span class="pole pole-left" data-pole="left">고독</span>
+            <span class="pole pole-right" data-pole="right">교감</span>
+          </div>
+
+          <div class="slider-track">
+            <div class="slider-line"></div>
+            <button class="slider-dot" type="button" aria-label="slider"></button>
+          </div>
+        </div>
+
+        <footer class="screen-footer center">
+          <p class="slider-index"><span data-slider-index>1</span> / 5</p>
+        </footer>
+
+      </div>
+    </section>
+
+    <!-- ============================================================
+         SCREEN 7 — 듣기
+         ============================================================ -->
+    <section class="screen screen-listening" data-step="7">
+      <div class="screen-inner narrow">
+
+        <div class="constellation" aria-hidden="true">
+          <!-- 36 dots, filled by JS -->
+        </div>
+
+        <div class="listening-text-stage">
+          <p class="listening-text" data-listen="0">당신이 보여준 빛을 읽는 중이에요…</p>
+          <p class="listening-text" data-listen="1">당신 안의 온도를 듣는 중이에요…</p>
+          <p class="listening-text" data-listen="2">관통하는 선을 찾고 있어요.</p>
+        </div>
+
+        <div class="beacon-wrap listening-beacon" data-state="hidden">
+          <button class="beacon ceremonial" type="button" data-action="finish">
+            <span class="dash">───</span>
+            <span class="beacon-label">열기</span>
+            <span class="dash">───</span>
+          </button>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================================================
+         SCREEN 8 — 끝맺음 (preview-only)
+         ============================================================ -->
+    <section class="screen screen-end" data-step="8">
+      <div class="screen-inner narrow">
+
+        <h2 class="display-hero italic" data-reveal="blur">
+          지금까지가<br />
+          미리보기였어요.
+        </h2>
+
+        <hr class="hairline narrow" data-reveal="fade" data-delay="1800" />
+
+        <p class="sub-headline" data-reveal="fade" data-delay="2200">
+          당신의 풍경은<br />
+          실제 Taste OS에서 만들어집니다.
+        </p>
+
+        <div class="beacon-wrap" data-reveal="fade" data-delay="3600">
+          <button class="beacon ceremonial" type="button" data-action="restart">
+            <span class="dash">───</span>
+            <span class="beacon-label">처음으로</span>
+            <span class="dash">───</span>
+          </button>
+        </div>
+
+      </div>
+    </section>
+
+  </main>
+
+  <!-- grain overlay -->
+  <div class="grain" aria-hidden="true"></div>
+
+  <script src="./script.js"></script>
+</body>
+</html>
