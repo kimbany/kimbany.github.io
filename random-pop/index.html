@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no" />
+  <title>랜덤픽! — 고민될 땐 랜덤으로</title>
+  <meta name="description" content="할일·게임·메뉴·책·영화·간식·노래·닉네임을 랜덤으로 추천해주는 앱" />
+
+  <!-- PWA -->
+  <link rel="manifest" href="./manifest.json" />
+  <meta name="theme-color" content="#FF4D8D" />
+
+  <!-- iOS Safari -->
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta name="apple-mobile-web-app-title" content="랜덤픽!" />
+  <link rel="apple-touch-icon" href="./icon-192.png" />
+  <link rel="icon" type="image/png" href="./icon-192.png" />
+
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Gaegu:wght@700&family=Gowun+Dodum&display=swap" rel="stylesheet" />
+
+  <style>
+    :root {
+      --pink: #FF4D8D;
+      --pink-light: #FFD6E3;
+      --yellow: #FFD93D;
+      --mint: #6BCB77;
+      --blue: #4D96FF;
+      --purple: #9D72FF;
+      --orange: #FF8A3D;
+      --ink: #1A1A1A;
+      --paper: #FFF8F0;
+      --shadow: 4px 4px 0 var(--ink);
+      --shadow-sm: 2px 2px 0 var(--ink);
+    }
+
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+    html, body { margin: 0; padding: 0; }
+
+    body {
+      font-family: "Gowun Dodum", sans-serif;
+      color: var(--ink);
+      background-color: var(--paper);
+      background-image:
+        radial-gradient(circle at 15% 12%, var(--pink-light) 0%, transparent 42%),
+        radial-gradient(circle at 85% 18%, #FFF1B8 0%, transparent 42%),
+        radial-gradient(circle at 50% 95%, #CFE6FF 0%, transparent 48%);
+      background-attachment: fixed;
+      min-height: 100vh;
+      padding:
+        calc(env(safe-area-inset-top) + 20px)
+        calc(env(safe-area-inset-right) + 16px)
+        calc(env(safe-area-inset-bottom) + 28px)
+        calc(env(safe-area-inset-left) + 16px);
+    }
+
+    .wrap { max-width: 480px; margin: 0 auto; }
+
+    /* 로고 */
+    .logo {
+      font-family: "Gaegu", cursive;
+      font-size: 44px;
+      text-align: center;
+      margin: 4px 0 2px;
+      line-height: 1.1;
+    }
+    .logo .bang {
+      color: var(--pink);
+      display: inline-block;
+      transform-origin: bottom center;
+      animation: wiggle 1.4s ease-in-out infinite;
+    }
+    .tagline {
+      text-align: center;
+      font-size: 15px;
+      color: #6b6b6b;
+      margin: 0 0 18px;
+    }
+
+    @keyframes wiggle {
+      0%, 100% { transform: rotate(-12deg); }
+      50% { transform: rotate(12deg); }
+    }
+
+    /* 설치 배너 */
+    .install-banner {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      background: var(--yellow);
+      border: 2px solid var(--ink);
+      border-radius: 16px;
+      box-shadow: var(--shadow);
+      padding: 12px 14px;
+      margin-bottom: 18px;
+      font-size: 14px;
+    }
+    .install-banner .msg { flex: 1; line-height: 1.35; }
+    .install-banner button {
+      font-family: "Gaegu", cursive;
+      border: 2px solid var(--ink);
+      border-radius: 100px;
+      background: #fff;
+      padding: 8px 12px;
+      min-height: 40px;
+      font-size: 15px;
+      cursor: pointer;
+      box-shadow: var(--shadow-sm);
+    }
+    .install-banner .close {
+      width: 40px; min-width: 40px; padding: 0;
+      background: var(--paper);
+    }
+    .install-banner button:active { transform: translate(2px, 2px); box-shadow: none; }
+
+    /* 카테고리 그리드 2x4 */
+    .cat-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 10px;
+      margin-bottom: 18px;
+    }
+    .cat-btn {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+      min-height: 76px;
+      padding: 10px 4px;
+      background: #fff;
+      border: 2px solid var(--ink);
+      border-radius: 16px;
+      box-shadow: var(--shadow);
+      cursor: pointer;
+      transition: background .12s;
+      font-family: "Gowun Dodum", sans-serif;
+    }
+    .cat-emoji { font-size: 26px; line-height: 1; }
+    .cat-label { font-size: 13px; }
+    .cat-btn:active { transform: translate(2px, 2px); box-shadow: none; }
+    .cat-btn.active[data-color="pink"]   { background: var(--pink);   color: #fff; }
+    .cat-btn.active[data-color="yellow"] { background: var(--yellow); }
+    .cat-btn.active[data-color="mint"]   { background: var(--mint);   color: #fff; }
+    .cat-btn.active[data-color="blue"]   { background: var(--blue);   color: #fff; }
+    .cat-btn.active[data-color="purple"] { background: var(--purple); color: #fff; }
+    .cat-btn.active[data-color="orange"] { background: var(--orange); color: #fff; }
+
+    /* 서브 필터 칩 */
+    .sub-bar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 18px;
+    }
+    .sub-chip {
+      font-family: "Gowun Dodum", sans-serif;
+      border: 2px solid var(--ink);
+      border-radius: 100px;
+      background: #fff;
+      padding: 8px 14px;
+      min-height: 40px;
+      font-size: 14px;
+      cursor: pointer;
+      box-shadow: var(--shadow-sm);
+    }
+    .sub-chip.active { background: var(--ink); color: #fff; }
+    .sub-chip:active { transform: translate(2px, 2px); box-shadow: none; }
+
+    /* 결과 영역 */
+    .result { min-height: 220px; }
+
+    .empty {
+      text-align: center;
+      padding: 40px 20px;
+      color: #8a8a8a;
+    }
+    .empty .dice {
+      font-size: 64px;
+      display: inline-block;
+      animation: shake 1.6s ease-in-out infinite;
+    }
+    .empty p { margin: 14px 0 0; font-size: 16px; }
+    @keyframes shake {
+      0%, 100% { transform: translateX(-8px) rotate(-8deg); }
+      50% { transform: translateX(8px) rotate(8deg); }
+    }
+
+    .card {
+      position: relative;
+      overflow: hidden;
+      background: #fff;
+      border: 2px solid var(--ink);
+      border-radius: 24px;
+      box-shadow: var(--shadow);
+      padding: 26px 22px 22px;
+      text-align: center;
+    }
+    .card.pop { animation: pop .32s ease-out; }
+    @keyframes pop {
+      0% { transform: scale(0.9); }
+      60% { transform: scale(1.03); }
+      100% { transform: scale(1); }
+    }
+
+    /* 원 데코 (모서리만 보이게) */
+    .deco { position: absolute; border-radius: 50%; z-index: 0; }
+    .deco-y { width: 90px; height: 90px; background: var(--yellow); top: -34px; right: -28px; }
+    .deco-p { width: 70px; height: 70px; background: var(--pink-light); bottom: -28px; left: -22px; }
+
+    .card-tag,
+    .card-main,
+    .card-sub,
+    .yt-btn,
+    .redraw { position: relative; z-index: 1; }
+
+    .card-tag {
+      display: inline-block;
+      font-size: 13px;
+      background: var(--paper);
+      border: 2px solid var(--ink);
+      border-radius: 100px;
+      padding: 4px 12px;
+      margin-bottom: 14px;
+    }
+    .card-main {
+      font-family: "Gaegu", cursive;
+      font-size: 30px;
+      line-height: 1.3;
+      word-break: keep-all;
+    }
+    .card-sub {
+      font-size: 15px;
+      color: #5a5a5a;
+      margin-top: 8px;
+      word-break: keep-all;
+    }
+
+    .yt-btn {
+      display: inline-block;
+      margin-top: 16px;
+      text-decoration: none;
+      color: #fff;
+      background: #FF0033;
+      border: 2px solid var(--ink);
+      border-radius: 100px;
+      box-shadow: var(--shadow-sm);
+      padding: 10px 18px;
+      min-height: 44px;
+      font-size: 15px;
+    }
+    .yt-btn:active { transform: translate(2px, 2px); box-shadow: none; }
+
+    .redraw {
+      display: block;
+      width: 100%;
+      margin-top: 18px;
+      font-family: "Gaegu", cursive;
+      font-size: 20px;
+      color: var(--ink);
+      background: var(--yellow);
+      border: 2px solid var(--ink);
+      border-radius: 100px;
+      box-shadow: var(--shadow);
+      padding: 12px;
+      min-height: 52px;
+      cursor: pointer;
+    }
+    .redraw:active { transform: translate(2px, 2px); box-shadow: none; }
+
+    footer {
+      text-align: center;
+      margin-top: 28px;
+      font-size: 12px;
+      color: #9a9a9a;
+    }
+  </style>
+</head>
+<body>
+  <main class="wrap">
+    <h1 class="logo">랜덤픽<span class="bang">!</span></h1>
+    <p class="tagline">고민될 땐, 누르고 맡겨요 🎲</p>
+
+    <div class="install-banner" id="installBanner" hidden>
+      <span class="msg">📱 홈화면에 추가하면 앱처럼 써요</span>
+      <button id="installBtn" type="button">추가</button>
+      <button class="close" id="installClose" type="button" aria-label="닫기">✕</button>
+    </div>
+
+    <div class="cat-grid" id="catGrid"></div>
+    <div class="sub-bar" id="subBar" hidden></div>
+
+    <section class="result" id="result">
+      <div class="empty">
+        <span class="dice">🎲</span>
+        <p>위에서 카테고리를 골라보세요!</p>
+      </div>
+    </section>
+
+    <footer>made with 🎲 · 오프라인에서도 작동해요</footer>
+  </main>
+
+  <script src="./app.js"></script>
+</body>
+</html>
