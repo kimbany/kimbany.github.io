@@ -654,6 +654,8 @@ auth.onAuthStateChanged(async (user) => {
 
     // 기본 직업/톤이 없으면 최초 설정 화면, 있으면 방 목록
     if (!localStorage.getItem('veil_jobMode')) {
+      setupJob = 'dev';
+      setupTone = 'polite';
       renderSetupSelectors();
       showScreen('screen-setup');
     } else {
@@ -696,8 +698,6 @@ function renderToneRow(container, selectedTone, onPick) {
   });
 }
 function renderSetupSelectors() {
-  setupJob = localStorage.getItem('veil_jobMode') || 'dev';
-  setupTone = localStorage.getItem('veil_toneMode') || 'polite';
   renderJobGrid($('#setup-jobs'), setupJob, id => { setupJob = id; renderSetupSelectors(); });
   renderToneRow($('#setup-tones'), setupTone, id => { setupTone = id; renderSetupSelectors(); });
 }
