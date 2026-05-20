@@ -1,0 +1,66 @@
+/* =====================================================================
+   calculator-mac.css - macOS 기본 계산기 표준 모드 위장 (다크)
+   ===================================================================== */
+:root {
+  --mac-bg: #2a2a2a;
+  --mac-num: #4a4a4a;
+  --mac-num-hover: #5a5a5a;
+  --mac-fn: #6b6b6b;
+  --mac-op: #ff9f0a;
+  --mac-op-hover: #ffb340;
+  --mac-text: #ffffff;
+}
+
+body.os-mac { margin: 0; background: var(--mac-bg);
+  font-family: -apple-system, "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
+  color: var(--mac-text); -webkit-user-select: none; user-select: none; }
+
+body.os-mac #app { width: 240px; min-height: 420px; display: flex; flex-direction: column; }
+
+/* traffic light + 상단 */
+body.os-mac .topbar { display: flex; align-items: center; gap: 8px; padding: 8px 12px; }
+body.os-mac .hamburger { display: none; } /* 맥은 햄버거 없음 */
+body.os-mac .mode-label { display: none; }
+body.os-mac .topbar::before {
+  content: ""; width: 12px; height: 12px; border-radius: 50%;
+  background: #ff5f57; box-shadow: 20px 0 #febc2e, 40px 0 #28c840; }
+body.os-mac .active-dot { margin-left: auto; width: 4px; height: 4px; border-radius: 50%;
+  background: transparent; }
+body.os-mac.chat-mode .active-dot { background: var(--mac-op); }
+
+body.os-mac .calc { padding: 0 12px 12px; }
+body.os-mac .display { text-align: right; font-size: 44px; font-weight: 200;
+  padding: 12px 8px 16px; min-height: 56px; overflow: hidden;
+  white-space: nowrap; text-overflow: ellipsis; }
+
+body.os-mac #buttons.mac-grid { display: grid; grid-template-columns: repeat(4, 1fr);
+  gap: 8px; }
+body.os-mac #buttons button { height: 44px; border: none; border-radius: 50%;
+  background: var(--mac-num); color: var(--mac-text); font-size: 18px; cursor: pointer;
+  transition: background .05s; }
+body.os-mac #buttons button:hover { background: var(--mac-num-hover); }
+body.os-mac #buttons button.pressed { background: #6f6f6f; }
+body.os-mac #buttons button.fn { background: var(--mac-fn); color: #000; }
+body.os-mac #buttons button.op { background: var(--mac-op); font-size: 22px; }
+body.os-mac #buttons button.op:hover { background: var(--mac-op-hover); }
+body.os-mac #buttons button.eq { background: var(--mac-op); font-size: 22px; }
+body.os-mac #buttons button.eq:hover { background: var(--mac-op-hover); }
+/* 0 버튼은 가로로 길게 (원형 → pill) */
+body.os-mac #buttons button.zero { grid-column: span 2; border-radius: 22px;
+  text-align: left; padding-left: 18px; }
+
+/* 패널 (맥: 좌측 기록, 여기선 하단 패널로 단순화) */
+body.os-mac .panel { border-top: 1px solid #3a3a3a; margin-top: 8px;
+  flex: 1; display: flex; flex-direction: column; min-height: 60px; }
+body.os-mac .panel-tabs { display: flex; gap: 14px; padding: 8px 14px; font-size: 12px;
+  color: #999; }
+body.os-mac .panel-tabs .tab.active { color: #fff; }
+body.os-mac .history { flex: 1; overflow-y: auto; padding: 4px 14px 12px; text-align: right; }
+body.os-mac .history-item { font-size: 13px; color: #aaa; padding: 5px 0;
+  border-bottom: 1px solid #333; }
+body.os-mac .chat-root { display: none; flex: 1; flex-direction: column; min-height: 0; }
+
+body.os-mac.chat-mode .history,
+body.os-mac.chat-mode .panel-tabs { display: none; }
+body.os-mac.chat-mode .chat-root { display: flex; }
+body.os-mac.chat-mode #app { width: 280px; }

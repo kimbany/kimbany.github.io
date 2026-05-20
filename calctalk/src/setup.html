@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>계산기 설정</title>
+  <style>
+    body { font-family: -apple-system, "Malgun Gothic", "Noto Sans KR", sans-serif;
+      background: #f4f5f8; color: #1c1d22; margin: 0; padding: 24px; }
+    .card { max-width: 360px; margin: 0 auto; background: #fff; border-radius: 12px;
+      padding: 24px; box-shadow: 0 4px 16px rgba(0,0,0,.08); }
+    h1 { font-size: 18px; margin: 0 0 4px; }
+    p.sub { font-size: 13px; color: #8a8f9c; margin: 0 0 20px; }
+    label { display: block; font-size: 13px; font-weight: 600; margin: 16px 0 6px; }
+    input, select { width: 100%; box-sizing: border-box; padding: 10px 12px; font-size: 15px;
+      border: 1px solid #d8dae2; border-radius: 8px; }
+    .hint { font-size: 12px; color: #8a8f9c; margin-top: 6px; }
+    button { width: 100%; margin-top: 24px; padding: 12px; font-size: 15px; font-weight: 600;
+      color: #fff; background: #0a84ff; border: none; border-radius: 8px; cursor: pointer; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>계산기 설정</h1>
+    <p class="sub">처음 한 번만 설정하면 됩니다.</p>
+
+    <label for="nickname">닉네임</label>
+    <input id="nickname" type="text" placeholder="예: 밥바라밤바" maxlength="20">
+
+    <label for="style">계산 스타일</label>
+    <select id="style"></select>
+    <div class="hint">본인 환경에 맞는 톤으로 위장됩니다.</div>
+
+    <label for="seq">시퀀스 (진입 코드)</label>
+    <input id="seq" type="text" value="7777" maxlength="8" inputmode="numeric">
+    <div class="hint">이 숫자 + = 를 입력하면 숨김 기능이 열립니다. 해제는 ESC 또는 0000=.</div>
+
+    <button id="save">설정 완료</button>
+  </div>
+
+  <script type="module">
+    import { CALC_STYLES } from "./js/series-pool.js";
+    import { saveProfile, loadProfile } from "./js/auth.js";
+    import { detectOSStyle } from "./js/os.js";
+
+    const sel = document.getElementById("style");
+    for (const s of CALC_STYLES) {
+      const o = document.createElement("option");
+      o.value = s.id; o.textContent = s.label; sel.appendChild(o);
+    }
+
+    const existing = await loadProfile();
+    if (existing) {
+      document.getElementById("nickname").value = existing.nickname || "";
+      if (existing.calcStyle) sel.value = existing.calcStyle;
+      if (existing.enterCode) document.getElementById("seq").value = existing.enterCode;
+    }
+
+    document.getElementById("save").addEventListener("click", async () => {
+      const nickname = document.getElementById("nickname").value.trim();
+      const calcStyle = sel.value;
+      const enterCode = (document.getElementById("seq").value.trim() || "7777").replace(/\D/g, "") || "7777";
+      if (!nickname) { alert("닉네임을 입력하세요."); return; }
+      await saveProfile({
+        nickname, calcStyle, enterCode,
+        osStyle: detectOSStyle(),
+        lock: { focusSec: 5, mouseSec: 15 },
+      });
+      location.href = "index.html";
+    });
+  </script>
+</body>
+</html>

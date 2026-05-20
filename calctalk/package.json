@@ -1,0 +1,14 @@
+{
+  "name": "calctalk",
+  "version": "0.1.0",
+  "description": "계산기로 위장한 비밀 채팅 데스크톱 앱",
+  "private": true,
+  "scripts": {
+    "tauri": "tauri",
+    "dev": "tauri dev",
+    "build": "tauri build"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2"
+  }
+}

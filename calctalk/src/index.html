@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>계산기</title>
+  <!-- OS별 스타일 (main.js가 disabled 토글로 하나만 활성화) -->
+  <link rel="stylesheet" href="styles/calculator-win.css" data-os="win">
+  <link rel="stylesheet" href="styles/calculator-mac.css" data-os="mac">
+  <link rel="stylesheet" href="styles/chat.css">
+</head>
+<body class="os-win">
+  <div id="app">
+    <!-- 상단 바: 햄버거 + "표준" / 채팅 활성 표시는 1px 점만 -->
+    <header class="topbar">
+      <button class="hamburger" aria-label="메뉴">☰</button>
+      <span class="mode-label">표준</span>
+      <span class="active-dot" aria-hidden="true"></span>
+    </header>
+
+    <!-- 계산기 본체 -->
+    <section class="calc">
+      <div class="display" id="display">0</div>
+      <div id="buttons" class="win-grid"></div>
+    </section>
+
+    <!-- 기록 패널: 평소엔 계산 기록, 채팅 모드 시 #chat-root 노출 -->
+    <aside class="panel">
+      <div class="panel-tabs">
+        <span class="tab active">기록</span>
+        <span class="tab">메모리</span>
+      </div>
+      <div id="history" class="history"></div>
+      <div id="chat-root" class="chat-root"></div>
+    </aside>
+  </div>
+
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>
