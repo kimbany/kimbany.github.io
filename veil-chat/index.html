@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
   <title>Veil Chat - 비밀 채팅</title>
-  <meta name="description" content="옆사람 어깨너머 훔쳐보기를 막는 시각적 위장 채팅">
+  <meta name="description" content="옆사람 어깨너머를 막는 시각적 위장 채팅 (직업 톤 시나리오 위장)">
 
   <!-- ===================================================================
        CSS
@@ -19,246 +19,178 @@
       --text-dim: #8a8f9c;
       --border: #e1e3ea;
       --accent: #6b5cff;
-      --bubble-me: #d6f5b8;       /* 내 메시지 (연두) */
+      --bubble-me: #d6f5b8;
       --bubble-me-revealed: #b6ec84;
-      --bubble-other: #ffffff;    /* 상대 메시지 (회색/흰) */
+      --bubble-other: #ffffff;
       --bubble-other-revealed: #eef0f5;
       --danger: #ff5c6c;
       --shadow: 0 2px 8px rgba(0,0,0,.06);
     }
     @media (prefers-color-scheme: dark) {
       :root {
-        --bg: #16171c;
-        --surface: #20222a;
-        --surface-2: #2a2d37;
-        --text: #eceef3;
-        --text-dim: #898e9c;
-        --border: #2e313c;
+        --bg: #16171c; --surface: #20222a; --surface-2: #2a2d37;
+        --text: #eceef3; --text-dim: #898e9c; --border: #2e313c;
         --accent: #8a7dff;
-        --bubble-me: #3a4d23;
-        --bubble-me-revealed: #51682f;
-        --bubble-other: #2a2d37;
-        --bubble-other-revealed: #383c49;
-        --danger: #ff6b7a;
-        --shadow: 0 2px 10px rgba(0,0,0,.35);
+        --bubble-me: #3a4d23; --bubble-me-revealed: #51682f;
+        --bubble-other: #2a2d37; --bubble-other-revealed: #383c49;
+        --danger: #ff6b7a; --shadow: 0 2px 10px rgba(0,0,0,.35);
       }
     }
-
     * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
     html, body { height: 100%; margin: 0; }
     body {
       font-family: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo",
                    "Malgun Gothic", "Noto Sans KR", sans-serif;
-      background: var(--bg);
-      color: var(--text);
-      overscroll-behavior: none;
+      background: var(--bg); color: var(--text); overscroll-behavior: none;
     }
     button { font-family: inherit; cursor: pointer; }
-    input, button { font-size: 16px; } /* iOS 자동 확대 방지 */
+    input, button, select, textarea { font-size: 16px; } /* iOS 자동 확대 방지 */
 
-    /* ---- 앱 셸: 모바일 우선, 데스크탑은 중앙 폭 제한 ---- */
     #app {
-      max-width: 480px;
-      margin: 0 auto;
-      height: 100dvh;
-      display: flex;
-      flex-direction: column;
-      background: var(--bg);
-      position: relative;
-      overflow: hidden;
+      max-width: 480px; margin: 0 auto; height: 100dvh;
+      display: flex; flex-direction: column;
+      background: var(--bg); position: relative; overflow: hidden;
     }
-
-    /* ---- 화면(스크린) 공통 ---- */
-    .screen {
-      position: absolute;
-      inset: 0;
-      display: none;
-      flex-direction: column;
-      background: var(--bg);
-    }
+    .screen { position: absolute; inset: 0; display: none; flex-direction: column; background: var(--bg); }
     .screen.active { display: flex; }
 
-    /* ---- 헤더 ---- */
     .topbar {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      padding: 12px 14px;
-      padding-top: max(12px, env(safe-area-inset-top));
-      background: var(--surface);
-      border-bottom: 1px solid var(--border);
-      box-shadow: var(--shadow);
-      z-index: 2;
+      display: flex; align-items: center; gap: 10px;
+      padding: 12px 14px; padding-top: max(12px, env(safe-area-inset-top));
+      background: var(--surface); border-bottom: 1px solid var(--border);
+      box-shadow: var(--shadow); z-index: 2;
     }
     .topbar .title { font-weight: 700; font-size: 17px; flex: 1; min-width: 0;
       overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .topbar .sub { font-size: 12px; color: var(--text-dim); font-weight: 400; }
-    .icon-btn {
-      background: transparent; border: 0; color: var(--text);
-      font-size: 20px; padding: 6px 8px; border-radius: 10px; line-height: 1;
-    }
+    .topbar .sub { font-size: 12px; color: var(--text-dim); font-weight: 400; display: block; margin-top: 2px; }
+    .icon-btn { background: transparent; border: 0; color: var(--text);
+      font-size: 20px; padding: 6px 8px; border-radius: 10px; line-height: 1; }
     .icon-btn:active { background: var(--surface-2); }
 
-    /* ---- 본문 스크롤 영역 ---- */
     .body { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; }
 
-    /* ---- 버튼 ---- */
-    .btn {
-      display: inline-flex; align-items: center; justify-content: center;
-      gap: 8px; border: 0; border-radius: 14px; padding: 14px 18px;
-      background: var(--accent); color: #fff; font-weight: 600; font-size: 16px;
-      width: 100%;
-    }
+    .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+      border: 0; border-radius: 14px; padding: 14px 18px; background: var(--accent);
+      color: #fff; font-weight: 600; font-size: 16px; width: 100%; }
     .btn:active { filter: brightness(.93); }
+    .btn:disabled { opacity: .45; }
     .btn.secondary { background: var(--surface-2); color: var(--text); }
-    .btn.ghost { background: transparent; color: var(--accent); }
+    .btn.danger { background: var(--danger); }
+
+    .field { width: 100%; padding: 14px 16px; border: 1px solid var(--border);
+      border-radius: 14px; background: var(--surface); color: var(--text); }
+    .field:focus { outline: 2px solid var(--accent); border-color: transparent; }
 
     /* ===== 시작 화면 ===== */
-    #screen-login .center {
+    #screen-login .center, #screen-setup .center {
       flex: 1; display: flex; flex-direction: column; justify-content: center;
       padding: 28px; gap: 18px; text-align: center;
     }
     .brand { font-size: 30px; font-weight: 800; letter-spacing: -.5px; }
     .brand .veil { color: var(--accent); }
     .tagline { color: var(--text-dim); font-size: 14px; line-height: 1.5; }
-    .field {
-      width: 100%; padding: 14px 16px; border: 1px solid var(--border);
-      border-radius: 14px; background: var(--surface); color: var(--text);
+
+    /* ===== 직업/톤 선택 ===== */
+    .section-label { font-size: 13px; font-weight: 700; color: var(--text-dim);
+      text-align: left; margin: 6px 2px 0; }
+    .job-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .job-chip {
+      padding: 14px 10px; border: 1.5px solid var(--border); border-radius: 14px;
+      background: var(--surface); color: var(--text); font-size: 14px; font-weight: 600;
+      display: flex; flex-direction: column; gap: 3px; align-items: center; text-align: center;
     }
-    .field:focus { outline: 2px solid var(--accent); border-color: transparent; }
+    .job-chip .emoji { font-size: 22px; }
+    .job-chip .desc { font-size: 11px; color: var(--text-dim); font-weight: 400; }
+    .job-chip.selected { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, var(--surface)); }
+    .tone-row { display: flex; gap: 10px; }
+    .tone-chip { flex: 1; padding: 13px; border: 1.5px solid var(--border); border-radius: 14px;
+      background: var(--surface); color: var(--text); font-size: 15px; font-weight: 600; }
+    .tone-chip.selected { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, var(--surface)); }
 
     /* ===== 방 목록 ===== */
-    .room-item {
-      display: flex; align-items: center; gap: 12px;
-      padding: 14px 16px; border-bottom: 1px solid var(--border);
-      background: var(--surface);
-    }
+    .room-item { display: flex; align-items: center; gap: 12px; padding: 14px 16px;
+      border-bottom: 1px solid var(--border); background: var(--surface); }
     .room-item:active { background: var(--surface-2); }
-    .avatar {
-      width: 46px; height: 46px; border-radius: 50%; flex: 0 0 auto;
-      background: var(--accent); color: #fff; font-weight: 700;
-      display: flex; align-items: center; justify-content: center; font-size: 18px;
-    }
+    .avatar { width: 46px; height: 46px; border-radius: 50%; flex: 0 0 auto;
+      background: var(--accent); color: #fff; font-weight: 700; display: flex;
+      align-items: center; justify-content: center; font-size: 18px; }
     .room-meta { flex: 1; min-width: 0; }
     .room-name { font-weight: 600; font-size: 15px; }
-    .room-preview {
-      font-size: 13px; color: var(--text-dim); margin-top: 3px;
-      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-    }
+    .room-preview { font-size: 13px; color: var(--text-dim); margin-top: 3px;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .room-time { font-size: 11px; color: var(--text-dim); flex: 0 0 auto; }
-    .empty {
-      padding: 60px 30px; text-align: center; color: var(--text-dim);
-      font-size: 14px; line-height: 1.6;
-    }
-    .fab {
-      position: absolute; right: 18px; bottom: 22px;
-      width: 56px; height: 56px; border-radius: 50%; border: 0;
-      background: var(--accent); color: #fff; font-size: 28px;
-      box-shadow: 0 6px 18px rgba(0,0,0,.25); z-index: 3;
-    }
+    .empty { padding: 60px 30px; text-align: center; color: var(--text-dim);
+      font-size: 14px; line-height: 1.6; }
+    .fab { position: absolute; right: 18px; bottom: 22px; width: 56px; height: 56px;
+      border-radius: 50%; border: 0; background: var(--accent); color: #fff; font-size: 28px;
+      box-shadow: 0 6px 18px rgba(0,0,0,.25); z-index: 3; }
     .fab:active { filter: brightness(.93); }
 
-    /* ===== 친구 추가 ===== */
+    /* ===== 친구 추가 / 카드 ===== */
     .pad { padding: 20px 18px; display: flex; flex-direction: column; gap: 16px; }
-    .card {
-      background: var(--surface); border: 1px solid var(--border);
-      border-radius: 16px; padding: 18px; box-shadow: var(--shadow);
-    }
+    .card { background: var(--surface); border: 1px solid var(--border);
+      border-radius: 16px; padding: 18px; box-shadow: var(--shadow); }
     .card h3 { margin: 0 0 6px; font-size: 15px; }
     .card p { margin: 0 0 14px; font-size: 13px; color: var(--text-dim); line-height: 1.5; }
-    .code-display {
-      font-size: 38px; font-weight: 800; letter-spacing: 8px; text-align: center;
-      color: var(--accent); padding: 14px 0; font-variant-numeric: tabular-nums;
-    }
-    .code-input {
-      text-align: center; font-size: 26px; letter-spacing: 8px; font-weight: 700;
-      text-transform: uppercase;
-    }
+    .code-display { font-size: 38px; font-weight: 800; letter-spacing: 8px; text-align: center;
+      color: var(--accent); padding: 14px 0; font-variant-numeric: tabular-nums; }
+    .code-input { text-align: center; font-size: 26px; letter-spacing: 8px; font-weight: 700; text-transform: uppercase; }
 
     /* ===== 채팅방 ===== */
     .msg-list { padding: 14px 12px 8px; display: flex; flex-direction: column; gap: 8px; }
     .row { display: flex; }
     .row.me { justify-content: flex-end; }
     .row.other { justify-content: flex-start; }
-    .bubble {
-      max-width: 76%; padding: 9px 12px; border-radius: 16px; font-size: 15px;
-      line-height: 1.45; word-break: break-word; white-space: pre-wrap;
-      position: relative; cursor: pointer; transition: background .18s ease;
-      user-select: none;
-    }
+    .bubble { max-width: 76%; padding: 9px 12px; border-radius: 16px; font-size: 15px;
+      line-height: 1.45; word-break: break-word; white-space: pre-wrap; position: relative;
+      cursor: pointer; transition: background .18s ease; user-select: none; }
     .row.me .bubble { background: var(--bubble-me); border-bottom-right-radius: 5px; }
-    .row.other .bubble { background: var(--bubble-other); border-bottom-left-radius: 5px;
-      border: 1px solid var(--border); }
+    .row.other .bubble { background: var(--bubble-other); border-bottom-left-radius: 5px; border: 1px solid var(--border); }
     .row.me .bubble.revealed { background: var(--bubble-me-revealed); }
     .row.other .bubble.revealed { background: var(--bubble-other-revealed); }
-    /* 블록 위장 모드는 monospace + 좁은 자간 */
-    .bubble.veil-block { font-family: ui-monospace, Menlo, Consolas, monospace; letter-spacing: -1px; }
-    .bubble .timer {
-      position: absolute; top: -7px; right: -4px;
-      font-size: 10px; background: var(--accent); color: #fff;
-      width: 18px; height: 18px; border-radius: 50%;
-      display: flex; align-items: center; justify-content: center;
-      font-weight: 700;
-    }
-    .meta-time { font-size: 10px; color: var(--text-dim); align-self: flex-end;
-      margin: 0 4px; }
+    .bubble.mono { font-family: ui-monospace, Menlo, Consolas, monospace; }
+    .bubble .timer { position: absolute; top: -7px; right: -4px; font-size: 10px;
+      background: var(--accent); color: #fff; width: 18px; height: 18px; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center; font-weight: 700; }
+    .meta-time { font-size: 10px; color: var(--text-dim); align-self: flex-end; margin: 0 4px; }
     .row.me .meta-time { order: -1; }
 
-    /* 입력창 */
-    .composer {
-      display: flex; gap: 8px; padding: 10px 12px;
+    .composer { display: flex; gap: 8px; padding: 10px 12px;
       padding-bottom: max(10px, env(safe-area-inset-bottom));
-      background: var(--surface); border-top: 1px solid var(--border);
-    }
-    .composer textarea {
-      flex: 1; resize: none; border: 1px solid var(--border); border-radius: 18px;
+      background: var(--surface); border-top: 1px solid var(--border); }
+    .composer textarea { flex: 1; resize: none; border: 1px solid var(--border); border-radius: 18px;
       padding: 10px 14px; max-height: 110px; background: var(--bg); color: var(--text);
-      font-family: inherit; font-size: 15px; line-height: 1.4;
-    }
+      font-family: inherit; font-size: 15px; line-height: 1.4; }
     .composer textarea:focus { outline: none; border-color: var(--accent); }
-    .send-btn {
-      flex: 0 0 auto; width: 44px; height: 44px; border-radius: 50%; border: 0;
-      background: var(--accent); color: #fff; font-size: 18px; align-self: flex-end;
-    }
+    .send-btn { flex: 0 0 auto; width: 44px; height: 44px; border-radius: 50%; border: 0;
+      background: var(--accent); color: #fff; font-size: 18px; align-self: flex-end; }
     .send-btn:disabled { opacity: .4; }
 
-    /* 위장 모드 토글 (헤더 안 작은 칩) */
-    .veil-toggle {
-      font-size: 12px; padding: 6px 10px; border-radius: 999px;
-      background: var(--surface-2); color: var(--text); border: 1px solid var(--border);
-      white-space: nowrap;
-    }
+    .mode-pill { font-size: 11px; padding: 5px 10px; border-radius: 999px;
+      background: var(--surface-2); color: var(--text-dim); white-space: nowrap; }
 
-    /* 토스트 */
-    #toast {
-      position: absolute; left: 50%; bottom: 90px; transform: translateX(-50%);
+    #toast { position: absolute; left: 50%; bottom: 90px; transform: translateX(-50%);
       background: rgba(0,0,0,.82); color: #fff; padding: 10px 16px; border-radius: 12px;
       font-size: 13px; opacity: 0; pointer-events: none; transition: opacity .25s; z-index: 10;
-      max-width: 80%; text-align: center;
-    }
+      max-width: 80%; text-align: center; }
     #toast.show { opacity: 1; }
-
-    /* 로딩 가림막 */
-    #overlay {
-      position: absolute; inset: 0; background: var(--bg); z-index: 50;
-      display: flex; align-items: center; justify-content: center; color: var(--text-dim);
-      font-size: 14px;
-    }
+    #overlay { position: absolute; inset: 0; background: var(--bg); z-index: 50;
+      display: flex; align-items: center; justify-content: center; color: var(--text-dim); font-size: 14px; }
     .hidden { display: none !important; }
   </style>
 </head>
 <body>
 <div id="app">
 
-  <!-- ====================== HTML 구조: 화면들 ====================== -->
+  <!-- ====================== 화면 구조 ====================== -->
 
-  <!-- 1) 시작 화면 -->
+  <!-- 1) 시작: 닉네임 -->
   <section id="screen-login" class="screen active">
     <div class="center">
       <div class="brand">🕶️ <span class="veil">Veil</span> Chat</div>
       <div class="tagline">
         옆사람 어깨너머는 못 봅니다.<br>
-        모든 메시지가 위장되고, 탭해야 잠깐 보여요.
+        메시지가 <b>업무 대화처럼</b> 위장되고, 탭해야 잠깐 보여요.
       </div>
       <input id="nickname-input" class="field" type="text" maxlength="20"
              placeholder="닉네임을 입력하세요" autocomplete="off">
@@ -269,7 +201,20 @@
     </div>
   </section>
 
-  <!-- 2) 채팅방 목록 -->
+  <!-- 2) 첫 로그인: 기본 직업/톤 선택 -->
+  <section id="screen-setup" class="screen">
+    <div class="center">
+      <div class="brand" style="font-size:22px">위장 스타일 선택</div>
+      <div class="tagline">내 화면에서 메시지가 어떤 직업 톤으로 보일지 정해요.<br>나중에 채팅방마다 바꿀 수 있어요.</div>
+      <div class="section-label">직업 모드</div>
+      <div id="setup-jobs" class="job-grid"></div>
+      <div class="section-label">말투</div>
+      <div id="setup-tones" class="tone-row"></div>
+      <button id="setup-done" class="btn">이 설정으로 시작</button>
+    </div>
+  </section>
+
+  <!-- 3) 채팅방 목록 -->
   <section id="screen-rooms" class="screen">
     <div class="topbar">
       <div class="title">채팅 <span id="my-nick" class="sub"></span></div>
@@ -279,7 +224,7 @@
     <button id="add-friend-fab" class="fab" title="새 채팅">＋</button>
   </section>
 
-  <!-- 3) 친구 추가 -->
+  <!-- 4) 친구 추가 -->
   <section id="screen-add" class="screen">
     <div class="topbar">
       <button id="add-back" class="icon-btn">←</button>
@@ -305,14 +250,14 @@
     </div>
   </section>
 
-  <!-- 4) 채팅방 -->
+  <!-- 5) 채팅방 -->
   <section id="screen-chat" class="screen">
     <div class="topbar">
       <button id="chat-back" class="icon-btn">←</button>
-      <div class="title" id="chat-title">상대방
-        <div class="sub" id="chat-sub"></div>
+      <div class="title"><span id="chat-name">상대방</span>
+        <span class="sub" id="chat-mode"></span>
       </div>
-      <button id="veil-toggle" class="veil-toggle">위장: 한자</button>
+      <button id="chat-settings-btn" class="icon-btn" title="설정">⚙</button>
     </div>
     <div id="msg-body" class="body">
       <div id="msg-list" class="msg-list"></div>
@@ -323,12 +268,35 @@
     </div>
   </section>
 
+  <!-- 6) 채팅방 설정 (내 직업/톤) -->
+  <section id="screen-chat-settings" class="screen">
+    <div class="topbar">
+      <button id="settings-back" class="icon-btn">←</button>
+      <div class="title">채팅방 설정</div>
+    </div>
+    <div class="body">
+      <div class="pad">
+        <div class="card">
+          <h3>내 위장 직업</h3>
+          <p>이 채팅방의 <b>내 화면</b>에만 적용돼요. 상대는 영향받지 않습니다. 변경하면 진행 중인 위장 시나리오가 리셋됩니다.</p>
+          <div id="settings-jobs" class="job-grid"></div>
+        </div>
+        <div class="card">
+          <h3>내 말투</h3>
+          <p>존댓말 / 반말도 내 화면에만 적용됩니다.</p>
+          <div id="settings-tones" class="tone-row"></div>
+        </div>
+        <button id="leave-room-btn" class="btn danger">채팅방 나가기</button>
+      </div>
+    </div>
+  </section>
+
   <div id="toast"></div>
   <div id="overlay">불러오는 중…</div>
 </div>
 
 <!-- ===================================================================
-     Firebase SDK (compat 버전 - 단일 HTML 파일에서 가장 단순)
+     Firebase SDK (compat)
      =================================================================== -->
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
@@ -339,7 +307,6 @@
 
 /* ===================================================================
    1. FIREBASE 초기화
-   - 콘솔에서 받은 config를 아래 자리에 채워넣으세요.
    =================================================================== */
 const firebaseConfig = {
   apiKey: "AIzaSyD8ZzWrBImCmuNGaJmSIAGbnOzKH9HkK5w",
@@ -351,46 +318,189 @@ const firebaseConfig = {
   appId: "1:761584144328:web:0c7561589f812ad845bafd",
   measurementId: "G-D1XLERXK56"
 };
-
 firebase.initializeApp(firebaseConfig);
 const auth = firebase.auth();
 const db = firebase.database();
 const TS = firebase.database.ServerValue.TIMESTAMP;
 
-/* 앱 전역 상태 */
-const state = {
-  uid: null,
-  nickname: null,
-  rooms: {},          // roomId -> room 데이터 캐시
-  currentRoomId: null,
-  roomsRef: null,     // 현재 구독 중인 방목록 리스너
-  msgRef: null,       // 현재 구독 중인 메시지 리스너
-  revealTimer: null,  // 평문 노출 3초 타이머
-  revealedEl: null,   // 현재 풀려있는 버블 1개
+/* ===================================================================
+   2. 직업 정의 + 시나리오 풀
+   - 직업당 샘플 5개. 나머지는 별도 풀로 교체 예정.
+   - 작성 가이드: 회의/약속/시간/요일/날짜/장소/이름/식사 표현 금지.
+     순수 업무 진행/공유/피드백만, 5~7턴 단기 완결.
+   =================================================================== */
+const JOBS = [
+  { id: "dev",      label: "개발자",   emoji: "💻", desc: "코드·에러·커밋", mono: true },
+  { id: "marketer", label: "마케터",   emoji: "📈", desc: "캠페인·지표·카피" },
+  { id: "finance",  label: "금융/회계", emoji: "💰", desc: "매출·이익률·결재" },
+  { id: "seller",   label: "이커머스",  emoji: "📦", desc: "주문·재고·CS" },
+  { id: "designer", label: "디자이너",  emoji: "🎨", desc: "시안·컬러·피드백" },
+  { id: "legal",    label: "법무",     emoji: "⚖️", desc: "계약·조항·자문" },
+  { id: "medical",  label: "의료",     emoji: "🩺", desc: "차트·처방·검사" },
+  { id: "student",  label: "학생",     emoji: "📚", desc: "강의·과제·시험" },
+];
+
+// 한자 폴백 풀 (시나리오가 비었을 때)
+const VEIL_CHARS = '日月火水木金土東西南北春夏秋冬天地人山川海花鳥風雪雲星光明暗陰陽道法自然';
+
+const SCENARIOS = {
+  dev: [
+    { id:"dev_001", topic:"PR 코드 리뷰",
+      turns_polite:["방금 올린 PR 한번 봐주실 수 있나요?","네 지금 보고 있습니다","Race condition 부분 수정 의도 맞나요?","네 setState 호출 순서 바꿨습니다","테스트 코드도 추가하셨나요?","유닛 테스트 2개 추가했습니다 확인 부탁드려요"],
+      turns_casual:["방금 올린 PR 한번 봐줄 수 있어?","응 지금 보고 있어","Race condition 부분 수정 의도 맞아?","응 setState 호출 순서 바꿨어","테스트 코드도 추가했어?","유닛 테스트 2개 추가했어 확인 부탁"] },
+    { id:"dev_002", topic:"배포 점검",
+      turns_polite:["스테이징 빌드 통과했어요","로그에 경고 몇 개 떠서 확인 중입니다","마이그레이션 스크립트는 적용됐나요?","네 롤백 플랜도 같이 정리했습니다","그럼 헬스체크만 보고 올리겠습니다","배포 끝났고 응답 시간 정상입니다"],
+      turns_casual:["스테이징 빌드 통과했어","로그에 경고 몇 개 떠서 확인 중이야","마이그레이션 스크립트는 적용됐어?","응 롤백 플랜도 같이 정리했어","그럼 헬스체크만 보고 올릴게","배포 끝났고 응답 시간 정상이야"] },
+    { id:"dev_003", topic:"버그 디버깅",
+      turns_polite:["프로덕션에서 500 간헐적으로 떠요","스택트레이스 캡처하셨나요?","네 널 포인터로 보입니다","해당 핸들러에 가드 추가하면 될 것 같아요","핫픽스 브랜치 파서 작업하겠습니다","재현 안 되는 거 확인했고 머지했습니다"],
+      turns_casual:["프로덕션에서 500 간헐적으로 떠","스택트레이스 캡처했어?","응 널 포인터로 보여","해당 핸들러에 가드 추가하면 될듯","핫픽스 브랜치 파서 작업할게","재현 안 되는 거 확인했고 머지했어"] },
+    { id:"dev_004", topic:"API 연동",
+      turns_polite:["결제 API 응답 스펙 공유해 주실 수 있나요?","문서 링크 첨부했습니다","웹훅 재시도 정책은 어떻게 되나요?","최대 3회 지수 백오프입니다","그럼 멱등키 처리만 추가하면 되겠네요","연동 테스트 통과해서 코드 정리했습니다"],
+      turns_casual:["결제 API 응답 스펙 공유해줄 수 있어?","문서 링크 첨부했어","웹훅 재시도 정책은 어떻게 돼?","최대 3회 지수 백오프야","그럼 멱등키 처리만 추가하면 되겠네","연동 테스트 통과해서 코드 정리했어"] },
+    { id:"dev_005", topic:"리팩터링",
+      turns_polite:["유틸 함수 중복이 많아서 정리하려구요","공통 모듈로 빼는 방향 좋습니다","타입도 같이 정리하면 좋을 것 같아요","제네릭으로 묶어서 커밋했습니다","빌드 사이즈도 조금 줄었네요","리뷰 반영하고 스쿼시 머지했습니다"],
+      turns_casual:["유틸 함수 중복이 많아서 정리하려고","공통 모듈로 빼는 방향 좋아","타입도 같이 정리하면 좋을듯","제네릭으로 묶어서 커밋했어","빌드 사이즈도 좀 줄었네","리뷰 반영하고 스쿼시 머지했어"] },
+  ],
+  marketer: [
+    { id:"marketer_001", topic:"Q3 캠페인 결과 공유",
+      turns_polite:["보내드린 ROAS 리포트 확인하셨나요?","네 봤어요 Q3 수치 좋더라구요","전월 대비 47% 상승이라 임팩트 큰 것 같아요","랜딩페이지 A/B 결과도 같이 정리 부탁드려요","B안 전환율이 18% 우세합니다","그럼 다음 캠페인은 B안 기준으로 운영하겠습니다"],
+      turns_casual:["보낸 ROAS 리포트 확인했어?","응 봤어 Q3 수치 좋더라","전월 대비 47% 상승이라 임팩트 큰듯","랜딩페이지 A/B 결과도 같이 정리해줘","B안 전환율이 18% 우세해","그럼 다음 캠페인은 B안 기준으로 운영할게"] },
+    { id:"marketer_002", topic:"광고 소재 검토",
+      turns_polite:["신규 배너 카피 3종 초안 올렸어요","두 번째 톤이 제일 좋네요","CTA 문구만 조금 더 강하게 갈까요?","네 행동 유도형으로 다듬어 볼게요","썸네일 대비도 살짝 높이면 좋겠어요","수정본 반영해서 다시 공유드릴게요"],
+      turns_casual:["신규 배너 카피 3종 초안 올렸어","두 번째 톤이 제일 좋네","CTA 문구만 좀 더 강하게 갈까?","응 행동 유도형으로 다듬어 볼게","썸네일 대비도 살짝 높이면 좋겠어","수정본 반영해서 다시 공유할게"] },
+    { id:"marketer_003", topic:"전환율 분석",
+      turns_polite:["퍼널 이탈이 결제 단계에서 큽니다","어느 구간 이탈률이 제일 높나요?","장바구니에서 40% 빠집니다","쿠폰 노출 위치를 올려보면 어떨까요?","좋아요 가설로 테스트 설계할게요","개선안 적용 후 추세 다시 보겠습니다"],
+      turns_casual:["퍼널 이탈이 결제 단계에서 커","어느 구간 이탈률이 제일 높아?","장바구니에서 40% 빠져","쿠폰 노출 위치를 올려보면 어떨까?","좋아 가설로 테스트 설계할게","개선안 적용 후 추세 다시 볼게"] },
+    { id:"marketer_004", topic:"콘텐츠 초안 검토",
+      turns_polite:["블로그 초안 v2 공유드립니다","도입부가 훨씬 잘 읽히네요","키워드 밀도는 적정해 보이나요?","네 상위 노출 기준 충족합니다","이미지 대체텍스트만 보완 부탁드려요","반영했고 발행 대기로 올려뒀습니다"],
+      turns_casual:["블로그 초안 v2 공유할게","도입부가 훨씬 잘 읽히네","키워드 밀도는 적정해 보여?","응 상위 노출 기준 충족해","이미지 대체텍스트만 보완해줘","반영했고 발행 대기로 올려뒀어"] },
+    { id:"marketer_005", topic:"키워드 리포트",
+      turns_polite:["검색 광고 키워드 정리했어요","비효율 키워드는 어느 정도인가요?","하위 15개가 예산만 먹고 있어요","그건 일시중지하는 게 좋겠네요","상위 키워드에 예산 재배분할게요","조정 후 클릭당 비용 내려갔습니다"],
+      turns_casual:["검색 광고 키워드 정리했어","비효율 키워드는 어느 정도야?","하위 15개가 예산만 먹고 있어","그건 일시중지하는 게 좋겠네","상위 키워드에 예산 재배분할게","조정 후 클릭당 비용 내려갔어"] },
+  ],
+  finance: [
+    { id:"finance_001", topic:"매출 마감",
+      turns_polite:["이번 분기 매출 마감 들어갑니다","미수금 반영은 끝났나요?","네 어제자로 정리 완료했습니다","환율 평가손익도 반영 부탁드려요","반영했고 합계 맞춰뒀습니다","그럼 결산 자료 올리겠습니다"],
+      turns_casual:["이번 분기 매출 마감 들어가","미수금 반영은 끝났어?","응 어제자로 정리 완료했어","환율 평가손익도 반영해줘","반영했고 합계 맞춰뒀어","그럼 결산 자료 올릴게"] },
+    { id:"finance_002", topic:"영업이익률 검토",
+      turns_polite:["영업이익률이 전분기 대비 떨어졌어요","원가 쪽 변동이 큰가요?","물류비 비중이 늘었습니다","판관비도 같이 쪼개서 보면 좋겠어요","항목별로 분해해서 표 만들었습니다","원인 정리해서 보고서에 넣겠습니다"],
+      turns_casual:["영업이익률이 전분기 대비 떨어졌어","원가 쪽 변동이 커?","물류비 비중이 늘었어","판관비도 같이 쪼개서 보면 좋겠어","항목별로 분해해서 표 만들었어","원인 정리해서 보고서에 넣을게"] },
+    { id:"finance_003", topic:"결재 요청",
+      turns_polite:["지출 결의서 한 건 올렸습니다","증빙은 다 첨부됐나요?","네 세금계산서까지 붙였습니다","계정과목만 다시 확인 부탁드려요","수정했고 다시 상신했습니다","승인 처리했으니 확인해 주세요"],
+      turns_casual:["지출 결의서 한 건 올렸어","증빙은 다 첨부됐어?","응 세금계산서까지 붙였어","계정과목만 다시 확인해줘","수정했고 다시 상신했어","승인 처리했으니 확인해줘"] },
+    { id:"finance_004", topic:"예산 배정",
+      turns_polite:["내년도 예산안 초안 공유드려요","부서별 비중은 어떻게 잡으셨나요?","전년 실적 기준으로 가중했습니다","신규 프로젝트 몫도 따로 떼면 좋겠어요","예비비 항목 추가해서 수정했습니다","그 버전으로 검토 올리겠습니다"],
+      turns_casual:["내년도 예산안 초안 공유할게","부서별 비중은 어떻게 잡았어?","전년 실적 기준으로 가중했어","신규 프로젝트 몫도 따로 떼면 좋겠어","예비비 항목 추가해서 수정했어","그 버전으로 검토 올릴게"] },
+    { id:"finance_005", topic:"정산 확인",
+      turns_polite:["카드 매입 정산 대사 끝냈어요","차이 나는 건 없었나요?","두 건 금액 불일치가 있었습니다","전표 다시 끊어야 할 것 같아요","수정 전표 반영했습니다","이제 잔액 딱 맞습니다"],
+      turns_casual:["카드 매입 정산 대사 끝냈어","차이 나는 건 없었어?","두 건 금액 불일치가 있었어","전표 다시 끊어야 할 것 같아","수정 전표 반영했어","이제 잔액 딱 맞아"] },
+  ],
+  seller: [
+    { id:"seller_001", topic:"재고 확인 요청",
+      turns_polite:["지웰 13kg 재고 몇 박스 남았는지 확인 부탁드려요","현재 4박스 남았습니다 발주 검토 필요해 보여요","본사 담당자에게 발주 요청 메일 드릴게요","네 보내주시면 제가 팔로업하겠습니다","발주서 양식 드라이브에 올려뒀습니다","확인했습니다 처리하고 회신드릴게요"],
+      turns_casual:["지웰 13kg 재고 몇 박스 남았는지 확인 부탁","현재 4박스 남았어 발주 검토 필요해 보여","본사 담당자한테 발주 요청 메일 보낼게","응 보내주면 내가 팔로업할게","발주서 양식 드라이브에 올려뒀어","확인했어 처리하고 회신할게"] },
+    { id:"seller_002", topic:"주문 처리",
+      turns_polite:["오늘 신규 주문 32건 들어왔어요","출고 가능한 건 몇 건인가요?","28건은 바로 가능합니다","나머지는 부분 출고로 돌릴게요","송장 일괄 등록 끝냈습니다","집화 요청까지 넣어뒀습니다"],
+      turns_casual:["오늘 신규 주문 32건 들어왔어","출고 가능한 건 몇 건이야?","28건은 바로 가능해","나머지는 부분 출고로 돌릴게","송장 일괄 등록 끝냈어","집화 요청까지 넣어뒀어"] },
+    { id:"seller_003", topic:"CS 응대",
+      turns_polite:["오배송 문의 한 건 들어왔어요","교환으로 처리하면 될까요?","네 회수 송장 먼저 보내드릴게요","고객 응대 메시지 초안 잡았습니다","보상 쿠폰도 같이 안내하면 좋겠어요","반영해서 답변 발송했습니다"],
+      turns_casual:["오배송 문의 한 건 들어왔어","교환으로 처리하면 될까?","응 회수 송장 먼저 보낼게","고객 응대 메시지 초안 잡았어","보상 쿠폰도 같이 안내하면 좋겠어","반영해서 답변 발송했어"] },
+    { id:"seller_004", topic:"상세페이지 수정",
+      turns_polite:["옵션표가 실제 재고랑 안 맞아요","품절 옵션은 숨김 처리할게요","대표 이미지도 신규컷으로 교체하면 좋겠어요","네 누끼 딴 거 올려두겠습니다","상세 하단 배송 안내도 갱신했습니다","검수 끝나서 반영 적용했어요"],
+      turns_casual:["옵션표가 실제 재고랑 안 맞아","품절 옵션은 숨김 처리할게","대표 이미지도 신규컷으로 교체하면 좋겠어","응 누끼 딴 거 올려둘게","상세 하단 배송 안내도 갱신했어","검수 끝나서 반영 적용했어"] },
+    { id:"seller_005", topic:"발주 검토",
+      turns_polite:["회전 빠른 품목 발주량 늘릴까요?","최근 판매 추세 보면 그게 맞아요","상위 5개 품목만 30% 증량할게요","비인기 품목은 소진 우선으로 두죠","발주서 정리해서 첨부했습니다","승인되면 본사로 넘기겠습니다"],
+      turns_casual:["회전 빠른 품목 발주량 늘릴까?","최근 판매 추세 보면 그게 맞아","상위 5개 품목만 30% 증량할게","비인기 품목은 소진 우선으로 두자","발주서 정리해서 첨부했어","승인되면 본사로 넘길게"] },
+  ],
+  designer: [
+    { id:"designer_001", topic:"시안 피드백",
+      turns_polite:["메인 시안 2종 올렸어요","왼쪽이 여백감이 더 좋네요","타이포 위계만 조금 정리할게요","서브 컬러는 톤다운하면 어떨까요?","채도 낮춰서 다시 잡았습니다","이 방향으로 마무리하겠습니다"],
+      turns_casual:["메인 시안 2종 올렸어","왼쪽이 여백감이 더 좋네","타이포 위계만 좀 정리할게","서브 컬러는 톤다운하면 어떨까?","채도 낮춰서 다시 잡았어","이 방향으로 마무리할게"] },
+    { id:"designer_002", topic:"컬러 수정",
+      turns_polite:["브랜드 메인이 #2D6CDF 맞나요?","네 그 값으로 통일해 주세요","버튼 호버 명도만 살짝 올릴게요","대비비 기준은 통과하나요?","AA 기준 충족 확인했습니다","컬러 토큰 정리해서 공유드릴게요"],
+      turns_casual:["브랜드 메인이 #2D6CDF 맞아?","응 그 값으로 통일해줘","버튼 호버 명도만 살짝 올릴게","대비비 기준은 통과해?","AA 기준 충족 확인했어","컬러 토큰 정리해서 공유할게"] },
+    { id:"designer_003", topic:"로고 시안",
+      turns_polite:["심볼 비례를 조금 다듬었어요","훨씬 안정적으로 보이네요","가로형 락업도 같이 만들까요?","네 반응형 대응까지 부탁드려요","최소 사이즈 가이드도 넣었습니다","파일 정리해서 전달드릴게요"],
+      turns_casual:["심볼 비례를 좀 다듬었어","훨씬 안정적으로 보이네","가로형 락업도 같이 만들까?","응 반응형 대응까지 부탁","최소 사이즈 가이드도 넣었어","파일 정리해서 전달할게"] },
+    { id:"designer_004", topic:"배너 작업",
+      turns_polite:["프로모션 배너 사이즈 세트 잡았어요","모바일 비율이 좀 답답해 보여요","요소 간격 늘려서 다시 볼게요","카피 길이는 이 정도면 될까요?","두 줄로 줄이면 더 깔끔하겠어요","수정본 반영해서 올려뒀습니다"],
+      turns_casual:["프로모션 배너 사이즈 세트 잡았어","모바일 비율이 좀 답답해 보여","요소 간격 늘려서 다시 볼게","카피 길이는 이 정도면 될까?","두 줄로 줄이면 더 깔끔하겠어","수정본 반영해서 올려뒀어"] },
+    { id:"designer_005", topic:"가이드 정리",
+      turns_polite:["컴포넌트 가이드 초안 만들었어요","상태별 예시도 들어가나요?","네 호버 포커스까지 넣었습니다","간격 토큰 네이밍만 통일하면 좋겠어요","8단위 기준으로 정리했습니다","문서 링크 공유드릴게요"],
+      turns_casual:["컴포넌트 가이드 초안 만들었어","상태별 예시도 들어가?","응 호버 포커스까지 넣었어","간격 토큰 네이밍만 통일하면 좋겠어","8단위 기준으로 정리했어","문서 링크 공유할게"] },
+  ],
+  legal: [
+    { id:"legal_001", topic:"계약서 조항 검토",
+      turns_polite:["손해배상 조항 검토 부탁드려요","상한 규정이 빠져 있네요","책임 한도 문구 넣는 게 좋겠습니다","수정안 반영해서 표시해 두었습니다","상대측 수용 가능성은 어떤가요?","무난할 것 같습니다 회신 드릴게요"],
+      turns_casual:["손해배상 조항 검토 부탁","상한 규정이 빠져 있네","책임 한도 문구 넣는 게 좋겠어","수정안 반영해서 표시해 뒀어","상대측 수용 가능성은 어때?","무난할 것 같아 회신할게"] },
+    { id:"legal_002", topic:"NDA 검토",
+      turns_polite:["비밀유지 범위가 너무 넓어요","정의 조항을 좁히는 게 안전합니다","존속 기간 문구도 확인 부탁드려요","3년으로 한정하는 안 넣었습니다","반환 의무 조항도 추가했습니다","검토 의견 정리해서 보냈습니다"],
+      turns_casual:["비밀유지 범위가 너무 넓어","정의 조항을 좁히는 게 안전해","존속 기간 문구도 확인 부탁","3년으로 한정하는 안 넣었어","반환 의무 조항도 추가했어","검토 의견 정리해서 보냈어"] },
+    { id:"legal_003", topic:"약관 수정",
+      turns_polite:["환불 약관 문구가 모호해요","조건별로 나눠 쓰는 게 좋겠습니다","미성년자 조항도 보완 필요합니다","개정 이력도 같이 남겨둘게요","문구 다듬어서 표시해 두었습니다","검토 끝나면 게시 반영하겠습니다"],
+      turns_casual:["환불 약관 문구가 모호해","조건별로 나눠 쓰는 게 좋겠어","미성년자 조항도 보완 필요해","개정 이력도 같이 남겨둘게","문구 다듬어서 표시해 뒀어","검토 끝나면 게시 반영할게"] },
+    { id:"legal_004", topic:"판례 확인",
+      turns_polite:["유사 쟁점 판례 찾아보셨나요?","대법원 판단 한 건 확보했습니다","사실관계가 우리 건과 비슷한가요?","핵심 쟁점은 거의 동일합니다","요지 정리해서 메모 남겼습니다","의견서에 인용하겠습니다"],
+      turns_casual:["유사 쟁점 판례 찾아봤어?","대법원 판단 한 건 확보했어","사실관계가 우리 건과 비슷해?","핵심 쟁점은 거의 동일해","요지 정리해서 메모 남겼어","의견서에 인용할게"] },
+    { id:"legal_005", topic:"자문 회신",
+      turns_polite:["문의 들어온 건 검토 끝냈어요","리스크 등급은 어느 정도인가요?","중간 정도로 보고 있습니다","대안 조치도 같이 안내하면 좋겠어요","권고 사항 두 가지 정리했습니다","회신문 초안 공유드릴게요"],
+      turns_casual:["문의 들어온 건 검토 끝냈어","리스크 등급은 어느 정도야?","중간 정도로 보고 있어","대안 조치도 같이 안내하면 좋겠어","권고 사항 두 가지 정리했어","회신문 초안 공유할게"] },
+  ],
+  medical: [
+    { id:"medical_001", topic:"활력징후 확인",
+      turns_polite:["3호실 V/S 체크 끝냈어요","혈압은 안정적인가요?","130에 80으로 정상 범위입니다","체온만 살짝 높게 나왔습니다","경과 관찰로 두면 될 것 같아요","차트에 기록해 두었습니다"],
+      turns_casual:["3호실 V/S 체크 끝냈어","혈압은 안정적이야?","130에 80으로 정상 범위야","체온만 살짝 높게 나왔어","경과 관찰로 두면 될 것 같아","차트에 기록해 뒀어"] },
+    { id:"medical_002", topic:"처방 검토",
+      turns_polite:["처방 용량 한번 확인 부탁드려요","체중 기준으로 맞나요?","네 적정 범위 안입니다","상호작용 약물은 없나요?","중복 처방 없는 거 확인했습니다","그대로 진행하겠습니다"],
+      turns_casual:["처방 용량 한번 확인 부탁","체중 기준으로 맞아?","응 적정 범위 안이야","상호작용 약물은 없어?","중복 처방 없는 거 확인했어","그대로 진행할게"] },
+    { id:"medical_003", topic:"차트 정리",
+      turns_polite:["입원 기록 누락분 정리했어요","경과 노트도 다 들어갔나요?","네 일자별로 채웠습니다","검사 결과 첨부만 남았습니다","스캔본 올려두겠습니다","검토 끝나서 마감했습니다"],
+      turns_casual:["입원 기록 누락분 정리했어","경과 노트도 다 들어갔어?","응 일자별로 채웠어","검사 결과 첨부만 남았어","스캔본 올려둘게","검토 끝나서 마감했어"] },
+    { id:"medical_004", topic:"검사 결과",
+      turns_polite:["혈액 검사 결과 나왔어요","수치 중 이상치는 없었나요?","간수치가 약간 높게 나왔습니다","추적 검사 권고 드리면 될까요?","네 안내문 같이 챙기겠습니다","결과 설명 메모 남겨뒀습니다"],
+      turns_casual:["혈액 검사 결과 나왔어","수치 중 이상치는 없었어?","간수치가 약간 높게 나왔어","추적 검사 권고 하면 될까?","응 안내문 같이 챙길게","결과 설명 메모 남겨뒀어"] },
+    { id:"medical_005", topic:"인계",
+      turns_polite:["인계 사항 정리해 두었어요","주의 환자분은 몇 분인가요?","두 분 집중 관찰 대상입니다","투약 시점만 따로 표시해 둘게요","낙상 위험군도 메모했습니다","인계장에 다 반영했습니다"],
+      turns_casual:["인계 사항 정리해 뒀어","주의 환자분은 몇 분이야?","두 분 집중 관찰 대상이야","투약 시점만 따로 표시해 둘게","낙상 위험군도 메모했어","인계장에 다 반영했어"] },
+  ],
+  student: [
+    { id:"student_001", topic:"강의 노트 정리",
+      turns_polite:["오늘 강의 노트 정리해서 공유할게요","핵심 개념 부분이 깔끔하네요","예제 풀이도 같이 넣을까요?","네 단계별로 적어주면 좋겠어요","요약 표도 추가했습니다","드라이브에 올려뒀어요"],
+      turns_casual:["오늘 강의 노트 정리해서 공유할게","핵심 개념 부분이 깔끔하네","예제 풀이도 같이 넣을까?","응 단계별로 적어주면 좋겠어","요약 표도 추가했어","드라이브에 올려뒀어"] },
+    { id:"student_002", topic:"과제 제출",
+      turns_polite:["과제 초안 다 썼어요","참고 문헌은 형식 맞췄나요?","네 인용 표기 정리했습니다","결론 부분만 더 다듬으면 좋겠어요","문단 두 개로 나눠서 고쳤습니다","제출 파일로 변환해뒀어요"],
+      turns_casual:["과제 초안 다 썼어","참고 문헌은 형식 맞췄어?","응 인용 표기 정리했어","결론 부분만 더 다듬으면 좋겠어","문단 두 개로 나눠서 고쳤어","제출 파일로 변환해뒀어"] },
+    { id:"student_003", topic:"시험 범위",
+      turns_polite:["시험 범위 다시 정리해 봤어요","어디까지 포함되는 건가요?","5장까지 전부 들어갑니다","연습문제도 같이 풀어볼까요?","네 오답 위주로 모아둘게요","정리본 공유해뒀습니다"],
+      turns_casual:["시험 범위 다시 정리해 봤어","어디까지 포함되는 거야?","5장까지 전부 들어가","연습문제도 같이 풀어볼까?","응 오답 위주로 모아둘게","정리본 공유해뒀어"] },
+    { id:"student_004", topic:"조별 자료",
+      turns_polite:["조별 자료 분량 나눠봤어요","내가 도입이랑 분석 맡을게요","그럼 결론은 제가 정리할게요","슬라이드 템플릿은 통일할까요?","네 색상이랑 폰트 맞춰뒀어요","합본해서 검토 부탁드려요"],
+      turns_casual:["조별 자료 분량 나눠봤어","내가 도입이랑 분석 맡을게","그럼 결론은 내가 정리할게","슬라이드 템플릿은 통일할까?","응 색상이랑 폰트 맞춰뒀어","합본해서 검토 부탁"] },
+    { id:"student_005", topic:"레포트 피드백",
+      turns_polite:["레포트 한번 봐줄 수 있어요?","논지 전개는 탄탄하네요","근거 자료를 조금 더 넣을까요?","통계 출처만 보강하면 좋겠어요","표 두 개 추가해서 고쳤습니다","최종본으로 정리했어요"],
+      turns_casual:["레포트 한번 봐줄 수 있어?","논지 전개는 탄탄하네","근거 자료를 좀 더 넣을까?","통계 출처만 보강하면 좋겠어","표 두 개 추가해서 고쳤어","최종본으로 정리했어"] },
+  ],
 };
 
 /* ===================================================================
-   2. 위장(Veil) 로직
-   - random: 한자 풀에서 랜덤 픽 / block: █ 채우기
-   - 공백/줄바꿈은 유지해 문장 구조감을 살린다.
+   3. 전역 상태
    =================================================================== */
-const VEIL_CHARS = '日月火水木金土東西南北春夏秋冬天地人山川海花鳥風雪雲星光明暗陰陽道法自然';
-
-function veil(text, mode) {
-  if (mode === 'block') {
-    // 줄바꿈은 유지, 그 외 글자는 █로 치환
-    return text.replace(/[^\n]/g, '█');
-  }
-  let out = '';
-  for (const ch of text) {
-    if (ch === ' ' || ch === '\n') { out += ch; continue; }
-    out += VEIL_CHARS[Math.floor(Math.random() * VEIL_CHARS.length)];
-  }
-  return out;
-}
+const state = {
+  uid: null,
+  nickname: null,
+  rooms: {},
+  currentRoomId: null,
+  currentOtherNick: "상대방",
+  roomUserState: null,   // { jobMode, toneMode, currentScenarioId, currentTurnIndex, usedScenarios }
+  msgs: [],              // [{ id, msg }] 현재 방의 메시지 (렌더 재계산용)
+  roomsRef: null,
+  msgRef: null,
+  revealTimer: null,
+  revealedEl: null,
+};
 
 /* ===================================================================
-   3. 유틸리티
+   4. 유틸리티
    =================================================================== */
 const $ = (sel) => document.querySelector(sel);
 
@@ -398,46 +508,123 @@ function showScreen(id) {
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
   $('#' + id).classList.add('active');
 }
-
 function toast(msg) {
   const t = $('#toast');
   t.textContent = msg;
   t.classList.add('show');
   clearTimeout(toast._t);
-  toast._t = setTimeout(() => t.classList.remove('show'), 2200);
+  toast._t = setTimeout(() => t.classList.remove('show'), 2400);
 }
-
 function escapeHtml(s) {
-  return s.replace(/[&<>"']/g, c =>
-    ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  return String(s).replace(/[&<>"']/g, c =>
+    ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
 }
-
 function timeLabel(ts) {
   if (!ts) return '';
-  const d = new Date(ts);
-  const now = new Date();
-  const sameDay = d.toDateString() === now.toDateString();
-  if (sameDay) {
+  const d = new Date(ts), now = new Date();
+  if (d.toDateString() === now.toDateString())
     return d.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
-  }
   return d.toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' });
 }
-
 function genCode() {
-  // 헷갈리는 글자(0/O, 1/I) 제외한 6자리
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
   let c = '';
   for (let i = 0; i < 6; i++) c += chars[Math.floor(Math.random() * chars.length)];
   return c;
 }
+function jobLabel(id) { const j = JOBS.find(j => j.id === id); return j ? j.label : id; }
+function jobIsMono(id) { const j = JOBS.find(j => j.id === id); return !!(j && j.mono); }
+
+// 한자 폴백 위장 (시나리오 풀 없을 때)
+function veilHanja(text) {
+  let out = '';
+  for (const ch of (text || '')) {
+    if (ch === ' ' || ch === '\n') { out += ch; continue; }
+    out += VEIL_CHARS[Math.floor(Math.random() * VEIL_CHARS.length)];
+  }
+  return out;
+}
 
 /* ===================================================================
-   4. 인증 (익명 로그인 + 닉네임)
+   5. 위장 매핑 (로컬스토리지)
+   - 키: veilMap_{roomId}_{uid}
+   - 값: { messageId: { scenarioId, turnIndex } }
+   =================================================================== */
+function veilMapKey() { return 'veilMap_' + state.currentRoomId + '_' + state.uid; }
+function loadVeilMap() {
+  try { return JSON.parse(localStorage.getItem(veilMapKey()) || '{}'); }
+  catch { return {}; }
+}
+function saveVeilMap(map) { localStorage.setItem(veilMapKey(), JSON.stringify(map)); }
+function clearVeilMap() { localStorage.removeItem(veilMapKey()); }
+
+/* ===================================================================
+   6. 시나리오 진행 로직 (개인별)
+   =================================================================== */
+function poolFor(jobMode) { return SCENARIOS[jobMode] || []; }
+
+// 다음 시나리오 선택 (직전/사용한 시나리오 피함, 다 쓰면 리셋)
+function pickNextScenario(rus) {
+  const pool = poolFor(rus.jobMode);
+  if (!pool.length) { rus.currentScenarioId = null; rus.currentTurnIndex = 0; return; }
+  let candidates = pool.filter(s => !rus.usedScenarios[s.id] && s.id !== rus.currentScenarioId);
+  if (!candidates.length) {           // 다 소진 → 사용기록 초기화 후 재순환
+    rus.usedScenarios = {};
+    candidates = pool.filter(s => s.id !== rus.currentScenarioId);
+    if (!candidates.length) candidates = pool;
+  }
+  const next = candidates[Math.floor(Math.random() * candidates.length)];
+  rus.currentScenarioId = next.id;
+  rus.currentTurnIndex = 0;
+}
+
+// 메시지 한 건에 (시나리오, 턴) 할당하고 본인 상태를 다음으로 진행
+function assignTurn(rus) {
+  const pool = poolFor(rus.jobMode);
+  if (!pool.length) return null;
+  if (!rus.currentScenarioId || !pool.find(s => s.id === rus.currentScenarioId)) {
+    pickNextScenario(rus);
+    if (!rus.currentScenarioId) return null;
+  }
+  const sc = pool.find(s => s.id === rus.currentScenarioId);
+  const mapping = { scenarioId: rus.currentScenarioId, turnIndex: rus.currentTurnIndex };
+
+  rus.currentTurnIndex += 1;
+  if (rus.currentTurnIndex >= sc.turns_polite.length) {
+    rus.usedScenarios = rus.usedScenarios || {};
+    rus.usedScenarios[rus.currentScenarioId] = true;
+    pickNextScenario(rus);
+  }
+  persistRoomUserState();
+  return mapping;
+}
+
+// 메시지 → 위장 문장 (결정적: 같은 메시지는 항상 같은 문장)
+function getVeilText(messageId, plain) {
+  const rus = state.roomUserState;
+  if (!rus) return veilHanja(plain);
+  const pool = poolFor(rus.jobMode);
+  if (!pool.length) return veilHanja(plain);   // 폴백: 한자
+
+  const map = loadVeilMap();
+  let m = map[messageId];
+  // 매핑 없거나, 직업이 바뀌어 현재 풀에 없는 시나리오면 새로 할당
+  if (!m || !pool.find(s => s.id === m.scenarioId)) {
+    m = assignTurn(rus);
+    if (!m) return veilHanja(plain);
+    map[messageId] = m;
+    saveVeilMap(map);
+  }
+  const sc = pool.find(s => s.id === m.scenarioId);
+  const turns = rus.toneMode === 'casual' ? sc.turns_casual : sc.turns_polite;
+  return turns[m.turnIndex % turns.length];
+}
+
+/* ===================================================================
+   7. 인증
    =================================================================== */
 $('#login-btn').addEventListener('click', doLogin);
-$('#nickname-input').addEventListener('keydown', e => {
-  if (e.key === 'Enter') doLogin();
-});
+$('#nickname-input').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
 
 function doLogin() {
   const nick = $('#nickname-input').value.trim();
@@ -449,73 +636,107 @@ function doLogin() {
     toast('로그인 실패: ' + err.message);
   });
 }
-
 $('#logout-btn').addEventListener('click', () => {
   if (!confirm('로그아웃 할까요? (같은 기기에서 다시 익명 로그인됩니다)')) return;
   cleanupListeners();
   auth.signOut();
 });
 
-/* 로그인 라이프사이클: 새로고침/재방문 시 자동 로그인 */
 auth.onAuthStateChanged(async (user) => {
+  $('#overlay').classList.add('hidden');
   if (user) {
     state.uid = user.uid;
-    const savedNick = localStorage.getItem('veil_nickname') || '익명';
-    state.nickname = savedNick;
-    // users/{uid} 프로필 보장
-    await db.ref('users/' + user.uid).update({
-      nickname: savedNick,
-      createdAt: TS
-    });
-    $('#my-nick').textContent = '· ' + savedNick;
-    enterRooms();
-    $('#overlay').classList.add('hidden');
+    state.nickname = localStorage.getItem('veil_nickname') || '익명';
+    try {
+      await db.ref('users/' + user.uid).update({ nickname: state.nickname, createdAt: TS });
+    } catch (e) { toast('프로필 저장 실패: ' + e.message); }
+    $('#my-nick').textContent = '· ' + state.nickname;
+
+    // 기본 직업/톤이 없으면 최초 설정 화면, 있으면 방 목록
+    if (!localStorage.getItem('veil_jobMode')) {
+      renderSetupSelectors();
+      showScreen('screen-setup');
+    } else {
+      enterRooms();
+    }
   } else {
     state.uid = null;
-    showScreen('screen-login');
-    $('#overlay').classList.add('hidden');
     $('#login-btn').disabled = false;
     const saved = localStorage.getItem('veil_nickname');
     if (saved) $('#nickname-input').value = saved;
+    showScreen('screen-login');
   }
 });
 
 /* ===================================================================
-   5. 채팅방 목록 로직
+   8. 첫 로그인: 기본 직업/톤 선택
+   =================================================================== */
+let setupJob = 'dev', setupTone = 'polite';
+
+function renderJobGrid(container, selectedId, onPick) {
+  container.innerHTML = '';
+  JOBS.forEach(j => {
+    const el = document.createElement('button');
+    el.className = 'job-chip' + (j.id === selectedId ? ' selected' : '');
+    el.innerHTML = '<span class="emoji">' + j.emoji + '</span>' +
+      '<span>' + escapeHtml(j.label) + '</span>' +
+      '<span class="desc">' + escapeHtml(j.desc) + '</span>';
+    el.addEventListener('click', () => onPick(j.id));
+    container.appendChild(el);
+  });
+}
+function renderToneRow(container, selectedTone, onPick) {
+  container.innerHTML = '';
+  [['polite','존댓말'], ['casual','반말']].forEach(([id, label]) => {
+    const el = document.createElement('button');
+    el.className = 'tone-chip' + (id === selectedTone ? ' selected' : '');
+    el.textContent = label;
+    el.addEventListener('click', () => onPick(id));
+    container.appendChild(el);
+  });
+}
+function renderSetupSelectors() {
+  setupJob = localStorage.getItem('veil_jobMode') || 'dev';
+  setupTone = localStorage.getItem('veil_toneMode') || 'polite';
+  renderJobGrid($('#setup-jobs'), setupJob, id => { setupJob = id; renderSetupSelectors(); });
+  renderToneRow($('#setup-tones'), setupTone, id => { setupTone = id; renderSetupSelectors(); });
+}
+$('#setup-done').addEventListener('click', () => {
+  localStorage.setItem('veil_jobMode', setupJob);
+  localStorage.setItem('veil_toneMode', setupTone);
+  enterRooms();
+});
+
+/* ===================================================================
+   9. 채팅방 목록
    =================================================================== */
 function enterRooms() {
   showScreen('screen-rooms');
   cleanupRoomsListener();
-  // users/{uid}/rooms 를 구독 → 각 방 메타 로드
   state.roomsRef = db.ref('users/' + state.uid + '/rooms');
   state.roomsRef.on('value', snap => {
     const roomIds = snap.val() ? Object.keys(snap.val()) : [];
     renderRoomList(roomIds);
   });
 }
-
 function renderRoomList(roomIds) {
   const list = $('#room-list');
   if (!roomIds.length) {
-    list.innerHTML =
-      '<div class="empty">아직 채팅방이 없어요.<br>오른쪽 아래 ＋ 버튼으로<br>친구를 초대해 보세요.</div>';
+    list.innerHTML = '<div class="empty">아직 채팅방이 없어요.<br>오른쪽 아래 ＋ 버튼으로<br>친구를 초대해 보세요.</div>';
     return;
   }
-  // 각 방 데이터를 한 번씩 읽어 정렬 후 렌더
   Promise.all(roomIds.map(rid =>
-    db.ref('rooms/' + rid).get().then(s => ({ id: rid, ...(s.val() || {}) }))
+    db.ref('rooms/' + rid).get().then(s => ({ id: rid, ...(s.val() || {}) })).catch(() => null)
   )).then(rooms => {
-    rooms = rooms.filter(r => r.members && r.members[state.uid]);
+    rooms = rooms.filter(r => r && r.members && r.members[state.uid]);
     rooms.sort((a, b) => (b.lastMessage || b.createdAt || 0) - (a.lastMessage || a.createdAt || 0));
     list.innerHTML = '';
     rooms.forEach(room => {
       state.rooms[room.id] = room;
       const otherUid = Object.keys(room.members).find(u => u !== state.uid);
       const otherNick = (room.memberNicknames && room.memberNicknames[otherUid]) || '상대방';
-      const mode = room.veilMode || 'random';
-      const previewPlain = room.lastMessageText || '';
-      const preview = previewPlain ? veil(previewPlain, mode) : '대화를 시작해 보세요';
-
+      // 미리보기도 위장 상태 (목록에선 한자 폴백으로 가볍게)
+      const preview = room.lastMessageText ? veilHanja(room.lastMessageText) : '대화를 시작해 보세요';
       const el = document.createElement('div');
       el.className = 'room-item';
       el.innerHTML =
@@ -525,16 +746,14 @@ function renderRoomList(roomIds) {
           '<div class="room-preview">' + escapeHtml(preview) + '</div>' +
         '</div>' +
         '<div class="room-time">' + timeLabel(room.lastMessage) + '</div>';
-      el.addEventListener('click', () => openChat(room.id));
+      el.addEventListener('click', () => openChat(room.id, otherNick));
       list.appendChild(el);
     });
   });
 }
 
 /* ===================================================================
-   6. 친구 추가 (초대 코드 방식)
-   - 코드 생성: inviteCodes/{code} = { owner, ownerNick, createdAt }
-   - 입장: 코드 조회 → 양쪽 멤버로 방 생성 → 코드 삭제(일회용)
+   10. 친구 추가 (초대 코드)
    =================================================================== */
 $('#add-friend-fab').addEventListener('click', () => {
   $('#my-code').textContent = '······';
@@ -547,21 +766,15 @@ $('#gen-code-btn').addEventListener('click', async () => {
   const code = genCode();
   try {
     await db.ref('inviteCodes/' + code).set({
-      owner: state.uid,
-      ownerNick: state.nickname,
-      createdAt: TS
+      creator: state.uid, creatorNick: state.nickname, createdAt: TS, used: false
     });
     $('#my-code').textContent = code;
     toast('코드 생성됨: ' + code);
-  } catch (e) {
-    toast('코드 생성 실패: ' + e.message);
-  }
+  } catch (e) { toast('코드 생성 실패: ' + e.message); }
 });
 
 $('#join-btn').addEventListener('click', joinByCode);
-$('#join-code-input').addEventListener('keydown', e => {
-  if (e.key === 'Enter') joinByCode();
-});
+$('#join-code-input').addEventListener('keydown', e => { if (e.key === 'Enter') joinByCode(); });
 
 async function joinByCode() {
   const code = $('#join-code-input').value.trim().toUpperCase();
@@ -570,96 +783,108 @@ async function joinByCode() {
     const snap = await db.ref('inviteCodes/' + code).get();
     const invite = snap.val();
     if (!invite) { toast('존재하지 않거나 만료된 코드입니다'); return; }
-    if (invite.owner === state.uid) { toast('내 코드는 사용할 수 없어요'); return; }
+    if (invite.creator === state.uid) { toast('내 코드는 사용할 수 없어요'); return; }
 
-    const otherUid = invite.owner;
-    const roomId = await createRoom(otherUid, invite.ownerNick);
-    await db.ref('inviteCodes/' + code).remove(); // 일회용 → 만료
+    const roomId = await createRoom(invite.creator, invite.creatorNick);
+    await db.ref('inviteCodes/' + code).remove(); // 일회용
     toast('채팅방이 생성됐어요!');
-    openChat(roomId);
-  } catch (e) {
-    toast('입장 실패: ' + e.message);
-  }
+    openChat(roomId, invite.creatorNick);
+  } catch (e) { toast('입장 실패: ' + e.message); }
 }
 
 async function createRoom(otherUid, otherNick) {
   const roomRef = db.ref('rooms').push();
   const roomId = roomRef.key;
-  const room = {
+  await roomRef.set({
     members: { [state.uid]: true, [otherUid]: true },
     memberNicknames: { [state.uid]: state.nickname, [otherUid]: otherNick },
-    veilMode: 'random',
-    createdAt: TS,
-    lastMessage: TS
-  };
-  await roomRef.set(room);
-  // 양쪽 users/{uid}/rooms 에 등록
+    createdAt: TS, lastMessage: TS
+  });
   await db.ref('users/' + state.uid + '/rooms/' + roomId).set(true);
   await db.ref('users/' + otherUid + '/rooms/' + roomId).set(true);
   return roomId;
 }
 
 /* ===================================================================
-   7. 채팅방 (메시지 송수신 + 위장 렌더)
+   11. 채팅방
    =================================================================== */
 $('#chat-back').addEventListener('click', () => {
   cleanupMsgListener();
   clearReveal();
   state.currentRoomId = null;
+  state.msgs = [];
   enterRooms();
 });
+$('#chat-settings-btn').addEventListener('click', openChatSettings);
 
-$('#veil-toggle').addEventListener('click', toggleVeilMode);
-
-function openChat(roomId) {
+async function openChat(roomId, otherNick) {
   state.currentRoomId = roomId;
-  const room = state.rooms[roomId] || {};
-  const otherUid = room.members ? Object.keys(room.members).find(u => u !== state.uid) : null;
-  const otherNick = (room.memberNicknames && room.memberNicknames[otherUid]) || '상대방';
-  $('#chat-title').childNodes[0].nodeValue = otherNick + ' ';
-  $('#chat-sub').textContent = '';
-  updateVeilToggleLabel(room.veilMode || 'random');
-
+  state.currentOtherNick = otherNick || '상대방';
+  state.msgs = [];
+  $('#chat-name').textContent = state.currentOtherNick;
   $('#msg-list').innerHTML = '';
-  showScreen('screen-chat');
   clearReveal();
+  showScreen('screen-chat');
 
-  // 방 메타 변경(위장모드 등) 구독
-  db.ref('rooms/' + roomId).on('value', snap => {
-    const r = snap.val();
-    if (!r) return;
-    state.rooms[roomId] = { id: roomId, ...r };
-    updateVeilToggleLabel(r.veilMode || 'random');
-    reVeilAll(); // 모드 바뀌면 전체 다시 위장
-  });
+  // 내 roomUserState 로드 (없으면 개인 기본값으로 초기화)
+  await loadRoomUserState(roomId);
+  updateChatModePill();
 
   // 메시지 구독
   cleanupMsgListener();
   state.msgRef = db.ref('messages/' + roomId).orderByChild('timestamp').limitToLast(200);
   state.msgRef.on('child_added', snap => {
+    if (state.msgs.find(x => x.id === snap.key)) return;
+    state.msgs.push({ id: snap.key, msg: snap.val() });
     appendMessage(snap.key, snap.val());
     scrollToBottom();
   });
 }
 
-function currentMode() {
-  const r = state.rooms[state.currentRoomId];
-  return (r && r.veilMode) || 'random';
+async function loadRoomUserState(roomId) {
+  const ref = db.ref('roomUserState/' + roomId + '/' + state.uid);
+  let rus = (await ref.get()).val();
+  if (!rus || !rus.jobMode) {
+    rus = {
+      jobMode: localStorage.getItem('veil_jobMode') || 'dev',
+      toneMode: localStorage.getItem('veil_toneMode') || 'polite',
+      currentScenarioId: null,
+      currentTurnIndex: 0,
+      usedScenarios: {}
+    };
+    pickNextScenario(rus);
+    await ref.set(rus);
+  }
+  rus.usedScenarios = rus.usedScenarios || {};
+  state.roomUserState = rus;
+}
+function persistRoomUserState() {
+  if (!state.currentRoomId || !state.roomUserState) return;
+  db.ref('roomUserState/' + state.currentRoomId + '/' + state.uid).update(state.roomUserState);
+}
+function updateChatModePill() {
+  const rus = state.roomUserState;
+  if (!rus) return;
+  const tone = rus.toneMode === 'casual' ? '반말' : '존댓말';
+  $('#chat-mode').textContent = '내 모드: ' + jobLabel(rus.jobMode) + ' · ' + tone;
 }
 
+/* --- 메시지 렌더 --- */
 function appendMessage(msgId, msg) {
   if (!msg || document.getElementById('m_' + msgId)) return;
   const mine = msg.from === state.uid;
-  const mode = currentMode();
+  const mono = jobIsMono(state.roomUserState && state.roomUserState.jobMode);
+  const veilText = getVeilText(msgId, msg.text || '');
 
   const row = document.createElement('div');
   row.className = 'row ' + (mine ? 'me' : 'other');
 
   const bubble = document.createElement('div');
-  bubble.className = 'bubble' + (mode === 'block' ? ' veil-block' : '');
+  bubble.className = 'bubble' + (mono ? ' mono' : '');
   bubble.id = 'm_' + msgId;
   bubble.dataset.plain = msg.text || '';
-  bubble.textContent = veil(msg.text || '', mode);
+  bubble.dataset.veil = veilText;
+  bubble.textContent = veilText;
   bubble.addEventListener('click', () => revealBubble(bubble));
 
   const time = document.createElement('div');
@@ -671,68 +896,48 @@ function appendMessage(msgId, msg) {
   $('#msg-list').appendChild(row);
 }
 
-/* --- 탭 투 리빌: 한 번에 하나만 풀림, 3초 후 자동 재위장 --- */
-function revealBubble(bubble) {
-  // 이미 풀려있는 다른 버블은 즉시 잠금
-  if (state.revealedEl && state.revealedEl !== bubble) clearReveal();
+// 전체 다시 렌더 (직업/톤 변경 시)
+function renderAllMessages() {
+  $('#msg-list').innerHTML = '';
+  state.msgs.forEach(({ id, msg }) => appendMessage(id, msg));
+  scrollToBottom();
+}
 
-  if (state.revealedEl === bubble) { clearReveal(); return; } // 다시 탭하면 잠금
+/* --- 탭 투 리빌: 한 번에 하나, 3초 후 자동 재위장(같은 문장 유지) --- */
+function revealBubble(bubble) {
+  if (state.revealedEl && state.revealedEl !== bubble) clearReveal();
+  if (state.revealedEl === bubble) { clearReveal(); return; }
 
   state.revealedEl = bubble;
   bubble.classList.add('revealed');
-  bubble.classList.remove('veil-block'); // 평문은 일반 폰트
+  bubble.classList.remove('mono');
   bubble.textContent = bubble.dataset.plain;
 
-  // 3초 카운트다운 인디케이터
   let remain = 3;
   const timer = document.createElement('div');
   timer.className = 'timer';
   timer.textContent = remain;
   bubble.appendChild(timer);
-
   state.revealTimer = setInterval(() => {
     remain -= 1;
     if (remain <= 0) { clearReveal(); return; }
     timer.textContent = remain;
   }, 1000);
 }
-
 function clearReveal() {
   if (state.revealTimer) { clearInterval(state.revealTimer); state.revealTimer = null; }
   const b = state.revealedEl;
   if (b) {
-    const mode = currentMode();
     b.classList.remove('revealed');
-    if (mode === 'block') b.classList.add('veil-block');
-    b.textContent = veil(b.dataset.plain, mode); // 매번 새 위장 패턴
+    if (jobIsMono(state.roomUserState && state.roomUserState.jobMode)) b.classList.add('mono');
+    b.textContent = b.dataset.veil;   // 결정적 위장 문장 그대로 복원
   }
   state.revealedEl = null;
 }
 
-/* 모드 변경 시 화면의 모든 버블을 다시 위장 */
-function reVeilAll() {
-  clearReveal();
-  const mode = currentMode();
-  document.querySelectorAll('#msg-list .bubble').forEach(b => {
-    b.classList.toggle('veil-block', mode === 'block');
-    b.textContent = veil(b.dataset.plain, mode);
-  });
-}
-
-/* --- 위장 모드 토글 (방별 설정, Firebase에 저장) --- */
-function updateVeilToggleLabel(mode) {
-  $('#veil-toggle').textContent = '위장: ' + (mode === 'block' ? '블록 █' : '한자');
-}
-function toggleVeilMode() {
-  if (!state.currentRoomId) return;
-  const next = currentMode() === 'block' ? 'random' : 'block';
-  db.ref('rooms/' + state.currentRoomId + '/veilMode').set(next);
-}
-
-/* --- 메시지 전송: 입력창은 타이핑 중 평문, 보내는 순간 즉시 비움 --- */
+/* --- 메시지 전송 --- */
 const input = $('#msg-input');
 const sendBtn = $('#send-btn');
-
 input.addEventListener('input', () => {
   sendBtn.disabled = input.value.trim() === '';
   input.style.height = 'auto';
@@ -746,48 +951,85 @@ sendBtn.addEventListener('click', sendMessage);
 async function sendMessage() {
   const text = input.value.trim();
   if (!text || !state.currentRoomId) return;
-  input.value = '';          // 보내는 순간 즉시 위장(입력창 비움)
+  input.value = '';                 // 보내는 순간 입력창 비움(즉시 위장)
   input.style.height = 'auto';
   sendBtn.disabled = true;
-
   const roomId = state.currentRoomId;
   try {
-    await db.ref('messages/' + roomId).push({
-      from: state.uid,
-      text: text,
-      timestamp: TS
-    });
-    // 방 목록 미리보기/정렬용 메타 업데이트
-    await db.ref('rooms/' + roomId).update({
-      lastMessage: TS,
-      lastMessageText: text
-    });
+    await db.ref('messages/' + roomId).push({ from: state.uid, text, timestamp: TS });
+    await db.ref('rooms/' + roomId).update({ lastMessage: TS, lastMessageText: text });
   } catch (e) {
     toast('전송 실패: ' + e.message);
-    input.value = text; // 실패 시 복구
+    input.value = text;
   }
 }
-
 function scrollToBottom() {
   const body = $('#msg-body');
   requestAnimationFrame(() => { body.scrollTop = body.scrollHeight; });
 }
 
 /* ===================================================================
-   8. 리스너 정리
+   12. 채팅방 설정 (내 직업/톤 변경)
    =================================================================== */
-function cleanupRoomsListener() {
-  if (state.roomsRef) { state.roomsRef.off(); state.roomsRef = null; }
+$('#settings-back').addEventListener('click', () => showScreen('screen-chat'));
+
+function openChatSettings() {
+  const rus = state.roomUserState;
+  if (!rus) return;
+  renderJobGrid($('#settings-jobs'), rus.jobMode, changeJob);
+  renderToneRow($('#settings-tones'), rus.toneMode, changeTone);
+  showScreen('screen-chat-settings');
 }
-function cleanupMsgListener() {
-  if (state.msgRef) { state.msgRef.off(); state.msgRef = null; }
-  if (state.currentRoomId) db.ref('rooms/' + state.currentRoomId).off();
+
+function changeJob(jobId) {
+  const rus = state.roomUserState;
+  if (rus.jobMode === jobId) return;
+  if (!confirm('직업 모드를 바꾸면 이 방의 위장 시나리오가 리셋됩니다.\n(상대방은 영향 없음)\n변경할까요?')) return;
+  rus.jobMode = jobId;
+  rus.currentScenarioId = null;
+  rus.currentTurnIndex = 0;
+  rus.usedScenarios = {};
+  pickNextScenario(rus);
+  persistRoomUserState();
+  clearVeilMap();                 // 기존 매핑 폐기 → 새 직업으로 재할당
+  localStorage.setItem('veil_jobMode', jobId); // 다음 방 기본값도 갱신
+  renderJobGrid($('#settings-jobs'), jobId, changeJob);
+  updateChatModePill();
+  renderAllMessages();
+  toast(jobLabel(jobId) + ' 모드로 변경됨');
 }
-function cleanupListeners() {
-  cleanupRoomsListener();
-  cleanupMsgListener();
-  clearReveal();
+function changeTone(toneId) {
+  const rus = state.roomUserState;
+  if (rus.toneMode === toneId) return;
+  rus.toneMode = toneId;
+  persistRoomUserState();
+  localStorage.setItem('veil_toneMode', toneId);
+  renderToneRow($('#settings-tones'), toneId, changeTone);
+  updateChatModePill();
+  renderAllMessages();            // 톤만 바뀜: 매핑 유지, 문장만 polite/casual 전환
 }
+
+$('#leave-room-btn').addEventListener('click', async () => {
+  if (!confirm('이 채팅방을 나갈까요? 목록에서 사라집니다.')) return;
+  const roomId = state.currentRoomId;
+  try {
+    await db.ref('users/' + state.uid + '/rooms/' + roomId).remove();
+    clearVeilMap();
+    cleanupMsgListener();
+    clearReveal();
+    state.currentRoomId = null;
+    state.msgs = [];
+    toast('채팅방을 나갔습니다');
+    enterRooms();
+  } catch (e) { toast('나가기 실패: ' + e.message); }
+});
+
+/* ===================================================================
+   13. 리스너 정리
+   =================================================================== */
+function cleanupRoomsListener() { if (state.roomsRef) { state.roomsRef.off(); state.roomsRef = null; } }
+function cleanupMsgListener() { if (state.msgRef) { state.msgRef.off(); state.msgRef = null; } }
+function cleanupListeners() { cleanupRoomsListener(); cleanupMsgListener(); clearReveal(); }
 </script>
 </body>
 </html>
