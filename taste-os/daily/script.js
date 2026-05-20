@@ -288,7 +288,7 @@
       cta.style.opacity = '0.4';
       cta.style.pointerEvents = 'none';
       window.setTimeout(() => {
-        window.location.href = '../timeline/';
+        window.location.href = '../evolution/';
       }, 600);
     });
   }

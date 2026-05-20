@@ -1,0 +1,184 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#0E0C0B" />
+  <title>Taste OS — 당신은 많은 계절을 지나오고 있었습니다</title>
+  <meta name="description" content="지나온 감정의 계절들을 천천히 다시 걷는 산책." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;1,300;1,400&family=Inter:wght@300;400;500&family=Noto+Serif+KR:wght@300;400&display=swap" />
+  <link rel="stylesheet" href="./style.css" />
+</head>
+<body class="era-cold">
+
+  <!-- Persistent ambient -->
+  <div class="orb orb-1" aria-hidden="true"></div>
+  <div class="orb orb-2" aria-hidden="true"></div>
+  <div class="orb orb-3" aria-hidden="true"></div>
+  <div class="orb orb-4" aria-hidden="true"></div>
+
+  <div class="dust-field" aria-hidden="true"></div>
+
+  <div class="sigil" aria-hidden="true">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round">
+      <path d="M12 3.5 A 8.5 8.5 0 1 0 20.4 11.2" />
+    </svg>
+  </div>
+
+  <!-- Era tag — top right -->
+  <p class="era-tag" data-era-tag aria-hidden="true">
+    <span class="era-tag-dot"></span>
+    <span class="era-tag-label" data-era-label>지나온 계절</span>
+  </p>
+
+  <!-- ============================================================
+       01 — OPENING
+       ============================================================ -->
+  <section class="section opening-section" data-section="opening" data-era="cold">
+    <div class="opening-inner">
+      <h1 class="cinematic-head" data-reveal>
+        당신은 생각보다 많은 계절을<br />
+        지나오고 있었습니다.
+      </h1>
+      <hr class="hairline-mark" data-reveal data-reveal-delay="900" />
+      <p class="opening-sub mist" data-reveal data-reveal-delay="1500">
+        시간 속에서 당신의 분위기는 조금씩 변해왔고,<br />
+        그 변화 속에도 당신만의 감정은 조용히 이어지고 있어요.
+      </p>
+      <div class="scroll-cue" aria-hidden="true" data-reveal data-reveal-delay="3200">
+        <span class="cue-line"></span>
+        <span class="cue-label">계절을 따라 내려가요</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================
+       02 — SEASON · 2024
+       ============================================================ -->
+  <section class="section season-section" data-section="season-2024" data-era="cold">
+    <span class="ghost-year" data-ghost-year aria-hidden="true">2024</span>
+    <div class="season-inner">
+      <p class="eyebrow" data-reveal>첫 번째 계절 · 2024</p>
+      <hr class="hairline-mark" data-reveal data-reveal-delay="300" />
+      <h2 class="season-name" data-reveal data-reveal-delay="600">
+        차가운 도시의 고독감
+      </h2>
+
+      <div class="memory-field" data-memory-field data-season="cool"></div>
+
+      <p class="season-reflection mist" data-reveal data-reveal-delay="1200">
+        그해의 당신은, 차가움 속에서<br />
+        자기만의 거리를 두고 있었어요.
+      </p>
+    </div>
+  </section>
+
+  <!-- ============================================================
+       03 — EVOLUTION NARRATION (2024 → 2025)
+       ============================================================ -->
+  <section class="section narration-section" data-section="narration-1" data-era="warming">
+    <div class="narration-inner">
+      <hr class="hairline-frame" data-reveal />
+      <p class="cinematic-narration" data-reveal data-reveal-delay="600">
+        예전보다 조금 더 따뜻한 것들에<br />
+        오래 시선이 머물고 있어요.
+      </p>
+      <hr class="hairline-frame" data-reveal data-reveal-delay="1200" />
+    </div>
+  </section>
+
+  <!-- ============================================================
+       04 — SEASON · 2025
+       ============================================================ -->
+  <section class="section season-section" data-section="season-2025" data-era="warming">
+    <span class="ghost-year" data-ghost-year aria-hidden="true">2025</span>
+    <div class="season-inner">
+      <p class="eyebrow" data-reveal>두 번째 계절 · 2025</p>
+      <hr class="hairline-mark" data-reveal data-reveal-delay="300" />
+      <h2 class="season-name" data-reveal data-reveal-delay="600">
+        조금 더 따뜻해진 공기
+      </h2>
+
+      <div class="memory-field" data-memory-field data-season="mixed"></div>
+
+      <p class="season-reflection mist" data-reveal data-reveal-delay="1200">
+        차가움과 온기 사이에서<br />
+        당신은 천천히 마음을 열고 있었어요.
+      </p>
+    </div>
+  </section>
+
+  <!-- ============================================================
+       05 — EVOLUTION NARRATION (2025 → 2026)
+       ============================================================ -->
+  <section class="section narration-section" data-section="narration-2" data-era="warm">
+    <div class="narration-inner">
+      <hr class="hairline-frame" data-reveal />
+      <p class="cinematic-narration" data-reveal data-reveal-delay="600">
+        완벽함보다는 인간적인 흔적 속에서<br />
+        안정감을 느끼기 시작했어요.
+      </p>
+      <hr class="hairline-frame" data-reveal data-reveal-delay="1200" />
+    </div>
+  </section>
+
+  <!-- ============================================================
+       06 — SEASON · 2026
+       ============================================================ -->
+  <section class="section season-section" data-section="season-2026" data-era="warm">
+    <span class="ghost-year" data-ghost-year aria-hidden="true">2026</span>
+    <div class="season-inner">
+      <p class="eyebrow" data-reveal>지금의 계절 · 2026</p>
+      <hr class="hairline-mark" data-reveal data-reveal-delay="300" />
+      <h2 class="season-name" data-reveal data-reveal-delay="600">
+        인간적인 흔적 속 안정감
+      </h2>
+
+      <div class="memory-field" data-memory-field data-season="warm"></div>
+
+      <p class="season-reflection mist" data-reveal data-reveal-delay="1200">
+        차가운 고독감 속에서도 점점 더<br />
+        부드러운 감정을 발견하고 있습니다.
+      </p>
+    </div>
+  </section>
+
+  <!-- ============================================================
+       07 — QUIET REFLECTION
+       ============================================================ -->
+  <section class="section quiet-section" data-section="quiet" data-era="warm">
+    <div class="quiet-inner">
+      <span class="quiet-dot" aria-hidden="true"></span>
+      <p class="quiet-line" data-reveal>
+        여기까지, 당신이 지나온 계절들이에요.<br />
+        잠시 바라봐 주세요.
+      </p>
+      <span class="quiet-dot" aria-hidden="true"></span>
+    </div>
+  </section>
+
+  <!-- ============================================================
+       08 — SOFT CONTINUATION
+       ============================================================ -->
+  <section class="section continuation-section" data-section="continuation" data-era="warm">
+    <div class="continuation-inner">
+      <hr class="hairline-mark" data-reveal />
+      <button class="beacon ceremonial" type="button" data-reveal data-reveal-delay="500" data-action="return">
+        <span class="dash">────</span>
+        <span class="beacon-label">지금의 나로 돌아가기</span>
+        <span class="dash">────</span>
+      </button>
+      <p class="continuation-foot mist" data-reveal data-reveal-delay="1100">
+        이 모든 계절이, 지금의 당신을 만들었어요.
+      </p>
+    </div>
+  </section>
+
+  <!-- Grain -->
+  <div class="grain" aria-hidden="true"></div>
+
+  <script src="./script.js"></script>
+</body>
+</html>

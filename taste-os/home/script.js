@@ -341,10 +341,9 @@
     cta.addEventListener('click', () => {
       cta.style.opacity = '0.4';
       cta.style.pointerEvents = 'none';
-      // In product, this would route to /timeline.
-      // For static preview, attempt to open ../timeline/ if it exists.
+      // In product, this would route to /timeline (the evolution view).
       window.setTimeout(() => {
-        window.location.href = '../timeline/';
+        window.location.href = '../evolution/';
       }, 600);
     });
   }
