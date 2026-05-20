@@ -14,15 +14,14 @@
 - 타깃: 수면 보조, 집중(공부/작업), 명상·이완
 - 톤: 미니멀, 어두운 톤, 다크모드 우선
 
-### 1.1 플랫폼 — 미정 (의사결정 필요)
+### 1.1 플랫폼 — 웹으로 결정 (2026-05-20)
 
-원본 기획은 **iOS 네이티브 SwiftUI 앱**(AVAudioEngine 기반)이지만, 현재 이
-저장소는 **GitHub Pages 정적 웹 사이트**(`kimbany.github.io`)입니다. 이미
-`asmr/index.html`에 웹 기반 ASMR 사운드 플레이어 프로토타입이 존재합니다.
+이 저장소는 **GitHub Pages 정적 웹 사이트**(`kimbany.github.io`)이므로 **웹 앱**으로
+진행하기로 결정. 구현체는 `asmr/index.html` (단일 파일, Web Audio API로 모든 소리를
+실시간 합성 — 별도 오디오 파일 불필요).
 
-> **결정 대기**: iOS 네이티브로 갈지, 이 저장소에 맞게 웹 앱으로 갈지 미정.
 > 본 문서의 데이터 모델/큐레이션/UX 원칙은 **플랫폼 무관**하게 적용됩니다.
-> 플랫폼별 기술 결정(AVAudioEngine vs Web Audio API 등)은 §6에 따로 정리.
+> 플랫폼별 기술 결정은 §6 참조.
 
 ---
 
@@ -141,12 +140,13 @@ PoC에서 가장 먼저 검증해야 할 항목:
 
 > 큰 결정이 생길 때마다 여기에 추가. 결정을 바꿔야 하면 영향 코드도 함께 정리.
 
-- **플랫폼**: 미정 (§1.1 참조).
-- **iOS 안일 경우**: SwiftUI + MVVM, AVAudioEngine(다중 AVAudioPlayerNode 믹싱),
-  AVAudioSession `.playback` + `.mixWithOthers`, `UIBackgroundModes: audio`,
-  MPNowPlayingInfoCenter/MPRemoteCommandCenter, 영구 저장은 SwiftData(iOS 17+).
-- **웹일 경우**: Web Audio API(GainNode로 트랙별 볼륨/페이드), MediaSession API로
-  잠금화면 컨트롤, localStorage/IndexedDB로 저장.
+- **플랫폼: 웹으로 결정** (2026-05-20, §1.1 참조).
+- **웹 구현**: 단일 HTML 파일 `asmr/index.html`. 빌드 도구·프레임워크 없이 순수
+  HTML/CSS/JS. Web Audio API로 모든 소리를 절차적으로 합성(오디오 파일 불필요).
+  - 트랙별 볼륨/페이드: GainNode + `linearRampToValueAtTime`
+  - 잠금화면 컨트롤: MediaSession API
+  - 믹스 저장: localStorage (`asmr_mixes` 키)
+- **iOS 보류**: 추후 네이티브가 필요하면 SwiftUI + AVAudioEngine로 별도 진행.
 
 ---
 
