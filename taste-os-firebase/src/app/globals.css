@@ -1,0 +1,85 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import "../styles/tokens.css";
+
+@layer base {
+  html {
+    background: var(--c-night);
+    color: var(--c-beige);
+    font-variant-numeric: tabular-nums slashed-zero;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  body {
+    background: var(--c-night);
+    min-height: 100vh;
+    overflow-x: hidden;
+    position: relative;
+    /* atmosphere transitions are felt, not seen */
+    transition: background-color 2.4s ease;
+  }
+
+  ::selection {
+    background: rgba(176, 118, 114, 0.4);
+    color: var(--c-beige);
+  }
+
+  :focus-visible {
+    outline: 1px solid rgba(176, 118, 114, 0.55);
+    outline-offset: 4px;
+    border-radius: 2px;
+  }
+}
+
+@layer components {
+  /* the canonical reveal: text doesn't appear, it blooms */
+  .reveal {
+    opacity: 0;
+    filter: blur(14px);
+    letter-spacing: 0.1em;
+    transition:
+      opacity 1.8s var(--e-breath-in),
+      filter 1.8s var(--e-breath-in),
+      letter-spacing 1.8s var(--e-breath-in);
+  }
+  .reveal[data-revealed="true"] {
+    opacity: 1;
+    filter: blur(0);
+    letter-spacing: -0.012em;
+  }
+
+  /* the one CTA shape across the whole product */
+  .beacon {
+    display: inline-flex;
+    align-items: center;
+    gap: 12px;
+    padding: 14px 30px;
+    border: 1px solid rgba(216, 199, 172, 0.2);
+    border-radius: 2px;
+    font-size: 13px;
+    letter-spacing: 0.04em;
+    color: var(--c-beige);
+    transition:
+      border-color 0.7s ease,
+      background 0.7s ease,
+      transform 0.2s ease;
+  }
+  .beacon:hover {
+    border-color: rgba(176, 118, 114, 0.55);
+    background: rgba(176, 118, 114, 0.07);
+  }
+  .beacon:active {
+    transform: translateY(1px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .reveal {
+    transition-duration: 0.3s;
+    filter: none;
+    letter-spacing: -0.012em;
+  }
+}

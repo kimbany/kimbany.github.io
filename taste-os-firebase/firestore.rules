@@ -1,0 +1,48 @@
+rules_version = '2';
+
+// Taste OS — emotional memory is private by default.
+// Every document lives under the owning user; only that user may read/write.
+// Privileged writes (clustering, snapshots, identity) happen via the Admin SDK
+// in Cloud Functions, which bypass these rules.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() { return request.auth != null; }
+    function isOwner(uid) { return signedIn() && request.auth.uid == uid; }
+
+    match /users/{uid} {
+      allow read, write: if isOwner(uid);
+
+      // memory fragments, narrations, timeline, clusters, snapshots — all owned
+      match /fragments/{fragmentId} {
+        allow read, write: if isOwner(uid);
+      }
+      match /narrations/{narrationId} {
+        // clients read their narrations; writes come from Cloud Functions (admin)
+        allow read: if isOwner(uid);
+        allow write: if isOwner(uid);
+      }
+      match /timeline/{eventId} {
+        allow read: if isOwner(uid);
+        allow write: if isOwner(uid);
+      }
+      match /clusters/{clusterId} {
+        allow read: if isOwner(uid);
+        allow write: if false; // engine-managed (admin only)
+      }
+      match /snapshots/{snapshotId} {
+        allow read: if isOwner(uid);
+        allow write: if false; // engine-managed (admin only)
+      }
+      match /resonance/{eventId} {
+        allow read: if isOwner(uid);
+        allow create: if isOwner(uid);
+      }
+    }
+
+    // everything else is denied
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

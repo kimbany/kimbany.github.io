@@ -1,0 +1,34 @@
+{
+  "indexes": [
+    {
+      "//": "KNN vector index for emotional similarity recall over a user's fragments",
+      "queryScope": "COLLECTION_GROUP",
+      "collectionGroup": "fragments",
+      "fields": [
+        { "fieldPath": "released", "order": "ASCENDING" },
+        {
+          "fieldPath": "embedding",
+          "vectorConfig": { "dimension": 1024, "flat": {} }
+        }
+      ]
+    },
+    {
+      "//": "recent narrations per user (dedup + memory injection)",
+      "queryScope": "COLLECTION",
+      "collectionGroup": "narrations",
+      "fields": [
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "//": "dormant clusters for nostalgic recall",
+      "queryScope": "COLLECTION",
+      "collectionGroup": "clusters",
+      "fields": [
+        { "fieldPath": "lastSeen", "order": "ASCENDING" },
+        { "fieldPath": "recurrence", "order": "DESCENDING" }
+      ]
+    }
+  ],
+  "fieldOverrides": []
+}
