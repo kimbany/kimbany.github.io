@@ -1,0 +1,34 @@
+{
+  "rules": {
+    "users": {
+      "$uid": {
+        ".read": "$uid === auth.uid",
+        ".write": "$uid === auth.uid",
+        "rooms": {
+          "$roomId": {
+            ".write": "$uid === auth.uid || root.child('rooms').child($roomId).child('members').child(auth.uid).val() === true"
+          }
+        }
+      }
+    },
+    "rooms": {
+      "$roomId": {
+        ".read": "data.child('members').child(auth.uid).val() === true",
+        ".write": "data.child('members').child(auth.uid).val() === true || !data.exists()"
+      }
+    },
+    "messages": {
+      "$roomId": {
+        ".read": "root.child('rooms').child($roomId).child('members').child(auth.uid).val() === true",
+        ".write": "root.child('rooms').child($roomId).child('members').child(auth.uid).val() === true",
+        ".indexOn": "timestamp"
+      }
+    },
+    "inviteCodes": {
+      "$code": {
+        ".read": true,
+        ".write": "auth != null"
+      }
+    }
+  }
+}
