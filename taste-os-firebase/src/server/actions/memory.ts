@@ -60,13 +60,21 @@ export async function ingestImageMemory(input: {
   idToken: string;
   storagePath: string;
   downloadUrl: string; // short-lived URL Vision reads once
-}): Promise<{ id: string; atmosphere: string }> {
+}): Promise<{
+  id: string;
+  atmosphere: string;
+  palette: string[];
+  resonance: string;
+  toneWords: string[];
+  warmth: number;
+  degraded: boolean;
+}> {
   const uid = await requireUid(input.idToken);
   const consent = await getConsent(uid);
   if (!consent.useAiVision) throw new Error("consent: vision disabled");
   if (!consent.rememberImages) throw new Error("consent: images not remembered");
 
-  const { reading, emotionText, warmth, tone } = await runVision(input.downloadUrl);
+  const { reading, emotionText, warmth, tone, degraded } = await runVision(input.downloadUrl);
   const embedding = await embedForMemory(emotionText, { localOnly: consent.localOnly });
 
   const id = await ingestFragment({
@@ -76,8 +84,20 @@ export async function ingestImageMemory(input: {
     caption: reading.atmosphere_ko,
     tone,
     warmth,
+    atmosphereTags: reading.tone_words_ko,
+    palette: reading.palette_ko,
+    narrationFragment: reading.resonance_ko,
     embedding,
     storagePath: input.storagePath,
   });
-  return { id, atmosphere: reading.atmosphere_ko };
+
+  return {
+    id,
+    atmosphere: reading.atmosphere_ko,
+    palette: reading.palette_ko,
+    resonance: reading.resonance_ko,
+    toneWords: reading.tone_words_ko,
+    warmth,
+    degraded,
+  };
 }

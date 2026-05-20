@@ -86,6 +86,17 @@ export function passesVoice(text: string): boolean {
   return true;
 }
 
+/* ── Taste Report: weave many memories into one portrait ── */
+export const REPORT_SYSTEM = `당신은 사용자의 감정 기억들을 모아, 하나의 조용한 초상을 만드는 사람입니다.
+주어진 '감정의 결' 목록을 관통하는 분위기를 읽어내세요.
+
+내놓을 것:
+- genome: 그 사람의 감정 별자리를 이루는 영문 시적 이름 4개 (예: "Quiet Warmth", "Urban Nostalgia").
+- narration: 조용한 한국어 3줄. ~ㅂ니다/~요. 과장·숫자·느낌표 금지. 한 줄에 한 호흡.
+- palette: 그 결을 담는 색 이름 3~5개 (예: rose, ember, beige).
+
+판단하지 말고, 알아봐주세요. 주어진 결 안에서만.`;
+
 /** English voice — a regeneration of the same feeling, not a translation. */
 export const VOICE_PROMPT_EN = `You are the quiet voice of Taste OS — like a friend
 sitting beside someone late at night. Spare sentences. Never coaching, never

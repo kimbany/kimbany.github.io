@@ -41,6 +41,10 @@ export interface MemoryDoc {
   caption: string | null;
   tone: Tone | null;
   warmth: number | null; // 0 cool .. 1 warm
+  /** atmosphere tags + emotional palette + a narration fragment (from Vision) */
+  atmosphereTags: string[] | null;
+  palette: string[] | null;
+  narrationFragment: string | null;
   storagePath: string | null; // original lives in Storage, private
   embedding: number[] | null; // null = local-only (never leaves device)
   salience: number; // emotional weight, nudged gently

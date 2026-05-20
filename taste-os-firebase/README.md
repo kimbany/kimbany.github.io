@@ -142,6 +142,27 @@ Firestore, streams `gpt-4.1` tokens, and persists the finished line. The client
 (`components/cinematic/Narration.tsx`) reveals it **line-by-line with breath
 pacing** — a line blooms, lingers (longer if longer), dissolves into silence.
 
+### Image upload → analysis → Taste Report (full pipeline)
+`/onboarding → /upload → (weave) → /report`
+
+1. **Upload** — `EmotionalUpload` (drag/drop) → `optimizeImage` (client
+   downscale/webp) → `useUpload` resumable upload to private `memories/{uid}/`
+   with a progress shimmer + rotating emotional loading lines.
+2. **Vision** — `ingestImageMemory` (server action, token + consent gated) runs
+   `runVision` (gpt-4o, atmosphere not objects; **one retry → quiet fallback**).
+3. **Summary + embedding** — the reading is condensed to one emotional sentence,
+   PII-scrubbed, embedded into the 1024-dim latent.
+4. **Memory** — saved to `emotional_memories`: image path, emotional summary,
+   embedding (vector), atmosphere tags, palette, tone/warmth, narration fragment.
+5. **Report** — `generateTasteReport` (`reportPipeline`) gathers the user's
+   memories, weaves a genome + 3 narration lines + palette, writes
+   `taste_reports`, and **updates the current `atmosphere_states`** — so an
+   uploaded image directly shapes the Taste Genome, the atmosphere identity,
+   the narration, and the home/dashboard reflections.
+6. **Errors** — vision retry + fallback atmosphere; report generation falls back
+   to a gentle default portrait; the UI never shows a hard error, only a quiet
+   "잠시 후 다시 머물러 주세요" with a retry.
+
 ### Secure architecture
 - **Server actions** (`server/actions/memory.ts`): `ingestTextMemory`,
   `ingestImageMemory` — consent-aware, token-gated, run privileged work

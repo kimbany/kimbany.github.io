@@ -21,6 +21,9 @@ export interface IngestInput {
   caption?: string;
   tone?: Tone;
   warmth?: number;
+  atmosphereTags?: string[];
+  palette?: string[];
+  narrationFragment?: string;
   storagePath?: string;
 }
 
@@ -34,6 +37,9 @@ export async function ingestFragment(input: IngestInput): Promise<string> {
     caption: input.caption ?? null,
     tone: input.tone ?? null,
     warmth: input.warmth ?? null,
+    atmosphereTags: input.atmosphereTags ?? null,
+    palette: input.palette ?? null,
+    narrationFragment: input.narrationFragment ?? null,
     storagePath: input.storagePath ?? null,
     salience: 0.5,
     released: false,

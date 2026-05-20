@@ -24,7 +24,7 @@ export default function OnboardingPage() {
         </span>
       </Reveal>
       <Reveal delay={2200}>
-        <Beacon href="/analysis">시작할게요</Beacon>
+        <Beacon href="/upload">시작할게요</Beacon>
       </Reveal>
     </main>
   );

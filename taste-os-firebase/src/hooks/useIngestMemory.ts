@@ -2,14 +2,16 @@
 
 import { useCallback, useState } from "react";
 import { auth } from "@/lib/firebase/client";
+import { updateConsent } from "@/lib/firebase/services/users";
+import { optimizeImage } from "@/lib/image/optimize";
 import { useUpload } from "./useUpload";
 import { ingestImageMemory, ingestTextMemory } from "@/server/actions/memory";
 
 /**
  * Ingest a memory the cinematic way:
- *  - an image → upload to private Storage → server reads its atmosphere
- *    (Vision) → embeds the feeling → stores the fragment
- *  - text (a quote / reflection / atmosphere) → scrub → embed → store
+ *  - an image → optimize → upload to private Storage → server reads its
+ *    atmosphere (Vision) → embeds the feeling → stores the fragment
+ *  - text (quote / reflection / atmosphere) → scrub → embed → store
  * All privileged work is server-side and token-gated.
  */
 export function useIngestMemory() {
@@ -17,19 +19,24 @@ export function useIngestMemory() {
   const [working, setWorking] = useState(false);
   const [error, setError] = useState<Error | null>(null);
 
-  async function token() {
-    const t = await auth.currentUser?.getIdToken();
-    if (!t) throw new Error("no session");
-    return t;
+  async function tokenAndUid() {
+    const user = auth.currentUser;
+    const t = await user?.getIdToken();
+    if (!user || !t) throw new Error("no session");
+    return { uid: user.uid, idToken: t };
   }
 
   const ingestImage = useCallback(
     async (file: File) => {
       setError(null);
       try {
-        const { path, url } = await upload(file, "image");
+        const optimized = await optimizeImage(file);
+        const { path, url } = await upload(optimized, "image");
         setWorking(true);
-        return await ingestImageMemory({ idToken: await token(), storagePath: path, downloadUrl: url });
+        const { uid, idToken } = await tokenAndUid();
+        // uploading an image to be read IS the consent — record it explicitly
+        await updateConsent(uid, { rememberImages: true, useAiVision: true });
+        return await ingestImageMemory({ idToken, storagePath: path, downloadUrl: url });
       } catch (e) {
         setError(e as Error);
         throw e;
@@ -45,7 +52,8 @@ export function useIngestMemory() {
       setError(null);
       setWorking(true);
       try {
-        return await ingestTextMemory({ idToken: await token(), modality, text });
+        const { idToken } = await tokenAndUid();
+        return await ingestTextMemory({ idToken, modality, text });
       } catch (e) {
         setError(e as Error);
         throw e;
