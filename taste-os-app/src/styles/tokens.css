@@ -1,0 +1,30 @@
+/* ==========================================================
+   Taste OS — design tokens (CSS custom properties)
+   The single source of the emotional atmosphere language.
+   Mirrors taste-os/tokens.md + motion-sound.md.
+   ========================================================== */
+
+:root {
+  /* palette */
+  --c-night: #0e0c0b;
+  --c-coal: #1a1714;
+  --c-bone: #443e37;
+  --c-mist: #9a8e81;
+  --c-sand: #c8b69b;
+  --c-beige: #d8c7ac;
+  --c-silver-blue: #8fa0ac;
+  --c-rose: #b07672;
+  --c-ember: #d9a66c;
+
+  /* emotional easings */
+  --e-breath-in: cubic-bezier(0.16, 1, 0.3, 1);
+  --e-breath-out: cubic-bezier(0.7, 0, 0.84, 0);
+  --e-settle: cubic-bezier(0.34, 1.18, 0.64, 1);
+
+  /* shared motion runtime values (set by hooks) */
+  --parallax-x: 0;
+  --parallax-y: 0;
+
+  /* current atmosphere blend (set by AtmosphereProvider) */
+  --atmosphere-warmth: 0.5;
+}
