@@ -14,7 +14,13 @@
     "rooms": {
       "$roomId": {
         ".read": "data.child('members').child(auth.uid).val() === true",
-        ".write": "data.child('members').child(auth.uid).val() === true || !data.exists()"
+        ".write": "data.child('members').child(auth.uid).val() === true || !data.exists()",
+        "members": {
+          "$uid": { ".write": "$uid === auth.uid" }
+        },
+        "memberNicknames": {
+          "$uid": { ".write": "$uid === auth.uid" }
+        }
       }
     },
     "roomUserState": {
