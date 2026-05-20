@@ -1,59 +1,105 @@
 import "server-only";
 import { FieldValue } from "firebase-admin/firestore";
 import { adminDb } from "@/lib/firebase/admin";
-import { COLLECTIONS, type Tone } from "@/lib/firebase/collections";
-import { generateReport } from "@/lib/openai/report";
+import { COLLECTIONS, type Tone, type TasteReportDoc } from "@/lib/firebase/collections";
+import { generateFullReport } from "@/lib/openai/report";
+import { fuse, type MemoryLite } from "./fusion";
 
 /**
- * Report pipeline: gather the user's emotional memories → weave them into a
- * Taste Report (genome + narration + palette) → persist it AND update the
- * current atmosphere state. This is the seam where uploaded images directly
- * shape the Taste Genome, the atmosphere identity, and the dashboard.
+ * The full Taste Report pipeline:
+ *   collect memories → multimodal fusion → narrate (genome + sections) →
+ *   persist a versioned report → update the live atmosphere → drop a timeline
+ *   marker. This is the seam that connects everything: an uploaded image's
+ *   feeling flows into the genome, the dashboard, the timeline, and sharing.
  */
 export async function buildTasteReport(uid: string) {
-  const memCol = adminDb.collection(COLLECTIONS.memories);
-  const snap = await memCol
+  // 1) collect emotional memory data
+  const snap = await adminDb
+    .collection(COLLECTIONS.memories)
     .where("uid", "==", uid)
     .where("released", "==", false)
     .orderBy("createdAt", "desc")
     .limit(40)
     .get();
 
-  const docs = snap.docs.map((d) => d.data() as Record<string, unknown>);
-  const emotionTexts = docs.map((d) => String(d.emotionText ?? "")).filter(Boolean);
+  const memories: MemoryLite[] = snap.docs.map((d) => {
+    const x = d.data();
+    return {
+      id: d.id,
+      modality: String(x.modality ?? "reflection"),
+      emotionText: String(x.emotionText ?? ""),
+      caption: (x.caption as string) ?? null,
+      tone: (x.tone as Tone) ?? null,
+      warmth: typeof x.warmth === "number" ? x.warmth : null,
+      atmosphereTags: (x.atmosphereTags as string[]) ?? null,
+      palette: (x.palette as string[]) ?? null,
+      narrationFragment: (x.narrationFragment as string) ?? null,
+    };
+  });
 
-  // average warmth + dominant tone across remembered feelings
-  const warmths = docs.map((d) => Number(d.warmth)).filter((n) => !Number.isNaN(n));
-  const warmth = warmths.length ? warmths.reduce((a, b) => a + b, 0) / warmths.length : 0.5;
-  const dominantTone = pickDominantTone(docs.map((d) => d.tone as Tone | null));
+  // 2) multimodal fusion
+  const fusion = fuse(memories);
 
-  const report = await generateReport(emotionTexts);
+  // 3) narrate (genome + atmosphere + evolution + lines + palette)
+  const gen = await generateFullReport(fusion);
 
-  // persist the report
-  const reportRef = await adminDb.collection(COLLECTIONS.reports).add({
+  // 4) assemble the sectioned report
+  const sections: TasteReportDoc["sections"] = {
+    atmosphereKo: gen.atmosphereKo,
+    recurringThemes: fusion.recurringThemes,
+    contrasts: fusion.contrasts,
+    evolutionKo: gen.evolutionKo,
+    resonance: fusion.resonance,
+    echoes: fusion.echoes,
+  };
+
+  // 5) version: evolve over time
+  const prev = await adminDb
+    .collection(COLLECTIONS.reports)
+    .where("uid", "==", uid)
+    .orderBy("createdAt", "desc")
+    .limit(1)
+    .get();
+  const prevVersion = (prev.docs[0]?.data()?.version as number) ?? 0;
+  const prevLabel = (prev.docs[0]?.data()?.genome?.[0]?.en as string) ?? null;
+  const version = prevVersion + 1;
+
+  const report: Omit<TasteReportDoc, "createdAt"> = {
     uid,
-    genome: report.genome,
-    narration: report.narration,
-    palette: report.palette,
-    createdAt: FieldValue.serverTimestamp(),
-  });
+    version,
+    genome: gen.genome,
+    sections,
+    narration: gen.narration,
+    palette: gen.palette.length ? gen.palette : fusion.palette,
+    warmth: fusion.warmth,
+    dominantTone: fusion.dominantTone,
+    memoryLinks: fusion.memoryLinks,
+  };
 
-  // update the live atmosphere identity (drives home/ + dashboard reflections)
+  // 6) persist + connect
+  const ref = await adminDb
+    .collection(COLLECTIONS.reports)
+    .add({ ...report, createdAt: FieldValue.serverTimestamp() });
+
   await upsertCurrentAtmosphere(uid, {
-    labelEn: report.genome[0] ?? "Quiet Warmth",
-    labelKo: report.narration[0]?.slice(0, 12) ?? "조용한 따뜻함",
-    warmth,
-    dominantTone,
+    labelEn: gen.genome[0]?.en ?? "Quiet Warmth",
+    labelKo: gen.genome[0]?.ko ?? "조용한 따뜻함",
+    warmth: fusion.warmth,
+    dominantTone: fusion.dominantTone,
   });
 
-  return { reportId: reportRef.id, ...report };
-}
+  // 7) timeline link — a marker the evolution/ screen reads
+  await adminDb.collection(COLLECTIONS.timelines).add({
+    uid,
+    kind: prevLabel && prevLabel !== gen.genome[0]?.en ? "atmosphere_shift" : "season_marker",
+    labelKo: gen.genome[0]?.ko ?? "조용한 따뜻함",
+    fromLabel: prevLabel,
+    toLabel: gen.genome[0]?.en ?? null,
+    warmth: fusion.warmth,
+    occurredAt: FieldValue.serverTimestamp(),
+  });
 
-function pickDominantTone(tones: Array<Tone | null>): Tone {
-  const counts: Record<string, number> = {};
-  for (const t of tones) if (t) counts[t] = (counts[t] ?? 0) + 1;
-  const top = Object.entries(counts).sort((a, b) => b[1] - a[1])[0];
-  return (top?.[0] as Tone) ?? "mixed";
+  return { reportId: ref.id, version, ...report };
 }
 
 async function upsertCurrentAtmosphere(
@@ -61,7 +107,6 @@ async function upsertCurrentAtmosphere(
   a: { labelEn: string; labelKo: string; warmth: number; dominantTone: Tone }
 ) {
   const col = adminDb.collection(COLLECTIONS.atmosphere);
-  // demote any existing current state
   const cur = await col.where("uid", "==", uid).where("current", "==", true).get();
   const batch = adminDb.batch();
   cur.docs.forEach((d) => batch.update(d.ref, { current: false }));

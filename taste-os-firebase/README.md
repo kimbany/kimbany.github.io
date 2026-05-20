@@ -163,6 +163,26 @@ pacing** — a line blooms, lingers (longer if longer), dissolves into silence.
    to a gentle default portrait; the UI never shows a hard error, only a quiet
    "잠시 후 다시 머물러 주세요" with a retry.
 
+### Taste Report generation (full, multi-section, evolving)
+`reportPipeline` runs: collect memories → **multimodal fusion** (`fusion.ts`:
+recurring themes from tag frequency, cool↔warm contrasts, memory echoes, visual
+resonance, warmth, dominant tone) → **narrate** (`generateFullReport`: dynamic
+genome with en/ko/weight + 3 quiet lines + atmosphere + evolution + palette) →
+assemble a **sectioned, versioned** `taste_reports` doc (genome, atmosphere,
+recurring themes, contrasts, evolution, visual resonance, memory echoes) →
+**update current `atmosphere_states`** → **drop a `emotional_timelines` marker**.
+
+So one report write fans out to the whole product:
+- **Dashboard / home** reads the current atmosphere (`useCurrentAtmosphere`)
+- **Timeline / evolution** reads the marker
+- **Sharing** card draws its genome from the latest report
+- **Daily** narration anchors on the same atmosphere
+
+It is **evolving**: every `generateTasteReport` bumps `version`, refreshes the
+atmosphere, and adds a timeline marker — the portrait grows with the user.
+The report page reveals sections progressively (reveal-on-arrival) and streams
+the live "quiet noticing" narration; fusion + generation both fall back gently.
+
 ### Secure architecture
 - **Server actions** (`server/actions/memory.ts`): `ingestTextMemory`,
   `ingestImageMemory` — consent-aware, token-gated, run privileged work

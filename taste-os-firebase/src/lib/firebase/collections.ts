@@ -65,12 +65,38 @@ export interface AtmosphereStateDoc {
   createdAt: unknown;
 }
 
-/** taste_reports/{id} — a cinematic emotional portrait. */
+/** taste_reports/{id} — a cinematic emotional portrait (multi-section). */
+export interface GenomeEntry {
+  en: string; // "Quiet Warmth"
+  ko: string; // "조용한 따뜻함"
+  weight: number; // 0..1, relative presence (dynamic, not a label)
+}
+export interface ReportContrast {
+  coolKo: string;
+  warmKo: string;
+}
+export interface ReportEcho {
+  caption: string;
+  atmosphere: string;
+}
+export interface ReportSections {
+  atmosphereKo: string; // emotional atmosphere description
+  recurringThemes: string[]; // recurring emotional themes
+  contrasts: ReportContrast[]; // emotional contrasts that coexist
+  evolutionKo: string; // atmosphere evolution
+  resonance: string[]; // visual emotional resonance fragments
+  echoes: ReportEcho[]; // emotional memory echoes
+}
 export interface TasteReportDoc {
   uid: string;
-  genome: string[]; // ["Quiet Warmth", "Urban Nostalgia", ...]
-  narration: string[]; // the report's lines
+  version: number; // increments as the self evolves
+  genome: GenomeEntry[];
+  sections: ReportSections;
+  narration: string[]; // top-level cinematic lines
   palette: string[];
+  warmth: number;
+  dominantTone: Tone;
+  memoryLinks: string[]; // fragment ids woven in (→ timeline)
   createdAt: unknown;
 }
 
