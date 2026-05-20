@@ -48,21 +48,50 @@ storage.rules                  # user-owned memory originals
 firestore.indexes.json         # 1024-dim KNN vector index + supporting indexes
 ```
 
-## Data model (Firestore, private per user)
+## Data model (Firestore — top-level collections, private per user)
+
+Names are the single source of truth in `lib/firebase/collections.ts`.
 
 ```
-users/{uid}
-  fragments/{id}   modality, emotionText, embedding(vector 1024), tone, warmth, salience, released
-  narrations/{id}  mode, text, evidence[], surface, createdAt
-  clusters/{id}    themeKo, centroid(vector), tone, recurrence, lastSeen   (engine-managed)
-  snapshots/{id}   periodStart, labelKo, warmth, centroid(vector)          (engine-managed)
-  resonance/{id}   fragmentId, kind (dwelt|returned|kept)                  (닿음, not likes)
+users/{uid}                profile + consent gate (rememberImages/Writing/useAiVision/localOnly)
+emotional_memories/{id}    uid, modality, emotionText, embedding(vector 1024), tone, warmth, salience, released
+atmosphere_states/{id}     uid, periodStart, labelKo/En, warmth, centroid, current   (engine-managed)
+taste_reports/{id}         uid, genome[], narration[], palette[]
+emotional_timelines/{id}   uid, kind, fromLabel/toLabel, warmth, occurredAt          (engine-managed)
+narrations/{id}            uid, mode, text, evidence[], surface, dedupKey            (engine-managed)
 ```
 
-- **Vector recall** uses Firestore's native `findNearest` (COSINE) — no
-  separate vector DB. Index defined in `firestore.indexes.json`.
-- **Security**: every doc is owner-only (`firestore.rules`); cluster/snapshot
-  writes are engine-only (Admin SDK in Cloud Functions).
+- **Vector recall** uses Firestore's native `findNearest` (COSINE) with a
+  `uid + released` prefilter — no separate vector DB. Index in
+  `firestore.indexes.json`.
+- **Security** (`firestore.rules`): each doc owner-only by `uid`; engine-managed
+  collections are read-only to clients and written by the Admin SDK in Functions.
+
+## Services & hooks (modular, cinematic)
+
+```
+lib/firebase/
+  collections.ts            collection names + document types (one source of truth)
+  client.ts / admin.ts      client SDK (persistent login) / Admin SDK (server)
+  auth.ts                   startGuest · signInWithGoogle (links guest→named) · ensureUserDoc
+  memory.ts                 server recall: matchFragments (KNN) · recentNarrations · save/release
+  services/                 client CRUD + realtime:
+    users · memories · atmosphere · reports · timelines · narrations · storage
+hooks/
+  useAuth                   session + isGuest + signInWithGoogle/signOut
+  useUser                   live profile + consent
+  useUpload                 image/asset/atmosphere upload with progress
+  useEmotionalMemories      live drift of memories
+  useCurrentAtmosphere      live atmosphere → also drives the visual air (warmth→tier)
+```
+
+## Authentication
+
+Firebase Auth with **persistent login** (`indexedDB` → `browserLocal`).
+First visit silently starts a **guest (anonymous)** session via `AuthProvider`,
+so the user meets the atmosphere before deciding to stay. **Google** sign-in
+links the guest in place — the `uid` is preserved, so all emotional memory
+follows. Storage uploads land in the user's private `memories/{uid}/...` folder.
 
 ## Auth
 

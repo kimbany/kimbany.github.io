@@ -2,54 +2,84 @@
 
 import {
   GoogleAuthProvider,
-  OAuthProvider,
   signInAnonymously,
   signInWithPopup,
-  sendSignInLinkToEmail,
+  signOut as fbSignOut,
   linkWithPopup,
-  linkWithCredential,
-  EmailAuthProvider,
   type User,
 } from "firebase/auth";
-import { auth } from "./client";
+import { doc, getDoc, serverTimestamp, setDoc, updateDoc } from "firebase/firestore";
+import { auth, db } from "./client";
+import { COLLECTIONS, type UserDoc } from "./collections";
 
 /**
- * Quiet, unobtrusive auth. Users meet the atmosphere first (anonymous),
- * then — when they want — link a permanent identity. The uid is preserved
- * across the upgrade, so all emotional memory follows seamlessly.
+ * Quiet, unobtrusive auth. The user meets the atmosphere first (anonymous),
+ * and may later link Google — the uid is preserved, so all emotional memory
+ * follows seamlessly. Login state is persistent (see client.ts).
  */
 
-export function startAnonymous() {
-  return signInAnonymously(auth);
+const googleProvider = new GoogleAuthProvider();
+googleProvider.setCustomParameters({ prompt: "select_account" });
+
+/** First-touch: a guest session so nothing blocks the threshold. */
+export async function startGuest(): Promise<User> {
+  const cred = await signInAnonymously(auth);
+  await ensureUserDoc(cred.user);
+  return cred.user;
 }
 
-export function signInWithGoogle() {
-  return signInWithPopup(auth, new GoogleAuthProvider());
+/** Sign in (or upgrade a guest) with Google, keeping the same uid when possible. */
+export async function signInWithGoogle(): Promise<User> {
+  const current = auth.currentUser;
+  if (current?.isAnonymous) {
+    try {
+      const linked = await linkWithPopup(current, googleProvider);
+      await markNamed(linked.user);
+      return linked.user;
+    } catch {
+      // credential already on another account — fall through to plain sign-in
+    }
+  }
+  const cred = await signInWithPopup(auth, googleProvider);
+  await ensureUserDoc(cred.user);
+  return cred.user;
 }
 
-export function signInWithApple() {
-  return signInWithPopup(auth, new OAuthProvider("apple.com"));
+export function signOut() {
+  return fbSignOut(auth);
 }
 
-const EMAIL_LINK_SETTINGS = {
-  url: (process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000") + "/auth/callback",
-  handleCodeInApp: true,
-};
-
-export function sendEmailLink(email: string) {
-  window.localStorage.setItem("taste-os-email", email);
-  return sendSignInLinkToEmail(auth, email, EMAIL_LINK_SETTINGS);
+/** Create the user document on first sight; refresh lastSeen otherwise. */
+export async function ensureUserDoc(user: User): Promise<void> {
+  const ref = doc(db, COLLECTIONS.users, user.uid);
+  const snap = await getDoc(ref);
+  if (!snap.exists()) {
+    const fresh: UserDoc = {
+      uid: user.uid,
+      displayName: user.displayName,
+      isAnonymous: user.isAnonymous,
+      consent: {
+        rememberImages: false,
+        rememberWriting: false,
+        useAiVision: false,
+        localOnly: false,
+      },
+      locale: typeof navigator !== "undefined" ? navigator.language : "ko",
+      createdAt: serverTimestamp(),
+      lastSeenAt: serverTimestamp(),
+    };
+    await setDoc(ref, fresh);
+  } else {
+    await updateDoc(ref, { lastSeenAt: serverTimestamp() });
+  }
 }
 
-/** Upgrade an anonymous user to a permanent account — same uid. */
-export async function promoteAnonymous(provider: "google" | "apple" | "email", email?: string) {
-  const user = auth.currentUser;
-  if (!user) throw new Error("no current user");
-  if (provider === "google") return linkWithPopup(user, new GoogleAuthProvider());
-  if (provider === "apple") return linkWithPopup(user, new OAuthProvider("apple.com"));
-  // email: send a magic link; linking completes on callback
-  if (!email) throw new Error("email required");
-  return sendEmailLink(email);
+async function markNamed(user: User): Promise<void> {
+  await updateDoc(doc(db, COLLECTIONS.users, user.uid), {
+    isAnonymous: false,
+    displayName: user.displayName,
+    lastSeenAt: serverTimestamp(),
+  });
 }
 
 export type { User };

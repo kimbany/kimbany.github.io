@@ -1,7 +1,14 @@
 "use client";
 
 import { initializeApp, getApps, getApp, type FirebaseApp } from "firebase/app";
-import { getAuth, type Auth } from "firebase/auth";
+import {
+  initializeAuth,
+  getAuth,
+  indexedDBLocalPersistence,
+  browserLocalPersistence,
+  browserPopupRedirectResolver,
+  type Auth,
+} from "firebase/auth";
 import { getFirestore, type Firestore } from "firebase/firestore";
 import { getStorage, type FirebaseStorage } from "firebase/storage";
 
@@ -16,6 +23,26 @@ const firebaseConfig = {
 
 /** singleton client app (HMR-safe) */
 export const app: FirebaseApp = getApps().length ? getApp() : initializeApp(firebaseConfig);
-export const auth: Auth = getAuth(app);
+
+/**
+ * Persistent login: the session survives reloads and revisits, so a returning
+ * user simply walks back into the same room (anonymous or named). We try the
+ * most durable persistence first, falling back gracefully.
+ */
+function makeAuth(): Auth {
+  if (getApps().length > 1 || (getApps().length === 1 && (getApp() as unknown as { _authInitialized?: boolean })._authInitialized)) {
+    return getAuth(app);
+  }
+  try {
+    return initializeAuth(app, {
+      persistence: [indexedDBLocalPersistence, browserLocalPersistence],
+      popupRedirectResolver: browserPopupRedirectResolver,
+    });
+  } catch {
+    return getAuth(app);
+  }
+}
+
+export const auth: Auth = makeAuth();
 export const db: Firestore = getFirestore(app);
 export const storage: FirebaseStorage = getStorage(app);

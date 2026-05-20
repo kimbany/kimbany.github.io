@@ -1,15 +1,23 @@
 {
   "indexes": [
     {
-      "//": "KNN vector index for emotional similarity recall over a user's fragments",
-      "queryScope": "COLLECTION_GROUP",
-      "collectionGroup": "fragments",
+      "//": "KNN vector recall over a user's emotional_memories (uid + released prefilter)",
+      "queryScope": "COLLECTION",
+      "collectionGroup": "emotional_memories",
       "fields": [
+        { "fieldPath": "uid", "order": "ASCENDING" },
         { "fieldPath": "released", "order": "ASCENDING" },
-        {
-          "fieldPath": "embedding",
-          "vectorConfig": { "dimension": 1024, "flat": {} }
-        }
+        { "fieldPath": "embedding", "vectorConfig": { "dimension": 1024, "flat": {} } }
+      ]
+    },
+    {
+      "//": "a user's memories, newest first",
+      "queryScope": "COLLECTION",
+      "collectionGroup": "emotional_memories",
+      "fields": [
+        { "fieldPath": "uid", "order": "ASCENDING" },
+        { "fieldPath": "released", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
       ]
     },
     {
@@ -17,16 +25,26 @@
       "queryScope": "COLLECTION",
       "collectionGroup": "narrations",
       "fields": [
+        { "fieldPath": "uid", "order": "ASCENDING" },
         { "fieldPath": "createdAt", "order": "DESCENDING" }
       ]
     },
     {
-      "//": "dormant clusters for nostalgic recall",
+      "//": "atmosphere trajectory per user",
       "queryScope": "COLLECTION",
-      "collectionGroup": "clusters",
+      "collectionGroup": "atmosphere_states",
       "fields": [
-        { "fieldPath": "lastSeen", "order": "ASCENDING" },
-        { "fieldPath": "recurrence", "order": "DESCENDING" }
+        { "fieldPath": "uid", "order": "ASCENDING" },
+        { "fieldPath": "periodStart", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "//": "timeline events per user, in order",
+      "queryScope": "COLLECTION",
+      "collectionGroup": "emotional_timelines",
+      "fields": [
+        { "fieldPath": "uid", "order": "ASCENDING" },
+        { "fieldPath": "occurredAt", "order": "ASCENDING" }
       ]
     }
   ],

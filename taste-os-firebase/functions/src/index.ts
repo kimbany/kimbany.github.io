@@ -88,15 +88,16 @@ export const narrate = onCall({ secrets: [OPENAI_API_KEY] }, async (req) => {
  * (incremental graph) and nudge its cluster. Heavy work stays off the
  * request path. (Sketch — clustering detail in ../taste-os/memory-engine.md.)
  */
-export const onFragmentCreated = onDocumentCreated(
-  { document: "users/{uid}/fragments/{fragmentId}", secrets: [OPENAI_API_KEY] },
+export const onMemoryCreated = onDocumentCreated(
+  { document: "emotional_memories/{memoryId}", secrets: [OPENAI_API_KEY] },
   async (event) => {
     const data = event.data?.data();
-    const { uid } = event.params;
-    if (!data?.embedding) return; // local-only fragments are never linked server-side
+    const uid = data?.uid as string | undefined;
+    if (!uid || !data?.embedding) return; // local-only memories are never linked server-side
 
     const neighbors = await db
-      .collection(`users/${uid}/fragments`)
+      .collection("emotional_memories")
+      .where("uid", "==", uid)
       .where("released", "==", false)
       .findNearest({
         vectorField: "embedding",
@@ -108,11 +109,11 @@ export const onFragmentCreated = onDocumentCreated(
 
     const batch = db.batch();
     neighbors.docs
-      .filter((d) => d.id !== event.params.fragmentId)
+      .filter((d) => d.id !== event.params.memoryId)
       .forEach((d) => {
         const edge = db.collection(`users/${uid}/edges`).doc();
         batch.set(edge, {
-          from: event.params.fragmentId,
+          from: event.params.memoryId,
           to: d.id,
           relation: "resonates",
           updatedAt: FieldValue.serverTimestamp(),

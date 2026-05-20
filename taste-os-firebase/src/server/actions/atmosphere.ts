@@ -1,20 +1,24 @@
 import "server-only";
-import { recentNarrations, dormantClusters } from "@/lib/firebase/memory";
+import { recentNarrations } from "@/lib/firebase/memory";
 import { adminDb } from "@/lib/firebase/admin";
+import { COLLECTIONS } from "@/lib/firebase/collections";
 import type { NarrationEvidence, RecallMode } from "@/types/atmosphere";
 
 /**
  * Build evidence for a narration from Firestore (the memory engine).
- * Returns structured facts only — the LLM expresses them in the quiet
- * voice but never invents them.
+ * Structured facts only — the LLM expresses them in the quiet voice
+ * but never invents them. All queries scope to the owning uid.
  */
 export async function buildEvidence(uid: string, mode: RecallMode): Promise<NarrationEvidence> {
   const recent = await recentNarrations(uid, 5);
-  const userRef = adminDb.collection("users").doc(uid);
 
   switch (mode) {
     case "evolving": {
-      const snap = await userRef.collection("snapshots").orderBy("periodStart", "asc").get();
+      const snap = await adminDb
+        .collection(COLLECTIONS.atmosphere)
+        .where("uid", "==", uid)
+        .orderBy("periodStart", "asc")
+        .get();
       const seq = snap.docs.map((d) => d.data() as { labelKo: string; warmth: number });
       const from = seq[0]?.labelKo ?? "";
       const to = seq[seq.length - 1]?.labelKo ?? "";
@@ -24,30 +28,31 @@ export async function buildEvidence(uid: string, mode: RecallMode): Promise<Narr
         recent,
       };
     }
-    case "nostalgic": {
-      const dormant = await dormantClusters(uid, 21, 1);
-      const theme = (dormant[0] as { themeKo?: string } | undefined)?.themeKo;
+    case "contradictory": {
+      const snap = await adminDb
+        .collection(COLLECTIONS.timelines)
+        .where("uid", "==", uid)
+        .where("kind", "==", "atmosphere_shift")
+        .limit(1)
+        .get();
+      const ev = snap.docs[0]?.data() as { fromLabel?: string; toLabel?: string } | undefined;
       return {
-        facts: theme
-          ? `한동안 나타나지 않던 결 '${theme}'이(가) 다시 돌아오고 있음.`
-          : "잊고 있던 결이 다시 떠오름.",
+        facts: ev
+          ? `'${ev.fromLabel ?? "차가운 고독감"}'와 '${ev.toLabel ?? "따뜻한 온기"}'가 같은 사람 안에 함께 흐름.`
+          : "차가움과 따뜻함이 함께 흐름.",
         recent,
       };
-    }
-    case "contradictory": {
-      const snap = await userRef.collection("clusters").orderBy("recurrence", "desc").limit(4).get();
-      const themes = snap.docs.map((d) => d.data() as { themeKo: string; tone?: string });
-      const cool = themes.find((t) => t.tone === "cool")?.themeKo ?? "차가운 고독감";
-      const warm = themes.find((t) => t.tone === "warm")?.themeKo ?? "따뜻한 온기";
-      return { facts: `'${cool}'와 '${warm}'가 같은 사람 안에 함께 강하게 흐름.`, recent };
     }
     default: {
-      const snap = await userRef.collection("clusters").orderBy("recurrence", "desc").limit(3).get();
-      const themes = snap.docs.map((d) => (d.data().themeKo as string) ?? "");
-      return {
-        facts: `지속 분위기: ${themes[0] ?? "조용한 따뜻함"}. 보조 결: ${themes.slice(1).join(", ")}.`,
-        recent,
-      };
+      // resonant / daily / nostalgic — anchor on the current atmosphere
+      const snap = await adminDb
+        .collection(COLLECTIONS.atmosphere)
+        .where("uid", "==", uid)
+        .where("current", "==", true)
+        .limit(1)
+        .get();
+      const cur = snap.docs[0]?.data() as { labelKo?: string } | undefined;
+      return { facts: `지속 분위기: ${cur?.labelKo ?? "조용한 따뜻함"}.`, recent };
     }
   }
 }
