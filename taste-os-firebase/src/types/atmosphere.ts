@@ -17,7 +17,10 @@ export interface AtmosphereReading {
   warmth: number; // 0 (cool) .. 1 (warm)
   light_mood_ko: string;
   texture_ko: string;
+  cinematic_tone_ko: string;
   composition_emotion_ko: string;
+  palette_ko: string[]; // emotional color palette (named)
+  resonance_ko: string; // visual emotional resonance, one line
   tone_words_ko: string[];
 }
 

@@ -102,10 +102,56 @@ the same uid (seamless emotional continuity).
 
 ## OpenAI
 
-Shared layer (`lib/openai/*`): vision reads *atmosphere not objects*; all
-modalities embed into one 1024-dim latent; narration uses the quiet-voice
-prompt + guardrail + streaming. Keys live only server-side and in Cloud
-Functions (`store: false`).
+Quiet emotional mirror, not a chatbot. Three capabilities, one service layer.
+
+```
+lib/openai/                 # server-only service layer
+  client.ts                 model map (gpt-4o vision, gpt-4.1 narration,
+                            text-embedding-3-large @1024d), store:false
+  prompts.ts                prompt orchestration — VISION_SYSTEM, VOICE_PROMPT,
+                            MODE_PROMPTS, temperatures, evidence renderer,
+                            voice guardrail (passesVoice), KO-first multilingual
+  vision.ts                 atmosphere reading (NOT objects): warmth, light mood,
+                            texture, cinematic tone, emotional palette, resonance
+  embeddings.ts             embed emotional language → shared 1024-dim latent
+  narration.ts              streamNarration (SSE) + generateNarration (guarded)
+
+lib/ai/                     # pipelines (OpenAI × Firebase)
+  visionPipeline.ts         image URL → atmosphere → single emotional sentence
+  embeddingPipeline.ts      scrub PII → embed (skips when local-only)
+  narrationPipeline.ts      evidence → stream → persist (dedup, no repeats)
+  scrub.ts                  strip emails / phones / urls / handles before AI
+
+lib/server/guard.ts         requireUid(idToken) — token-gates routes & actions
+```
+
+### Vision analysis
+`runVision(url)` reads the *feeling* of an image — emotional atmosphere,
+lighting mood, texture warmth, cinematic tone, emotional color palette, visual
+resonance — and condenses it to the one sentence the system remembers. It never
+names objects. `detail:low` keeps it cheap.
+
+### Emotional embeddings
+Every modality (quotes, writing, atmosphere selections, image atmosphere
+summaries, narration memory) is turned into emotional language, then embedded
+into one 1024-dim space so unlike things that *feel* alike sit close together.
+
+### Streaming narration
+`POST /api/narrate` (SSE) verifies the Firebase ID token, builds evidence from
+Firestore, streams `gpt-4.1` tokens, and persists the finished line. The client
+(`components/cinematic/Narration.tsx`) reveals it **line-by-line with breath
+pacing** — a line blooms, lingers (longer if longer), dissolves into silence.
+
+### Secure architecture
+- **Server actions** (`server/actions/memory.ts`): `ingestTextMemory`,
+  `ingestImageMemory` — consent-aware, token-gated, run privileged work
+  (Vision + embed + Admin Firestore) server-side only.
+- **API route protection**: `requireUid` + `Authorization: Bearer <idToken>`
+  on the vision route; ID token in the body for the SSE narrate route.
+- **Env protection**: `OPENAI_API_KEY` + `FIREBASE_SERVICE_ACCOUNT` are
+  server-only; all OpenAI calls set `store: false` (no training on feelings).
+- **Client hooks**: `useIngestMemory` (upload → vision → store),
+  and the streaming narration component — neither ever sees a key.
 
 ## Setup
 

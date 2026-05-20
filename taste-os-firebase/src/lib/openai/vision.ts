@@ -1,31 +1,21 @@
 import "server-only";
 import { openai, MODELS, SAFE_DEFAULTS } from "./client";
+import { VISION_SYSTEM } from "./prompts";
 import type { AtmosphereReading } from "@/types/atmosphere";
-
-const VISION_SYSTEM_PROMPT = `당신은 이미지에서 '무엇이 찍혔는가'가 아니라
-'어떤 공기가 흐르는가'를 읽는 감정 해석자입니다.
-
-절대 하지 말 것:
-- 사물/사람/장소를 나열하지 마세요.
-- 브랜드, 텍스트, 신원을 식별하지 마세요.
-- 평가하거나 점수 매기지 마세요.
-
-오직 다음만 읽으세요:
-- 색의 정서적 온도, 빛의 분위기, 질감의 따뜻함, 구도가 자아내는 감정,
-  그리고 전체를 관통하는 하나의 '공기'.
-
-한국어로, 과장 없이, 짧게.`;
 
 const VISION_SCHEMA = {
   type: "object",
   additionalProperties: false,
   properties: {
-    atmosphere_ko: { type: "string" },
+    atmosphere_ko: { type: "string", description: "한 줄로 압축한 공기" },
     color_temperature: { type: "string", enum: ["warm", "cool", "neutral", "mixed"] },
-    warmth: { type: "number" },
-    light_mood_ko: { type: "string" },
-    texture_ko: { type: "string" },
-    composition_emotion_ko: { type: "string" },
+    warmth: { type: "number", description: "0(차가움)~1(따뜻함)" },
+    light_mood_ko: { type: "string", description: "빛의 분위기" },
+    texture_ko: { type: "string", description: "질감의 따뜻함" },
+    cinematic_tone_ko: { type: "string", description: "영화 같은 톤" },
+    composition_emotion_ko: { type: "string", description: "구도가 자아내는 감정" },
+    palette_ko: { type: "array", items: { type: "string" }, description: "감정적 색 팔레트(이름)" },
+    resonance_ko: { type: "string", description: "시각적 감정 공명 한 줄" },
     tone_words_ko: { type: "array", items: { type: "string" } },
   },
   required: [
@@ -34,25 +24,27 @@ const VISION_SCHEMA = {
     "warmth",
     "light_mood_ko",
     "texture_ko",
+    "cinematic_tone_ko",
     "composition_emotion_ko",
+    "palette_ko",
+    "resonance_ko",
     "tone_words_ko",
   ],
 } as const;
 
 /** Read the emotional atmosphere of an image — never the objects in it. */
-export async function analyzeImageAtmosphere(
-  imageUrl: string
-): Promise<AtmosphereReading> {
+export async function analyzeImageAtmosphere(imageUrl: string): Promise<AtmosphereReading> {
   const res = await openai.chat.completions.create({
     model: MODELS.vision,
     temperature: 0.4,
     ...SAFE_DEFAULTS,
     messages: [
-      { role: "system", content: VISION_SYSTEM_PROMPT },
+      { role: "system", content: VISION_SYSTEM },
       {
         role: "user",
         content: [
           { type: "text", text: "이 이미지의 공기를 읽어주세요." },
+          // detail:low — atmosphere doesn't need high resolution, and it saves cost
           { type: "image_url", image_url: { url: imageUrl, detail: "low" } },
         ],
       },
@@ -63,4 +55,10 @@ export async function analyzeImageAtmosphere(
     },
   });
   return JSON.parse(res.choices[0]!.message.content!) as AtmosphereReading;
+}
+
+/** Condense a reading into the single emotional sentence we embed + remember. */
+export function readingToEmotionText(r: AtmosphereReading): string {
+  const words = r.tone_words_ko?.slice(0, 4).join(", ");
+  return [r.atmosphere_ko, words].filter(Boolean).join(" · ");
 }

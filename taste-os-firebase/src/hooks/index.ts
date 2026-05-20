@@ -4,3 +4,4 @@ export { useUser } from "./useUser";
 export { useUpload } from "./useUpload";
 export { useEmotionalMemories } from "./useEmotionalMemories";
 export { useCurrentAtmosphere } from "./useCurrentAtmosphere";
+export { useIngestMemory } from "./useIngestMemory";
