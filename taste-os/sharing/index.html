@@ -1,0 +1,190 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#0E0C0B" />
+  <title>Taste OS — 당신의 분위기는 말보다 더 많은 것을 전합니다</title>
+  <meta name="description" content="설명 없이 건네는, 영화 같은 감정의 엽서." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;1,300;1,400&family=Inter:wght@300;400;500&family=Noto+Serif+KR:wght@300;400&display=swap" />
+  <link rel="stylesheet" href="./style.css" />
+</head>
+<body class="card-quiet-warmth">
+
+  <!-- Persistent ambient -->
+  <div class="orb orb-1" aria-hidden="true"></div>
+  <div class="orb orb-2" aria-hidden="true"></div>
+  <div class="orb orb-3" aria-hidden="true"></div>
+  <div class="orb orb-4" aria-hidden="true"></div>
+
+  <div class="dust-field" aria-hidden="true"></div>
+
+  <div class="sigil" aria-hidden="true">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round">
+      <path d="M12 3.5 A 8.5 8.5 0 1 0 20.4 11.2" />
+    </svg>
+  </div>
+
+  <!-- ============================================================
+       01 — OPENING
+       ============================================================ -->
+  <section class="section opening-section" data-section="opening">
+    <div class="opening-inner">
+      <h1 class="cinematic-head" data-reveal>
+        당신의 분위기는<br />
+        말보다 더 많은 것을 전하고 있습니다.
+      </h1>
+      <hr class="hairline-mark" data-reveal data-reveal-delay="900" />
+      <p class="opening-sub mist" data-reveal data-reveal-delay="1500">
+        설명하지 않아도,<br />
+        당신만의 감정은 조용히 전해질 수 있어요.
+      </p>
+    </div>
+  </section>
+
+  <!-- ============================================================
+       02 — TASTE CARD (Signature A + B)
+       ============================================================ -->
+  <section class="section card-section" data-section="card">
+    <div class="card-stage" data-card-stage>
+
+      <article class="taste-card" data-taste-card tabindex="0" aria-label="당신의 분위기 카드">
+        <div class="card-bg" data-card-bg></div>
+        <div class="card-blob" data-card-blob aria-hidden="true"></div>
+        <div class="card-specular" data-card-specular aria-hidden="true"></div>
+        <div class="card-grain" aria-hidden="true"></div>
+
+        <div class="card-content">
+          <div class="card-sigil" aria-hidden="true">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round">
+              <path d="M12 3.5 A 8.5 8.5 0 1 0 20.4 11.2" />
+            </svg>
+          </div>
+
+          <div class="card-center" data-card-swap>
+            <p class="card-genome-en" data-card-en>Quiet Warmth</p>
+            <p class="card-genome-ko" data-card-ko>조용한 따뜻함</p>
+            <p class="card-narration" data-card-narration>
+              완벽함보다 인간적인 흔적에<br />마음이 머무는 사람.
+            </p>
+          </div>
+
+          <div class="card-foot">
+            <p class="card-atmosphere" data-card-atmosphere>rose · ember · 한 줄기 beige</p>
+            <div class="card-palette" data-card-palette>
+              <span class="palette-dot" style="--c:#B07672;"></span>
+              <span class="palette-dot" style="--c:#D9A66C;"></span>
+              <span class="palette-dot" style="--c:#D8C7AC;"></span>
+            </div>
+            <p class="card-wordmark">TASTE&nbsp;OS</p>
+          </div>
+        </div>
+      </article>
+
+    </div>
+  </section>
+
+  <!-- ============================================================
+       03 — STYLE PICKER
+       ============================================================ -->
+  <section class="section picker-section" data-section="picker">
+    <div class="section-inner">
+      <p class="eyebrow" data-reveal>어떤 공기로 전할까요</p>
+
+      <div class="style-picker" data-style-picker data-reveal data-reveal-delay="400">
+        <button class="style-option is-active" type="button" data-card-id="quiet-warmth">
+          <span class="option-en">Quiet Warmth</span>
+          <span class="option-ko mist">조용한 따뜻함</span>
+        </button>
+        <button class="style-option" type="button" data-card-id="urban-nostalgia">
+          <span class="option-en">Urban Nostalgia</span>
+          <span class="option-ko mist">도시의 향수</span>
+        </button>
+        <button class="style-option" type="button" data-card-id="emotional-minimalism">
+          <span class="option-en">Emotional Minimalism</span>
+          <span class="option-ko mist">감정의 미니멀리즘</span>
+        </button>
+        <button class="style-option" type="button" data-card-id="warm-futurism">
+          <span class="option-en">Warm Futurism</span>
+          <span class="option-ko mist">따뜻한 미래감</span>
+        </button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================
+       04 — CINEMATIC EXPORT
+       ============================================================ -->
+  <section class="section export-section" data-section="export">
+    <div class="section-inner">
+      <p class="eyebrow" data-reveal>이 분위기를 어떻게 간직할까요</p>
+
+      <div class="export-actions" data-reveal data-reveal-delay="400">
+        <button class="export-btn" type="button" data-export="image">
+          <span class="export-label">이미지로 저장</span>
+        </button>
+        <button class="export-btn" type="button" data-export="link">
+          <span class="export-label">분위기 링크 복사</span>
+        </button>
+        <button class="export-btn" type="button" data-export="motion" data-state="off">
+          <span class="export-label">움직이는 카드</span>
+        </button>
+      </div>
+
+      <p class="export-confirm" data-export-confirm aria-live="polite"></p>
+    </div>
+  </section>
+
+  <!-- ============================================================
+       05 — EMOTIONAL RESONANCE
+       ============================================================ -->
+  <section class="section resonance-section" data-section="resonance">
+    <div class="section-inner">
+      <p class="eyebrow" data-reveal>이 분위기를 받은 사람들이 남긴 조용한 결</p>
+
+      <ul class="resonance-list" data-reveal-list>
+        <li>
+          <span class="resonance-mark">─</span>
+          <p class="resonance-text">이 분위기에 오래 머물렀어요.</p>
+        </li>
+        <li>
+          <span class="resonance-mark">─</span>
+          <p class="resonance-text">조용히 공감되는 감정이 있었어요.</p>
+        </li>
+        <li>
+          <span class="resonance-mark">─</span>
+          <p class="resonance-text">왠지 설명할 수 없는 익숙함이 느껴졌어요.</p>
+        </li>
+      </ul>
+
+      <p class="resonance-foot mist" data-reveal>
+        좋아요도, 숫자도 없어요. 그저 조용히 닿았다는 것만.
+      </p>
+    </div>
+  </section>
+
+  <!-- ============================================================
+       06 — SOFT CONTINUATION
+       ============================================================ -->
+  <section class="section continuation-section" data-section="continuation">
+    <div class="continuation-inner">
+      <hr class="hairline-mark" data-reveal />
+      <button class="beacon ceremonial" type="button" data-reveal data-reveal-delay="500" data-action="continue">
+        <span class="dash">────</span>
+        <span class="beacon-label">나의 감정 기록 이어가기</span>
+        <span class="dash">────</span>
+      </button>
+      <p class="continuation-foot mist" data-reveal data-reveal-delay="1100">
+        건넨 분위기는, 다시 당신에게로 돌아와요.
+      </p>
+    </div>
+  </section>
+
+  <!-- Grain -->
+  <div class="grain" aria-hidden="true"></div>
+
+  <script src="./script.js"></script>
+</body>
+</html>
