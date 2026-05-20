@@ -154,6 +154,8 @@
       display: flex; align-items: center; justify-content: center; font-weight: 700; }
     .meta-time { font-size: 10px; color: var(--text-dim); align-self: flex-end; margin: 0 4px; }
     .row.me .meta-time { order: -1; }
+    .sender-wrap { display: flex; flex-direction: column; gap: 2px; max-width: 100%; }
+    .sender-name { font-size: 11px; color: var(--text-dim); margin-left: 4px; }
 
     .composer { display: flex; gap: 8px; padding: 10px 12px;
       padding-bottom: max(10px, env(safe-area-inset-bottom));
@@ -233,14 +235,14 @@
     <div class="body">
       <div class="pad">
         <div class="card">
-          <h3>내 초대 코드</h3>
-          <p>친구에게 이 코드를 알려주세요. 한 번 사용하면 만료됩니다.</p>
+          <h3>내 초대 코드 (그룹)</h3>
+          <p>코드를 만들면 새 채팅방이 생기고, 이 코드를 받은 여러 명이 모두 같은 방에 들어올 수 있어요.</p>
           <div id="my-code" class="code-display">······</div>
-          <button id="gen-code-btn" class="btn secondary">새 코드 만들기</button>
+          <button id="gen-code-btn" class="btn secondary">새 채팅방 + 코드 만들기</button>
         </div>
         <div class="card">
           <h3>친구 코드 입력</h3>
-          <p>친구가 만든 6자리 코드를 입력하면 채팅방이 생성됩니다.</p>
+          <p>친구가 만든 6자리 코드를 입력하면 그 채팅방에 입장합니다.</p>
           <input id="join-code-input" class="field code-input" type="text"
                  maxlength="6" placeholder="------" autocomplete="off">
           <div style="height:12px"></div>
@@ -733,20 +735,27 @@ function renderRoomList(roomIds) {
     list.innerHTML = '';
     rooms.forEach(room => {
       state.rooms[room.id] = room;
-      const otherUid = Object.keys(room.members).find(u => u !== state.uid);
-      const otherNick = (room.memberNicknames && room.memberNicknames[otherUid]) || '상대방';
+      const memberCount = Object.keys(room.members).length;
+      const otherUids = Object.keys(room.members).filter(u => u !== state.uid);
+      const otherNicks = otherUids.map(u => (room.memberNicknames && room.memberNicknames[u]) || '익명');
+      const title = memberCount <= 2
+        ? (otherNicks[0] || '상대방')
+        : (otherNicks.join(', ') || '그룹') ;
+      const avatarChar = memberCount > 2 ? '👥' : (otherNicks[0] || '?').slice(0, 1);
       // 미리보기도 위장 상태 (목록에선 한자 폴백으로 가볍게)
       const preview = room.lastMessageText ? veilHanja(room.lastMessageText) : '대화를 시작해 보세요';
       const el = document.createElement('div');
       el.className = 'room-item';
       el.innerHTML =
-        '<div class="avatar">' + escapeHtml(otherNick.slice(0, 1)) + '</div>' +
+        '<div class="avatar">' + escapeHtml(avatarChar) + '</div>' +
         '<div class="room-meta">' +
-          '<div class="room-name">' + escapeHtml(otherNick) + '</div>' +
+          '<div class="room-name">' + escapeHtml(title) +
+            (memberCount > 2 ? ' <span style="color:var(--text-dim);font-weight:400;font-size:12px">' + memberCount + '</span>' : '') +
+          '</div>' +
           '<div class="room-preview">' + escapeHtml(preview) + '</div>' +
         '</div>' +
         '<div class="room-time">' + timeLabel(room.lastMessage) + '</div>';
-      el.addEventListener('click', () => openChat(room.id, otherNick));
+      el.addEventListener('click', () => openChat(room.id));
       list.appendChild(el);
     });
   });
@@ -762,14 +771,23 @@ $('#add-friend-fab').addEventListener('click', () => {
 });
 $('#add-back').addEventListener('click', () => showScreen('screen-rooms'));
 
+// 코드 생성 = 새 그룹방을 만들고 재사용 가능한 초대코드 발급(여러 명 입장 가능)
 $('#gen-code-btn').addEventListener('click', async () => {
   const code = genCode();
   try {
+    const roomRef = db.ref('rooms').push();
+    const roomId = roomRef.key;
+    await roomRef.set({
+      members: { [state.uid]: true },
+      memberNicknames: { [state.uid]: state.nickname },
+      owner: state.uid, inviteCode: code, createdAt: TS, lastMessage: TS
+    });
+    await db.ref('users/' + state.uid + '/rooms/' + roomId).set(true);
     await db.ref('inviteCodes/' + code).set({
-      creator: state.uid, creatorNick: state.nickname, createdAt: TS, used: false
+      roomId, creator: state.uid, creatorNick: state.nickname, createdAt: TS
     });
     $('#my-code').textContent = code;
-    toast('코드 생성됨: ' + code);
+    toast('초대 코드 생성됨 — 여러 명이 입장할 수 있어요');
   } catch (e) { toast('코드 생성 실패: ' + e.message); }
 });
 
@@ -780,29 +798,21 @@ async function joinByCode() {
   const code = $('#join-code-input').value.trim().toUpperCase();
   if (code.length !== 6) { toast('6자리 코드를 입력하세요'); return; }
   try {
-    const snap = await db.ref('inviteCodes/' + code).get();
-    const invite = snap.val();
-    if (!invite) { toast('존재하지 않거나 만료된 코드입니다'); return; }
-    if (invite.creator === state.uid) { toast('내 코드는 사용할 수 없어요'); return; }
+    const invite = (await db.ref('inviteCodes/' + code).get()).val();
+    if (!invite || !invite.roomId) { toast('존재하지 않는 코드입니다'); return; }
+    const roomId = invite.roomId;
 
-    const roomId = await createRoom(invite.creator, invite.creatorNick);
-    await db.ref('inviteCodes/' + code).remove(); // 일회용
-    toast('채팅방이 생성됐어요!');
-    openChat(roomId, invite.creatorNick);
+    // 이미 들어가 있으면 그냥 입장
+    const meMember = (await db.ref('users/' + state.uid + '/rooms/' + roomId).get()).val();
+    if (!meMember) {
+      // 자기 자신만 members/memberNicknames에 추가 (규칙상 본인 노드만 쓰기 가능)
+      await db.ref('rooms/' + roomId + '/members/' + state.uid).set(true);
+      await db.ref('rooms/' + roomId + '/memberNicknames/' + state.uid).set(state.nickname);
+      await db.ref('users/' + state.uid + '/rooms/' + roomId).set(true);
+    }
+    toast('채팅방에 입장했어요!');
+    openChat(roomId);
   } catch (e) { toast('입장 실패: ' + e.message); }
-}
-
-async function createRoom(otherUid, otherNick) {
-  const roomRef = db.ref('rooms').push();
-  const roomId = roomRef.key;
-  await roomRef.set({
-    members: { [state.uid]: true, [otherUid]: true },
-    memberNicknames: { [state.uid]: state.nickname, [otherUid]: otherNick },
-    createdAt: TS, lastMessage: TS
-  });
-  await db.ref('users/' + state.uid + '/rooms/' + roomId).set(true);
-  await db.ref('users/' + otherUid + '/rooms/' + roomId).set(true);
-  return roomId;
 }
 
 /* ===================================================================
@@ -810,6 +820,7 @@ async function createRoom(otherUid, otherNick) {
    =================================================================== */
 $('#chat-back').addEventListener('click', () => {
   cleanupMsgListener();
+  cleanupRoomListener();
   clearReveal();
   state.currentRoomId = null;
   state.msgs = [];
@@ -817,11 +828,12 @@ $('#chat-back').addEventListener('click', () => {
 });
 $('#chat-settings-btn').addEventListener('click', openChatSettings);
 
-async function openChat(roomId, otherNick) {
+async function openChat(roomId) {
   state.currentRoomId = roomId;
-  state.currentOtherNick = otherNick || '상대방';
   state.msgs = [];
-  $('#chat-name').textContent = state.currentOtherNick;
+  state.memberNicks = {};
+  state.memberCount = 2;
+  $('#chat-name').textContent = '채팅';
   $('#msg-list').innerHTML = '';
   clearReveal();
   showScreen('screen-chat');
@@ -829,6 +841,21 @@ async function openChat(roomId, otherNick) {
   // 내 roomUserState 로드 (없으면 개인 기본값으로 초기화)
   await loadRoomUserState(roomId);
   updateChatModePill();
+
+  // 방 정보(멤버/닉네임) 실시간 구독 → 헤더 제목, 보낸이 표시에 사용
+  cleanupRoomListener();
+  state.roomRef = db.ref('rooms/' + roomId);
+  state.roomRef.on('value', snap => {
+    const room = snap.val();
+    if (!room || !room.members) return;
+    state.memberNicks = room.memberNicknames || {};
+    const others = Object.keys(room.members).filter(u => u !== state.uid)
+      .map(u => state.memberNicks[u] || '익명');
+    state.memberCount = Object.keys(room.members).length;
+    $('#chat-name').textContent = state.memberCount <= 2
+      ? (others[0] || '상대방')
+      : (others.join(', ') || '그룹') + ' (' + state.memberCount + ')';
+  });
 
   // 메시지 구독
   cleanupMsgListener();
@@ -843,7 +870,8 @@ async function openChat(roomId, otherNick) {
 
 async function loadRoomUserState(roomId) {
   const ref = db.ref('roomUserState/' + roomId + '/' + state.uid);
-  let rus = (await ref.get()).val();
+  let rus = null;
+  try { rus = (await ref.get()).val(); } catch (e) { /* read 막혀도 진행 */ }
   if (!rus || !rus.jobMode) {
     rus = {
       jobMode: localStorage.getItem('veil_jobMode') || 'dev',
@@ -853,14 +881,16 @@ async function loadRoomUserState(roomId) {
       usedScenarios: {}
     };
     pickNextScenario(rus);
-    await ref.set(rus);
+    // 저장 실패(보안 규칙 미게시 등)해도 채팅은 계속되게 한다
+    try { await ref.set(rus); }
+    catch (e) { toast('진행상태 저장 실패 — 규칙 게시 필요'); }
   }
   rus.usedScenarios = rus.usedScenarios || {};
   state.roomUserState = rus;
 }
 function persistRoomUserState() {
   if (!state.currentRoomId || !state.roomUserState) return;
-  db.ref('roomUserState/' + state.currentRoomId + '/' + state.uid).update(state.roomUserState);
+  db.ref('roomUserState/' + state.currentRoomId + '/' + state.uid).update(state.roomUserState).catch(() => {});
 }
 function updateChatModePill() {
   const rus = state.roomUserState;
@@ -879,6 +909,36 @@ function appendMessage(msgId, msg) {
   const row = document.createElement('div');
   row.className = 'row ' + (mine ? 'me' : 'other');
 
+  // 그룹(3명 이상)에서는 상대 메시지에 보낸이 표시
+  if (!mine && state.memberCount > 2) {
+    const wrap = document.createElement('div');
+    wrap.className = 'sender-wrap';
+    const name = document.createElement('div');
+    name.className = 'sender-name';
+    name.textContent = (state.memberNicks && state.memberNicks[msg.from]) || '익명';
+    wrap.appendChild(name);
+    const inner = document.createElement('div');
+    inner.style.display = 'flex';
+    inner.style.alignItems = 'flex-end';
+    inner.style.gap = '4px';
+    const bubble = makeBubble(msgId, msg, veilText, mono);
+    const time = makeTime(msg.timestamp);
+    inner.appendChild(bubble);
+    inner.appendChild(time);
+    wrap.appendChild(inner);
+    row.appendChild(wrap);
+    $('#msg-list').appendChild(row);
+    return;
+  }
+
+  const bubble = makeBubble(msgId, msg, veilText, mono);
+  const time = makeTime(msg.timestamp);
+  row.appendChild(bubble);
+  row.appendChild(time);
+  $('#msg-list').appendChild(row);
+}
+
+function makeBubble(msgId, msg, veilText, mono) {
   const bubble = document.createElement('div');
   bubble.className = 'bubble' + (mono ? ' mono' : '');
   bubble.id = 'm_' + msgId;
@@ -886,14 +946,13 @@ function appendMessage(msgId, msg) {
   bubble.dataset.veil = veilText;
   bubble.textContent = veilText;
   bubble.addEventListener('click', () => revealBubble(bubble));
-
+  return bubble;
+}
+function makeTime(ts) {
   const time = document.createElement('div');
   time.className = 'meta-time';
-  time.textContent = timeLabel(msg.timestamp);
-
-  row.appendChild(bubble);
-  row.appendChild(time);
-  $('#msg-list').appendChild(row);
+  time.textContent = timeLabel(ts);
+  return time;
 }
 
 // 전체 다시 렌더 (직업/톤 변경 시)
@@ -1014,8 +1073,11 @@ $('#leave-room-btn').addEventListener('click', async () => {
   const roomId = state.currentRoomId;
   try {
     await db.ref('users/' + state.uid + '/rooms/' + roomId).remove();
+    await db.ref('rooms/' + roomId + '/members/' + state.uid).remove().catch(() => {});
+    await db.ref('rooms/' + roomId + '/memberNicknames/' + state.uid).remove().catch(() => {});
     clearVeilMap();
     cleanupMsgListener();
+    cleanupRoomListener();
     clearReveal();
     state.currentRoomId = null;
     state.msgs = [];
@@ -1029,7 +1091,8 @@ $('#leave-room-btn').addEventListener('click', async () => {
    =================================================================== */
 function cleanupRoomsListener() { if (state.roomsRef) { state.roomsRef.off(); state.roomsRef = null; } }
 function cleanupMsgListener() { if (state.msgRef) { state.msgRef.off(); state.msgRef = null; } }
-function cleanupListeners() { cleanupRoomsListener(); cleanupMsgListener(); clearReveal(); }
+function cleanupRoomListener() { if (state.roomRef) { state.roomRef.off(); state.roomRef = null; } }
+function cleanupListeners() { cleanupRoomsListener(); cleanupMsgListener(); cleanupRoomListener(); clearReveal(); }
 </script>
 </body>
 </html>
