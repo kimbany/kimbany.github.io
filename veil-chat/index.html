@@ -1,0 +1,793 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+  <title>Veil Chat - 비밀 채팅</title>
+  <meta name="description" content="옆사람 어깨너머 훔쳐보기를 막는 시각적 위장 채팅">
+
+  <!-- ===================================================================
+       CSS
+       =================================================================== -->
+  <style>
+    /* ---- 디자인 토큰 (라이트 / 다크 자동 전환) ---- */
+    :root {
+      --bg: #f2f3f7;
+      --surface: #ffffff;
+      --surface-2: #e9ebf0;
+      --text: #1c1d22;
+      --text-dim: #8a8f9c;
+      --border: #e1e3ea;
+      --accent: #6b5cff;
+      --bubble-me: #d6f5b8;       /* 내 메시지 (연두) */
+      --bubble-me-revealed: #b6ec84;
+      --bubble-other: #ffffff;    /* 상대 메시지 (회색/흰) */
+      --bubble-other-revealed: #eef0f5;
+      --danger: #ff5c6c;
+      --shadow: 0 2px 8px rgba(0,0,0,.06);
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #16171c;
+        --surface: #20222a;
+        --surface-2: #2a2d37;
+        --text: #eceef3;
+        --text-dim: #898e9c;
+        --border: #2e313c;
+        --accent: #8a7dff;
+        --bubble-me: #3a4d23;
+        --bubble-me-revealed: #51682f;
+        --bubble-other: #2a2d37;
+        --bubble-other-revealed: #383c49;
+        --danger: #ff6b7a;
+        --shadow: 0 2px 10px rgba(0,0,0,.35);
+      }
+    }
+
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    html, body { height: 100%; margin: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo",
+                   "Malgun Gothic", "Noto Sans KR", sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      overscroll-behavior: none;
+    }
+    button { font-family: inherit; cursor: pointer; }
+    input, button { font-size: 16px; } /* iOS 자동 확대 방지 */
+
+    /* ---- 앱 셸: 모바일 우선, 데스크탑은 중앙 폭 제한 ---- */
+    #app {
+      max-width: 480px;
+      margin: 0 auto;
+      height: 100dvh;
+      display: flex;
+      flex-direction: column;
+      background: var(--bg);
+      position: relative;
+      overflow: hidden;
+    }
+
+    /* ---- 화면(스크린) 공통 ---- */
+    .screen {
+      position: absolute;
+      inset: 0;
+      display: none;
+      flex-direction: column;
+      background: var(--bg);
+    }
+    .screen.active { display: flex; }
+
+    /* ---- 헤더 ---- */
+    .topbar {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 12px 14px;
+      padding-top: max(12px, env(safe-area-inset-top));
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      box-shadow: var(--shadow);
+      z-index: 2;
+    }
+    .topbar .title { font-weight: 700; font-size: 17px; flex: 1; min-width: 0;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .topbar .sub { font-size: 12px; color: var(--text-dim); font-weight: 400; }
+    .icon-btn {
+      background: transparent; border: 0; color: var(--text);
+      font-size: 20px; padding: 6px 8px; border-radius: 10px; line-height: 1;
+    }
+    .icon-btn:active { background: var(--surface-2); }
+
+    /* ---- 본문 스크롤 영역 ---- */
+    .body { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+
+    /* ---- 버튼 ---- */
+    .btn {
+      display: inline-flex; align-items: center; justify-content: center;
+      gap: 8px; border: 0; border-radius: 14px; padding: 14px 18px;
+      background: var(--accent); color: #fff; font-weight: 600; font-size: 16px;
+      width: 100%;
+    }
+    .btn:active { filter: brightness(.93); }
+    .btn.secondary { background: var(--surface-2); color: var(--text); }
+    .btn.ghost { background: transparent; color: var(--accent); }
+
+    /* ===== 시작 화면 ===== */
+    #screen-login .center {
+      flex: 1; display: flex; flex-direction: column; justify-content: center;
+      padding: 28px; gap: 18px; text-align: center;
+    }
+    .brand { font-size: 30px; font-weight: 800; letter-spacing: -.5px; }
+    .brand .veil { color: var(--accent); }
+    .tagline { color: var(--text-dim); font-size: 14px; line-height: 1.5; }
+    .field {
+      width: 100%; padding: 14px 16px; border: 1px solid var(--border);
+      border-radius: 14px; background: var(--surface); color: var(--text);
+    }
+    .field:focus { outline: 2px solid var(--accent); border-color: transparent; }
+
+    /* ===== 방 목록 ===== */
+    .room-item {
+      display: flex; align-items: center; gap: 12px;
+      padding: 14px 16px; border-bottom: 1px solid var(--border);
+      background: var(--surface);
+    }
+    .room-item:active { background: var(--surface-2); }
+    .avatar {
+      width: 46px; height: 46px; border-radius: 50%; flex: 0 0 auto;
+      background: var(--accent); color: #fff; font-weight: 700;
+      display: flex; align-items: center; justify-content: center; font-size: 18px;
+    }
+    .room-meta { flex: 1; min-width: 0; }
+    .room-name { font-weight: 600; font-size: 15px; }
+    .room-preview {
+      font-size: 13px; color: var(--text-dim); margin-top: 3px;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .room-time { font-size: 11px; color: var(--text-dim); flex: 0 0 auto; }
+    .empty {
+      padding: 60px 30px; text-align: center; color: var(--text-dim);
+      font-size: 14px; line-height: 1.6;
+    }
+    .fab {
+      position: absolute; right: 18px; bottom: 22px;
+      width: 56px; height: 56px; border-radius: 50%; border: 0;
+      background: var(--accent); color: #fff; font-size: 28px;
+      box-shadow: 0 6px 18px rgba(0,0,0,.25); z-index: 3;
+    }
+    .fab:active { filter: brightness(.93); }
+
+    /* ===== 친구 추가 ===== */
+    .pad { padding: 20px 18px; display: flex; flex-direction: column; gap: 16px; }
+    .card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 16px; padding: 18px; box-shadow: var(--shadow);
+    }
+    .card h3 { margin: 0 0 6px; font-size: 15px; }
+    .card p { margin: 0 0 14px; font-size: 13px; color: var(--text-dim); line-height: 1.5; }
+    .code-display {
+      font-size: 38px; font-weight: 800; letter-spacing: 8px; text-align: center;
+      color: var(--accent); padding: 14px 0; font-variant-numeric: tabular-nums;
+    }
+    .code-input {
+      text-align: center; font-size: 26px; letter-spacing: 8px; font-weight: 700;
+      text-transform: uppercase;
+    }
+
+    /* ===== 채팅방 ===== */
+    .msg-list { padding: 14px 12px 8px; display: flex; flex-direction: column; gap: 8px; }
+    .row { display: flex; }
+    .row.me { justify-content: flex-end; }
+    .row.other { justify-content: flex-start; }
+    .bubble {
+      max-width: 76%; padding: 9px 12px; border-radius: 16px; font-size: 15px;
+      line-height: 1.45; word-break: break-word; white-space: pre-wrap;
+      position: relative; cursor: pointer; transition: background .18s ease;
+      user-select: none;
+    }
+    .row.me .bubble { background: var(--bubble-me); border-bottom-right-radius: 5px; }
+    .row.other .bubble { background: var(--bubble-other); border-bottom-left-radius: 5px;
+      border: 1px solid var(--border); }
+    .row.me .bubble.revealed { background: var(--bubble-me-revealed); }
+    .row.other .bubble.revealed { background: var(--bubble-other-revealed); }
+    /* 블록 위장 모드는 monospace + 좁은 자간 */
+    .bubble.veil-block { font-family: ui-monospace, Menlo, Consolas, monospace; letter-spacing: -1px; }
+    .bubble .timer {
+      position: absolute; top: -7px; right: -4px;
+      font-size: 10px; background: var(--accent); color: #fff;
+      width: 18px; height: 18px; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-weight: 700;
+    }
+    .meta-time { font-size: 10px; color: var(--text-dim); align-self: flex-end;
+      margin: 0 4px; }
+    .row.me .meta-time { order: -1; }
+
+    /* 입력창 */
+    .composer {
+      display: flex; gap: 8px; padding: 10px 12px;
+      padding-bottom: max(10px, env(safe-area-inset-bottom));
+      background: var(--surface); border-top: 1px solid var(--border);
+    }
+    .composer textarea {
+      flex: 1; resize: none; border: 1px solid var(--border); border-radius: 18px;
+      padding: 10px 14px; max-height: 110px; background: var(--bg); color: var(--text);
+      font-family: inherit; font-size: 15px; line-height: 1.4;
+    }
+    .composer textarea:focus { outline: none; border-color: var(--accent); }
+    .send-btn {
+      flex: 0 0 auto; width: 44px; height: 44px; border-radius: 50%; border: 0;
+      background: var(--accent); color: #fff; font-size: 18px; align-self: flex-end;
+    }
+    .send-btn:disabled { opacity: .4; }
+
+    /* 위장 모드 토글 (헤더 안 작은 칩) */
+    .veil-toggle {
+      font-size: 12px; padding: 6px 10px; border-radius: 999px;
+      background: var(--surface-2); color: var(--text); border: 1px solid var(--border);
+      white-space: nowrap;
+    }
+
+    /* 토스트 */
+    #toast {
+      position: absolute; left: 50%; bottom: 90px; transform: translateX(-50%);
+      background: rgba(0,0,0,.82); color: #fff; padding: 10px 16px; border-radius: 12px;
+      font-size: 13px; opacity: 0; pointer-events: none; transition: opacity .25s; z-index: 10;
+      max-width: 80%; text-align: center;
+    }
+    #toast.show { opacity: 1; }
+
+    /* 로딩 가림막 */
+    #overlay {
+      position: absolute; inset: 0; background: var(--bg); z-index: 50;
+      display: flex; align-items: center; justify-content: center; color: var(--text-dim);
+      font-size: 14px;
+    }
+    .hidden { display: none !important; }
+  </style>
+</head>
+<body>
+<div id="app">
+
+  <!-- ====================== HTML 구조: 화면들 ====================== -->
+
+  <!-- 1) 시작 화면 -->
+  <section id="screen-login" class="screen active">
+    <div class="center">
+      <div class="brand">🕶️ <span class="veil">Veil</span> Chat</div>
+      <div class="tagline">
+        옆사람 어깨너머는 못 봅니다.<br>
+        모든 메시지가 위장되고, 탭해야 잠깐 보여요.
+      </div>
+      <input id="nickname-input" class="field" type="text" maxlength="20"
+             placeholder="닉네임을 입력하세요" autocomplete="off">
+      <button id="login-btn" class="btn">시작하기</button>
+      <div class="tagline" style="font-size:12px">
+        ⚠️ 이 앱은 <b>시각적 위장</b>용입니다. 진짜 암호화가 필요하면 Signal을 쓰세요.
+      </div>
+    </div>
+  </section>
+
+  <!-- 2) 채팅방 목록 -->
+  <section id="screen-rooms" class="screen">
+    <div class="topbar">
+      <div class="title">채팅 <span id="my-nick" class="sub"></span></div>
+      <button id="logout-btn" class="icon-btn" title="로그아웃">⏻</button>
+    </div>
+    <div id="room-list" class="body"></div>
+    <button id="add-friend-fab" class="fab" title="새 채팅">＋</button>
+  </section>
+
+  <!-- 3) 친구 추가 -->
+  <section id="screen-add" class="screen">
+    <div class="topbar">
+      <button id="add-back" class="icon-btn">←</button>
+      <div class="title">새 채팅 시작</div>
+    </div>
+    <div class="body">
+      <div class="pad">
+        <div class="card">
+          <h3>내 초대 코드</h3>
+          <p>친구에게 이 코드를 알려주세요. 한 번 사용하면 만료됩니다.</p>
+          <div id="my-code" class="code-display">······</div>
+          <button id="gen-code-btn" class="btn secondary">새 코드 만들기</button>
+        </div>
+        <div class="card">
+          <h3>친구 코드 입력</h3>
+          <p>친구가 만든 6자리 코드를 입력하면 채팅방이 생성됩니다.</p>
+          <input id="join-code-input" class="field code-input" type="text"
+                 maxlength="6" placeholder="------" autocomplete="off">
+          <div style="height:12px"></div>
+          <button id="join-btn" class="btn">입장하기</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 4) 채팅방 -->
+  <section id="screen-chat" class="screen">
+    <div class="topbar">
+      <button id="chat-back" class="icon-btn">←</button>
+      <div class="title" id="chat-title">상대방
+        <div class="sub" id="chat-sub"></div>
+      </div>
+      <button id="veil-toggle" class="veil-toggle">위장: 한자</button>
+    </div>
+    <div id="msg-body" class="body">
+      <div id="msg-list" class="msg-list"></div>
+    </div>
+    <div class="composer">
+      <textarea id="msg-input" rows="1" placeholder="메시지 입력…"></textarea>
+      <button id="send-btn" class="send-btn" disabled>➤</button>
+    </div>
+  </section>
+
+  <div id="toast"></div>
+  <div id="overlay">불러오는 중…</div>
+</div>
+
+<!-- ===================================================================
+     Firebase SDK (compat 버전 - 단일 HTML 파일에서 가장 단순)
+     =================================================================== -->
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+
+<script>
+"use strict";
+
+/* ===================================================================
+   1. FIREBASE 초기화
+   - 콘솔에서 받은 config를 아래 자리에 채워넣으세요.
+   =================================================================== */
+const firebaseConfig = {
+  apiKey: "AIzaSyD8ZzWrBImCmuNGaJmSIAGbnOzKH9HkK5w",
+  authDomain: "veil-chat-aad21.firebaseapp.com",
+  databaseURL: "https://veil-chat-aad21-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "veil-chat-aad21",
+  storageBucket: "veil-chat-aad21.firebasestorage.app",
+  messagingSenderId: "761584144328",
+  appId: "1:761584144328:web:0c7561589f812ad845bafd",
+  measurementId: "G-D1XLERXK56"
+};
+
+firebase.initializeApp(firebaseConfig);
+const auth = firebase.auth();
+const db = firebase.database();
+const TS = firebase.database.ServerValue.TIMESTAMP;
+
+/* 앱 전역 상태 */
+const state = {
+  uid: null,
+  nickname: null,
+  rooms: {},          // roomId -> room 데이터 캐시
+  currentRoomId: null,
+  roomsRef: null,     // 현재 구독 중인 방목록 리스너
+  msgRef: null,       // 현재 구독 중인 메시지 리스너
+  revealTimer: null,  // 평문 노출 3초 타이머
+  revealedEl: null,   // 현재 풀려있는 버블 1개
+};
+
+/* ===================================================================
+   2. 위장(Veil) 로직
+   - random: 한자 풀에서 랜덤 픽 / block: █ 채우기
+   - 공백/줄바꿈은 유지해 문장 구조감을 살린다.
+   =================================================================== */
+const VEIL_CHARS = '日月火水木金土東西南北春夏秋冬天地人山川海花鳥風雪雲星光明暗陰陽道法自然';
+
+function veil(text, mode) {
+  if (mode === 'block') {
+    // 줄바꿈은 유지, 그 외 글자는 █로 치환
+    return text.replace(/[^\n]/g, '█');
+  }
+  let out = '';
+  for (const ch of text) {
+    if (ch === ' ' || ch === '\n') { out += ch; continue; }
+    out += VEIL_CHARS[Math.floor(Math.random() * VEIL_CHARS.length)];
+  }
+  return out;
+}
+
+/* ===================================================================
+   3. 유틸리티
+   =================================================================== */
+const $ = (sel) => document.querySelector(sel);
+
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  $('#' + id).classList.add('active');
+}
+
+function toast(msg) {
+  const t = $('#toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(toast._t);
+  toast._t = setTimeout(() => t.classList.remove('show'), 2200);
+}
+
+function escapeHtml(s) {
+  return s.replace(/[&<>"']/g, c =>
+    ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+function timeLabel(ts) {
+  if (!ts) return '';
+  const d = new Date(ts);
+  const now = new Date();
+  const sameDay = d.toDateString() === now.toDateString();
+  if (sameDay) {
+    return d.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
+  }
+  return d.toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' });
+}
+
+function genCode() {
+  // 헷갈리는 글자(0/O, 1/I) 제외한 6자리
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let c = '';
+  for (let i = 0; i < 6; i++) c += chars[Math.floor(Math.random() * chars.length)];
+  return c;
+}
+
+/* ===================================================================
+   4. 인증 (익명 로그인 + 닉네임)
+   =================================================================== */
+$('#login-btn').addEventListener('click', doLogin);
+$('#nickname-input').addEventListener('keydown', e => {
+  if (e.key === 'Enter') doLogin();
+});
+
+function doLogin() {
+  const nick = $('#nickname-input').value.trim();
+  if (!nick) { toast('닉네임을 입력하세요'); return; }
+  localStorage.setItem('veil_nickname', nick);
+  $('#login-btn').disabled = true;
+  auth.signInAnonymously().catch(err => {
+    $('#login-btn').disabled = false;
+    toast('로그인 실패: ' + err.message);
+  });
+}
+
+$('#logout-btn').addEventListener('click', () => {
+  if (!confirm('로그아웃 할까요? (같은 기기에서 다시 익명 로그인됩니다)')) return;
+  cleanupListeners();
+  auth.signOut();
+});
+
+/* 로그인 라이프사이클: 새로고침/재방문 시 자동 로그인 */
+auth.onAuthStateChanged(async (user) => {
+  if (user) {
+    state.uid = user.uid;
+    const savedNick = localStorage.getItem('veil_nickname') || '익명';
+    state.nickname = savedNick;
+    // users/{uid} 프로필 보장
+    await db.ref('users/' + user.uid).update({
+      nickname: savedNick,
+      createdAt: TS
+    });
+    $('#my-nick').textContent = '· ' + savedNick;
+    enterRooms();
+    $('#overlay').classList.add('hidden');
+  } else {
+    state.uid = null;
+    showScreen('screen-login');
+    $('#overlay').classList.add('hidden');
+    $('#login-btn').disabled = false;
+    const saved = localStorage.getItem('veil_nickname');
+    if (saved) $('#nickname-input').value = saved;
+  }
+});
+
+/* ===================================================================
+   5. 채팅방 목록 로직
+   =================================================================== */
+function enterRooms() {
+  showScreen('screen-rooms');
+  cleanupRoomsListener();
+  // users/{uid}/rooms 를 구독 → 각 방 메타 로드
+  state.roomsRef = db.ref('users/' + state.uid + '/rooms');
+  state.roomsRef.on('value', snap => {
+    const roomIds = snap.val() ? Object.keys(snap.val()) : [];
+    renderRoomList(roomIds);
+  });
+}
+
+function renderRoomList(roomIds) {
+  const list = $('#room-list');
+  if (!roomIds.length) {
+    list.innerHTML =
+      '<div class="empty">아직 채팅방이 없어요.<br>오른쪽 아래 ＋ 버튼으로<br>친구를 초대해 보세요.</div>';
+    return;
+  }
+  // 각 방 데이터를 한 번씩 읽어 정렬 후 렌더
+  Promise.all(roomIds.map(rid =>
+    db.ref('rooms/' + rid).get().then(s => ({ id: rid, ...(s.val() || {}) }))
+  )).then(rooms => {
+    rooms = rooms.filter(r => r.members && r.members[state.uid]);
+    rooms.sort((a, b) => (b.lastMessage || b.createdAt || 0) - (a.lastMessage || a.createdAt || 0));
+    list.innerHTML = '';
+    rooms.forEach(room => {
+      state.rooms[room.id] = room;
+      const otherUid = Object.keys(room.members).find(u => u !== state.uid);
+      const otherNick = (room.memberNicknames && room.memberNicknames[otherUid]) || '상대방';
+      const mode = room.veilMode || 'random';
+      const previewPlain = room.lastMessageText || '';
+      const preview = previewPlain ? veil(previewPlain, mode) : '대화를 시작해 보세요';
+
+      const el = document.createElement('div');
+      el.className = 'room-item';
+      el.innerHTML =
+        '<div class="avatar">' + escapeHtml(otherNick.slice(0, 1)) + '</div>' +
+        '<div class="room-meta">' +
+          '<div class="room-name">' + escapeHtml(otherNick) + '</div>' +
+          '<div class="room-preview">' + escapeHtml(preview) + '</div>' +
+        '</div>' +
+        '<div class="room-time">' + timeLabel(room.lastMessage) + '</div>';
+      el.addEventListener('click', () => openChat(room.id));
+      list.appendChild(el);
+    });
+  });
+}
+
+/* ===================================================================
+   6. 친구 추가 (초대 코드 방식)
+   - 코드 생성: inviteCodes/{code} = { owner, ownerNick, createdAt }
+   - 입장: 코드 조회 → 양쪽 멤버로 방 생성 → 코드 삭제(일회용)
+   =================================================================== */
+$('#add-friend-fab').addEventListener('click', () => {
+  $('#my-code').textContent = '······';
+  $('#join-code-input').value = '';
+  showScreen('screen-add');
+});
+$('#add-back').addEventListener('click', () => showScreen('screen-rooms'));
+
+$('#gen-code-btn').addEventListener('click', async () => {
+  const code = genCode();
+  try {
+    await db.ref('inviteCodes/' + code).set({
+      owner: state.uid,
+      ownerNick: state.nickname,
+      createdAt: TS
+    });
+    $('#my-code').textContent = code;
+    toast('코드 생성됨: ' + code);
+  } catch (e) {
+    toast('코드 생성 실패: ' + e.message);
+  }
+});
+
+$('#join-btn').addEventListener('click', joinByCode);
+$('#join-code-input').addEventListener('keydown', e => {
+  if (e.key === 'Enter') joinByCode();
+});
+
+async function joinByCode() {
+  const code = $('#join-code-input').value.trim().toUpperCase();
+  if (code.length !== 6) { toast('6자리 코드를 입력하세요'); return; }
+  try {
+    const snap = await db.ref('inviteCodes/' + code).get();
+    const invite = snap.val();
+    if (!invite) { toast('존재하지 않거나 만료된 코드입니다'); return; }
+    if (invite.owner === state.uid) { toast('내 코드는 사용할 수 없어요'); return; }
+
+    const otherUid = invite.owner;
+    const roomId = await createRoom(otherUid, invite.ownerNick);
+    await db.ref('inviteCodes/' + code).remove(); // 일회용 → 만료
+    toast('채팅방이 생성됐어요!');
+    openChat(roomId);
+  } catch (e) {
+    toast('입장 실패: ' + e.message);
+  }
+}
+
+async function createRoom(otherUid, otherNick) {
+  const roomRef = db.ref('rooms').push();
+  const roomId = roomRef.key;
+  const room = {
+    members: { [state.uid]: true, [otherUid]: true },
+    memberNicknames: { [state.uid]: state.nickname, [otherUid]: otherNick },
+    veilMode: 'random',
+    createdAt: TS,
+    lastMessage: TS
+  };
+  await roomRef.set(room);
+  // 양쪽 users/{uid}/rooms 에 등록
+  await db.ref('users/' + state.uid + '/rooms/' + roomId).set(true);
+  await db.ref('users/' + otherUid + '/rooms/' + roomId).set(true);
+  return roomId;
+}
+
+/* ===================================================================
+   7. 채팅방 (메시지 송수신 + 위장 렌더)
+   =================================================================== */
+$('#chat-back').addEventListener('click', () => {
+  cleanupMsgListener();
+  clearReveal();
+  state.currentRoomId = null;
+  enterRooms();
+});
+
+$('#veil-toggle').addEventListener('click', toggleVeilMode);
+
+function openChat(roomId) {
+  state.currentRoomId = roomId;
+  const room = state.rooms[roomId] || {};
+  const otherUid = room.members ? Object.keys(room.members).find(u => u !== state.uid) : null;
+  const otherNick = (room.memberNicknames && room.memberNicknames[otherUid]) || '상대방';
+  $('#chat-title').childNodes[0].nodeValue = otherNick + ' ';
+  $('#chat-sub').textContent = '';
+  updateVeilToggleLabel(room.veilMode || 'random');
+
+  $('#msg-list').innerHTML = '';
+  showScreen('screen-chat');
+  clearReveal();
+
+  // 방 메타 변경(위장모드 등) 구독
+  db.ref('rooms/' + roomId).on('value', snap => {
+    const r = snap.val();
+    if (!r) return;
+    state.rooms[roomId] = { id: roomId, ...r };
+    updateVeilToggleLabel(r.veilMode || 'random');
+    reVeilAll(); // 모드 바뀌면 전체 다시 위장
+  });
+
+  // 메시지 구독
+  cleanupMsgListener();
+  state.msgRef = db.ref('messages/' + roomId).orderByChild('timestamp').limitToLast(200);
+  state.msgRef.on('child_added', snap => {
+    appendMessage(snap.key, snap.val());
+    scrollToBottom();
+  });
+}
+
+function currentMode() {
+  const r = state.rooms[state.currentRoomId];
+  return (r && r.veilMode) || 'random';
+}
+
+function appendMessage(msgId, msg) {
+  if (!msg || document.getElementById('m_' + msgId)) return;
+  const mine = msg.from === state.uid;
+  const mode = currentMode();
+
+  const row = document.createElement('div');
+  row.className = 'row ' + (mine ? 'me' : 'other');
+
+  const bubble = document.createElement('div');
+  bubble.className = 'bubble' + (mode === 'block' ? ' veil-block' : '');
+  bubble.id = 'm_' + msgId;
+  bubble.dataset.plain = msg.text || '';
+  bubble.textContent = veil(msg.text || '', mode);
+  bubble.addEventListener('click', () => revealBubble(bubble));
+
+  const time = document.createElement('div');
+  time.className = 'meta-time';
+  time.textContent = timeLabel(msg.timestamp);
+
+  row.appendChild(bubble);
+  row.appendChild(time);
+  $('#msg-list').appendChild(row);
+}
+
+/* --- 탭 투 리빌: 한 번에 하나만 풀림, 3초 후 자동 재위장 --- */
+function revealBubble(bubble) {
+  // 이미 풀려있는 다른 버블은 즉시 잠금
+  if (state.revealedEl && state.revealedEl !== bubble) clearReveal();
+
+  if (state.revealedEl === bubble) { clearReveal(); return; } // 다시 탭하면 잠금
+
+  state.revealedEl = bubble;
+  bubble.classList.add('revealed');
+  bubble.classList.remove('veil-block'); // 평문은 일반 폰트
+  bubble.textContent = bubble.dataset.plain;
+
+  // 3초 카운트다운 인디케이터
+  let remain = 3;
+  const timer = document.createElement('div');
+  timer.className = 'timer';
+  timer.textContent = remain;
+  bubble.appendChild(timer);
+
+  state.revealTimer = setInterval(() => {
+    remain -= 1;
+    if (remain <= 0) { clearReveal(); return; }
+    timer.textContent = remain;
+  }, 1000);
+}
+
+function clearReveal() {
+  if (state.revealTimer) { clearInterval(state.revealTimer); state.revealTimer = null; }
+  const b = state.revealedEl;
+  if (b) {
+    const mode = currentMode();
+    b.classList.remove('revealed');
+    if (mode === 'block') b.classList.add('veil-block');
+    b.textContent = veil(b.dataset.plain, mode); // 매번 새 위장 패턴
+  }
+  state.revealedEl = null;
+}
+
+/* 모드 변경 시 화면의 모든 버블을 다시 위장 */
+function reVeilAll() {
+  clearReveal();
+  const mode = currentMode();
+  document.querySelectorAll('#msg-list .bubble').forEach(b => {
+    b.classList.toggle('veil-block', mode === 'block');
+    b.textContent = veil(b.dataset.plain, mode);
+  });
+}
+
+/* --- 위장 모드 토글 (방별 설정, Firebase에 저장) --- */
+function updateVeilToggleLabel(mode) {
+  $('#veil-toggle').textContent = '위장: ' + (mode === 'block' ? '블록 █' : '한자');
+}
+function toggleVeilMode() {
+  if (!state.currentRoomId) return;
+  const next = currentMode() === 'block' ? 'random' : 'block';
+  db.ref('rooms/' + state.currentRoomId + '/veilMode').set(next);
+}
+
+/* --- 메시지 전송: 입력창은 타이핑 중 평문, 보내는 순간 즉시 비움 --- */
+const input = $('#msg-input');
+const sendBtn = $('#send-btn');
+
+input.addEventListener('input', () => {
+  sendBtn.disabled = input.value.trim() === '';
+  input.style.height = 'auto';
+  input.style.height = Math.min(input.scrollHeight, 110) + 'px';
+});
+input.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+});
+sendBtn.addEventListener('click', sendMessage);
+
+async function sendMessage() {
+  const text = input.value.trim();
+  if (!text || !state.currentRoomId) return;
+  input.value = '';          // 보내는 순간 즉시 위장(입력창 비움)
+  input.style.height = 'auto';
+  sendBtn.disabled = true;
+
+  const roomId = state.currentRoomId;
+  try {
+    await db.ref('messages/' + roomId).push({
+      from: state.uid,
+      text: text,
+      timestamp: TS
+    });
+    // 방 목록 미리보기/정렬용 메타 업데이트
+    await db.ref('rooms/' + roomId).update({
+      lastMessage: TS,
+      lastMessageText: text
+    });
+  } catch (e) {
+    toast('전송 실패: ' + e.message);
+    input.value = text; // 실패 시 복구
+  }
+}
+
+function scrollToBottom() {
+  const body = $('#msg-body');
+  requestAnimationFrame(() => { body.scrollTop = body.scrollHeight; });
+}
+
+/* ===================================================================
+   8. 리스너 정리
+   =================================================================== */
+function cleanupRoomsListener() {
+  if (state.roomsRef) { state.roomsRef.off(); state.roomsRef = null; }
+}
+function cleanupMsgListener() {
+  if (state.msgRef) { state.msgRef.off(); state.msgRef = null; }
+  if (state.currentRoomId) db.ref('rooms/' + state.currentRoomId).off();
+}
+function cleanupListeners() {
+  cleanupRoomsListener();
+  cleanupMsgListener();
+  clearReveal();
+}
+</script>
+</body>
+</html>
