@@ -3,6 +3,7 @@
 import { useCallback, useState } from "react";
 import { useAuth } from "@/components/providers/AuthProvider";
 import { uploadAsset, type AssetKind } from "@/lib/firebase/services/storage";
+import { validateImageFile } from "@/lib/image/validate";
 
 /**
  * Upload an image / asset / atmosphere visual with a quiet progress value.
@@ -17,6 +18,10 @@ export function useUpload() {
   const upload = useCallback(
     async (file: File, kind: AssetKind = "image") => {
       if (!user) throw new Error("no session");
+      if (kind === "image" || kind === "atmosphere") {
+        const check = validateImageFile(file);
+        if (!check.ok) throw new Error(check.reason);
+      }
       setUploading(true);
       setError(null);
       setProgress(0);

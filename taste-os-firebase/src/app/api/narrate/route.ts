@@ -1,6 +1,7 @@
 import { streamNarrationFor } from "@/lib/ai/narrationPipeline";
 import { streamNarration } from "@/lib/openai/narration";
 import { verifyUid } from "@/lib/firebase/admin";
+import { rateLimit, rateKey } from "@/lib/server/rateLimit";
 import type { RecallMode } from "@/types/atmosphere";
 
 export const runtime = "nodejs";
@@ -21,6 +22,16 @@ export async function POST(req: Request) {
     };
 
   const uid = await verifyUid(idToken);
+
+  // gentle protection for the OpenAI budget (20 narrations / minute / user)
+  const limited = rateLimit(rateKey(req, uid), 20, 60_000);
+  if (!limited.ok) {
+    return new Response(JSON.stringify({ error: "too_many_requests" }), {
+      status: 429,
+      headers: { "Retry-After": String(limited.retryAfter), "Content-Type": "application/json" },
+    });
+  }
+
   const encoder = new TextEncoder();
 
   const stream = new ReadableStream({

@@ -1,0 +1,6 @@
+{
+  "projects": {
+    "default": "taste-os",
+    "production": "taste-os"
+  }
+}

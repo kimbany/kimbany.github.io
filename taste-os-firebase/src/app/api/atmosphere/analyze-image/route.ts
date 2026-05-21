@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { runVision } from "@/lib/ai/visionPipeline";
 import { requireUid, bearerFrom, UnauthorizedError } from "@/lib/server/guard";
+import { rateLimit, rateKey } from "@/lib/server/rateLimit";
 
 export const runtime = "nodejs";
 
@@ -10,13 +11,23 @@ export const runtime = "nodejs";
  * Requires a valid Firebase ID token (Authorization: Bearer <token>).
  */
 export async function POST(req: Request) {
+  let uid: string;
   try {
-    await requireUid(bearerFrom(req));
+    uid = await requireUid(bearerFrom(req));
   } catch (e) {
     if (e instanceof UnauthorizedError) {
       return NextResponse.json({ error: "unauthorized" }, { status: 401 });
     }
     throw e;
+  }
+
+  // vision is the costliest call — keep it gentle (10 / minute / user)
+  const limited = rateLimit(rateKey(req, uid), 10, 60_000);
+  if (!limited.ok) {
+    return NextResponse.json(
+      { error: "too_many_requests" },
+      { status: 429, headers: { "Retry-After": String(limited.retryAfter) } }
+    );
   }
 
   const { imageUrl } = (await req.json()) as { imageUrl?: string };

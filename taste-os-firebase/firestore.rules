@@ -42,6 +42,22 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // ── beta ──
+    // a place held under the user's own id (no reading the list back)
+    match /waitlist/{uid} {
+      allow create, update: if signedIn() && request.auth.uid == uid;
+    }
+    // invite codes are seeded by admins; users may only read to redeem
+    match /beta_invites/{code} {
+      allow get: if signedIn();
+      allow list, write: if false;
+    }
+    // feedback is a one-way whisper
+    match /beta_feedback/{id} {
+      allow create: if owns(request.resource.data);
+      allow read, update, delete: if false;
+    }
+
     match /{document=**} {
       allow read, write: if false;
     }

@@ -9,6 +9,7 @@ import { useLatestReport } from "@/hooks/useLatestReport";
 import { useEmotionalMemories } from "@/hooks/useEmotionalMemories";
 import { useTimeline } from "@/hooks/useTimeline";
 import { useNostalgicMemory } from "@/hooks/useNostalgicMemory";
+import { FeedbackWhisper } from "@/components/beta/FeedbackWhisper";
 
 const eyebrow = "font-sans text-[11px] uppercase tracking-[0.18em] text-mist/70";
 
@@ -113,6 +114,9 @@ export default function HomePage() {
         </Reveal>
         <Reveal delay={400}>
           <Beacon href="/evolution">나의 변화 이어보기</Beacon>
+        </Reveal>
+        <Reveal delay={1000}>
+          <FeedbackWhisper />
         </Reveal>
       </section>
     </main>
