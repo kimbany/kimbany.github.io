@@ -180,8 +180,7 @@
     beacon.addEventListener('click', (e) => {
       e.preventDefault();
 
-      // In real Next.js: router.push('/onboarding')
-      // Here: brief acknowledgment animation
+      // cinematic threshold, then walk into the onboarding
       beacon.style.transition = 'all 0.5s ease';
       beacon.style.borderColor = 'rgba(176, 118, 114, 0.65)';
       beacon.style.background = 'rgba(176, 118, 114, 0.10)';
@@ -189,13 +188,9 @@
       window.setTimeout(() => {
         document.body.style.transition = 'opacity 1.4s ease';
         document.body.style.opacity = '0';
-
         window.setTimeout(() => {
-          document.body.style.transition = 'opacity 1.0s ease';
-          document.body.style.opacity = '1';
-          beacon.style.borderColor = '';
-          beacon.style.background = '';
-        }, 1800);
+          window.location.href = '../onboarding/';
+        }, 1400);
       }, 600);
     });
   }
