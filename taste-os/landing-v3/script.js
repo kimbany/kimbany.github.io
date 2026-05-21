@@ -236,13 +236,9 @@
         window.setTimeout(() => {
           document.body.style.transition = 'opacity 1.4s ease';
           document.body.style.opacity = '0';
-
           window.setTimeout(() => {
-            document.body.style.transition = 'opacity 1.0s ease';
-            document.body.style.opacity = '1';
-            beacon.style.borderColor = '';
-            beacon.style.background = '';
-          }, 1800);
+            window.location.href = '../onboarding/';
+          }, 1400);
         }, 600);
       });
     });
