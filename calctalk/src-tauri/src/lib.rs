@@ -6,16 +6,14 @@
 // =====================================================================
 
 mod commands;
-mod shortcuts;
 mod window;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_store::Builder::default().build())
-        .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .setup(|app| {
-            shortcuts::register_panic_shortcut(app)?;
+            // 패닉(ESC/Ctrl+Q)은 프론트엔드 panic.js가 처리. 창 포커스 변화만 중계.
             window::wire_focus_events(app)?;
             Ok(())
         })
