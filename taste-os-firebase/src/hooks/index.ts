@@ -6,3 +6,5 @@ export { useEmotionalMemories } from "./useEmotionalMemories";
 export { useCurrentAtmosphere } from "./useCurrentAtmosphere";
 export { useIngestMemory } from "./useIngestMemory";
 export { useLatestReport } from "./useLatestReport";
+export { useTimeline } from "./useTimeline";
+export { useNostalgicMemory } from "./useNostalgicMemory";

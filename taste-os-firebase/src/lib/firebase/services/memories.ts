@@ -14,6 +14,7 @@ import {
   vector,
   getDocs,
   deleteField,
+  Timestamp,
 } from "firebase/firestore";
 import { db } from "../client";
 import { COLLECTIONS, type MemoryDoc, type Modality, type Tone } from "../collections";
@@ -87,4 +88,23 @@ export async function releaseMemory(id: string) {
     embedding: deleteField(),
     releasedAt: serverTimestamp(),
   });
+}
+
+/**
+ * Nostalgic recall — fragments from a while ago, quietly resurfaced.
+ * Not a feed; a gentle "한동안 잊고 있던 결". Ordered oldest-first within the
+ * window so the surfaced memory feels genuinely returned-to.
+ */
+export async function nostalgicMemories(uid: string, olderThanDays = 10, max = 6) {
+  const cutoff = Timestamp.fromDate(new Date(Date.now() - olderThanDays * 864e5));
+  const q = query(
+    col(),
+    where("uid", "==", uid),
+    where("released", "==", false),
+    where("createdAt", "<", cutoff),
+    orderBy("createdAt", "asc"),
+    qLimit(max)
+  );
+  const snap = await getDocs(q);
+  return snap.docs.map((d) => ({ id: d.id, ...(d.data() as MemoryDoc) }));
 }

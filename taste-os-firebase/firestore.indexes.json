@@ -21,6 +21,16 @@
       ]
     },
     {
+      "//": "nostalgic recall: a user's older memories, oldest-first",
+      "queryScope": "COLLECTION",
+      "collectionGroup": "emotional_memories",
+      "fields": [
+        { "fieldPath": "uid", "order": "ASCENDING" },
+        { "fieldPath": "released", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "ASCENDING" }
+      ]
+    },
+    {
       "//": "recent narrations per user (dedup + memory injection)",
       "queryScope": "COLLECTION",
       "collectionGroup": "narrations",

@@ -183,6 +183,29 @@ atmosphere, and adds a timeline marker — the portrait grows with the user.
 The report page reveals sections progressively (reveal-on-arrival) and streams
 the live "quiet noticing" narration; fusion + generation both fall back gently.
 
+### Dashboard + Timeline data connection (everything is wired, real-time)
+One report write fans out; every surface reads live Firestore snapshots:
+
+- **Identity Dashboard (`/home`)** — current atmosphere (`useCurrentAtmosphere`),
+  evolving identity (genome via `useLatestReport`), streamed narration, drifting
+  memory fragments (`useEmotionalMemories` → `MemoryDrift`), resonance patterns
+  (recurring themes), an evolution preview (trajectory dots), and a quietly
+  resurfaced nostalgic memory (`useNostalgicMemory`).
+- **Daily Atmosphere (`/daily`)** — today's air derived live from recent
+  memories (`deriveDailyAtmosphere`: warmth + dominant tone → label) + a daily
+  narration + resonant fragments.
+- **Evolution Timeline (`/evolution`)** — real seasons from the atmosphere
+  trajectory + timeline markers (`useTimeline`), with the warmth-shift signal
+  driving the evolution engine.
+- **Sharing (`/sharing`)** — the card draws genome / line / palette from the
+  live report.
+
+Memory drift renders the *feeling* (tone color + caption), never fetching the
+original image — light, GPU-friendly, and it keeps breathing. All hooks use
+`onSnapshot`, so dashboards evolve in real time as new memories and reports
+arrive. Queries are `where(uid)+limit`-bounded with matching composite indexes
+(incl. an ascending index for nostalgic recall).
+
 ### Secure architecture
 - **Server actions** (`server/actions/memory.ts`): `ingestTextMemory`,
   `ingestImageMemory` — consent-aware, token-gated, run privileged work
