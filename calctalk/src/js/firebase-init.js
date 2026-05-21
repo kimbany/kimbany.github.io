@@ -13,15 +13,15 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/fireba
 import { getAuth } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { getDatabase } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
 
-// TODO: 본인 Firebase 프로젝트 값으로 교체
+// 본인 Firebase 프로젝트 값 (calctalk-8f246)
 export const firebaseConfig = {
-  apiKey: "YOUR_API_KEY",
-  authDomain: "YOUR_PROJECT.firebaseapp.com",
-  databaseURL: "https://YOUR_PROJECT-default-rtdb.firebaseio.com",
-  projectId: "YOUR_PROJECT",
-  storageBucket: "YOUR_PROJECT.appspot.com",
-  messagingSenderId: "YOUR_SENDER_ID",
-  appId: "YOUR_APP_ID",
+  apiKey: "AIzaSyAv2xVBOSULin_lEOqUTQUctwLtb9AaIgA",
+  authDomain: "calctalk-8f246.firebaseapp.com",
+  databaseURL: "https://calctalk-8f246-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "calctalk-8f246",
+  storageBucket: "calctalk-8f246.firebasestorage.app",
+  messagingSenderId: "965854254383",
+  appId: "1:965854254383:web:8400ed7167eedc28e3fdda",
 };
 
 // config가 채워졌는지 (placeholder면 채팅 기능 비활성, 계산기는 정상)
