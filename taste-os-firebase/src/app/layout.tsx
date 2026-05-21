@@ -4,6 +4,7 @@ import "./globals.css";
 import { AmbientField } from "@/components/ambient/AmbientField";
 import { AtmosphereProvider } from "@/components/providers/AtmosphereProvider";
 import { AuthProvider } from "@/components/providers/AuthProvider";
+import { FrictionProbe } from "@/components/testing/FrictionProbe";
 
 const display = Cormorant_Garamond({
   subsets: ["latin"],
@@ -45,6 +46,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <AtmosphereProvider>
             <AmbientField />
             <div className="relative z-[5]">{children}</div>
+            <FrictionProbe />
           </AtmosphereProvider>
         </AuthProvider>
       </body>

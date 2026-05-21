@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { EASE, DURATION } from "@/motion/easings";
+import { useResonance } from "@/hooks/useResonance";
 import type { RecallMode } from "@/types/atmosphere";
 
 /**
@@ -11,11 +12,21 @@ import type { RecallMode } from "@/types/atmosphere";
  * then silence. Generation is fast; the words are slow on purpose.
  * (See narration.md §8.)
  */
-export function Narration({ mode = "resonant" }: { mode?: RecallMode }) {
+export function Narration({ mode = "resonant", surface = "narration" }: { mode?: RecallMode; surface?: string }) {
   const [line, setLine] = useState<string>("");
   const [visible, setVisible] = useState(false);
   const queue = useRef<string[]>([]);
   const running = useRef(false);
+  const { lingerRef, keep } = useResonance(surface, { recordReturn: false });
+
+  // a hidden tab while a line is showing is a quiet "kept" — a pause or capture
+  useEffect(() => {
+    const onHide = () => {
+      if (document.hidden && line) keep(line.slice(0, 40));
+    };
+    document.addEventListener("visibilitychange", onHide);
+    return () => document.removeEventListener("visibilitychange", onHide);
+  }, [line, keep]);
 
   useEffect(() => {
     const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -95,7 +106,12 @@ export function Narration({ mode = "resonant" }: { mode?: RecallMode }) {
   }, [mode]);
 
   return (
-    <div className="relative flex min-h-[38vh] w-full max-w-[720px] items-center justify-center px-6">
+    <div
+      ref={lingerRef}
+      data-narration-region
+      data-ref={line.slice(0, 40)}
+      className="relative flex min-h-[38vh] w-full max-w-[720px] flex-col items-center justify-center gap-6 px-6"
+    >
       <AnimatePresence mode="wait">
         {visible && (
           <motion.p
@@ -120,6 +136,17 @@ export function Narration({ mode = "resonant" }: { mode?: RecallMode }) {
           </motion.p>
         )}
       </AnimatePresence>
+
+      {/* a quiet way to carry a line — not a like, a keeping */}
+      {visible && (
+        <button
+          type="button"
+          onClick={() => keep(line.slice(0, 40))}
+          className="font-display text-[12px] italic text-mist/40 transition-opacity duration-700 hover:opacity-90"
+        >
+          이 문장, 간직하기
+        </button>
+      )}
     </div>
   );
 }

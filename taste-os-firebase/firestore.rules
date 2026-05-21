@@ -58,6 +58,22 @@ service cloud.firestore {
       allow read, update, delete: if false;
     }
 
+    // ── emotional testing (resonance-first, never engagement) ──
+    // quiet signals of what landed; write-only, owner-scoped, no feed
+    match /resonance_signals/{id} {
+      allow create: if owns(request.resource.data);
+      allow read, update, delete: if false;
+    }
+    match /reflection_feedback/{id} {
+      allow create: if owns(request.resource.data);
+      allow read, update, delete: if false;
+    }
+    // QA-only friction whispers
+    match /friction_signals/{id} {
+      allow create: if owns(request.resource.data);
+      allow read, update, delete: if false;
+    }
+
     match /{document=**} {
       allow read, write: if false;
     }
