@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#0E0C0B" />
+  <title>Taste OS — 감정의 공기</title>
+  <meta name="description" content="인터페이스 오디오가 아니라, 감정의 공기. 파일 없이 실시간으로 합성되는 ambient." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;1,300;1,400&family=Inter:wght@300;400;500&family=Noto+Serif+KR:wght@300;400&display=swap" />
+  <link rel="stylesheet" href="./style.css" />
+</head>
+<body>
+
+  <!-- Ambient visual layers -->
+  <div class="orb orb-1" aria-hidden="true"></div>
+  <div class="orb orb-2" aria-hidden="true"></div>
+  <div class="orb orb-3" aria-hidden="true"></div>
+  <div class="dust-field" aria-hidden="true"></div>
+
+  <div class="sigil" aria-hidden="true">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round">
+      <path d="M12 3.5 A 8.5 8.5 0 1 0 20.4 11.2" />
+    </svg>
+  </div>
+
+  <main class="stage">
+
+    <p class="eyebrow" data-reveal>감정의 공기</p>
+
+    <h1 class="cinematic-head" data-reveal data-reveal-delay="500">
+      이 소리는 인터페이스가 아니라,<br />
+      당신이 들어와 있는 공간이에요.
+    </h1>
+
+    <p class="sub mist" data-reveal data-reveal-delay="1200">
+      파일 하나 없이, 지금 이 순간 실시간으로 합성되는 ambient.<br />
+      눈을 감고, 잠시 들어보세요.
+    </p>
+
+    <!-- breathing audio orb -->
+    <button class="audio-orb" data-audio-toggle aria-pressed="false" aria-label="소리 들이기" data-reveal data-reveal-delay="1800">
+      <span class="audio-orb-core"></span>
+      <span class="audio-orb-ring"></span>
+      <span class="audio-orb-label" data-audio-label>소리 들이기</span>
+    </button>
+
+    <!-- preset chooser (atmospheres) -->
+    <div class="presets" data-presets data-reveal data-reveal-delay="2400">
+      <button class="preset" type="button" data-preset="onboarding">새벽의 정적</button>
+      <button class="preset" type="button" data-preset="analysis">모이는 입자</button>
+      <button class="preset is-active" type="button" data-preset="report">따뜻하게 열리는</button>
+      <button class="preset" type="button" data-preset="dashboard">익숙한 방</button>
+      <button class="preset" type="button" data-preset="timeline">멀어지는 잔향</button>
+    </div>
+
+    <!-- warmth slider -->
+    <div class="warmth" data-reveal data-reveal-delay="2800">
+      <span class="warmth-end mist">차가움</span>
+      <input type="range" min="0" max="100" value="80" class="warmth-slider" data-warmth aria-label="공기의 따뜻함" />
+      <span class="warmth-end mist">따뜻함</span>
+    </div>
+
+    <button class="chime-btn" type="button" data-chime data-reveal data-reveal-delay="3200">
+      <span>감정의 한 음 울리기</span>
+    </button>
+
+    <p class="hint mist" data-reveal data-reveal-delay="3600">
+      소리는 늘 꺼져 있는 게 기본이에요. 강요가 아니라, 초대니까요.
+    </p>
+
+  </main>
+
+  <div class="grain" aria-hidden="true"></div>
+
+  <script src="./ambient.js"></script>
+  <script src="./script.js"></script>
+</body>
+</html>

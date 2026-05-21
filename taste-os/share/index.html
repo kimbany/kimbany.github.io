@@ -1,0 +1,391 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#0E0C0B" />
+  <title>Taste OS — 보내기</title>
+  <meta name="description" content="네 장의 카드. 좋아요 대신 머무름·공명·답장." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;1,300;1,400&family=Inter:wght@300;400;500&family=JetBrains+Mono:wght@300&family=Noto+Serif+KR:wght@300;400&display=swap" />
+  <link rel="stylesheet" href="./style.css" />
+</head>
+<body>
+
+  <!-- ambient layers -->
+  <div class="orb orb-rose orb-1" aria-hidden="true"></div>
+  <div class="orb orb-silver orb-2" aria-hidden="true"></div>
+  <div class="orb orb-sand orb-3" aria-hidden="true"></div>
+
+  <div class="sigil" aria-hidden="true">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round">
+      <path d="M12 3.5 A 8.5 8.5 0 1 0 20.4 11.2" />
+    </svg>
+  </div>
+
+  <main class="studio">
+
+    <!-- ============================================================
+         SECTION 1 — HERO
+         ============================================================ -->
+    <section class="hero" data-section>
+      <div class="hero-inner">
+
+        <h1 class="display-hero italic" data-reveal>
+          당신의 풍경,<br />
+          누군가에게 보낼까요?
+        </h1>
+
+        <p class="sub-headline" data-reveal data-delay="1800">
+          다른 사람의 피드에 들어가지 않아요.<br />
+          필요한 사람에게, 직접.
+        </p>
+
+      </div>
+    </section>
+
+    <!-- ============================================================
+         SECTION 2 — GALLERY (4 cards)
+         ============================================================ -->
+    <section class="gallery-section" data-section>
+      <div class="gallery-inner">
+
+        <p class="section-label" data-reveal>─ 네 장의 카드</p>
+
+        <div class="gallery">
+
+          <!-- Card 1 — Quiet Warmth -->
+          <article
+            class="taste-card card-quiet"
+            data-card="1"
+            data-tilt="1.2deg"
+            data-drift-delay="0s"
+          >
+            <div class="card-mark" aria-hidden="true">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round">
+                <path d="M12 3.5 A 8.5 8.5 0 1 0 20.4 11.2" />
+              </svg>
+            </div>
+
+            <p class="card-sender">m.</p>
+
+            <hr class="card-rule" />
+
+            <h2 class="card-name">
+              Quiet<br /><em>Warmth</em>
+            </h2>
+            <p class="card-name-ko">조용한 따뜻함</p>
+
+            <div class="card-palette">
+              <span class="sw" style="background:#3A2620"></span>
+              <span class="sw" style="background:#7A5040"></span>
+              <span class="sw" style="background:#B07672"></span>
+              <span class="sw" style="background:#C8B69B"></span>
+              <span class="sw" style="background:#D8C7AC"></span>
+            </div>
+
+            <p class="card-atmosphere">늦은 오후 · 단일 광원 · 린넨</p>
+
+            <hr class="card-rule" />
+
+            <blockquote class="card-mirror">
+              큰 빛보다,<br />작은 빛이<br />오래 가는 걸 알아요.
+            </blockquote>
+
+            <p class="card-date">2026.05.19</p>
+          </article>
+
+          <!-- Card 2 — Urban Nostalgia -->
+          <article
+            class="taste-card card-urban"
+            data-card="2"
+            data-tilt="-0.6deg"
+            data-drift-delay="2s"
+          >
+            <div class="card-mark" aria-hidden="true">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round">
+                <path d="M12 3.5 A 8.5 8.5 0 1 0 20.4 11.2" />
+              </svg>
+            </div>
+
+            <p class="card-sender">m.</p>
+
+            <hr class="card-rule" />
+
+            <h2 class="card-name">
+              Urban<br /><em>Nostalgia</em>
+            </h2>
+            <p class="card-name-ko">도시의 향수</p>
+
+            <div class="card-palette">
+              <span class="sw" style="background:#0F1620"></span>
+              <span class="sw" style="background:#3A4555"></span>
+              <span class="sw" style="background:#8FA0AC"></span>
+              <span class="sw" style="background:#B07672"></span>
+              <span class="sw" style="background:#C8B69B"></span>
+            </div>
+
+            <p class="card-atmosphere">자정 · 도시 · 비 온 직후</p>
+
+            <hr class="card-rule" />
+
+            <blockquote class="card-mirror">
+              사람들로 가득한 곳에서<br />가장 자기 자신이에요.
+            </blockquote>
+
+            <p class="card-date">2026.05.19</p>
+          </article>
+
+          <!-- Card 3 — Emotional Minimalism -->
+          <article
+            class="taste-card card-minimal"
+            data-card="3"
+            data-tilt="0.8deg"
+            data-drift-delay="4s"
+          >
+            <div class="card-mark" aria-hidden="true">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round">
+                <path d="M12 3.5 A 8.5 8.5 0 1 0 20.4 11.2" />
+              </svg>
+            </div>
+
+            <p class="card-sender">m.</p>
+
+            <hr class="card-rule" />
+
+            <h2 class="card-name">
+              Emotional<br /><em>Minimalism</em>
+            </h2>
+            <p class="card-name-ko">감정의 미니멀리즘</p>
+
+            <div class="card-palette">
+              <span class="sw" style="background:#1A1714"></span>
+              <span class="sw" style="background:#443E37"></span>
+              <span class="sw" style="background:#9A8E81"></span>
+              <span class="sw" style="background:#C8B69B"></span>
+              <span class="sw" style="background:#D8C7AC"></span>
+            </div>
+
+            <p class="card-atmosphere">정오 · 단일 색 · 여백</p>
+
+            <hr class="card-rule" />
+
+            <blockquote class="card-mirror">
+              조용한 것이<br />깊을 수 있다는 걸,<br />일찍부터 알았어요.
+            </blockquote>
+
+            <p class="card-date">2026.05.19</p>
+          </article>
+
+          <!-- Card 4 — Warm Futurism -->
+          <article
+            class="taste-card card-futurism"
+            data-card="4"
+            data-tilt="-1.0deg"
+            data-drift-delay="6s"
+          >
+            <div class="card-mark" aria-hidden="true">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round">
+                <path d="M12 3.5 A 8.5 8.5 0 1 0 20.4 11.2" />
+              </svg>
+            </div>
+
+            <p class="card-sender">m.</p>
+
+            <hr class="card-rule" />
+
+            <h2 class="card-name">
+              Warm<br /><em>Futurism</em>
+            </h2>
+            <p class="card-name-ko">따뜻한 미래</p>
+
+            <div class="card-palette">
+              <span class="sw" style="background:#1A2030"></span>
+              <span class="sw" style="background:#5A6878"></span>
+              <span class="sw" style="background:#8FA0AC"></span>
+              <span class="sw" style="background:#B07672"></span>
+              <span class="sw" style="background:#D9A66C"></span>
+            </div>
+
+            <p class="card-atmosphere">새벽 · 빛 · 부드러운 금속</p>
+
+            <hr class="card-rule" />
+
+            <blockquote class="card-mirror">
+              내일도 다정할 수 있다고<br />믿어요.
+            </blockquote>
+
+            <p class="card-date">2026.05.19</p>
+          </article>
+
+        </div>
+
+        <p class="gallery-hint" data-reveal>
+          카드를 누르면 자세히 볼 수 있어요.
+        </p>
+
+      </div>
+    </section>
+
+    <!-- ============================================================
+         SECTION 3 — RESONANCE
+         ============================================================ -->
+    <section class="resonance-section" data-section>
+      <div class="resonance-inner">
+
+        <p class="section-label" data-reveal>─ 좋아요 대신, 이렇게 답해요</p>
+
+        <div class="resonance-grid">
+
+          <article class="resonance-card" data-reveal>
+            <h3 class="resonance-title">머무름</h3>
+            <p class="resonance-body">
+              받은 사람이 카드를 오래 본 채로 머물면,<br />
+              한 줄이 와요. 누가 봤는지는 모르고 —<br />
+              그저 누군가가 머물렀다는 것만.
+            </p>
+            <p class="resonance-example">
+              이 분위기에 오래 머물렀어요.
+            </p>
+          </article>
+
+          <article class="resonance-card" data-reveal data-delay="200">
+            <h3 class="resonance-title">공명</h3>
+            <p class="resonance-body">
+              받은 사람이 자기 카드 한 장을 답으로 보내요.<br />
+              좋아요 한 번이 아니라 — 자기의 한 부분을<br />
+              똑같이 내어주는 일.
+            </p>
+            <p class="resonance-example">
+              비슷한 감정의 결이 느껴졌어요.
+            </p>
+          </article>
+
+          <article class="resonance-card" data-reveal data-delay="400">
+            <h3 class="resonance-title">답장</h3>
+            <p class="resonance-body">
+              받은 사람이 한 줄을 직접 적어 답으로 둬요.<br />
+              코멘트가 아니라 — 작은 편지.
+            </p>
+            <p class="resonance-example">
+              당신의 빛이 내 안에서도<br />잠시 머물렀어요.
+            </p>
+          </article>
+
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================================================
+         SECTION 4 — THE ROOM PREVIEW
+         ============================================================ -->
+    <section class="room-section" data-section>
+      <div class="room-inner">
+
+        <p class="section-label" data-reveal>─ 당신의 자리</p>
+
+        <p class="room-intro" data-reveal>
+          누군가가 당신의 이름으로 찾아왔을 때 보는 풍경이에요.<br />
+          피드가 아니라, 방이에요.
+        </p>
+
+        <div class="room-preview" data-reveal data-delay="400">
+          <div class="room-mark" aria-hidden="true">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round">
+              <path d="M12 3.5 A 8.5 8.5 0 1 0 20.4 11.2" />
+            </svg>
+          </div>
+
+          <p class="room-sender">m.</p>
+
+          <h3 class="room-name">옻칠한 황혼</h3>
+
+          <hr class="room-rule" />
+
+          <p class="room-atmosphere">16:00 · 북향 · 오크 · 린넨 · 황동</p>
+
+          <div class="room-palette">
+            <span class="sw" style="background:#4A3D2C"></span>
+            <span class="sw" style="background:#7A6F60"></span>
+            <span class="sw" style="background:#D9A66C"></span>
+            <span class="sw" style="background:#A8A29E"></span>
+            <span class="sw" style="background:#1A1A1E"></span>
+          </div>
+
+          <hr class="room-rule" />
+
+          <blockquote class="room-mirror">
+            큰 빛보다, 작은 빛이<br />오래 가는 걸 알아요.
+          </blockquote>
+
+          <button class="beacon room-cta" type="button" data-action="room-card">
+            <span class="dash">───</span>
+            <span class="beacon-label">카드 두기</span>
+            <span class="dash">───</span>
+          </button>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================================================
+         CLOSING
+         ============================================================ -->
+    <footer class="closing">
+      <p>보내지 않아도 괜찮아요.<br />카드는 여기 있어요.</p>
+    </footer>
+
+  </main>
+
+  <!-- ============================================================
+       EXPANDED CARD VIEW (overlay)
+       ============================================================ -->
+  <div class="expanded" data-expanded data-state="hidden" aria-hidden="true">
+
+    <div class="expanded-scrim" data-expanded-scrim></div>
+
+    <div class="expanded-stage">
+      <div class="expanded-card" data-expanded-card>
+        <!-- filled by JS -->
+      </div>
+
+      <div class="expanded-meta" data-expanded-meta>
+        <p class="meta-when">오늘 만들어졌어요.</p>
+      </div>
+
+      <div class="expanded-exports">
+        <button class="export-btn" type="button" data-export="image">─ 이미지로 두기 ─</button>
+        <button class="export-btn" type="button" data-export="film">─ 영상으로 두기 ─</button>
+        <button class="export-btn" type="button" data-export="print">─ 종이로 두기 ─</button>
+      </div>
+
+      <div class="expanded-actions">
+        <button class="beacon ceremonial" type="button" data-action="send">
+          <span class="dash">───</span>
+          <span class="beacon-label">보내기</span>
+          <span class="dash">───</span>
+        </button>
+
+        <button class="skip-link" type="button" data-action="close">닫기</button>
+      </div>
+
+    </div>
+
+    <!-- send simulation overlay -->
+    <div class="send-overlay" data-send-overlay data-state="hidden" aria-hidden="true">
+      <p class="send-message" data-send-message>잘 갔어요.</p>
+    </div>
+
+    <!-- export acknowledgment toast -->
+    <div class="export-toast" data-export-toast data-state="hidden" aria-hidden="true"></div>
+
+  </div>
+
+  <!-- grain overlay -->
+  <div class="grain" aria-hidden="true"></div>
+
+  <script src="./script.js"></script>
+</body>
+</html>

@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#0E0C0B" />
+  <title>Taste OS — 조용한 목소리</title>
+  <meta name="description" content="AI가 쓴 글이 아니라, 조용한 감정의 성찰." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;1,300;1,400&family=Inter:wght@300;400;500&family=Noto+Serif+KR:wght@300;400&display=swap" />
+  <link rel="stylesheet" href="./style.css" />
+</head>
+<body>
+
+  <!-- Ambient -->
+  <div class="orb orb-1" aria-hidden="true"></div>
+  <div class="orb orb-2" aria-hidden="true"></div>
+  <div class="orb orb-3" aria-hidden="true"></div>
+
+  <div class="dust-field" aria-hidden="true"></div>
+
+  <div class="sigil" aria-hidden="true">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round">
+      <path d="M12 3.5 A 8.5 8.5 0 1 0 20.4 11.2" />
+    </svg>
+  </div>
+
+  <!-- Mode tag — top right -->
+  <p class="mode-tag" data-mode-tag aria-hidden="true">
+    <span class="mode-dot"></span>
+    <span class="mode-label" data-mode-label>분위기</span>
+  </p>
+
+  <!-- ============================================================
+       NARRATION STAGE — the breathing reveal
+       ============================================================ -->
+  <main class="narration-stage" data-section="stage">
+    <p class="stage-eyebrow" data-reveal>조용한 목소리</p>
+
+    <div class="narration-screen" data-narration-screen aria-live="polite">
+      <!-- streamed lines mount here -->
+    </div>
+
+    <div class="stage-controls" data-reveal data-reveal-delay="800">
+      <button class="ctl" type="button" data-action="toggle" aria-label="재생/일시정지">
+        <span class="ctl-icon" data-ctl-icon>❙❙</span>
+      </button>
+      <button class="ctl ctl-text" type="button" data-action="next">
+        <span>다음 결</span>
+      </button>
+    </div>
+
+    <p class="stage-hint mist" data-reveal data-reveal-delay="1400">
+      문장은 호흡처럼 천천히 핍니다. 사이의 침묵도, 문장의 일부예요.
+    </p>
+  </main>
+
+  <!-- Grain -->
+  <div class="grain" aria-hidden="true"></div>
+
+  <script src="./script.js"></script>
+</body>
+</html>

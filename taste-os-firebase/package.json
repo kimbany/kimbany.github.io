@@ -1,0 +1,40 @@
+{
+  "name": "taste-os-firebase",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Taste OS — cinematic emotional identity OS (Firebase + OpenAI)",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "typecheck": "tsc --noEmit",
+    "fb:rules": "firebase deploy --only firestore:rules,storage:rules",
+    "fb:indexes": "firebase deploy --only firestore:indexes",
+    "fb:functions": "firebase deploy --only functions"
+  },
+  "dependencies": {
+    "next": "^15.1.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "framer-motion": "^11.15.0",
+    "firebase": "^11.1.0",
+    "firebase-admin": "^13.0.1",
+    "openai": "^4.77.0",
+    "clsx": "^2.1.1",
+    "tailwind-merge": "^2.6.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.0",
+    "@types/node": "^22.10.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "tailwindcss": "^3.4.17",
+    "postcss": "^8.4.49",
+    "autoprefixer": "^10.4.20",
+    "eslint": "^9.17.0",
+    "eslint-config-next": "^15.1.0",
+    "firebase-tools": "^13.29.0"
+  },
+  "engines": { "node": ">=20" }
+}

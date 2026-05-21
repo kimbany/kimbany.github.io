@@ -1,0 +1,236 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#0E0C0B" />
+  <title>Taste OS — 오늘 당신 안에는 이런 공기가 흐르고 있어요</title>
+  <meta name="description" content="마음을 위한 일기예보가 아닌, 마음을 위한 날씨." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;1,300;1,400&family=Inter:wght@300;400;500&family=Noto+Serif+KR:wght@300;400&display=swap" />
+  <link rel="stylesheet" href="./style.css" />
+</head>
+<body class="time-day">
+
+  <!-- Persistent ambient -->
+  <div class="orb orb-1" aria-hidden="true"></div>
+  <div class="orb orb-2" aria-hidden="true"></div>
+  <div class="orb orb-3" aria-hidden="true"></div>
+  <div class="orb orb-4" aria-hidden="true"></div>
+
+  <div class="dust-field" aria-hidden="true"></div>
+
+  <div class="sigil" aria-hidden="true">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round">
+      <path d="M12 3.5 A 8.5 8.5 0 1 0 20.4 11.2" />
+    </svg>
+  </div>
+
+  <!-- Date tag — top right -->
+  <p class="date-tag" data-date-tag aria-hidden="true">
+    <span class="date-tag-line" data-date-line></span>
+    <span class="date-tag-period" data-date-period>오후의 공기</span>
+  </p>
+
+  <!-- ============================================================
+       01 — DAILY OPENING
+       ============================================================ -->
+  <section class="section opening-section" data-section="opening">
+    <div class="opening-inner">
+      <h1 class="cinematic-head" data-reveal>
+        오늘 당신 안에는<br />
+        이런 공기가 흐르고 있어요.
+      </h1>
+      <hr class="hairline-mark" data-reveal data-reveal-delay="900" />
+      <p class="opening-foot mist" data-reveal data-reveal-delay="1500">
+        잠시 머물러 보세요.
+      </p>
+      <div class="scroll-cue" aria-hidden="true" data-reveal data-reveal-delay="3000">
+        <span class="cue-line"></span>
+        <span class="cue-label">천천히 내려가요</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================
+       02 — ATMOSPHERE HERO (Signature A — living cloud)
+       ============================================================ -->
+  <section class="section hero-section" data-section="hero">
+
+    <!-- Living atmosphere cloud — 4 drifting gradient layers -->
+    <div class="atmosphere-cloud" data-cloud aria-hidden="true">
+      <div class="cloud-layer layer-rose"></div>
+      <div class="cloud-layer layer-ember"></div>
+      <div class="cloud-layer layer-silver"></div>
+      <div class="cloud-layer layer-beige"></div>
+    </div>
+
+    <div class="hero-inner">
+      <p class="eyebrow" data-reveal>오늘의 공기</p>
+      <p class="today-name" data-reveal data-reveal-delay="500" data-today-name>
+        조용한 따뜻함
+      </p>
+      <p class="today-name-en mist" data-reveal data-reveal-delay="1100" data-today-name-en>
+        Quiet Warmth
+      </p>
+      <div class="today-palette" data-reveal data-reveal-delay="1800" data-today-palette>
+        <span class="palette-dot" style="--c: #B07672;"></span>
+        <span class="palette-dot" style="--c: #D9A66C;"></span>
+        <span class="palette-dot" style="--c: #D8C7AC;"></span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================
+       03 — TODAY'S NARRATIONS
+       ============================================================ -->
+  <section class="section narration-section" data-section="narrations">
+    <div class="section-inner">
+      <p class="eyebrow" data-reveal>오늘에 대한 알아챔</p>
+
+      <ul class="narration-list" data-reveal-list>
+        <li>
+          <span class="narr-mark">─</span>
+          <p class="narr-text" data-narration="0">
+            오늘은 평소보다 조금 더 따뜻한 장면들에<br />
+            시선이 머물고 있어요.
+          </p>
+        </li>
+        <li>
+          <span class="narr-mark">─</span>
+          <p class="narr-text" data-narration="1">
+            당신 안의 고요함이 평소보다<br />
+            깊게 이어지고 있습니다.
+          </p>
+        </li>
+        <li>
+          <span class="narr-mark">─</span>
+          <p class="narr-text" data-narration="2">
+            완벽함보다 인간적인 흔적 속에서<br />
+            안정감을 느끼고 있어요.
+          </p>
+        </li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- ============================================================
+       04 — THE DAY'S DRIFT (Signature B)
+       ============================================================ -->
+  <section class="section drift-section" data-section="drift">
+    <div class="section-inner">
+      <p class="eyebrow" data-reveal>하루의 공기</p>
+
+      <div class="drift-track" data-drift-track>
+        <svg class="drift-curve" viewBox="0 0 800 120" aria-hidden="true" preserveAspectRatio="none">
+          <path d="M 40 80 Q 200 30 400 50 Q 600 70 760 90" fill="none" stroke="rgba(216, 199, 172, 0.28)" stroke-width="1" />
+        </svg>
+
+        <ol class="drift-dots" data-reveal-list>
+          <li class="drift-step" data-period="dawn">
+            <span class="drift-dot" style="--c: rgba(143, 160, 172, 0.7); --size: 8px;"></span>
+            <span class="drift-label">새벽</span>
+            <span class="drift-tone mist">silver mist</span>
+          </li>
+          <li class="drift-step" data-period="morning">
+            <span class="drift-dot" style="--c: rgba(216, 199, 172, 0.7); --size: 10px;"></span>
+            <span class="drift-label">아침</span>
+            <span class="drift-tone mist">옅은 beige</span>
+          </li>
+          <li class="drift-step current" data-period="day">
+            <span class="drift-dot" style="--c: rgba(217, 166, 108, 0.95); --size: 18px;"></span>
+            <span class="drift-label">낮</span>
+            <span class="drift-tone mist">짙은 beige</span>
+          </li>
+          <li class="drift-step" data-period="dusk">
+            <span class="drift-dot" style="--c: rgba(217, 166, 108, 0.75); --size: 10px;"></span>
+            <span class="drift-label">저녁</span>
+            <span class="drift-tone mist">ember 등장</span>
+          </li>
+          <li class="drift-step" data-period="night">
+            <span class="drift-dot" style="--c: rgba(176, 118, 114, 0.85); --size: 8px;"></span>
+            <span class="drift-label">밤</span>
+            <span class="drift-tone mist">deep rose</span>
+          </li>
+        </ol>
+      </div>
+
+      <p class="drift-summary" data-reveal data-reveal-delay="2400" data-drift-summary>
+        지금은 — <span class="drift-now-tone">낮의 beige</span>가 가장 짙어요.
+      </p>
+    </div>
+  </section>
+
+  <!-- ============================================================
+       05 — CONNECTED MEMORIES
+       ============================================================ -->
+  <section class="section memory-section" data-section="memories">
+    <div class="section-inner">
+      <p class="eyebrow" data-reveal>오늘과 공명하는 결들</p>
+
+      <div class="resonance-grid" data-reveal-list>
+        <article class="resonance-card" data-resonance="image">
+          <div class="resonance-visual visual-image" aria-hidden="true"></div>
+          <p class="resonance-label">3일 전, 비슷한 빛</p>
+        </article>
+
+        <article class="resonance-card" data-resonance="texture">
+          <div class="resonance-visual visual-texture" aria-hidden="true">
+            <span></span><span></span><span></span><span></span>
+          </div>
+          <p class="resonance-label">지난주, 종이의 결</p>
+        </article>
+
+        <article class="resonance-card" data-resonance="atmosphere">
+          <div class="resonance-visual visual-orb" aria-hidden="true"></div>
+          <p class="resonance-label">5일 전, 같은 톤의 저녁</p>
+        </article>
+
+        <article class="resonance-card" data-resonance="music">
+          <div class="resonance-visual visual-rings" aria-hidden="true">
+            <span></span><span></span><span></span>
+          </div>
+          <p class="resonance-label">자주 듣던 ambient</p>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================
+       06 — QUIET PAUSE
+       ============================================================ -->
+  <section class="section pause-section" data-section="pause">
+    <div class="pause-inner">
+      <span class="pause-dot" aria-hidden="true"></span>
+      <p class="pause-line" data-reveal>
+        숨을 한 번 쉬고,<br />
+        조용히 여기 머무세요.
+      </p>
+      <span class="pause-dot" aria-hidden="true"></span>
+    </div>
+  </section>
+
+  <!-- ============================================================
+       07 — GENTLE CONTINUATION
+       ============================================================ -->
+  <section class="section continuation-section" data-section="continuation">
+    <div class="continuation-inner">
+      <hr class="hairline-mark" data-reveal />
+      <button class="beacon ceremonial" type="button" data-reveal data-reveal-delay="500" data-action="continue">
+        <span class="dash">────</span>
+        <span class="beacon-label">오늘의 감정 이어보기</span>
+        <span class="dash">────</span>
+      </button>
+      <p class="continuation-foot mist" data-reveal data-reveal-delay="1100">
+        이 결을 따라, 내가 어떻게 변해가는지 봅니다.
+      </p>
+    </div>
+  </section>
+
+  <!-- Grain -->
+  <div class="grain" aria-hidden="true"></div>
+
+  <script src="./script.js"></script>
+</body>
+</html>

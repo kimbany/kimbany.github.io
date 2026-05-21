@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#0E0C0B" />
+  <title>Taste OS — 우리는 자꾸 마음이 머무는 것들을 닮아갑니다</title>
+  <meta name="description" content="당신이라는 사람의 결이 담겨 있습니다." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;1,300;1,400&family=Inter:wght@300;400;500&family=Noto+Serif+KR:wght@300;400&display=swap" />
+  <link rel="stylesheet" href="./style.css" />
+</head>
+<body>
+
+  <!-- Ambient layers -->
+  <div class="orb orb-1" aria-hidden="true"></div>
+  <div class="orb orb-2" aria-hidden="true"></div>
+  <div class="orb orb-3" aria-hidden="true"></div>
+  <div class="orb orb-4" aria-hidden="true"></div>
+
+  <div class="dust-field" aria-hidden="true"></div>
+
+  <div class="sigil" aria-hidden="true">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round">
+      <path d="M12 3.5 A 8.5 8.5 0 1 0 20.4 11.2" />
+    </svg>
+  </div>
+
+  <!-- Vignette -->
+  <div class="vignette" aria-hidden="true"></div>
+
+  <!-- ============================================================
+       MOMENT 1 — 문턱 앞
+       ============================================================ -->
+  <main class="entry" data-state="entry">
+    <div class="entry-inner">
+
+      <p class="pre-line" data-reveal="pre-line">─ 시작 전에</p>
+
+      <h1 class="headline" data-reveal="headline">
+        우리는 자꾸<br />
+        마음이 머무는 것들을<br />
+        닮아갑니다.
+      </h1>
+
+      <hr class="hairline" data-reveal="hairline" />
+
+      <div class="sub-copy">
+        <p class="sub-line sub-line-1" data-reveal="sub-1">
+          당신이 오래 바라본 장면들,
+        </p>
+        <p class="sub-line sub-line-2" data-reveal="sub-2">
+          자꾸 저장하게 되는 분위기들 속에는
+        </p>
+        <p class="sub-line sub-line-3" data-reveal="sub-3">
+          당신이라는 사람의 결이 담겨 있습니다.
+        </p>
+      </div>
+
+      <button class="beacon" type="button" data-reveal="beacon" data-action="start">
+        <span class="dash">────</span>
+        <span class="beacon-label">나의 분위기 들여다보기</span>
+        <span class="dash">────</span>
+      </button>
+
+      <p class="info" data-reveal="info">약 7분이에요. 천천히 가요.</p>
+
+    </div>
+  </main>
+
+  <!-- ============================================================
+       MOMENT 2 — Threshold Beat (after CTA click)
+       ============================================================ -->
+  <div class="threshold-beat" data-state="hidden" aria-hidden="true">
+    <p class="threshold-line" data-line="0">잠시, 숨.</p>
+    <p class="threshold-line" data-line="1">이제부터, 천천히.</p>
+  </div>
+
+  <!-- Grain (always on top) -->
+  <div class="grain" aria-hidden="true"></div>
+
+  <script src="./script.js"></script>
+</body>
+</html>

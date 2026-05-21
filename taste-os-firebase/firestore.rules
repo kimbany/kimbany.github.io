@@ -1,0 +1,81 @@
+rules_version = '2';
+
+// Taste OS — emotional memory is private by default.
+// Top-level collections, each document owned by `uid`. Only that user reads/
+// writes their own. Engine-managed docs (atmosphere_states, narrations, some
+// timelines) are written by Cloud Functions via the Admin SDK, which bypass
+// these rules; clients may read them but not forge them.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() { return request.auth != null; }
+    function owns(data) { return signedIn() && request.auth.uid == data.uid; }
+    function ownsExisting() { return signedIn() && request.auth.uid == resource.data.uid; }
+
+    match /users/{uid} {
+      allow read, write: if signedIn() && request.auth.uid == uid;
+    }
+
+    // user-authored, user-owned
+    match /emotional_memories/{id} {
+      allow read, update, delete: if ownsExisting();
+      allow create: if owns(request.resource.data);
+    }
+
+    // user may record a reflection; engine may also write
+    match /taste_reports/{id} {
+      allow read: if ownsExisting();
+      allow create: if owns(request.resource.data);
+    }
+
+    // engine-managed: clients read their own, never write directly
+    match /atmosphere_states/{id} {
+      allow read: if ownsExisting();
+      allow write: if false;
+    }
+    match /emotional_timelines/{id} {
+      allow read: if ownsExisting();
+      allow write: if false;
+    }
+    match /narrations/{id} {
+      allow read: if ownsExisting();
+      allow write: if false;
+    }
+
+    // ── beta ──
+    // a place held under the user's own id (no reading the list back)
+    match /waitlist/{uid} {
+      allow create, update: if signedIn() && request.auth.uid == uid;
+    }
+    // invite codes are seeded by admins; users may only read to redeem
+    match /beta_invites/{code} {
+      allow get: if signedIn();
+      allow list, write: if false;
+    }
+    // feedback is a one-way whisper
+    match /beta_feedback/{id} {
+      allow create: if owns(request.resource.data);
+      allow read, update, delete: if false;
+    }
+
+    // ── emotional testing (resonance-first, never engagement) ──
+    // quiet signals of what landed; write-only, owner-scoped, no feed
+    match /resonance_signals/{id} {
+      allow create: if owns(request.resource.data);
+      allow read, update, delete: if false;
+    }
+    match /reflection_feedback/{id} {
+      allow create: if owns(request.resource.data);
+      allow read, update, delete: if false;
+    }
+    // QA-only friction whispers
+    match /friction_signals/{id} {
+      allow create: if owns(request.resource.data);
+      allow read, update, delete: if false;
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

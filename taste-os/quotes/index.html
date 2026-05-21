@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#0E0C0B" />
+  <title>Taste OS — 마음에 머문 문장들</title>
+  <meta name="description" content="자꾸 다시 읽게 되는 문장들 속에는 당신만의 감정과 세계관이 담겨 있습니다." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;1,300;1,400&family=Inter:wght@300;400;500&family=JetBrains+Mono:wght@300&family=Noto+Serif+KR:wght@300;400&display=swap" />
+  <link rel="stylesheet" href="./style.css" />
+</head>
+<body class="quotes-silent">
+
+  <!-- Ambient layers -->
+  <div class="orb orb-1" aria-hidden="true"></div>
+  <div class="orb orb-2" aria-hidden="true"></div>
+  <div class="orb orb-3" aria-hidden="true"></div>
+  <div class="orb orb-4" aria-hidden="true"></div>
+
+  <div class="dust-field" aria-hidden="true"></div>
+
+  <div class="sigil" aria-hidden="true">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round">
+      <path d="M12 3.5 A 8.5 8.5 0 1 0 20.4 11.2" />
+    </svg>
+  </div>
+
+  <!-- ============================================================
+       STATE A — INTRO
+       ============================================================ -->
+  <main class="intro" data-phase="active">
+    <div class="intro-inner">
+
+      <h1 class="intro-headline" data-reveal="headline">
+        오래 마음속에 남아 있던<br />
+        문장들이 있나요?
+      </h1>
+
+      <hr class="hairline" data-reveal="hairline" />
+
+      <div class="intro-sub">
+        <p class="sub-line" data-reveal="sub-1">자꾸 다시 읽게 되는 문장들 속에는</p>
+        <p class="sub-line" data-reveal="sub-2">당신만의 감정과 세계관이 담겨 있습니다.</p>
+      </div>
+
+      <button class="beacon" type="button" data-reveal="cta" data-action="start">
+        <span class="dash">────</span>
+        <span class="beacon-label">시작하기</span>
+        <span class="dash">────</span>
+      </button>
+
+    </div>
+  </main>
+
+  <!-- ============================================================
+       STATE B — FLOATING LANGUAGE CANVAS
+       ============================================================ -->
+  <main class="canvas-state" data-phase="hidden">
+
+    <header class="canvas-header">
+      <p class="canvas-prompt">오래 마음속에 남아 있던 문장들이 있나요?</p>
+      <button class="add-button" type="button" data-action="open-panel">
+        <span>+</span>
+        <span class="add-label">문장 두기</span>
+      </button>
+    </header>
+
+    <div class="quotes-canvas" data-quotes-canvas>
+      <p class="empty-hint" data-empty-hint>
+        마음에 남은 문장들을 두어보세요.<br />
+        <span class="mist sm">자꾸 떠오르는 한 줄, 책에서 옮겨두고 싶은 말, 당신만 아는 어떤 문장.</span>
+      </p>
+      <div class="quote-layer" data-quote-layer>
+        <!-- Filled by JS -->
+      </div>
+    </div>
+
+    <footer class="canvas-footer">
+      <p class="counter" data-counter></p>
+      <button class="beacon ceremonial cta-forward" type="button" data-action="forward" data-state="hidden">
+        <span class="dash">────</span>
+        <span class="beacon-label">다음 분위기로 이어가기</span>
+        <span class="dash">────</span>
+      </button>
+    </footer>
+
+  </main>
+
+  <!-- ============================================================
+       ADD PANEL
+       ============================================================ -->
+  <div class="add-panel" data-panel-state="hidden">
+    <div class="add-panel-inner">
+
+      <p class="panel-hint">마음에 남은 한 줄.</p>
+
+      <textarea
+        class="panel-input panel-body"
+        data-panel-body
+        rows="2"
+        placeholder="별을 보려면 어둠이 필요해요."
+        maxlength="280"
+      ></textarea>
+
+      <p class="panel-label">─ 출처 (선택)</p>
+      <input
+        type="text"
+        class="panel-input panel-attribution"
+        data-panel-attribution
+        placeholder="M.L. King Jr."
+        maxlength="60" />
+
+      <p class="panel-label">─ 이 문장이 머무는 자리 (선택)</p>
+      <input
+        type="text"
+        class="panel-input panel-memory"
+        data-panel-memory
+        placeholder="불안한 밤마다 떠올랐어요."
+        maxlength="60" />
+
+      <div class="panel-actions">
+        <button class="beacon ceremonial" type="button" data-action="confirm-add" disabled>
+          <span class="dash">────</span>
+          <span class="beacon-label">두기</span>
+          <span class="dash">────</span>
+        </button>
+        <button class="skip-link" type="button" data-action="close-panel">취소</button>
+      </div>
+
+    </div>
+  </div>
+
+  <div class="panel-scrim" data-scrim></div>
+
+  <!-- ============================================================
+       STATE C — FORWARD THRESHOLD BEAT
+       ============================================================ -->
+  <div class="forward-beat" data-phase="hidden" aria-hidden="true">
+    <p class="beat-line" data-line="0">여기까지 머문 문장들을 잘 두었어요.</p>
+    <p class="beat-line" data-line="1">이제, 다음 분위기로.</p>
+  </div>
+
+  <!-- Grain -->
+  <div class="grain" aria-hidden="true"></div>
+
+  <script src="./script.js"></script>
+</body>
+</html>

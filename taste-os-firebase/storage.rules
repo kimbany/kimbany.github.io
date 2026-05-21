@@ -1,0 +1,16 @@
+rules_version = '2';
+
+// User-owned memory originals (images/screenshots) live under their own folder.
+// Vision analysis keeps only the emotional language; pixels stay here, private.
+service firebase.storage {
+  match /b/{bucket}/o {
+    match /memories/{uid}/{allPaths=**} {
+      allow read, write: if request.auth != null && request.auth.uid == uid
+        && request.resource.size < 12 * 1024 * 1024
+        && request.resource.contentType.matches('image/.*');
+    }
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}
