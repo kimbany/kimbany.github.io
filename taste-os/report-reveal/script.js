@@ -246,15 +246,12 @@
     const cta = $('[data-action="forward"]');
     if (!cta) return;
     cta.addEventListener('click', () => {
-      // In product, this would route to the dashboard.
-      // For the static preview, scroll back to top for a gentle re-read.
+      // walk into the quiet room (dashboard)
       cta.style.opacity = '0.4';
       cta.style.pointerEvents = 'none';
-      window.setTimeout(() => {
-        window.scrollTo({ top: 0, behavior: 'smooth' });
-        cta.style.opacity = '';
-        cta.style.pointerEvents = '';
-      }, 400);
+      document.body.style.transition = 'opacity 1.4s ease';
+      document.body.style.opacity = '0';
+      window.setTimeout(() => { window.location.href = '../home/'; }, 1400);
     });
   }
 

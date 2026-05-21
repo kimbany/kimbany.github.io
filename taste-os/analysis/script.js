@@ -283,9 +283,10 @@
     const beacon = $('[data-final-beacon]');
     if (!beacon) return;
     beacon.addEventListener('click', () => {
-      // In the real product this would route to /report.
-      // For the static preview, restart the cinematic.
-      window.location.reload();
+      // walk into the Taste Report
+      document.body.style.transition = 'opacity 1.4s ease';
+      document.body.style.opacity = '0';
+      window.setTimeout(() => { window.location.href = '../report-reveal/'; }, 1400);
     });
   }
 
