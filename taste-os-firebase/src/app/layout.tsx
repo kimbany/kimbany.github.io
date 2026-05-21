@@ -27,8 +27,20 @@ const sans = Inter({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000"),
   title: "Taste OS — 마음이 머무는 공기",
   description: "사람은 자신이 사랑하는 공기의 결을 닮아갑니다.",
+  openGraph: {
+    title: "Taste OS — 마음이 머무는 공기",
+    description: "조용히 들어와, 당신만의 분위기를 만나는 곳.",
+    type: "website",
+    locale: "ko_KR",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Taste OS",
+    description: "조용한 감정의 대기. 천천히 빠져드는 곳.",
+  },
 };
 
 export const viewport: Viewport = {
