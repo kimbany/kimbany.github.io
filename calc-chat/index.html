@@ -3,7 +3,18 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <title>계산기</title>
+  <title>Calculator</title>
+
+  <!-- 아이콘 / PWA (상대경로: 하위 폴더 + file:// 모두 호환) -->
+  <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png" />
+  <link rel="icon" type="image/png" sizes="16x16" href="icons/favicon-16.png" />
+  <link rel="icon" href="icons/favicon.ico" sizes="any" />
+  <link rel="apple-touch-icon" sizes="180x180" href="icons/icon-180.png" />
+  <link rel="manifest" href="manifest.json" />
+  <meta name="theme-color" content="#B4ABE8" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta name="apple-mobile-web-app-title" content="Calculator" />
 
   <!-- React 18 (UMD) + Babel: 빌드 없이 브라우저에서 JSX 실행 -->
   <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
@@ -37,9 +48,43 @@
     .neu        { box-shadow: 5px 5px 11px #d6d6e2, -5px -5px 11px #ffffff; }
     .neu-press  { box-shadow: inset 3px 3px 7px #d6d6e2, inset -3px -3px 7px #ffffff; }
     .op-shadow  { box-shadow: 4px 6px 14px rgba(139,127,216,0.45); }
+
+    /* 스플래시 */
+    #splash {
+      position: fixed; inset: 0; z-index: 50;
+      background: #F5F5FA;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      gap: 18px;
+      transition: opacity .4s ease;
+    }
+    #splash.hide { opacity: 0; pointer-events: none; }
+    #splash img {
+      width: 96px; height: 96px;
+      animation: splashIn .6s cubic-bezier(.2,.7,.3,1) both;
+    }
+    #splash .label { color: #9B9BA8; font-size: 15px; letter-spacing: .02em; }
+    @keyframes splashIn {
+      from { opacity: 0; transform: scale(.82); }
+      to   { opacity: 1; transform: scale(1); }
+    }
   </style>
 </head>
 <body>
+  <!-- 첫 진입 스플래시 (React/Babel 컴파일 대기까지 자연스럽게 가려줌) -->
+  <div id="splash">
+    <img src="icons/icon-192.png" alt="" />
+    <div class="label">Calculator</div>
+  </div>
+  <script>
+    // 최소 0.8초 노출 후 페이드아웃
+    window.addEventListener("load", function () {
+      setTimeout(function () {
+        var s = document.getElementById("splash");
+        if (s) { s.classList.add("hide"); setTimeout(function () { s.remove(); }, 450); }
+      }, 800);
+    });
+  </script>
+
   <div id="root"></div>
 
   <script type="text/babel">
@@ -67,10 +112,10 @@
         style = "bg-white text-subtle text-xl neu active:neu-press";
       } else if (kind.startsWith("op")) {
         style =
-          "text-white text-3xl op-shadow bg-gradient-to-b from-[#A89BE5] to-[#8B7FD8] active:scale-95";
+          "text-white text-3xl op-shadow bg-gradient-to-b from-[#BBB2EE] to-[#9C8FE2] active:scale-95";
       } else if (kind.startsWith("eq")) {
         style =
-          "text-white text-3xl op-shadow bg-gradient-to-b from-[#A89BE5] to-[#8B7FD8] active:scale-95";
+          "text-white text-3xl op-shadow bg-gradient-to-b from-[#BBB2EE] to-[#9C8FE2] active:scale-95";
       }
       return (
         <button className={`${base} ${style} ${wide ? "col-span-2 px-0" : ""}`}>
