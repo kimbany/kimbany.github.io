@@ -16,67 +16,51 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="apple-mobile-web-app-title" content="Calculator" />
 
-  <!-- React 18 (UMD) + Babel: 빌드 없이 브라우저에서 JSX 실행 -->
+  <!-- React 18 (UMD) + Babel -->
   <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
   <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+  <!-- Firebase (compat: 전역 firebase 사용, Babel 비모듈 환경과 호환) -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
 
   <!-- Tailwind (Play CDN) -->
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
     tailwind.config = {
-      theme: {
-        extend: {
-          colors: {
-            surface: "#F5F5FA",
-            charcoal: "#2D2D3A",
-            subtle: "#9B9BA8",
-            accentBlue: "#4A7FD8",
-          },
-          fontFamily: {
-            sans: ['-apple-system', 'BlinkMacSystemFont', '"Segoe UI"', 'Roboto', '"Apple SD Gothic Neo"', '"Noto Sans KR"', 'sans-serif'],
-          },
-        },
-      },
+      theme: { extend: {
+        colors: { surface: "#F5F5FA", charcoal: "#2D2D3A", subtle: "#9B9BA8", accentBlue: "#4A7FD8" },
+        fontFamily: { sans: ['-apple-system','BlinkMacSystemFont','"Segoe UI"','Roboto','"Apple SD Gothic Neo"','"Noto Sans KR"','sans-serif'] },
+      } },
     };
   </script>
   <style>
     html, body { margin: 0; height: 100%; }
-    /* 데스크탑에서 폰을 가운데 띄우기 위한 외곽 배경 */
     body { background: #E7E7EF; }
-    /* 뉴모피즘 그림자 (surface #F5F5FA 기준) */
     .neu        { box-shadow: 5px 5px 11px #d6d6e2, -5px -5px 11px #ffffff; }
     .neu-press  { box-shadow: inset 3px 3px 7px #d6d6e2, inset -3px -3px 7px #ffffff; }
     .op-shadow  { box-shadow: 4px 6px 14px rgba(139,127,216,0.45); }
 
-    /* 스플래시 */
     #splash {
-      position: fixed; inset: 0; z-index: 50;
-      background: #F5F5FA;
-      display: flex; flex-direction: column; align-items: center; justify-content: center;
-      gap: 18px;
+      position: fixed; inset: 0; z-index: 50; background: #F5F5FA;
+      display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px;
       transition: opacity .4s ease;
     }
     #splash.hide { opacity: 0; pointer-events: none; }
-    #splash img {
-      width: 96px; height: 96px;
-      animation: splashIn .6s cubic-bezier(.2,.7,.3,1) both;
-    }
+    #splash img { width: 96px; height: 96px; animation: splashIn .6s cubic-bezier(.2,.7,.3,1) both; }
     #splash .label { color: #9B9BA8; font-size: 15px; letter-spacing: .02em; }
-    @keyframes splashIn {
-      from { opacity: 0; transform: scale(.82); }
-      to   { opacity: 1; transform: scale(1); }
-    }
+    @keyframes splashIn { from { opacity: 0; transform: scale(.82); } to { opacity: 1; transform: scale(1); } }
+    .chat-input { background: transparent; border: none; outline: none; text-align: right; width: 100%; }
   </style>
 </head>
 <body>
-  <!-- 첫 진입 스플래시 (React/Babel 컴파일 대기까지 자연스럽게 가려줌) -->
   <div id="splash">
     <img src="icons/icon-192.png" alt="" />
     <div class="label">Calculator</div>
   </div>
   <script>
-    // 최소 0.8초 노출 후 페이드아웃
     window.addEventListener("load", function () {
       setTimeout(function () {
         var s = document.getElementById("splash");
@@ -88,122 +72,462 @@
   <div id="root"></div>
 
   <script type="text/babel">
-    const { useState } = React;
+    const { useState, useEffect, useRef, useCallback } = React;
 
-    // ── 버튼 정의 ────────────────────────────────────────────────
-    // kind: num | fn(보조) | op(연산) | eq(등호)
-    const ROWS = [
-      [["AC","fn"], ["+/−","fn"], ["%","fn"], ["÷","op"]],
-      [["7","num"], ["8","num"], ["9","num"], ["×","op"]],
-      [["4","num"], ["5","num"], ["6","num"], ["−","op"]],
-      [["1","num"], ["2","num"], ["3","num"], ["+","op"]],
-      [["0","num wide"], [".","num"], ["=","eq"]],
+    // ===================================================================
+    // 0. 로컬 저장
+    // ===================================================================
+    const LS = {
+      get(k, d) { try { const v = localStorage.getItem("cc." + k); return v == null ? d : JSON.parse(v); } catch { return d; } },
+      set(k, v) { try { localStorage.setItem("cc." + k, JSON.stringify(v)); } catch {} },
+    };
+
+    // ===================================================================
+    // 1. Firebase (calctalk-8f246 재사용) — 실패 시 로컬 데모로 폴백
+    // ===================================================================
+    const FB_CONFIG = {
+      apiKey: "AIzaSyAv2xVBOSULin_lEOqUTQUctwLtb9AaIgA",
+      authDomain: "calctalk-8f246.firebaseapp.com",
+      databaseURL: "https://calctalk-8f246-default-rtdb.asia-southeast1.firebasedatabase.app",
+      projectId: "calctalk-8f246",
+      storageBucket: "calctalk-8f246.firebasestorage.app",
+      messagingSenderId: "965854254383",
+      appId: "1:965854254383:web:8400ed7167eedc28e3fdda",
+    };
+    let _db = null, _auth = null, _fbOk = false;
+    function fbInit() {
+      if (_fbOk) return true;
+      try {
+        if (!firebase.apps.length) firebase.initializeApp(FB_CONFIG);
+        _auth = firebase.auth(); _db = firebase.database(); _fbOk = true;
+        return true;
+      } catch (e) { console.warn("[fb] init 실패 → 로컬 데모", e); return false; }
+    }
+    function fbSignIn() {
+      return new Promise((res, rej) => {
+        const off = _auth.onAuthStateChanged((u) => { if (u) { off(); res(u.uid); } });
+        _auth.signInAnonymously().catch(rej);
+      });
+    }
+    const TS = () => firebase.database.ServerValue.TIMESTAMP;
+
+    // ===================================================================
+    // 2. 위장(메시지 ↔ 계산식). 같은 메시지는 항상 같은 식. 로컬 매핑.
+    // ===================================================================
+    const SERIES = [
+      ["12,500,000 × 0.1 = 1,250,000","12,500,000 + 1,250,000 = 13,750,000","13,750,000 × 12 = 165,000,000","165,000,000 − 18,000,000 = 147,000,000","147,000,000 × 0.22 = 32,340,000"],
+      ["84,200,000 − 61,500,000 = 22,700,000","22,700,000 ÷ 84,200,000 = 0.2696","0.2696 × 100 = 26.96","84,200,000 × 0.15 = 12,630,000","22,700,000 − 12,630,000 = 10,070,000"],
+      ["48,000 + 12,500 = 60,500","60,500 + 33,000 = 93,500","93,500 × 0.1 = 9,350","93,500 − 9,350 = 84,150","84,150 ÷ 3 = 28,050"],
+      ["89,000 − 52,000 = 37,000","37,000 ÷ 89,000 = 0.4157","0.4157 × 100 = 41.57","89,000 × 0.7 = 62,300","89,000 − 62,300 = 26,700"],
+      ["1,200 × 1,342 = 1,610,400","1,610,400 ÷ 1,318 = 1,221.7","1,342 − 1,318 = 24","24 × 1,200 = 28,800","28,800 ÷ 1,610,400 = 0.0179"],
+      ["3,200,000 × 0.033 = 105,600","3,200,000 − 105,600 = 3,094,400","3,094,400 × 0.045 = 139,248","3,094,400 − 139,248 = 2,955,152","2,955,152 ÷ 30 = 98,505"],
     ];
+    function disguise(roomId, msgId) {
+      const key = "veil." + roomId;
+      const st = LS.get(key, { map: {}, sIdx: -1, step: 99 });
+      if (st.map[msgId]) { const { s, k } = st.map[msgId]; return SERIES[s][k]; }
+      let s = st.sIdx, k = st.step + 1;
+      if (s < 0 || k >= SERIES[s].length) { s = (st.sIdx + 1 + Math.floor(Math.random() * (SERIES.length - 1))) % SERIES.length; k = 0; }
+      st.map[msgId] = { s, k }; st.sIdx = s; st.step = k; LS.set(key, st);
+      return SERIES[s][k];
+    }
 
-    function Key({ label, kind }) {
-      const wide = kind.includes("wide");
-      const base =
-        "select-none flex items-center justify-center rounded-full text-2xl font-medium " +
-        "h-[68px] transition-transform duration-100 active:scale-95 cursor-pointer";
-      let style = "";
-      if (kind.startsWith("num")) {
-        style = "bg-white text-charcoal neu active:neu-press";
-      } else if (kind.startsWith("fn")) {
-        style = "bg-white text-subtle text-xl neu active:neu-press";
-      } else if (kind.startsWith("op")) {
-        style =
-          "text-white text-3xl op-shadow bg-gradient-to-b from-[#BBB2EE] to-[#9C8FE2] active:scale-95";
-      } else if (kind.startsWith("eq")) {
-        style =
-          "text-white text-3xl op-shadow bg-gradient-to-b from-[#BBB2EE] to-[#9C8FE2] active:scale-95";
+    // ===================================================================
+    // 3. 계산기 엔진 (식 기반, × ÷ 우선순위)
+    // ===================================================================
+    function evaluate(expr) {
+      const toks = expr.replace(/×/g, "*").replace(/÷/g, "/").replace(/−/g, "-").match(/(\d+\.?\d*|[+\-*/])/g);
+      if (!toks) return null;
+      const out = [], ops = [], prec = { "+": 1, "-": 1, "*": 2, "/": 2 };
+      for (const t of toks) {
+        if (/^\d/.test(t)) out.push(parseFloat(t));
+        else { while (ops.length && prec[ops[ops.length - 1]] >= prec[t]) out.push(ops.pop()); ops.push(t); }
       }
+      while (ops.length) out.push(ops.pop());
+      const st = [];
+      for (const t of out) {
+        if (typeof t === "number") st.push(t);
+        else { const b = st.pop(), a = st.pop(); if (a == null || b == null) return null;
+          st.push(t === "+" ? a + b : t === "-" ? a - b : t === "*" ? a * b : a / b); }
+      }
+      return st.length === 1 ? st[0] : null;
+    }
+    function fmt(n) {
+      if (n == null || !isFinite(n)) return "오류";
+      const r = Math.round(n * 1e8) / 1e8;
+      const [i, d] = String(r).split(".");
+      return Number(i).toLocaleString("en-US") + (d ? "." + d : "");
+    }
+
+    // ===================================================================
+    // 4. 아이콘
+    // ===================================================================
+    function CalcIcon({ a }) { const c = a ? "#8B7FD8" : "#C5C5D0"; return (
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+        <rect x="5" y="2.5" width="14" height="19" rx="3.5" stroke={c} strokeWidth="1.8"/>
+        <rect x="8" y="5.5" width="8" height="3.2" rx="1.2" stroke={c} strokeWidth="1.6"/>
+        {[13,17].map(y=>[9,12,15].map(x=><circle key={x+"-"+y} cx={x} cy={y} r="1" fill={c}/>))}
+      </svg>); }
+    function ChatIcon({ a }) { const c = a ? "#8B7FD8" : "#C5C5D0"; return (
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+        <path d="M4 6.5A2.5 2.5 0 0 1 6.5 4h11A2.5 2.5 0 0 1 20 6.5v7A2.5 2.5 0 0 1 17.5 16H9l-4 3.5V16H6.5A2.5 2.5 0 0 1 4 13.5z" stroke={c} strokeWidth="1.7" strokeLinejoin="round"/>
+      </svg>); }
+    function GearIcon({ a }) { const c = a ? "#8B7FD8" : "#C5C5D0"; return (
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+        <circle cx="12" cy="12" r="3" stroke={c} strokeWidth="1.8"/>
+        <path d="M12 2.5v2.2M12 19.3v2.2M21.5 12h-2.2M4.7 12H2.5M18.7 5.3l-1.6 1.6M6.9 17.1l-1.6 1.6M18.7 18.7l-1.6-1.6M6.9 6.9 5.3 5.3" stroke={c} strokeWidth="1.8" strokeLinecap="round"/>
+      </svg>); }
+
+    // ===================================================================
+    // 5. 키패드
+    // ===================================================================
+    const ROWS = [
+      [["AC","fn"],["+/−","fn"],["%","fn"],["÷","op"]],
+      [["7","num"],["8","num"],["9","num"],["×","op"]],
+      [["4","num"],["5","num"],["6","num"],["−","op"]],
+      [["1","num"],["2","num"],["3","num"],["+","op"]],
+      [["0","num wide"],[".","num"],["=","eq"]],
+    ];
+    function Key({ label, kind, onPress }) {
+      const wide = kind.includes("wide");
+      let style = "bg-white text-charcoal neu active:neu-press";
+      if (kind.startsWith("fn")) style = "bg-white text-subtle text-xl neu active:neu-press";
+      else if (kind.startsWith("op") || kind.startsWith("eq"))
+        style = "text-white text-3xl op-shadow bg-gradient-to-b from-[#BBB2EE] to-[#9C8FE2] active:scale-95";
       return (
-        <button className={`${base} ${style} ${wide ? "col-span-2 px-0" : ""}`}>
+        <button onClick={() => onPress(label)}
+          className={"select-none flex items-center justify-center rounded-full text-2xl font-medium h-[64px] " +
+            "transition-transform duration-100 active:scale-95 cursor-pointer " + style + (wide ? " col-span-2" : "")}>
           {label}
         </button>
       );
     }
 
-    // ── 하단 네비게이션 아이콘 ───────────────────────────────────
-    function CalcIcon({ active }) {
-      const c = active ? "#8B7FD8" : "#C5C5D0";
+    // ===================================================================
+    // 6. 메시지 버블 (탭 투 리빌)
+    // ===================================================================
+    function Bubble({ m, mine }) {
+      const [reveal, setReveal] = useState(false);
+      useEffect(() => { if (!reveal) return; const t = setTimeout(() => setReveal(false), 3000); return () => clearTimeout(t); }, [reveal]);
       return (
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
-          <rect x="5" y="2.5" width="14" height="19" rx="3.5" stroke={c} strokeWidth="1.8"/>
-          <rect x="8" y="5.5" width="8" height="3.2" rx="1.2" stroke={c} strokeWidth="1.6"/>
-          <circle cx="9" cy="13" r="1" fill={c}/><circle cx="12" cy="13" r="1" fill={c}/><circle cx="15" cy="13" r="1" fill={c}/>
-          <circle cx="9" cy="17" r="1" fill={c}/><circle cx="12" cy="17" r="1" fill={c}/><circle cx="15" cy="17" r="1" fill={c}/>
-        </svg>
-      );
-    }
-    function ClockIcon({ active }) {
-      const c = active ? "#8B7FD8" : "#C5C5D0";
-      return (
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
-          <path d="M3.5 12a8.5 8.5 0 1 0 2.6-6.1" stroke={c} strokeWidth="1.8" strokeLinecap="round"/>
-          <path d="M5.5 3v3.2h3.2" stroke={c} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
-          <path d="M12 8.2V12l2.6 1.6" stroke={c} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
-        </svg>
-      );
-    }
-    function GearIcon({ active }) {
-      const c = active ? "#8B7FD8" : "#C5C5D0";
-      return (
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
-          <circle cx="12" cy="12" r="3" stroke={c} strokeWidth="1.8"/>
-          <path d="M12 2.5v2.2M12 19.3v2.2M21.5 12h-2.2M4.7 12H2.5M18.7 5.3l-1.6 1.6M6.9 17.1l-1.6 1.6M18.7 18.7l-1.6-1.6M6.9 6.9 5.3 5.3"
-            stroke={c} strokeWidth="1.8" strokeLinecap="round"/>
-        </svg>
-      );
-    }
-
-    function NavButton({ children, active }) {
-      return (
-        <div className={"flex-1 flex items-center justify-center py-2 rounded-2xl " +
-          (active ? "bg-white neu" : "")}>
-          {children}
+        <div onClick={() => setReveal((r) => !r)}
+          className={"max-w-[80%] px-3 py-2 rounded-2xl text-sm cursor-pointer leading-snug break-words " +
+            (mine ? "self-end bg-[#E8E8F0] text-charcoal" : "self-start bg-[#FFF4E8] text-charcoal")}>
+          {reveal ? <span className="font-medium">{m.text}</span> : <span className="text-subtle">{m.veil}</span>}
         </div>
       );
     }
 
-    // ── 앱 본체 (1단계: 정적 디자인) ─────────────────────────────
+    // ===================================================================
+    // 7. 설정 패널
+    // ===================================================================
+    function Settings({ secret, onSecret, onCreate, onJoin, rooms, roomId, onSwitch, onClose, status }) {
+      const [code, setCode] = useState("");
+      const [sec, setSec] = useState(secret);
+      return (
+        <div className="absolute inset-0 bg-surface z-20 flex flex-col p-6 pt-12 gap-5 overflow-y-auto">
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-semibold text-charcoal">설정</h2>
+            <button onClick={onClose} className="text-subtle text-sm">닫기</button>
+          </div>
+
+          <div className="text-xs text-subtle">{status}</div>
+
+          <button onClick={onCreate}
+            className="w-full py-3 rounded-2xl text-white font-medium bg-gradient-to-b from-[#BBB2EE] to-[#9C8FE2] op-shadow">
+            + 친구 초대 (코드 생성)
+          </button>
+
+          <div className="bg-white rounded-2xl p-3 neu flex gap-2">
+            <input value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+              inputMode="numeric" placeholder="초대 코드 6자리"
+              className="flex-1 bg-transparent outline-none text-charcoal" />
+            <button onClick={() => { onJoin(code); setCode(""); }} className="text-[#8B7FD8] font-medium">입장</button>
+          </div>
+
+          {rooms.length > 0 && (
+            <div>
+              <div className="text-xs text-subtle mb-1">대화 (기록)</div>
+              <select value={roomId || ""} onChange={(e) => onSwitch(e.target.value)}
+                className="w-full bg-white neu rounded-2xl p-3 text-charcoal outline-none">
+                {rooms.map((r) => <option key={r.id} value={r.id}>{r.label}</option>)}
+              </select>
+            </div>
+          )}
+
+          <div className="bg-white rounded-2xl p-3 neu flex gap-2 items-center">
+            <span className="text-sm text-subtle">숨김 암호</span>
+            <input value={sec} onChange={(e) => setSec(e.target.value.replace(/\D/g, "").slice(0, 8))}
+              inputMode="numeric" className="flex-1 bg-transparent outline-none text-charcoal text-right" />
+            <button onClick={() => onSecret(sec)} className="text-[#8B7FD8] font-medium">저장</button>
+          </div>
+          <p className="text-[11px] text-subtle leading-relaxed">
+            계산기에서 <b>숨김 암호</b>를 누르고 <b>=</b> 를 누르면 채팅이 열립니다.
+            (예: 기본값 {secret} → <b>{secret}=</b>) · <b>0000=</b> 또는 계산기 탭으로 숨김 해제.
+          </p>
+        </div>
+      );
+    }
+
+    // ===================================================================
+    // 8. 앱 본체
+    // ===================================================================
     function App() {
-      // 1단계는 정적이라 이미지의 샘플 값을 그대로 표시
-      const [expr] = useState("128 + 64 × 2");
-      const [result] = useState("256");
+      // 계산기 상태
+      const [expr, setExpr] = useState("");        // 확정된 식 (연산자까지)
+      const [cur, setCur] = useState("0");          // 현재 입력 중 숫자
+      const [done, setDone] = useState(false);      // 직전 = 눌렀는지
+
+      // 모드/뷰
+      const [unlocked, setUnlocked] = useState(false);
+      const [view, setView] = useState("calc");     // calc | chat | settings
+
+      // 채팅 상태
+      const [secret, setSecret] = useState(() => LS.get("secret", "7777"));
+      const [rooms, setRooms] = useState(() => LS.get("rooms", []));
+      const [roomId, setRoomId] = useState(null);
+      const [msgs, setMsgs] = useState([]);
+      const [draft, setDraft] = useState("");
+      const [status, setStatus] = useState("");
+      const uidRef = useRef(null);
+      const subRef = useRef(null);
+      const listRef = useRef(null);
+      const inputRef = useRef(null);
+
+      useEffect(() => LS.set("rooms", rooms), [rooms]);
+      useEffect(() => LS.set("secret", secret), [secret]);
+      useEffect(() => { if (listRef.current) listRef.current.scrollTop = listRef.current.scrollHeight; }, [msgs]);
+      useEffect(() => { if (view === "chat" && inputRef.current) inputRef.current.focus(); }, [view]);
+
+      // ---- Firebase 로그인 (최초 1회, 채팅 진입 시) ----
+      const ensureFb = useCallback(async () => {
+        if (uidRef.current) return uidRef.current;
+        if (!fbInit()) { setStatus("오프라인 — 로컬 데모 모드"); return null; }
+        try {
+          const uid = await fbSignIn();
+          uidRef.current = uid; setStatus("연결됨");
+          return uid;
+        } catch (e) { setStatus("로그인 실패 — 로컬 데모 (" + (e.code || e.message) + ")"); return null; }
+      }, []);
+
+      // ---- 방 구독 ----
+      const subscribe = useCallback((id) => {
+        if (subRef.current) { try { subRef.current(); } catch {} subRef.current = null; }
+        setMsgs([]);
+        const uid = uidRef.current;
+        if (!_fbOk || !uid) {  // 로컬 데모
+          setMsgs(LS.get("localmsgs." + id, []));
+          return;
+        }
+        const seen = new Set();
+        const ref = _db.ref("messages/" + id).limitToLast(50);
+        const cb = ref.on("child_added", (snap) => {
+          if (seen.has(snap.key)) return; seen.add(snap.key);
+          const v = snap.val() || {};
+          setMsgs((prev) => [...prev, { id: snap.key, from: v.from, text: v.text, veil: disguise(id, snap.key) }]);
+        }, (err) => setStatus("읽기 실패: " + err.code));
+        subRef.current = () => ref.off("child_added", cb);
+      }, []);
+
+      const switchRoom = useCallback((id) => {
+        setRoomId(id); subscribe(id);
+      }, [subscribe]);
+
+      // ---- 채팅 진입 ----
+      const enterChat = useCallback(async () => {
+        setView("chat");
+        await ensureFb();
+        if (rooms.length === 0) { setStatus((s) => s || "초대 코드를 만들거나 입장하세요 (설정)"); return; }
+        const first = roomId || rooms[0].id;
+        switchRoom(first);
+      }, [ensureFb, rooms, roomId, switchRoom]);
+
+      // ---- 메시지 전송 ----
+      const sendMsg = useCallback(async () => {
+        const text = draft.trim(); if (!text || !roomId) return;
+        setDraft("");
+        const uid = uidRef.current;
+        if (_fbOk && uid) {
+          try {
+            const r = _db.ref("messages/" + roomId).push();
+            await r.set({ from: uid, text, timestamp: TS() });
+            _db.ref("rooms/" + roomId).update({ lastMessage: TS() });
+          } catch (e) { setStatus("전송 실패: " + (e.code || e.message)); }
+        } else {
+          const id = "l" + Date.now();
+          const m = { id, from: "me", text, veil: disguise(roomId, id) };
+          setMsgs((p) => { const n = [...p, m]; LS.set("localmsgs." + roomId, n); return n; });
+        }
+      }, [draft, roomId]);
+
+      // ---- 초대 코드 ----
+      const createRoom = useCallback(async () => {
+        const code = String(Math.floor(100000 + Math.random() * 900000));
+        const id = "room_" + code, label = "정산 기록 " + code;
+        const uid = await ensureFb();
+        if (_fbOk && uid) {
+          try {
+            await _db.ref("rooms/" + id).set({ members: { [uid]: true }, memberNicknames: { [uid]: "나" }, createdAt: TS() });
+            await _db.ref("inviteCodes/" + code).set({ creator: uid, roomId: id, createdAt: TS() });
+            await _db.ref("users/" + uid + "/rooms/" + id).set(true);
+          } catch (e) { setStatus("방 생성 실패: " + (e.code || e.message)); return; }
+        }
+        setRooms((p) => p.find((r) => r.id === id) ? p : [...p, { id, label }]);
+        switchRoom(id);
+        alert("초대 코드: " + code + "\n상대가 설정 → '코드로 입장'에 입력하면 연결됩니다.");
+      }, [ensureFb, switchRoom]);
+
+      const joinRoom = useCallback(async (code) => {
+        if (!/^\d{6}$/.test(code)) { alert("6자리 숫자 코드를 입력하세요."); return; }
+        const uid = await ensureFb();
+        if (_fbOk && uid) {
+          try {
+            const snap = await _db.ref("inviteCodes/" + code).once("value");
+            if (!snap.exists()) { alert("존재하지 않는 코드예요."); return; }
+            const id = snap.val().roomId;
+            await _db.ref("rooms/" + id + "/members").update({ [uid]: true });
+            await _db.ref("rooms/" + id + "/memberNicknames").update({ [uid]: "나" });
+            await _db.ref("users/" + uid + "/rooms/" + id).set(true);
+            setRooms((p) => p.find((r) => r.id === id) ? p : [...p, { id, label: "정산 기록 " + code }]);
+            switchRoom(id);
+            alert("입장 완료 ✓ (코드 " + code + ")");
+          } catch (e) { alert("입장 실패: " + (e.code || e.message)); }
+        } else {
+          const id = "room_" + code;
+          setRooms((p) => p.find((r) => r.id === id) ? p : [...p, { id, label: "정산 기록 " + code }]);
+          switchRoom(id);
+          alert("로컬 데모로 입장했어요 (오프라인).");
+        }
+      }, [ensureFb, switchRoom]);
+
+      // ---- 키패드 입력 (계산기 모드) ----
+      const press = useCallback((label) => {
+        // 채팅 모드에선 키패드도 메시지에 글자 추가 / = 전송
+        if (view === "chat") {
+          if (label === "=") { sendMsg(); return; }
+          if (label === "AC") { setDraft(""); return; }
+          if (label === "+/−" || label === "%") return;
+          setDraft((d) => d + label);
+          inputRef.current && inputRef.current.focus();
+          return;
+        }
+        // ---- 계산기 ----
+        if (label === "AC") { setExpr(""); setCur("0"); setDone(false); return; }
+        if (label === "+/−") { setCur((c) => (c.startsWith("-") ? c.slice(1) : c === "0" ? c : "-" + c)); return; }
+        if (label === "%") { setCur((c) => fmt(parseFloat(c.replace(/,/g, "")) / 100)); return; }
+        if (/[0-9]/.test(label)) {
+          if (done) { setExpr(""); setDone(false); setCur(label); return; }
+          setCur((c) => (c === "0" ? label : c.replace(/,/g, "") + label));
+          return;
+        }
+        if (label === ".") { setCur((c) => (c.includes(".") ? c : c + ".")); setDone(false); return; }
+        if (["+","−","×","÷"].includes(label)) {
+          setExpr((e) => (done ? cur : e + cur) + " " + label + " ");
+          setDone(false); setCur("0");
+          return;
+        }
+        if (label === "=") {
+          const raw = cur.replace(/,/g, "");
+          // 숨김 암호 감지
+          if (!expr && raw === secret) { setUnlocked(true); setCur("0"); enterChat(); return; }
+          if (unlocked && !expr && raw === "0000") { setUnlocked(false); setView("calc"); setCur("0"); return; }
+          const full = (expr + cur).trim();
+          const res = evaluate(full);
+          if (res != null) { setExpr(full + " ="); setCur(fmt(res)); setDone(true); }
+          return;
+        }
+      }, [view, sendMsg, done, cur, expr, secret, unlocked, enterChat]);
+
+      // ---- 물리 키보드 ----
+      useEffect(() => {
+        const onKey = (e) => {
+          if (view === "chat") {
+            if (e.key === "Enter") { e.preventDefault(); sendMsg(); }
+            return; // 입력은 input이 처리
+          }
+          const map = { "*": "×", "/": "÷", "-": "−", "Enter": "=", "=": "=", "Backspace": "AC" };
+          if (/[0-9.]/.test(e.key)) press(e.key);
+          else if (map[e.key]) press(map[e.key]);
+        };
+        window.addEventListener("keydown", onKey);
+        return () => window.removeEventListener("keydown", onKey);
+      }, [view, press, sendMsg]);
+
+      // ---- 표시값 ----
+      const topLine = view === "chat" ? "" : (expr || (done ? "" : "")) ;
 
       return (
         <div className="min-h-screen flex items-center justify-center p-4 font-sans">
-          {/* 모바일 프레임 */}
-          <div className="w-[375px] h-[760px] bg-surface rounded-[44px] shadow-2xl
-                          flex flex-col overflow-hidden ring-1 ring-black/5">
+          <div className="relative w-[375px] h-[760px] bg-surface rounded-[44px] shadow-2xl flex flex-col overflow-hidden ring-1 ring-black/5">
 
             {/* 디스플레이 */}
-            <div className="px-8 pt-20 pb-7 text-right">
-              <div className="text-[15px] text-subtle tracking-wide h-5">{expr}</div>
-              <div className="mt-2 text-[68px] leading-none font-light text-charcoal">{result}</div>
+            <div className="px-8 pt-16 pb-5 text-right">
+              <div className="text-[14px] text-subtle tracking-wide h-5 truncate">
+                {view === "chat" ? (roomId ? rooms.find(r=>r.id===roomId)?.label : "대화 없음") : topLine}
+              </div>
+              {view === "chat" ? (
+                <input ref={inputRef} value={draft} onChange={(e) => setDraft(e.target.value)}
+                  placeholder="메시지" inputMode="text"
+                  className="chat-input mt-2 text-[30px] leading-tight text-charcoal placeholder:text-[#cfcfd8] border-[1.5px] border-accentBlue rounded-xl px-3 py-1" />
+              ) : (
+                <div className="mt-2 text-[60px] leading-none font-light text-charcoal truncate">{cur}</div>
+              )}
             </div>
 
-            {/* 키패드 */}
-            <div className="px-6 pb-3 flex-1 flex flex-col justify-center">
-              <div className="grid grid-cols-4 gap-4">
-                {ROWS.flatMap((row, ri) =>
-                  row.map(([label, kind], ci) => (
-                    <Key key={`${ri}-${ci}`} label={label} kind={kind} />
-                  ))
-                )}
+            {/* 가운데: 계산기 키패드 또는 채팅 리스트 */}
+            {view === "chat" ? (
+              <div ref={listRef} className="flex-1 overflow-y-auto px-5 py-3 flex flex-col gap-2">
+                {msgs.length === 0 && <div className="text-center text-subtle text-xs mt-6">{status || "메시지를 입력해 보세요"}</div>}
+                {msgs.map((m) => <Bubble key={m.id} m={m} mine={m.from === "me" || m.from === uidRef.current} />)}
               </div>
-            </div>
+            ) : (
+              <div className="px-6 pb-2 flex-1 flex flex-col justify-center">
+                <div className="grid grid-cols-4 gap-4">
+                  {ROWS.flatMap((row, ri) => row.map(([label, kind], ci) =>
+                    <Key key={ri + "-" + ci} label={label} kind={kind} onPress={press} />))}
+                </div>
+              </div>
+            )}
+
+            {/* 채팅 모드 전용 전송 줄 */}
+            {view === "chat" && (
+              <div className="px-6 pb-1">
+                <button onClick={sendMsg}
+                  className="w-full py-3 rounded-2xl text-white font-medium bg-gradient-to-b from-[#BBB2EE] to-[#9C8FE2] op-shadow">
+                  전송
+                </button>
+              </div>
+            )}
 
             {/* 하단 네비게이션 */}
             <div className="px-7 pt-3 pb-7">
               <div className="border-t border-black/5 pt-3 flex items-center gap-3">
-                <NavButton active={true}><CalcIcon active={true} /></NavButton>
-                <NavButton active={false}><ClockIcon active={false} /></NavButton>
-                <NavButton active={false}><GearIcon active={false} /></NavButton>
+                <NavBtn active={view === "calc"} onClick={() => setView("calc")}><CalcIcon a={view === "calc"} /></NavBtn>
+                <NavBtn active={view === "chat"} onClick={() => { if (unlocked) enterChat(); }}><ChatIcon a={view === "chat"} /></NavBtn>
+                <NavBtn active={view === "settings"} onClick={() => { if (unlocked) setView("settings"); }}><GearIcon a={view === "settings"} /></NavBtn>
               </div>
             </div>
+
+            {/* 숨김 활성 표시 (아주 작은 점) */}
+            {unlocked && <div className="absolute top-4 right-5 w-1.5 h-1.5 rounded-full bg-[#B4ABE8]" />}
+
+            {/* 설정 패널 */}
+            {view === "settings" && (
+              <Settings secret={secret} onSecret={(s) => { setSecret(s || "7777"); }}
+                onCreate={createRoom} onJoin={joinRoom}
+                rooms={rooms} roomId={roomId} onSwitch={switchRoom}
+                status={status} onClose={() => setView("calc")} />
+            )}
           </div>
+        </div>
+      );
+    }
+
+    function NavBtn({ children, active, onClick }) {
+      return (
+        <div onClick={onClick}
+          className={"flex-1 flex items-center justify-center py-2 rounded-2xl cursor-pointer " + (active ? "bg-white neu" : "")}>
+          {children}
         </div>
       );
     }
