@@ -1,0 +1,169 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>계산기</title>
+
+  <!-- React 18 (UMD) + Babel: 빌드 없이 브라우저에서 JSX 실행 -->
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+  <!-- Tailwind (Play CDN) -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            surface: "#F5F5FA",
+            charcoal: "#2D2D3A",
+            subtle: "#9B9BA8",
+            accentBlue: "#4A7FD8",
+          },
+          fontFamily: {
+            sans: ['-apple-system', 'BlinkMacSystemFont', '"Segoe UI"', 'Roboto', '"Apple SD Gothic Neo"', '"Noto Sans KR"', 'sans-serif'],
+          },
+        },
+      },
+    };
+  </script>
+  <style>
+    html, body { margin: 0; height: 100%; }
+    /* 데스크탑에서 폰을 가운데 띄우기 위한 외곽 배경 */
+    body { background: #E7E7EF; }
+    /* 뉴모피즘 그림자 (surface #F5F5FA 기준) */
+    .neu        { box-shadow: 5px 5px 11px #d6d6e2, -5px -5px 11px #ffffff; }
+    .neu-press  { box-shadow: inset 3px 3px 7px #d6d6e2, inset -3px -3px 7px #ffffff; }
+    .op-shadow  { box-shadow: 4px 6px 14px rgba(139,127,216,0.45); }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState } = React;
+
+    // ── 버튼 정의 ────────────────────────────────────────────────
+    // kind: num | fn(보조) | op(연산) | eq(등호)
+    const ROWS = [
+      [["AC","fn"], ["+/−","fn"], ["%","fn"], ["÷","op"]],
+      [["7","num"], ["8","num"], ["9","num"], ["×","op"]],
+      [["4","num"], ["5","num"], ["6","num"], ["−","op"]],
+      [["1","num"], ["2","num"], ["3","num"], ["+","op"]],
+      [["0","num wide"], [".","num"], ["=","eq"]],
+    ];
+
+    function Key({ label, kind }) {
+      const wide = kind.includes("wide");
+      const base =
+        "select-none flex items-center justify-center rounded-full text-2xl font-medium " +
+        "h-[68px] transition-transform duration-100 active:scale-95 cursor-pointer";
+      let style = "";
+      if (kind.startsWith("num")) {
+        style = "bg-white text-charcoal neu active:neu-press";
+      } else if (kind.startsWith("fn")) {
+        style = "bg-white text-subtle text-xl neu active:neu-press";
+      } else if (kind.startsWith("op")) {
+        style =
+          "text-white text-3xl op-shadow bg-gradient-to-b from-[#A89BE5] to-[#8B7FD8] active:scale-95";
+      } else if (kind.startsWith("eq")) {
+        style =
+          "text-white text-3xl op-shadow bg-gradient-to-b from-[#A89BE5] to-[#8B7FD8] active:scale-95";
+      }
+      return (
+        <button className={`${base} ${style} ${wide ? "col-span-2 px-0" : ""}`}>
+          {label}
+        </button>
+      );
+    }
+
+    // ── 하단 네비게이션 아이콘 ───────────────────────────────────
+    function CalcIcon({ active }) {
+      const c = active ? "#8B7FD8" : "#C5C5D0";
+      return (
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+          <rect x="5" y="2.5" width="14" height="19" rx="3.5" stroke={c} strokeWidth="1.8"/>
+          <rect x="8" y="5.5" width="8" height="3.2" rx="1.2" stroke={c} strokeWidth="1.6"/>
+          <circle cx="9" cy="13" r="1" fill={c}/><circle cx="12" cy="13" r="1" fill={c}/><circle cx="15" cy="13" r="1" fill={c}/>
+          <circle cx="9" cy="17" r="1" fill={c}/><circle cx="12" cy="17" r="1" fill={c}/><circle cx="15" cy="17" r="1" fill={c}/>
+        </svg>
+      );
+    }
+    function ClockIcon({ active }) {
+      const c = active ? "#8B7FD8" : "#C5C5D0";
+      return (
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+          <path d="M3.5 12a8.5 8.5 0 1 0 2.6-6.1" stroke={c} strokeWidth="1.8" strokeLinecap="round"/>
+          <path d="M5.5 3v3.2h3.2" stroke={c} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+          <path d="M12 8.2V12l2.6 1.6" stroke={c} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+        </svg>
+      );
+    }
+    function GearIcon({ active }) {
+      const c = active ? "#8B7FD8" : "#C5C5D0";
+      return (
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+          <circle cx="12" cy="12" r="3" stroke={c} strokeWidth="1.8"/>
+          <path d="M12 2.5v2.2M12 19.3v2.2M21.5 12h-2.2M4.7 12H2.5M18.7 5.3l-1.6 1.6M6.9 17.1l-1.6 1.6M18.7 18.7l-1.6-1.6M6.9 6.9 5.3 5.3"
+            stroke={c} strokeWidth="1.8" strokeLinecap="round"/>
+        </svg>
+      );
+    }
+
+    function NavButton({ children, active }) {
+      return (
+        <div className={"flex-1 flex items-center justify-center py-2 rounded-2xl " +
+          (active ? "bg-white neu" : "")}>
+          {children}
+        </div>
+      );
+    }
+
+    // ── 앱 본체 (1단계: 정적 디자인) ─────────────────────────────
+    function App() {
+      // 1단계는 정적이라 이미지의 샘플 값을 그대로 표시
+      const [expr] = useState("128 + 64 × 2");
+      const [result] = useState("256");
+
+      return (
+        <div className="min-h-screen flex items-center justify-center p-4 font-sans">
+          {/* 모바일 프레임 */}
+          <div className="w-[375px] h-[760px] bg-surface rounded-[44px] shadow-2xl
+                          flex flex-col overflow-hidden ring-1 ring-black/5">
+
+            {/* 디스플레이 */}
+            <div className="px-8 pt-20 pb-7 text-right">
+              <div className="text-[15px] text-subtle tracking-wide h-5">{expr}</div>
+              <div className="mt-2 text-[68px] leading-none font-light text-charcoal">{result}</div>
+            </div>
+
+            {/* 키패드 */}
+            <div className="px-6 pb-3 flex-1 flex flex-col justify-center">
+              <div className="grid grid-cols-4 gap-4">
+                {ROWS.flatMap((row, ri) =>
+                  row.map(([label, kind], ci) => (
+                    <Key key={`${ri}-${ci}`} label={label} kind={kind} />
+                  ))
+                )}
+              </div>
+            </div>
+
+            {/* 하단 네비게이션 */}
+            <div className="px-7 pt-3 pb-7">
+              <div className="border-t border-black/5 pt-3 flex items-center gap-3">
+                <NavButton active={true}><CalcIcon active={true} /></NavButton>
+                <NavButton active={false}><ClockIcon active={false} /></NavButton>
+                <NavButton active={false}><GearIcon active={false} /></NavButton>
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+  </script>
+</body>
+</html>
