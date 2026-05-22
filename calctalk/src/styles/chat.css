@@ -21,6 +21,10 @@
 .chat-list { flex: 1; overflow-y: auto; padding: 8px 12px; display: flex;
   flex-direction: column; gap: 6px; }
 
+.chat-empty { color: #999; font-size: 12px; line-height: 1.5; padding: 12px 4px;
+  text-align: center; }
+body.os-mac .chat-empty { color: #888; }
+
 /* 메시지: 계산기 기록처럼 보이는 우측 정렬 텍스트 */
 .msg { font-size: 14px; line-height: 1.4; cursor: pointer; max-width: 85%;
   padding: 2px 0; color: #555; word-break: break-word; }

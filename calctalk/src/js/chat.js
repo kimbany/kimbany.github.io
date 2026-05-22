@@ -71,13 +71,26 @@ export class ChatController {
     this.buildUI();
     await this.loadRooms();
     if (this.rooms.length === 0) {
-      // 데모/첫 진입: 임시 방 하나 보장
+      if (isConfigured() && this.getUid()) {
+        // Firebase 모드 첫 진입: 가짜 방 대신 안내 (가짜 demo_room은 권한이 없어 빈 화면)
+        this.renderRoomOptions();
+        this._renderEmptyState();
+        return;
+      }
+      // 데모(오프라인) 모드: 임시 방 하나 보장
       const demo = { id: "demo_room", label: "정산 기록" };
       this.rooms = [demo];
       await this._saveRooms();
     }
     this.renderRoomOptions();
     await this.switchRoom(this.rooms[0].id);
+  }
+
+  // Firebase 모드인데 방이 없을 때: 메뉴로 유도
+  _renderEmptyState() {
+    this.roomId = null;
+    this.listEl.innerHTML =
+      `<div class="chat-empty">⋯ 를 눌러 &ldquo;새 친구&rdquo;로 코드를 만들거나, &ldquo;코드로 입장&rdquo;하세요.</div>`;
   }
 
   async loadRooms() {
@@ -190,7 +203,7 @@ export class ChatController {
   // ---- 초대 코드 (6자리) ----
   async createRoom() {
     const code = String(Math.floor(100000 + Math.random() * 900000));
-    const label = "정산 기록"; // "기록"처럼 위장된 방 이름
+    const label = roomLabel(code); // "정산 기록 123456"처럼 위장 + 방마다 구분
     const id = "room_" + code;
 
     if (isConfigured() && this.getUid()) {
@@ -237,10 +250,12 @@ export class ChatController {
         await update(ref(db, `rooms/${id}/members`), { [uid]: true });
         await update(ref(db, `rooms/${id}/memberNicknames`), { [uid]: this.getNickname() });
         await set(ref(db, `users/${uid}/rooms/${id}`), true);
-        if (!this.rooms.find((r) => r.id === id)) this.rooms.push({ id, label: "정산 기록" });
+        const isNew = !this.rooms.find((r) => r.id === id);
+        if (isNew) this.rooms.push({ id, label: roomLabel(code) });
         await this._saveRooms();
         this.renderRoomOptions();
         await this.switchRoom(id);
+        alert(isNew ? `입장 완료 ✓ (코드 ${code})` : `이미 입장한 기록이에요 (코드 ${code})`);
       } catch (e) {
         alert("입장 실패: " + (e && e.message ? e.message : e) +
           "\n\nFirebase 보안 규칙을 최신으로 게시했는지 확인하세요.");
@@ -249,10 +264,15 @@ export class ChatController {
       alert("Firebase 로그인이 안 됐어요. 콘솔에서 '익명 로그인'을 켰는지 확인하세요.");
     } else {
       const id = "room_" + code;
-      if (!this.rooms.find((r) => r.id === id)) this.rooms.push({ id, label: "정산 기록" });
+      if (!this.rooms.find((r) => r.id === id)) this.rooms.push({ id, label: roomLabel(code) });
       await this._saveRooms();
       this.renderRoomOptions();
       await this.switchRoom(id);
     }
   }
+}
+
+// "정산 기록"으로 위장하되 코드를 붙여 방마다 구분 가능하게
+function roomLabel(code) {
+  return "정산 기록 " + code;
 }
