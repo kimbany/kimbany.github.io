@@ -196,16 +196,25 @@ export class ChatController {
     if (isConfigured() && this.getUid()) {
       const { db } = getFirebase();
       const uid = this.getUid();
-      await set(ref(db, `rooms/${id}`), {
-        members: { [uid]: true },
-        memberNicknames: { [uid]: this.getNickname() },
-        createdAt: serverTimestamp(),
-      });
-      await set(ref(db, `inviteCodes/${code}`), {
-        creator: uid, roomId: id, createdAt: serverTimestamp(),
-        expiresAt: Date.now() + 24 * 3600 * 1000, used: false,
-      });
-      await set(ref(db, `users/${uid}/rooms/${id}`), true);
+      try {
+        await set(ref(db, `rooms/${id}`), {
+          members: { [uid]: true },
+          memberNicknames: { [uid]: this.getNickname() },
+          createdAt: serverTimestamp(),
+        });
+        await set(ref(db, `inviteCodes/${code}`), {
+          creator: uid, roomId: id, createdAt: serverTimestamp(),
+          expiresAt: Date.now() + 24 * 3600 * 1000, used: false,
+        });
+        await set(ref(db, `users/${uid}/rooms/${id}`), true);
+      } catch (e) {
+        alert("방 생성 실패: " + (e && e.message ? e.message : e) +
+          "\n\nFirebase 콘솔에서 보안 규칙을 게시했는지 확인하세요.");
+        return;
+      }
+    } else if (isConfigured()) {
+      alert("Firebase 로그인이 안 됐어요. 콘솔에서 '익명 로그인'을 켰는지 확인하세요.");
+      return;
     }
     this.rooms.push({ id, label });
     await this._saveRooms();
@@ -216,25 +225,34 @@ export class ChatController {
 
   async joinByCode() {
     const code = (prompt("초대 코드 6자리") || "").trim();
-    if (!/^\d{6}$/.test(code)) return;
+    if (!/^\d{6}$/.test(code)) { alert("6자리 숫자 코드를 입력하세요."); return; }
 
     if (isConfigured() && this.getUid()) {
       const { db } = getFirebase();
       const uid = this.getUid();
-      const snap = await get(ref(db, `inviteCodes/${code}`));
-      if (!snap.exists()) { alert("존재하지 않는 코드"); return; }
-      const inv = snap.val();
-      const id = inv.roomId;
-      await update(ref(db, `rooms/${id}/members`), { [uid]: true });
-      await update(ref(db, `rooms/${id}/memberNicknames`), { [uid]: this.getNickname() });
-      await set(ref(db, `users/${uid}/rooms/${id}`), true);
-      if (!this.rooms.find((r) => r.id === id)) this.rooms.push({ id, label: "정산 기록" });
+      try {
+        const snap = await get(ref(db, `inviteCodes/${code}`));
+        if (!snap.exists()) { alert("존재하지 않는 코드예요. 상대가 만든 코드가 맞는지 확인하세요."); return; }
+        const id = snap.val().roomId;
+        await update(ref(db, `rooms/${id}/members`), { [uid]: true });
+        await update(ref(db, `rooms/${id}/memberNicknames`), { [uid]: this.getNickname() });
+        await set(ref(db, `users/${uid}/rooms/${id}`), true);
+        if (!this.rooms.find((r) => r.id === id)) this.rooms.push({ id, label: "정산 기록" });
+        await this._saveRooms();
+        this.renderRoomOptions();
+        await this.switchRoom(id);
+      } catch (e) {
+        alert("입장 실패: " + (e && e.message ? e.message : e) +
+          "\n\nFirebase 보안 규칙을 최신으로 게시했는지 확인하세요.");
+      }
+    } else if (isConfigured()) {
+      alert("Firebase 로그인이 안 됐어요. 콘솔에서 '익명 로그인'을 켰는지 확인하세요.");
     } else {
       const id = "room_" + code;
       if (!this.rooms.find((r) => r.id === id)) this.rooms.push({ id, label: "정산 기록" });
+      await this._saveRooms();
+      this.renderRoomOptions();
+      await this.switchRoom(id);
     }
-    await this._saveRooms();
-    this.renderRoomOptions();
-    await this.switchRoom("room_" + code);
   }
 }

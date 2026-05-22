@@ -9,7 +9,17 @@
     "rooms": {
       "$roomId": {
         ".read": "data.child('members').child(auth.uid).val() === true",
-        ".write": "data.child('members').child(auth.uid).val() === true || !data.exists()"
+        ".write": "data.child('members').child(auth.uid).val() === true || !data.exists()",
+        "members": {
+          "$memberUid": {
+            ".write": "auth != null && $memberUid === auth.uid"
+          }
+        },
+        "memberNicknames": {
+          "$memberUid": {
+            ".write": "auth != null && $memberUid === auth.uid"
+          }
+        }
       }
     },
     "roomUserState": {
