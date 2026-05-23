@@ -9,6 +9,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=Pretendard:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <script src="https://t1.kakaocdn.net/kakao_js_sdk/2.7.2/kakao.min.js"></script>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
@@ -738,7 +739,49 @@ const firebaseConfig = {
 };
 firebase.initializeApp(firebaseConfig);
 const auth = firebase.auth();
+const db = firebase.firestore();
 let currentUser = null;
+
+// 내 노래 Firestore에서 가져오기 (uid 기준, 최신순)
+async function fetchMySongs() {
+  if (!currentUser) return [];
+  try {
+    const snap = await db.collection('songs').where('uid', '==', currentUser.uid).get();
+    const arr = snap.docs.map(d => {
+      const x = d.data();
+      return { id: d.id, ...x, createdAt: (x.createdAt && x.createdAt.toDate) ? x.createdAt.toDate().toISOString() : (x.createdAt || new Date().toISOString()) };
+    });
+    arr.sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
+    return arr;
+  } catch (e) {
+    console.warn('fetchMySongs fail', e);
+    return [];
+  }
+}
+
+// 노래 Firestore에 저장 -> 문서 id 반환
+async function saveSong(song) {
+  if (!currentUser) return null;
+  try {
+    const ref = await db.collection('songs').add({
+      uid: currentUser.uid,
+      title: song.title || '',
+      lyrics: song.lyrics || '',
+      name: song.name || '',
+      relationship: song.relationship || '',
+      keywords: song.keywords || '',
+      genre: song.genre || '',
+      gender: song.gender || '',
+      lang: song.lang || '',
+      audioUrl: song.audioUrl || '',
+      createdAt: firebase.firestore.FieldValue.serverTimestamp()
+    });
+    return ref.id;
+  } catch (e) {
+    console.warn('saveSong fail', e);
+    return null;
+  }
+}
 
 // === 카카오 SDK 초기화 ===
 const KAKAO_JS_KEY = '16969f6e49aa409a9ebebe6af1a88554';
@@ -750,6 +793,7 @@ auth.onAuthStateChanged(user => {
   currentUser = user;
   if (user) STATE.userId = user.uid;
   updateAuthUI();
+  loadHistory();
 });
 
 function loginGoogle() {
@@ -807,9 +851,11 @@ function goHome() {
   loadHistory();
 }
 
-function renderMyList() {
-  const history = JSON.parse(localStorage.getItem('songHistory') || '[]');
+async function renderMyList() {
   const c = document.getElementById('myListContainer');
+  if (!c) return;
+  c.innerHTML = '<div style="color:var(--text-dim);text-align:center;padding:48px 0;">불러오는 중...</div>';
+  const history = await fetchMySongs();
   if (history.length === 0) {
     c.innerHTML = '<div style="color:var(--text-dim);text-align:center;padding:48px 0;">아직 만든 곡이 없어요 🎵</div>';
     return;
@@ -821,7 +867,7 @@ function renderMyList() {
         <div class="history-name">${escapeHtml(song.title)}</div>
         <div class="history-meta">${escapeHtml(song.name)} · ${GENRE_NAMES[song.genre] || song.genre} · ${formatDate(song.createdAt)}</div>
       </div>
-      <button class="history-delete" onclick="event.stopPropagation(); deleteSong('${song.id}'); renderMyList();">×</button>
+      <button class="history-delete" onclick="event.stopPropagation(); deleteSong('${song.id}')">×</button>
     </div>
   `).join('');
 }
@@ -960,7 +1006,7 @@ async function startGeneration() {
     setProgress(100, '완성!', '잠시만요...');
 
     STATE.currentSong = {
-      id: Date.now().toString(),
+      id: null,
       title: lyricsData.title,
       lyrics: lyricsData.lyrics,
       name, relationship, keywords, genre,
@@ -970,7 +1016,8 @@ async function startGeneration() {
       createdAt: new Date().toISOString()
     };
 
-    saveSongToHistory(STATE.currentSong);
+    const savedId = await saveSong(STATE.currentSong);
+    if (savedId) STATE.currentSong.id = savedId;
     setTimeout(() => showResult(), 600);
   } catch (err) {
     console.error('Generation error:', err);
@@ -1152,25 +1199,20 @@ function newSong() {
   loadHistory();
 }
 
-function saveSongToHistory(song) {
-  const history = JSON.parse(localStorage.getItem('songHistory') || '[]');
-  history.unshift(song);
-  if (history.length > 20) history.length = 20;
-  localStorage.setItem('songHistory', JSON.stringify(history));
-}
-
 const GENRE_EMOJI = {
   hiphop: '🔥', ballad: '💧', trot: '🎙️', kpop: '⭐',
   rock: '🎸', kids: '🌈', lofi: '☁️'
 };
 
-function loadHistory() {
-  const history = JSON.parse(localStorage.getItem('songHistory') || '[]');
+async function loadHistory() {
   const section = document.getElementById('historySection');
   const list = document.getElementById('historyList');
-  if (history.length === 0) { section.style.display = 'none'; return; }
+  if (!section || !list) return;
+  if (!currentUser) { section.style.display = 'none'; return; }
+  const history = await fetchMySongs();
+  if (!history.length) { section.style.display = 'none'; return; }
   section.style.display = 'block';
-  list.innerHTML = history.map((song, idx) => `
+  list.innerHTML = history.slice(0, 5).map((song, idx) => `
     <div class="history-item" onclick="loadSong('${song.id}')">
       <div class="history-avatar ${AVATAR_COLORS[idx % 4]}">${GENRE_EMOJI[song.genre] || '🎵'}</div>
       <div class="history-content">
@@ -1182,27 +1224,35 @@ function loadHistory() {
   `).join('');
 }
 
-function loadSong(id) {
-  const history = JSON.parse(localStorage.getItem('songHistory') || '[]');
-  const song = history.find(s => s.id === id);
-  if (song) {
-    STATE.currentSong = song;
-    showResult();
+async function loadSong(id) {
+  try {
+    const doc = await db.collection('songs').doc(id).get();
+    if (doc.exists) {
+      const x = doc.data();
+      STATE.currentSong = { id: doc.id, ...x, createdAt: (x.createdAt && x.createdAt.toDate) ? x.createdAt.toDate().toISOString() : (x.createdAt || new Date().toISOString()) };
+      showResult();
+    } else {
+      showToast('노래를 찾을 수 없어요');
+    }
+  } catch (e) {
+    console.warn('loadSong fail', e);
+    showToast('노래를 불러오지 못했어요');
   }
 }
 
-function deleteSong(id) {
+async function deleteSong(id) {
   if (!confirm('이 노래를 삭제할까요?')) return;
-  const history = JSON.parse(localStorage.getItem('songHistory') || '[]');
-  const filtered = history.filter(s => s.id !== id);
-  localStorage.setItem('songHistory', JSON.stringify(filtered));
-  loadHistory();
+  try { await db.collection('songs').doc(id).delete(); } catch (e) { console.warn('delete fail', e); }
+  await loadHistory();
+  const mylist = document.getElementById('screen-mylist');
+  if (mylist && mylist.classList.contains('active')) renderMyList();
 }
 
-function clearAllHistory() {
+async function clearAllHistory() {
   if (!confirm('모든 노래 기록을 삭제할까요?')) return;
-  localStorage.removeItem('songHistory');
-  loadHistory();
+  const songs = await fetchMySongs();
+  await Promise.all(songs.map(s => db.collection('songs').doc(s.id).delete().catch(() => {})));
+  await loadHistory();
 }
 
 function formatDate(iso) {
@@ -1260,19 +1310,27 @@ function copyLyrics() {
   });
 }
 
+// 공유 듣기 페이지 URL (같은 폴더의 share.html?id=...)
+function getShareUrl(id) {
+  const dir = location.origin + location.pathname.substring(0, location.pathname.lastIndexOf('/') + 1);
+  return dir + 'share.html?id=' + id;
+}
+
 async function shareKakao() {
   if (!STATE.currentSong) return;
   const s = STATE.currentSong;
   const genreName = GENRE_NAMES[s.genre] || s.genre;
+  // 공유 링크: 노래 id 있으면 듣기 페이지, 없으면 오디오 직링크
+  const listenUrl = s.id ? getShareUrl(s.id) : s.audioUrl;
 
-  // 1순위: 카카오톡 공유창 (SDK + 도메인 등록 + 오디오 링크 필요)
-  if (window.Kakao && Kakao.isInitialized() && s.audioUrl) {
+  // 1순위: 카카오톡 공유창
+  if (window.Kakao && Kakao.isInitialized() && listenUrl) {
     const snippet = (s.lyrics || '').replace(/\[.*?\]/g, '').replace(/\s+/g, ' ').trim().slice(0, 70);
     try {
       Kakao.Share.sendDefault({
         objectType: 'text',
         text: `🎤 ${s.title}\n[${genreName} · ${s.name}에게]\n\n${snippet}...\n\n친놀송으로 만든 디스곡 🎵`,
-        link: { mobileWebUrl: s.audioUrl, webUrl: s.audioUrl },
+        link: { mobileWebUrl: listenUrl, webUrl: listenUrl },
         buttonTitle: '🎧 노래 듣기'
       });
       return;
@@ -1282,7 +1340,7 @@ async function shareKakao() {
   }
 
   // 폴백: Web Share API / 복사
-  const text = `🎤 ${s.title}\n[${genreName} · ${s.name}에게]\n\n${s.lyrics}\n\n🎵 노래 듣기: ${s.audioUrl}\n\n— 친놀송으로 만들었어요`;
+  const text = `🎤 ${s.title}\n[${genreName} · ${s.name}에게]\n\n${s.lyrics}\n\n🎵 노래 듣기: ${listenUrl}\n\n— 친놀송으로 만들었어요`;
   if (navigator.share) {
     try {
       await navigator.share({ title: s.title, text: text });
