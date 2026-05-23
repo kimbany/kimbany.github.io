@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>친놀송 🎤 AI 친구 놀리는 노래</title>
+<title>Diss4U 🎤 AI 친구 놀리는 노래</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=Pretendard:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -527,8 +527,8 @@
     <div class="header-left">
       <div class="header-orb"></div>
       <div>
-        <div class="brand">친놀송</div>
-        <div class="brand-en">CHINOLSONG · AI</div>
+        <div class="brand">Diss4U</div>
+        <div class="brand-en">This Song 4 U · AI</div>
       </div>
     </div>
     <div class="header-right">
@@ -1296,7 +1296,7 @@ async function downloadSong() {
 
 function copyLyrics() {
   if (!STATE.currentSong) return;
-  const text = `🎤 ${STATE.currentSong.title}\n[${GENRE_NAMES[STATE.currentSong.genre]}]\n\n${STATE.currentSong.lyrics}\n\n— 친놀송으로 만들었어요`;
+  const text = `🎤 ${STATE.currentSong.title}\n[${GENRE_NAMES[STATE.currentSong.genre]}]\n\n${STATE.currentSong.lyrics}\n\n— Diss4U로 만들었어요`;
   navigator.clipboard.writeText(text).then(() => {
     showToast('✓ 가사가 복사됐어요');
   }).catch(() => {
@@ -1329,7 +1329,7 @@ async function shareKakao() {
     try {
       Kakao.Share.sendDefault({
         objectType: 'text',
-        text: `🎤 ${s.title}\n[${genreName} · ${s.name}에게]\n\n${snippet}...\n\n친놀송으로 만든 디스곡 🎵`,
+        text: `🎤 ${s.title}\n[${genreName} · ${s.name}에게]\n\n${snippet}...\n\nDiss4U로 만든 디스곡 🎵`,
         link: { mobileWebUrl: listenUrl, webUrl: listenUrl },
         buttonTitle: '🎧 노래 듣기'
       });
@@ -1340,7 +1340,7 @@ async function shareKakao() {
   }
 
   // 폴백: Web Share API / 복사
-  const text = `🎤 ${s.title}\n[${genreName} · ${s.name}에게]\n\n${s.lyrics}\n\n🎵 노래 듣기: ${listenUrl}\n\n— 친놀송으로 만들었어요`;
+  const text = `🎤 ${s.title}\n[${genreName} · ${s.name}에게]\n\n${s.lyrics}\n\n🎵 노래 듣기: ${listenUrl}\n\n— Diss4U로 만들었어요`;
   if (navigator.share) {
     try {
       await navigator.share({ title: s.title, text: text });

@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>친놀송 🎤 공유된 노래</title>
+<title>Diss4U 🎤 공유된 노래</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=Pretendard:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
@@ -33,7 +33,7 @@
 </head>
 <body>
 <div class="wrap">
-  <div class="brand">친놀송<small>CHINOLSONG · AI</small></div>
+  <div class="brand">Diss4U<small>This Song 4 U · AI</small></div>
   <div id="content">
     <div class="state"><div class="spin"></div>노래 불러오는 중...</div>
   </div>
@@ -77,7 +77,7 @@ async function load() {
       ${s.audioUrl ? `<div class="player"><audio controls autoplay src="${esc(s.audioUrl)}"></audio></div>` : '<div class="player" style="color:var(--dim);font-size:13px;">오디오를 불러올 수 없어요 (링크 만료)</div>'}
       <div class="sec">가사</div>
       <div class="lyrics">${esc(s.lyrics)}</div>
-      <a class="cta" href="${appHomeUrl()}">🎤 나도 친놀송 만들기</a>
+      <a class="cta" href="${appHomeUrl()}">🎤 나도 Diss4U 만들기</a>
     `;
   } catch (e) {
     console.warn(e);
