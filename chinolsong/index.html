@@ -472,6 +472,14 @@
     transition: all 0.15s;
   }
   .auth-btn:hover { box-shadow: 0 4px 16px rgba(212, 255, 58, 0.4); }
+  .credit-badge {
+    display: none; align-items: center; gap: 4px;
+    background: var(--bg-card); border: 1px solid var(--lime);
+    color: var(--lime); border-radius: 999px; padding: 7px 12px;
+    font-weight: 700; font-size: 13px; cursor: pointer; flex-shrink: 0;
+    transition: all 0.15s;
+  }
+  .credit-badge:hover { box-shadow: 0 4px 16px rgba(212, 255, 58, 0.3); }
   .auth-user {
     width: 34px; height: 34px; border-radius: 50%; overflow: hidden;
     cursor: pointer; border: 2px solid var(--lime); flex-shrink: 0;
@@ -532,6 +540,7 @@
       </div>
     </div>
     <div class="header-right">
+      <div class="credit-badge" id="creditBadge" onclick="onCreditBadgeClick()" title="내 크레딧">💎 <span id="creditCount">0</span></div>
       <button class="auth-btn" id="loginBtn" onclick="loginGoogle()" style="display:none;">로그인</button>
       <div class="auth-user" id="authUser" onclick="toggleProfileMenu(event)" title="내 메뉴" style="display:none;">
         <img id="authPhoto" src="" alt="프로필">
@@ -827,7 +836,46 @@ auth.onAuthStateChanged(user => {
   if (user) STATE.userId = user.uid;
   updateAuthUI();
   loadHistory();
+  fetchCredits();
 });
+
+// 서버에서 내 크레딧 잔액 조회 → UI 갱신
+async function fetchCredits() {
+  if (!currentUser) { STATE.credits = null; updateCreditUI(); return; }
+  try {
+    const token = await currentUser.getIdToken();
+    const r = await fetch(getWorkerUrl() + '/me', { headers: { 'Authorization': 'Bearer ' + token } });
+    if (!r.ok) return;
+    const d = await r.json();
+    STATE.creditsEnabled = !!d.enabled;
+    STATE.credits = (typeof d.credits === 'number') ? d.credits : null;
+    STATE.costPerSong = d.cost || 10;
+    updateCreditUI();
+  } catch (e) { console.warn('fetchCredits fail', e); }
+}
+
+function updateCreditUI() {
+  const badge = document.getElementById('creditBadge');
+  const count = document.getElementById('creditCount');
+  if (!badge || !count) return;
+  // 크레딧이 켜져 있고 로그인 상태일 때만 표시
+  if (currentUser && STATE.creditsEnabled && typeof STATE.credits === 'number') {
+    count.textContent = STATE.credits;
+    badge.style.display = 'flex';
+    const usage = document.querySelector('.usage-info');
+    if (usage) usage.textContent = `💎 보유 ${STATE.credits}p · 1곡 = ${STATE.costPerSong}p`;
+  } else {
+    badge.style.display = 'none';
+  }
+}
+
+function onCreditBadgeClick() {
+  if (STATE.credits != null && STATE.credits < STATE.costPerSong) {
+    showToast('💎 크레딧이 부족해요 — 충전 기능 준비중이에요');
+  } else {
+    showToast(`💎 보유 크레딧 ${STATE.credits}p (1곡 ${STATE.costPerSong}p)`);
+  }
+}
 
 function loginGoogle() {
   const provider = new firebase.auth.GoogleAuthProvider();
@@ -914,6 +962,9 @@ const STATE = {
   pollInterval: null,
   userId: null,
   isDev: false,
+  credits: null,        // null = 크레딧 비활성(레거시) 또는 미조회
+  costPerSong: 10,
+  creditsEnabled: false,
 };
 
 const GENRE_NAMES = {
@@ -994,6 +1045,10 @@ function saveSettings() {
 
 async function startGeneration() {
   if (!currentUser) { showError('노래 만들려면 구글 로그인 먼저!'); loginGoogle(); return; }
+  if (STATE.creditsEnabled && STATE.credits != null && STATE.credits < STATE.costPerSong) {
+    showError('💎 크레딧이 부족해요. (충전 기능은 곧 추가돼요)');
+    return;
+  }
   const name = document.getElementById('targetName').value.trim();
   const relationship = document.getElementById('relationship').value.trim();
   const keywords = document.getElementById('keywords').value.trim();
@@ -1051,6 +1106,7 @@ async function startGeneration() {
 
     const savedId = await saveSong(STATE.currentSong);
     if (savedId) STATE.currentSong.id = savedId;
+    fetchCredits();
     setTimeout(() => showResult(), 600);
   } catch (err) {
     console.error('Generation error:', err);
@@ -1066,18 +1122,32 @@ function cancelGeneration() {
 }
 
 async function callWorker(path, body) {
+  const headers = {
+    'Content-Type': 'application/json',
+    'X-User-Id': STATE.userId
+  };
+  if (currentUser) {
+    try { headers['Authorization'] = 'Bearer ' + (await currentUser.getIdToken()); } catch (e) {}
+  }
   const response = await fetch(getWorkerUrl() + path, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'X-User-Id': STATE.userId
-    },
+    headers,
     body: JSON.stringify(body)
   });
 
   if (response.status === 429) {
     const err = await response.json().catch(() => ({ message: '사용량 한도 초과' }));
     throw new Error('⏰ ' + (err.message || '사용량 한도 초과'));
+  }
+
+  if (response.status === 401) {
+    throw new Error('로그인이 필요해요. 다시 로그인해주세요.');
+  }
+
+  if (response.status === 402) {
+    const err = await response.json().catch(() => ({}));
+    if (typeof err.credits === 'number') { STATE.credits = err.credits; updateCreditUI(); }
+    throw new Error('💎 크레딧이 부족해요. (충전 기능은 곧 추가돼요)');
   }
 
   if (!response.ok) {

@@ -2,14 +2,125 @@
 // Cloudflare Worker -> Node http 서버로 이전. 출구 IP가 미국(Render)이라 Claude/Gemini 차단 없음.
 // 환경변수: ANTHROPIC_API_KEY, SOLAR_API_KEY, GEMINI_API_KEY, APIFRAME_API_KEY
 import http from 'node:http';
+import admin from 'firebase-admin';
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type, X-User-Id',
+  'Access-Control-Allow-Headers': 'Content-Type, X-User-Id, Authorization',
   'Access-Control-Max-Age': '86400',
   'Content-Type': 'application/json'
 };
+
+// ===== 크레딧 시스템 =====
+const COST_PER_SONG = 10;   // 곡 1개 = 10포인트
+const SIGNUP_BONUS = 20;    // 신규가입 보너스 = 20포인트(2곡)
+
+// firebase-admin 초기화 (FIREBASE_SERVICE_ACCOUNT 없으면 레거시 모드)
+let CREDITS_ENABLED = false;
+let fdb = null;
+try {
+  const svc = process.env.FIREBASE_SERVICE_ACCOUNT;
+  if (svc) {
+    const cred = JSON.parse(svc);
+    if (cred.private_key && cred.private_key.includes('\\n')) {
+      cred.private_key = cred.private_key.replace(/\\n/g, '\n');
+    }
+    admin.initializeApp({ credential: admin.credential.cert(cred) });
+    fdb = admin.firestore();
+    CREDITS_ENABLED = true;
+    console.log('✅ 크레딧 시스템 활성화 (firebase-admin)');
+  } else {
+    console.warn('⚠️ FIREBASE_SERVICE_ACCOUNT 미설정 — 크레딧 비활성(레거시 무제한 모드)');
+  }
+} catch (e) {
+  console.error('❌ firebase-admin 초기화 실패 — 레거시 모드로 동작:', e.message);
+}
+
+// Authorization: Bearer <idToken> 검증 → uid 반환 (실패시 null)
+async function verifyAuth(req) {
+  if (!CREDITS_ENABLED) return null;
+  const h = req.headers['authorization'] || req.headers['Authorization'] || '';
+  const m = /^Bearer (.+)$/.exec(h);
+  if (!m) return null;
+  try {
+    const decoded = await admin.auth().verifyIdToken(m[1]);
+    return decoded.uid;
+  } catch (e) {
+    return null;
+  }
+}
+
+// 유저 문서 조회 (없으면 신규 보너스 지급하며 생성)
+async function getOrCreateUser(uid) {
+  const ref = fdb.collection('users').doc(uid);
+  const snap = await ref.get();
+  if (!snap.exists) {
+    await ref.set({
+      credits: SIGNUP_BONUS,
+      createdAt: admin.firestore.FieldValue.serverTimestamp()
+    });
+    return { credits: SIGNUP_BONUS };
+  }
+  return snap.data() || { credits: 0 };
+}
+
+// 트랜잭션으로 크레딧 차감 ({ ok, credits })
+async function chargeCredits(uid, amount) {
+  const ref = fdb.collection('users').doc(uid);
+  return fdb.runTransaction(async (t) => {
+    const snap = await t.get(ref);
+    let credits = snap.exists ? (snap.data().credits || 0) : SIGNUP_BONUS;
+    if (credits < amount) return { ok: false, credits };
+    credits -= amount;
+    t.set(ref, {
+      credits,
+      updatedAt: admin.firestore.FieldValue.serverTimestamp()
+    }, { merge: true });
+    return { ok: true, credits };
+  });
+}
+
+// 크레딧 환불(증가)
+async function refundCredits(uid, amount) {
+  try {
+    await fdb.collection('users').doc(uid).set({
+      credits: admin.firestore.FieldValue.increment(amount)
+    }, { merge: true });
+  } catch (e) { console.warn('refund fail', e.message); }
+}
+
+// 작업(job) 기록 — 비동기 생성 실패 시 1회만 환불하기 위함
+async function recordJob(jobId, uid, cost) {
+  if (!fdb || !jobId) return;
+  try {
+    await fdb.collection('jobs').doc(String(jobId)).set({
+      uid, cost, status: 'pending',
+      createdAt: admin.firestore.FieldValue.serverTimestamp()
+    });
+  } catch (e) { console.warn('recordJob fail', e.message); }
+}
+
+// 비동기 생성 실패 시 환불(중복 방지). 성공 시 done 마킹.
+async function settleJob(jobId, outcome) {
+  if (!fdb || !jobId) return;
+  const ref = fdb.collection('jobs').doc(String(jobId));
+  try {
+    await fdb.runTransaction(async (t) => {
+      const snap = await t.get(ref);
+      if (!snap.exists) return;
+      const j = snap.data();
+      if (j.status !== 'pending') return; // 이미 정산됨
+      if (outcome === 'failed') {
+        const uref = fdb.collection('users').doc(j.uid);
+        t.set(uref, { credits: admin.firestore.FieldValue.increment(j.cost || 0) }, { merge: true });
+        t.update(ref, { status: 'refunded' });
+      } else {
+        t.update(ref, { status: 'done' });
+      }
+    });
+  } catch (e) { console.warn('settleJob fail', e.message); }
+}
 
 function send(res, status, obj) {
   res.writeHead(status, CORS);
@@ -248,13 +359,25 @@ const server = http.createServer(async (req, res) => {
 
   if (path === '/' || path === '/health') {
     return send(res, 200, {
-      status: 'OK', service: 'chinolsong-proxy-node', version: '6.0',
+      status: 'OK', service: 'chinolsong-proxy-node', version: '7.0',
       providers: ['claude', 'solar', 'gemini'],
       has_anthropic_key: !!process.env.ANTHROPIC_API_KEY,
       has_solar_key: !!process.env.SOLAR_API_KEY,
       has_gemini_key: !!process.env.GEMINI_API_KEY,
-      has_apiframe_key: !!process.env.APIFRAME_API_KEY
+      has_apiframe_key: !!process.env.APIFRAME_API_KEY,
+      credits_enabled: CREDITS_ENABLED,
+      cost_per_song: COST_PER_SONG,
+      signup_bonus: SIGNUP_BONUS
     });
+  }
+
+  // 내 크레딧 조회 (없으면 신규 보너스 지급)
+  if (path === '/me') {
+    if (!CREDITS_ENABLED) return send(res, 200, { enabled: false, credits: null, cost: COST_PER_SONG });
+    const uid = await verifyAuth(req);
+    if (!uid) return send(res, 401, { error: 'auth_required', message: '로그인이 필요해요' });
+    const u = await getOrCreateUser(uid);
+    return send(res, 200, { enabled: true, credits: u.credits || 0, cost: COST_PER_SONG });
   }
 
   if (path === '/claude-test') {
@@ -273,6 +396,15 @@ const server = http.createServer(async (req, res) => {
   }
 
   if (path === '/generate-lyrics' && req.method === 'POST') {
+    // 크레딧 켜져 있으면: 로그인 필수 + 잔액 확인(차감은 곡 생성에서)
+    if (CREDITS_ENABLED) {
+      const uid = await verifyAuth(req);
+      if (!uid) return send(res, 401, { error: 'auth_required', message: '로그인이 필요해요' });
+      const u = await getOrCreateUser(uid);
+      if ((u.credits || 0) < COST_PER_SONG) {
+        return send(res, 402, { error: 'insufficient_credits', message: '크레딧이 부족해요', credits: u.credits || 0, cost: COST_PER_SONG });
+      }
+    }
     const params = await readBody(req);
     if (!params.name || !params.keywords) return send(res, 400, { error: '필수 항목 누락' });
     const prompt = buildPrompt(params);
@@ -289,20 +421,65 @@ const server = http.createServer(async (req, res) => {
   }
 
   if (path === '/generate-song' && req.method === 'POST') {
+    // 크레딧 켜져 있으면: 로그인 필수 + 트랜잭션 차감(실패 시 환불)
+    let uid = null;
+    if (CREDITS_ENABLED) {
+      uid = await verifyAuth(req);
+      if (!uid) return send(res, 401, { error: 'auth_required', message: '로그인이 필요해요' });
+      const charge = await chargeCredits(uid, COST_PER_SONG);
+      if (!charge.ok) {
+        return send(res, 402, { error: 'insufficient_credits', message: '크레딧이 부족해요', credits: charge.credits, cost: COST_PER_SONG });
+      }
+    }
+
     const { lyrics, title, style } = await readBody(req);
-    if (!lyrics || !title || !style) return send(res, 400, { error: '필수 항목 누락' });
-    const r = await fetch('https://api.apiframe.ai/v2/music/generate', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-API-Key': process.env.APIFRAME_API_KEY },
-      body: JSON.stringify({ model: 'suno', prompt: lyrics, sunoParams: { custom_mode: true, title, style, model_version: 'V5' } })
-    });
-    return send(res, r.status, await r.text());
+    if (!lyrics || !title || !style) {
+      if (uid) await refundCredits(uid, COST_PER_SONG);
+      return send(res, 400, { error: '필수 항목 누락' });
+    }
+
+    let r, text;
+    try {
+      r = await fetch('https://api.apiframe.ai/v2/music/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-API-Key': process.env.APIFRAME_API_KEY },
+        body: JSON.stringify({ model: 'suno', prompt: lyrics, sunoParams: { custom_mode: true, title, style, model_version: 'V5' } })
+      });
+      text = await r.text();
+    } catch (e) {
+      if (uid) await refundCredits(uid, COST_PER_SONG);
+      return send(res, 502, { error: 'apiframe_unreachable', message: '노래 생성 서버 연결 실패' });
+    }
+
+    if (!r.ok) {
+      // 제출 실패 → 즉시 환불
+      if (uid) await refundCredits(uid, COST_PER_SONG);
+      return send(res, r.status, text);
+    }
+
+    // 제출 성공 → jobId 기록(비동기 실패 시 1회 환불용)
+    if (uid) {
+      let jobId = null;
+      try { const j = JSON.parse(text); jobId = j.jobId || j.job_id || j.id || (j.data && (j.data.jobId || j.data.job_id || j.data.id)); } catch (e) {}
+      if (jobId) await recordJob(jobId, uid, COST_PER_SONG);
+    }
+    return send(res, r.status, text);
   }
 
   if (path.startsWith('/song-status/')) {
     const jobId = path.replace('/song-status/', '');
     const r = await fetch(`https://api.apiframe.ai/v2/jobs/${jobId}`, { headers: { 'X-API-Key': process.env.APIFRAME_API_KEY } });
-    return send(res, r.status, await r.text());
+    const text = await r.text();
+    // 상태에 따라 job 정산(실패 시 환불, 성공 시 done) — CREDITS_ENABLED일 때만
+    if (CREDITS_ENABLED && r.ok) {
+      try {
+        const d = JSON.parse(text);
+        const st = (d.status || (d.data && d.data.status) || '').toUpperCase();
+        if (st === 'FAILED' || st === 'ERROR') await settleJob(jobId, 'failed');
+        else if (st === 'COMPLETED' || st === 'FINISHED' || st === 'SUCCESS') await settleJob(jobId, 'done');
+      } catch (e) {}
+    }
+    return send(res, r.status, text);
   }
 
   return send(res, 404, { error: 'Invalid path' });
