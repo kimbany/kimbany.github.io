@@ -1390,7 +1390,7 @@ async function shareKakao() {
 const VIDEO = {
   blob: null, blobUrl: null,
   audioCtx: null, srcNode: null, recorder: null,
-  raf: null, stopTimer: null, active: false
+  raf: null, drawTimer: null, stopTimer: null, active: false
 };
 const VIDEO_PALETTE = ['#d4ff3a', '#a3e5ff', '#c5a3ff', '#ffb3d9'];
 
@@ -1434,6 +1434,7 @@ function closeVideoModal() {
   // 생성 중이면 정리
   VIDEO.active = false;
   if (VIDEO.raf) cancelAnimationFrame(VIDEO.raf);
+  if (VIDEO.drawTimer) { clearInterval(VIDEO.drawTimer); VIDEO.drawTimer = null; }
   if (VIDEO.stopTimer) clearTimeout(VIDEO.stopTimer);
   try { if (VIDEO.recorder && VIDEO.recorder.state === 'recording') VIDEO.recorder.stop(); } catch (e) {}
   try { if (VIDEO.srcNode) VIDEO.srcNode.stop(); } catch (e) {}
@@ -1485,7 +1486,7 @@ function drawVideoFrame(ctx, W, H, freq, lines, elapsed, duration, song) {
   ctx.fillRect(0, 0, W, H);
 
   // 원형 비주얼라이저 바
-  const bars = 72;
+  const bars = 48;
   ctx.lineCap = 'round';
   for (let i = 0; i < bars; i++) {
     const idx = Math.floor(i / bars * (bins * 0.7));
@@ -1623,8 +1624,8 @@ async function makeInstaVideo() {
   srcNode.connect(ctxA.destination);
   VIDEO.srcNode = srcNode;
 
-  // 3) 캔버스 + 스트림 합치기
-  const W = 720, H = 1280;
+  // 3) 캔버스 + 스트림 합치기 (모바일 부하 줄이려 540x960)
+  const W = 540, H = 960;
   canvasEl.width = W; canvasEl.height = H;
   const ctx = canvasEl.getContext('2d');
   const videoStream = canvasEl.captureStream(30);
@@ -1635,7 +1636,7 @@ async function makeInstaVideo() {
 
   let recorder;
   try {
-    recorder = mime ? new MediaRecorder(mixed, { mimeType: mime, videoBitsPerSecond: 4500000 })
+    recorder = mime ? new MediaRecorder(mixed, { mimeType: mime, videoBitsPerSecond: 3000000 })
                     : new MediaRecorder(mixed);
   } catch (e) {
     recorder = new MediaRecorder(mixed);
@@ -1645,32 +1646,37 @@ async function makeInstaVideo() {
   recorder.ondataavailable = e => { if (e.data && e.data.size) chunks.push(e.data); };
   const finished = new Promise(res => { recorder.onstop = res; });
 
-  // 4) 그리기 루프
+  // 4) 그리기 루프 — rAF 대신 setInterval + 오디오 시계.
+  //    모바일에서 rAF가 중간에 멈춰 화면이 얼어붙는 문제를 피하고,
+  //    한 프레임이 에러나도 try/catch로 루프가 죽지 않게 한다.
   VIDEO.active = true;
-  let startTs = null;
-  function frame(ts) {
-    if (!VIDEO.active) return;
-    if (startTs === null) startTs = ts;
-    const elapsed = (ts - startTs) / 1000;
-    analyser.getByteFrequencyData(freq);
-    drawVideoFrame(ctx, W, H, freq, lines, elapsed, duration, song);
-    setVideoStatus('영상 만드는 중... ' + Math.round(Math.min(elapsed / duration, 1) * 100) + '% (' + Math.ceil(duration) + '초)', Math.min(elapsed / duration, 1));
-    if (elapsed < duration && recorder.state === 'recording') {
-      VIDEO.raf = requestAnimationFrame(frame);
-    }
-  }
-
   try { await ctxA.resume(); } catch (e) {}
   recorder.start();
   srcNode.start();
-  VIDEO.raf = requestAnimationFrame(frame);
+  const startAudioTime = ctxA.currentTime;
+
+  function stopDraw() {
+    if (VIDEO.drawTimer) { clearInterval(VIDEO.drawTimer); VIDEO.drawTimer = null; }
+  }
+  VIDEO.drawTimer = setInterval(() => {
+    if (!VIDEO.active) { stopDraw(); return; }
+    const elapsed = ctxA.currentTime - startAudioTime;
+    try {
+      analyser.getByteFrequencyData(freq);
+      drawVideoFrame(ctx, W, H, freq, lines, elapsed, duration, song);
+    } catch (e) { console.warn('frame err', e); }
+    const pct = Math.min(elapsed / duration, 1);
+    setVideoStatus('영상 만드는 중... ' + Math.round(pct * 100) + '% (' + Math.ceil(duration) + '초)', pct);
+    if (elapsed >= duration) stopDraw();
+  }, 33);
 
   srcNode.onended = () => {
-    if (VIDEO.raf) cancelAnimationFrame(VIDEO.raf);
+    stopDraw();
     if (recorder.state === 'recording') { try { recorder.stop(); } catch (e) {} }
   };
   // 안전 타이머
   VIDEO.stopTimer = setTimeout(() => {
+    stopDraw();
     if (recorder.state === 'recording') { try { recorder.stop(); } catch (e) {} }
   }, (duration + 2) * 1000);
 
