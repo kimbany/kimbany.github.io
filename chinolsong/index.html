@@ -686,6 +686,12 @@
     <div class="section-title">가사</div>
     <div class="lyrics-box" id="lyricsBox"></div>
 
+    <button class="btn-primary" id="instaVideoBtn" onclick="makeInstaVideo()"
+      style="margin-bottom:12px;background:linear-gradient(135deg,var(--purple) 0%,var(--pink) 100%);color:#1a1a1f;box-shadow:0 8px 30px rgba(197,163,255,.35);">
+      <span class="btn-mic" style="color:var(--purple);">📹</span>
+      <span>인스타용 영상 만들기</span>
+    </button>
+
     <div class="action-grid">
       <button class="btn-secondary" onclick="downloadSong()">⬇️ MP3 받기</button>
       <button class="btn-secondary" onclick="shareKakao()">💬 공유하기</button>
@@ -720,6 +726,33 @@
       <button class="btn-secondary" onclick="closeSettings()">취소</button>
       <button class="btn-secondary" onclick="saveSettings()" style="background: var(--lime); color: #1a1a1f; border-color: var(--lime); font-weight: 700;">저장</button>
     </div>
+  </div>
+</div>
+
+<!-- ===== INSTA VIDEO MODAL ===== -->
+<div class="modal-overlay" id="videoModal">
+  <div class="modal" style="max-width:360px;">
+    <div class="modal-title" id="videoModalTitle">📹 인스타용 영상</div>
+    <div class="modal-desc" id="videoStatus" style="margin-bottom:14px;">준비 중...</div>
+
+    <div id="videoCanvasWrap" style="display:flex;justify-content:center;margin-bottom:14px;">
+      <canvas id="videoCanvas" style="width:200px;height:356px;border-radius:16px;background:#000;border:1px solid var(--border);"></canvas>
+    </div>
+
+    <video id="videoPreview" controls playsinline webkit-playsinline
+      style="display:none;width:100%;border-radius:16px;margin-bottom:14px;background:#000;"></video>
+
+    <div class="progress-track" id="videoProgressTrack">
+      <div class="progress-fill" id="videoProgress"></div>
+    </div>
+
+    <div class="action-grid" id="videoActions" style="margin-top:18px;display:none;">
+      <button class="btn-secondary" onclick="shareInstaVideo()"
+        style="background:var(--lime);color:#1a1a1f;border-color:var(--lime);font-weight:700;">📤 공유하기</button>
+      <button class="btn-secondary" onclick="downloadInstaVideo()">⬇️ 저장</button>
+    </div>
+
+    <button class="btn-secondary" id="videoCloseBtn" onclick="closeVideoModal()" style="margin-top:10px;width:100%;">닫기</button>
   </div>
 </div>
 
@@ -1351,6 +1384,357 @@ async function shareKakao() {
     copyLyrics();
     showToast('✓ 복사완료! 카톡에 붙여넣으세요');
   }
+}
+
+// ===================== 인스타용 영상 만들기 =====================
+const VIDEO = {
+  blob: null, blobUrl: null,
+  audioCtx: null, srcNode: null, recorder: null,
+  raf: null, stopTimer: null, active: false
+};
+const VIDEO_PALETTE = ['#d4ff3a', '#a3e5ff', '#c5a3ff', '#ffb3d9'];
+
+// 가사를 화면에 띄울 줄 단위로 정리 ([Intro] 등 섹션태그 제거)
+function parseLyricLines(raw) {
+  if (!raw) return [];
+  return raw.split('\n')
+    .map(l => l.replace(/\[[^\]]*\]/g, '').trim())
+    .filter(l => l.length > 0);
+}
+
+function pickVideoMime() {
+  if (typeof MediaRecorder === 'undefined') return null;
+  const cands = [
+    'video/mp4;codecs=h264,aac', 'video/mp4',
+    'video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus', 'video/webm'
+  ];
+  for (const c of cands) {
+    try { if (MediaRecorder.isTypeSupported(c)) return c; } catch (e) {}
+  }
+  return '';
+}
+
+function setVideoStatus(msg, pct) {
+  document.getElementById('videoStatus').textContent = msg;
+  if (typeof pct === 'number') {
+    document.getElementById('videoProgress').style.width = Math.round(pct * 100) + '%';
+  }
+}
+
+function openVideoModal() {
+  document.getElementById('videoActions').style.display = 'none';
+  document.getElementById('videoPreview').style.display = 'none';
+  document.getElementById('videoCanvasWrap').style.display = 'flex';
+  document.getElementById('videoProgressTrack').style.display = 'block';
+  document.getElementById('videoProgress').style.width = '0%';
+  document.getElementById('videoModal').classList.add('active');
+}
+
+function closeVideoModal() {
+  // 생성 중이면 정리
+  VIDEO.active = false;
+  if (VIDEO.raf) cancelAnimationFrame(VIDEO.raf);
+  if (VIDEO.stopTimer) clearTimeout(VIDEO.stopTimer);
+  try { if (VIDEO.recorder && VIDEO.recorder.state === 'recording') VIDEO.recorder.stop(); } catch (e) {}
+  try { if (VIDEO.srcNode) VIDEO.srcNode.stop(); } catch (e) {}
+  try { if (VIDEO.audioCtx && VIDEO.audioCtx.state !== 'closed') VIDEO.audioCtx.close(); } catch (e) {}
+  VIDEO.recorder = null; VIDEO.srcNode = null; VIDEO.audioCtx = null;
+  const v = document.getElementById('videoPreview');
+  v.pause(); v.removeAttribute('src'); v.load();
+  document.getElementById('videoModal').classList.remove('active');
+}
+
+function wrapText(ctx, text, maxWidth) {
+  const words = text.split(/\s+/);
+  const lines = [];
+  let cur = '';
+  for (const w of words) {
+    const test = cur ? cur + ' ' + w : w;
+    if (ctx.measureText(test).width > maxWidth && cur) {
+      lines.push(cur); cur = w;
+    } else { cur = test; }
+  }
+  if (cur) lines.push(cur);
+  return lines;
+}
+
+function drawVideoFrame(ctx, W, H, freq, lines, elapsed, duration, song) {
+  // 배경
+  const bg = ctx.createLinearGradient(0, 0, 0, H);
+  bg.addColorStop(0, '#0d0d10');
+  bg.addColorStop(1, '#16161c');
+  ctx.fillStyle = bg;
+  ctx.fillRect(0, 0, W, H);
+
+  // 오디오 에너지
+  let bass = 0, total = 0;
+  const bins = freq.length;
+  for (let i = 0; i < bins; i++) { total += freq[i]; if (i < 10) bass += freq[i]; }
+  bass = (bass / 10) / 255;       // 0~1
+  const energy = (total / bins) / 255;
+
+  const cx = W / 2, cy = H * 0.40;
+  const rot = elapsed * 0.6;
+  const orbR = 140 * (1 + bass * 0.45);
+
+  // 외곽 글로우
+  const glow = ctx.createRadialGradient(cx, cy, orbR * 0.3, cx, cy, orbR * 2.4);
+  glow.addColorStop(0, 'rgba(197,163,255,' + (0.18 + energy * 0.25) + ')');
+  glow.addColorStop(1, 'rgba(13,13,16,0)');
+  ctx.fillStyle = glow;
+  ctx.fillRect(0, 0, W, H);
+
+  // 원형 비주얼라이저 바
+  const bars = 72;
+  ctx.lineCap = 'round';
+  for (let i = 0; i < bars; i++) {
+    const idx = Math.floor(i / bars * (bins * 0.7));
+    const v = freq[idx] / 255;
+    const len = 16 + v * 150;
+    const ang = (i / bars) * Math.PI * 2 + rot;
+    const r0 = orbR + 16;
+    const x0 = cx + Math.cos(ang) * r0, y0 = cy + Math.sin(ang) * r0;
+    const x1 = cx + Math.cos(ang) * (r0 + len), y1 = cy + Math.sin(ang) * (r0 + len);
+    ctx.strokeStyle = VIDEO_PALETTE[i % VIDEO_PALETTE.length];
+    ctx.lineWidth = 5;
+    ctx.globalAlpha = 0.45 + v * 0.55;
+    ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke();
+  }
+  ctx.globalAlpha = 1;
+
+  // 중앙 오브
+  const og = ctx.createRadialGradient(
+    cx - orbR * 0.3, cy - orbR * 0.3, orbR * 0.1, cx, cy, orbR);
+  og.addColorStop(0, '#eaffb0');
+  og.addColorStop(0.45, '#a3e5ff');
+  og.addColorStop(1, '#c5a3ff');
+  ctx.fillStyle = og;
+  ctx.beginPath(); ctx.arc(cx, cy, orbR, 0, Math.PI * 2); ctx.fill();
+  // 안쪽 어둠 + 이모지
+  ctx.font = (orbR * 0.9) + 'px sans-serif';
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText('🎤', cx, cy + orbR * 0.04);
+
+  // 상단 제목
+  ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+  ctx.fillStyle = '#ffffff';
+  ctx.font = '700 44px "Black Han Sans", Pretendard, sans-serif';
+  const titleLines = wrapText(ctx, song.title || '', W * 0.86);
+  let ty = 70;
+  for (const tl of titleLines.slice(0, 2)) { ctx.fillText(tl, cx, ty); ty += 54; }
+  ctx.font = '600 22px Pretendard, sans-serif';
+  ctx.fillStyle = '#8a8a99';
+  ctx.fillText('🎯 ' + (song.name || '') + ' 에게', cx, ty + 6);
+
+  // 현재 가사 한 줄 (곡 길이에 맞춰 고르게 전환)
+  if (lines.length) {
+    const slot = duration / lines.length;
+    const li = Math.min(Math.floor(elapsed / slot), lines.length - 1);
+    const within = (elapsed - li * slot) / slot;
+    let alpha = 1;
+    if (within < 0.15) alpha = within / 0.15;
+    else if (within > 0.85) alpha = (1 - within) / 0.15;
+    alpha = Math.max(0, Math.min(1, alpha));
+
+    const text = lines[li];
+    let fs = text.length > 24 ? 40 : 50;
+    ctx.font = '800 ' + fs + 'px Pretendard, sans-serif';
+    let wrapped = wrapText(ctx, text, W * 0.84);
+    if (wrapped.length > 3) { fs = 34; ctx.font = '800 ' + fs + 'px Pretendard, sans-serif'; wrapped = wrapText(ctx, text, W * 0.84); }
+
+    const lineH = fs * 1.3;
+    const blockH = wrapped.length * lineH;
+    let lyY = H * 0.74 - blockH / 2;
+    ctx.globalAlpha = alpha;
+    ctx.textBaseline = 'top';
+    for (const wl of wrapped) {
+      ctx.lineWidth = 8; ctx.strokeStyle = 'rgba(0,0,0,0.55)';
+      ctx.strokeText(wl, cx, lyY);
+      ctx.fillStyle = '#ffffff';
+      ctx.fillText(wl, cx, lyY);
+      lyY += lineH;
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  // 워터마크
+  ctx.font = '700 26px "Black Han Sans", Pretendard, sans-serif';
+  ctx.fillStyle = '#d4ff3a';
+  ctx.textBaseline = 'bottom';
+  ctx.fillText('🎤 Diss4U', cx, H - 44);
+
+  // 진행 바
+  const p = Math.min(elapsed / duration, 1);
+  ctx.fillStyle = '#2a2a32';
+  ctx.fillRect(0, H - 8, W, 8);
+  ctx.fillStyle = '#d4ff3a';
+  ctx.fillRect(0, H - 8, W * p, 8);
+}
+
+async function makeInstaVideo() {
+  const song = STATE.currentSong;
+  if (!song || !song.audioUrl) { showToast('오디오가 없어요'); return; }
+
+  const mime = pickVideoMime();
+  if (mime === null) {
+    showToast('이 브라우저는 영상 생성을 지원하지 않아요 (최신 Chrome/Safari 권장)');
+    return;
+  }
+  const canvasEl = document.getElementById('videoCanvas');
+  if (!canvasEl.captureStream) {
+    showToast('이 브라우저는 영상 캡처를 지원하지 않아요');
+    return;
+  }
+
+  openVideoModal();
+  setVideoStatus('오디오 불러오는 중...', 0);
+
+  try { await (document.fonts && document.fonts.ready); } catch (e) {}
+
+  const lines = parseLyricLines(song.lyrics);
+
+  // 1) 오디오 받아서 디코딩
+  let audioBuffer;
+  try {
+    const resp = await fetch(song.audioUrl);
+    const arr = await resp.arrayBuffer();
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    VIDEO.audioCtx = new AudioCtx();
+    audioBuffer = await VIDEO.audioCtx.decodeAudioData(arr);
+  } catch (e) {
+    console.warn('audio load fail', e);
+    setVideoStatus('❌ 오디오를 불러오지 못했어요. 다시 시도해주세요.');
+    return;
+  }
+  if (!document.getElementById('videoModal').classList.contains('active')) return; // 닫힘
+
+  const duration = audioBuffer.duration;
+  const ctxA = VIDEO.audioCtx;
+
+  // 2) 오디오 그래프: source -> analyser -> mediaStreamDestination (+ 스피커)
+  const srcNode = ctxA.createBufferSource();
+  srcNode.buffer = audioBuffer;
+  const analyser = ctxA.createAnalyser();
+  analyser.fftSize = 256;
+  const freq = new Uint8Array(analyser.frequencyBinCount);
+  const dest = ctxA.createMediaStreamDestination();
+  srcNode.connect(analyser);
+  analyser.connect(dest);
+  srcNode.connect(ctxA.destination);
+  VIDEO.srcNode = srcNode;
+
+  // 3) 캔버스 + 스트림 합치기
+  const W = 720, H = 1280;
+  canvasEl.width = W; canvasEl.height = H;
+  const ctx = canvasEl.getContext('2d');
+  const videoStream = canvasEl.captureStream(30);
+  const mixed = new MediaStream([
+    ...videoStream.getVideoTracks(),
+    ...dest.stream.getAudioTracks()
+  ]);
+
+  let recorder;
+  try {
+    recorder = mime ? new MediaRecorder(mixed, { mimeType: mime, videoBitsPerSecond: 4500000 })
+                    : new MediaRecorder(mixed);
+  } catch (e) {
+    recorder = new MediaRecorder(mixed);
+  }
+  VIDEO.recorder = recorder;
+  const chunks = [];
+  recorder.ondataavailable = e => { if (e.data && e.data.size) chunks.push(e.data); };
+  const finished = new Promise(res => { recorder.onstop = res; });
+
+  // 4) 그리기 루프
+  VIDEO.active = true;
+  let startTs = null;
+  function frame(ts) {
+    if (!VIDEO.active) return;
+    if (startTs === null) startTs = ts;
+    const elapsed = (ts - startTs) / 1000;
+    analyser.getByteFrequencyData(freq);
+    drawVideoFrame(ctx, W, H, freq, lines, elapsed, duration, song);
+    setVideoStatus('영상 만드는 중... ' + Math.round(Math.min(elapsed / duration, 1) * 100) + '% (' + Math.ceil(duration) + '초)', Math.min(elapsed / duration, 1));
+    if (elapsed < duration && recorder.state === 'recording') {
+      VIDEO.raf = requestAnimationFrame(frame);
+    }
+  }
+
+  try { await ctxA.resume(); } catch (e) {}
+  recorder.start();
+  srcNode.start();
+  VIDEO.raf = requestAnimationFrame(frame);
+
+  srcNode.onended = () => {
+    if (VIDEO.raf) cancelAnimationFrame(VIDEO.raf);
+    if (recorder.state === 'recording') { try { recorder.stop(); } catch (e) {} }
+  };
+  // 안전 타이머
+  VIDEO.stopTimer = setTimeout(() => {
+    if (recorder.state === 'recording') { try { recorder.stop(); } catch (e) {} }
+  }, (duration + 2) * 1000);
+
+  await finished;
+  VIDEO.active = false;
+  try { if (ctxA.state !== 'closed') ctxA.close(); } catch (e) {}
+
+  if (!document.getElementById('videoModal').classList.contains('active')) return; // 닫힘
+
+  const outType = (mime || recorder.mimeType || 'video/webm');
+  const blob = new Blob(chunks, { type: outType });
+  VIDEO.blob = blob;
+  if (VIDEO.blobUrl) URL.revokeObjectURL(VIDEO.blobUrl);
+  VIDEO.blobUrl = URL.createObjectURL(blob);
+
+  // 결과 표시
+  document.getElementById('videoCanvasWrap').style.display = 'none';
+  document.getElementById('videoProgressTrack').style.display = 'none';
+  const v = document.getElementById('videoPreview');
+  v.src = VIDEO.blobUrl;
+  v.style.display = 'block';
+  document.getElementById('videoActions').style.display = 'grid';
+  const isMp4 = outType.includes('mp4');
+  setVideoStatus(isMp4 ? '✅ 완성! 공유하거나 저장하세요.'
+    : '✅ 완성! (webm 형식) 인스타가 안 받으면 저장 후 올려주세요.');
+}
+
+function videoFileName() {
+  const t = (STATE.currentSong && STATE.currentSong.title) || 'diss4u';
+  return t.replace(/[^a-zA-Z0-9가-힣]/g, '_') || 'diss4u';
+}
+
+async function shareInstaVideo() {
+  if (!VIDEO.blob) return;
+  const ext = VIDEO.blob.type.includes('mp4') ? 'mp4' : 'webm';
+  const file = new File([VIDEO.blob], videoFileName() + '.' + ext, { type: VIDEO.blob.type });
+  const song = STATE.currentSong || {};
+  if (navigator.canShare && navigator.canShare({ files: [file] })) {
+    try {
+      await navigator.share({
+        files: [file],
+        title: song.title || 'Diss4U',
+        text: '🎤 ' + (song.title || '') + ' — Diss4U로 만든 디스곡'
+      });
+      return;
+    } catch (e) {
+      if (e.name === 'AbortError') return;
+      console.warn('video share fail', e);
+    }
+  }
+  showToast('공유시트 미지원 — 저장 후 인스타에 올려주세요');
+  downloadInstaVideo();
+}
+
+function downloadInstaVideo() {
+  if (!VIDEO.blobUrl) return;
+  const ext = VIDEO.blob.type.includes('mp4') ? 'mp4' : 'webm';
+  const a = document.createElement('a');
+  a.href = VIDEO.blobUrl;
+  a.download = videoFileName() + '.' + ext;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  showToast('⬇️ 저장 완료');
 }
 </script>
 
