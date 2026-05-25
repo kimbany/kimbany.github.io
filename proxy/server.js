@@ -1,6 +1,6 @@
 // 친놀송 프록시 (Node/Render 버전) v6.0
 // Cloudflare Worker -> Node http 서버로 이전. 출구 IP가 미국(Render)이라 Claude/Gemini 차단 없음.
-// 환경변수: ANTHROPIC_API_KEY, SOLAR_API_KEY, GEMINI_API_KEY, APIFRAME_API_KEY
+// 환경변수: ANTHROPIC_API_KEY, SOLAR_API_KEY, GEMINI_API_KEY, APIFRAME_API_KEY, PORTONE_V2_API_SECRET
 import http from 'node:http';
 import admin from 'firebase-admin';
 
@@ -15,6 +15,14 @@ const CORS = {
 // ===== 크레딧 시스템 =====
 const COST_PER_SONG = 10;   // 곡 1개 = 10포인트
 const SIGNUP_BONUS = 20;    // 신규가입 보너스 = 20포인트(2곡)
+
+// ===== 결제(충전) — 포트원 V2 =====
+// 결제 금액(원)당 적립 크레딧. 클라가 보낸 금액이 아니라 포트원에서 조회한 실결제액으로만 매칭한다.
+const CREDIT_PACKS = {
+  990: 10,    // 1곡
+  4900: 60,   // 6곡 (할인)
+  9900: 150,  // 15곡 (할인)
+};
 
 // firebase-admin 초기화 (FIREBASE_SERVICE_ACCOUNT 없으면 레거시 모드)
 let CREDITS_ENABLED = false;
@@ -88,6 +96,43 @@ async function refundCredits(uid, amount) {
       credits: admin.firestore.FieldValue.increment(amount)
     }, { merge: true });
   } catch (e) { console.warn('refund fail', e.message); }
+}
+
+// 포트원 V2에서 결제 단건 조회
+async function lookupPortonePayment(paymentId) {
+  const secret = process.env.PORTONE_V2_API_SECRET;
+  if (!secret) return { ok: false, error: 'portone_not_configured' };
+  try {
+    const r = await fetch(`https://api.portone.io/payments/${encodeURIComponent(paymentId)}`, {
+      headers: { 'Authorization': `PortOne ${secret}` }
+    });
+    const text = await r.text();
+    if (!r.ok) return { ok: false, error: `portone_http_${r.status}`, detail: text.slice(0, 200) };
+    return { ok: true, payment: JSON.parse(text) };
+  } catch (e) {
+    return { ok: false, error: 'portone_unreachable', detail: e.message };
+  }
+}
+
+// 결제 1건당 1회만 크레딧 적립 (중복 호출 방지). { credits, already }
+async function creditPaymentOnce(uid, paymentId, credits, amount) {
+  const pref = fdb.collection('payments').doc(paymentId);
+  const uref = fdb.collection('users').doc(uid);
+  return fdb.runTransaction(async (t) => {
+    const psnap = await t.get(pref);   // 모든 read를 write보다 먼저
+    const usnap = await t.get(uref);
+    if (psnap.exists) {
+      return { already: true, credits: (usnap.data() || {}).credits || 0 };
+    }
+    const cur = usnap.exists ? (usnap.data().credits || 0) : 0;
+    const next = cur + credits;
+    t.set(uref, { credits: next, updatedAt: admin.firestore.FieldValue.serverTimestamp() }, { merge: true });
+    t.set(pref, {
+      uid, paymentId, amount, credits, status: 'completed',
+      createdAt: admin.firestore.FieldValue.serverTimestamp()
+    });
+    return { already: false, credits: next };
+  });
 }
 
 // 작업(job) 기록 — 비동기 생성 실패 시 1회만 환불하기 위함
@@ -359,13 +404,15 @@ const server = http.createServer(async (req, res) => {
 
   if (path === '/' || path === '/health') {
     return send(res, 200, {
-      status: 'OK', service: 'chinolsong-proxy-node', version: '7.0',
+      status: 'OK', service: 'chinolsong-proxy-node', version: '8.0',
       providers: ['claude', 'solar', 'gemini'],
       has_anthropic_key: !!process.env.ANTHROPIC_API_KEY,
       has_solar_key: !!process.env.SOLAR_API_KEY,
       has_gemini_key: !!process.env.GEMINI_API_KEY,
       has_apiframe_key: !!process.env.APIFRAME_API_KEY,
+      has_portone_secret: !!process.env.PORTONE_V2_API_SECRET,
       credits_enabled: CREDITS_ENABLED,
+      payments_enabled: CREDITS_ENABLED && !!process.env.PORTONE_V2_API_SECRET,
       cost_per_song: COST_PER_SONG,
       signup_bonus: SIGNUP_BONUS
     });
@@ -378,6 +425,58 @@ const server = http.createServer(async (req, res) => {
     if (!uid) return send(res, 401, { error: 'auth_required', message: '로그인이 필요해요' });
     const u = await getOrCreateUser(uid);
     return send(res, 200, { enabled: true, credits: u.credits || 0, cost: COST_PER_SONG });
+  }
+
+  // 충전 상품 목록 (금액→크레딧). 프론트가 표시/결제요청에 사용.
+  if (path === '/packs') {
+    const packs = Object.entries(CREDIT_PACKS)
+      .map(([amount, credits]) => ({ amount: Number(amount), credits, songs: Math.floor(credits / COST_PER_SONG) }))
+      .sort((a, b) => a.amount - b.amount);
+    return send(res, 200, { enabled: CREDITS_ENABLED && !!process.env.PORTONE_V2_API_SECRET, packs, cost: COST_PER_SONG });
+  }
+
+  // 결제 검증 + 크레딧 적립. body: { paymentId }
+  if (path === '/verify-payment' && req.method === 'POST') {
+    if (!CREDITS_ENABLED) return send(res, 400, { error: 'credits_disabled', message: '크레딧 시스템이 꺼져 있어요' });
+    const uid = await verifyAuth(req);
+    if (!uid) return send(res, 401, { error: 'auth_required', message: '로그인이 필요해요' });
+
+    const { paymentId } = await readBody(req);
+    if (!paymentId) return send(res, 400, { error: 'no_payment_id', message: '결제 정보가 없어요' });
+
+    const v = await lookupPortonePayment(String(paymentId));
+    if (!v.ok) return send(res, 502, { error: 'verify_failed', message: '결제 확인에 실패했어요', detail: v.error });
+
+    const p = v.payment;
+    if (p.status !== 'PAID') {
+      return send(res, 402, { error: 'not_paid', message: '결제가 완료되지 않았어요', status: p.status });
+    }
+
+    // 결제 요청 때 심어둔 uid와 일치하는지 확인 (남의 결제 도용 차단)
+    let ownerOk = true;
+    try {
+      const cd = p.customData ? JSON.parse(p.customData) : null;
+      if (cd && cd.uid) ownerOk = (cd.uid === uid);
+    } catch (e) {}
+    if (!ownerOk) return send(res, 403, { error: 'owner_mismatch', message: '본인 결제가 아니에요' });
+
+    const currency = p.currency || (p.amount && p.amount.currency);
+    if (currency && currency !== 'KRW' && currency !== 'CURRENCY_KRW') {
+      return send(res, 400, { error: 'bad_currency', message: '지원하지 않는 통화예요' });
+    }
+
+    const paidAmount = p.amount && (p.amount.total ?? p.amount.paid);
+    const credits = CREDIT_PACKS[paidAmount];
+    if (!credits) return send(res, 400, { error: 'unknown_amount', message: '알 수 없는 결제 금액이에요', amount: paidAmount });
+
+    const result = await creditPaymentOnce(uid, String(paymentId), credits, paidAmount);
+    return send(res, 200, {
+      ok: true,
+      credited: result.already ? 0 : credits,
+      already: result.already,
+      credits: result.credits,
+      cost: COST_PER_SONG
+    });
   }
 
   if (path === '/claude-test') {
