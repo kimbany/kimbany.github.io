@@ -438,20 +438,17 @@
         }
       }, [view, sendMsg, done, cur, expr, secret, unlocked, enterChat]);
 
-      // ---- 물리 키보드 ----
+      // ---- 물리 키보드 (계산기 모드 전용; 채팅 입력은 input의 onKeyDown이 처리) ----
       useEffect(() => {
         const onKey = (e) => {
-          if (view === "chat") {
-            if (e.key === "Enter") { e.preventDefault(); sendMsg(); }
-            return; // 입력은 input이 처리
-          }
+          if (view === "chat") return;
           const map = { "*": "×", "/": "÷", "-": "−", "Enter": "=", "=": "=", "Backspace": "AC" };
           if (/[0-9.]/.test(e.key)) press(e.key);
           else if (map[e.key]) press(map[e.key]);
         };
         window.addEventListener("keydown", onKey);
         return () => window.removeEventListener("keydown", onKey);
-      }, [view, press, sendMsg]);
+      }, [view, press]);
 
       // ---- 표시값 ----
       const topLine = view === "chat" ? "" : (expr || (done ? "" : "")) ;
@@ -466,7 +463,15 @@
                 {view === "chat" ? (roomId ? rooms.find(r=>r.id===roomId)?.label : "대화 없음") : topLine}
               </div>
               {view === "chat" ? (
-                <input ref={inputRef} value={draft} onChange={(e) => setDraft(e.target.value)}
+                <input ref={inputRef} value={draft}
+                  onChange={(e) => setDraft(e.target.value)}
+                  onKeyDown={(e) => {
+                    // 한글 IME 조합 중 Enter는 무시 (마지막 글자 중복 전송 방지)
+                    if (e.key !== "Enter") return;
+                    if (e.nativeEvent.isComposing || e.keyCode === 229) return;
+                    e.preventDefault();
+                    sendMsg();
+                  }}
                   placeholder="메시지" inputMode="text"
                   className="chat-input mt-2 text-[30px] leading-tight text-charcoal placeholder:text-[#cfcfd8] border-[1.5px] border-accentBlue rounded-xl px-3 py-1" />
               ) : (
