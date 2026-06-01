@@ -1,0 +1,1074 @@
+/* ==========================================================
+   Taste OS — Music / 마음을 닮은 소리
+   3-state: Intro → Sonic Canvas → Forward Threshold Beat
+   Signature visuals: Echo rings on cards + Ambient wave at bottom
+   ========================================================== */
+
+:root {
+  --c-night:        #0E0C0B;
+  --c-coal:         #1A1714;
+  --c-bone:         #443E37;
+  --c-mist:         #9A8E81;
+  --c-sand:         #C8B69B;
+  --c-beige:        #D8C7AC;
+  --c-silver-blue:  #8FA0AC;
+  --c-rose:         #B07672;
+  --c-ember:        #D9A66C;
+
+  --font-display: 'Cormorant Garamond', 'Noto Serif KR', serif;
+  --font-text:    'Inter', 'Pretendard', -apple-system, sans-serif;
+  --font-mono:    'JetBrains Mono', monospace;
+
+  --parallax-x: 0;
+  --parallax-y: 0;
+
+  --e-breath-in: cubic-bezier(0.16, 1, 0.30, 1);
+  --e-breath-out: cubic-bezier(0.70, 0, 0.84, 0);
+  --e-settle: cubic-bezier(0.34, 1.18, 0.64, 1);
+}
+
+/* ==========================================================
+   RESET
+   ========================================================== */
+
+*, *::before, *::after { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+button { font: inherit; color: inherit; background: none; border: 0; cursor: pointer; }
+input { font: inherit; color: inherit; background: none; border: 0; outline: none; }
+hr { border: 0; }
+h1, p { margin: 0; }
+
+html {
+  background: var(--c-night);
+  color: var(--c-beige);
+  font-family: var(--font-text);
+  font-weight: 350;
+  font-size: 16px;
+  line-height: 1.65;
+  font-variant-numeric: tabular-nums slashed-zero;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  background: var(--c-night);
+  min-height: 100vh;
+  overflow-x: hidden;
+  position: relative;
+  transition: background-color 2s ease;
+}
+
+.mist { color: var(--c-mist); }
+.sm { font-size: 13px; }
+
+/* ==========================================================
+   MUSIC TIER — body classes that shift visual resonance
+   ========================================================== */
+
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  background: transparent;
+  transition: background 2s ease;
+}
+
+/* 0 음악 — silent */
+body.music-silent .orb-1 { opacity: 0.6; }
+body.music-silent .orb-2 { opacity: 0.9; }
+body.music-silent .orb-3 { opacity: 0.4; }
+body.music-silent .orb-4 { opacity: 0.4; }
+
+/* 1-2 음악 — low resonance */
+body.music-low .orb-1 { opacity: 0.85; }
+body.music-low .orb-3 { opacity: 0.7; }
+body.music-low::before {
+  background: radial-gradient(ellipse at 50% 100%, rgba(176, 118, 114, 0.03), transparent 50%);
+}
+
+/* 3-5 음악 — mid resonance */
+body.music-mid .orb-1 { opacity: 1.0; }
+body.music-mid .orb-3 { opacity: 0.9; }
+body.music-mid .orb-4 { opacity: 0.85; }
+body.music-mid::before {
+  background:
+    radial-gradient(ellipse at 50% 100%, rgba(176, 118, 114, 0.05), transparent 55%),
+    radial-gradient(ellipse at 50% 0%, rgba(143, 160, 172, 0.03), transparent 50%);
+}
+
+/* 6+ 음악 — full sonic resonance, orbs pulse */
+body.music-full .orb-1 {
+  opacity: 1.1;
+  animation: orb-drift-1 56s ease-in-out infinite, orb-pulse 6s ease-in-out infinite;
+}
+body.music-full .orb-3 {
+  opacity: 1.0;
+  animation: orb-drift-3 70s ease-in-out infinite, orb-pulse 6s ease-in-out infinite 1.5s;
+}
+body.music-full .orb-4 { opacity: 0.95; }
+body.music-full::before {
+  background:
+    radial-gradient(ellipse at 50% 100%, rgba(176, 118, 114, 0.07), transparent 55%),
+    radial-gradient(ellipse at 50% 0%, rgba(143, 160, 172, 0.04), transparent 50%);
+}
+
+@keyframes orb-pulse {
+  0%, 100% { filter: blur(60px) brightness(1); }
+  50%      { filter: blur(64px) brightness(1.08); }
+}
+
+.orb {
+  transition: opacity 2s ease;
+}
+
+/* ==========================================================
+   AMBIENT — Orbs
+   ========================================================== */
+
+.orb {
+  position: fixed;
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 1;
+  mix-blend-mode: screen;
+  filter: blur(60px);
+  opacity: 0;
+  will-change: transform, opacity;
+}
+
+.orb-1 {
+  top: 8%; left: 4%;
+  width: 420px; height: 420px;
+  background: radial-gradient(circle, rgba(176, 118, 114, 0.20), transparent 70%);
+  animation: orb-fade-in 2.4s ease 0.6s forwards, orb-drift-1 56s ease-in-out infinite;
+}
+
+.orb-2 {
+  top: 44%; left: 76%;
+  width: 360px; height: 360px;
+  background: radial-gradient(circle, rgba(143, 160, 172, 0.16), transparent 70%);
+  animation: orb-fade-in 2.4s ease 0.9s forwards, orb-drift-2 62s ease-in-out infinite;
+}
+
+.orb-3 {
+  top: 60%; left: 14%;
+  width: 400px; height: 400px;
+  background: radial-gradient(circle, rgba(176, 118, 114, 0.18), transparent 70%);
+  animation: orb-fade-in 2.4s ease 1.2s forwards, orb-drift-3 70s ease-in-out infinite;
+}
+
+.orb-4 {
+  top: 82%; left: 70%;
+  width: 320px; height: 320px;
+  background: radial-gradient(circle, rgba(216, 199, 172, 0.12), transparent 70%);
+  animation: orb-fade-in 2.4s ease 1.5s forwards, orb-drift-4 80s ease-in-out infinite;
+}
+
+@keyframes orb-fade-in { to { opacity: 1; } }
+
+@keyframes orb-drift-1 {
+  0%, 100% { translate: 0 0; } 33% { translate: 50px -40px; } 66% { translate: -30px 50px; }
+}
+@keyframes orb-drift-2 {
+  0%, 100% { translate: 0 0; } 33% { translate: -40px 30px; } 66% { translate: 40px -20px; }
+}
+@keyframes orb-drift-3 {
+  0%, 100% { translate: 0 0; } 33% { translate: 60px 30px; } 66% { translate: -40px -50px; }
+}
+@keyframes orb-drift-4 {
+  0%, 100% { translate: 0 0; } 33% { translate: -30px -40px; } 66% { translate: 50px 30px; }
+}
+
+/* === Dust === */
+
+.dust-field {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 2;
+}
+
+.dust {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(0.5px);
+  opacity: 0;
+  will-change: transform, opacity;
+}
+
+.dust.dust-rose   { background: rgba(176, 118, 114, 0.4); }
+.dust.dust-silver { background: rgba(143, 160, 172, 0.3); }
+
+@keyframes dust-rise {
+  0%   { transform: translateY(105vh) translateX(0); }
+  100% { transform: translateY(-10vh)  translateX(24px); }
+}
+
+@keyframes dust-fade {
+  0%, 100% { opacity: 0; }
+  15%, 85% { opacity: 0.42; }
+}
+
+/* === Sigil === */
+
+.sigil {
+  position: fixed;
+  top: 32px;
+  left: 32px;
+  color: var(--c-mist);
+  opacity: 0;
+  z-index: 50;
+  animation:
+    sigil-appear 1.4s ease 1.2s forwards,
+    sigil-breath 3.6s ease-in-out 6.0s infinite;
+}
+
+@keyframes sigil-appear { to { opacity: 0.22; } }
+@keyframes sigil-breath {
+  0%, 100% { opacity: 0.18; }
+  50%      { opacity: 0.32; }
+}
+
+/* === Grain === */
+
+.grain {
+  position: fixed;
+  inset: -50%;
+  width: 200%;
+  height: 200%;
+  pointer-events: none;
+  z-index: 100;
+  opacity: 0;
+  mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml;utf8,<svg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 0.28 0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
+  animation:
+    grain-fade-in 1.4s ease 0.4s forwards,
+    grain-shift 0.6s steps(4) infinite;
+}
+
+@keyframes grain-fade-in { to { opacity: 0.055; } }
+@keyframes grain-shift {
+  0%   { transform: translate(0,    0); }
+  25%  { transform: translate(-5%,  4%); }
+  50%  { transform: translate(5%,  -3%); }
+  75%  { transform: translate(-3%, -5%); }
+  100% { transform: translate(2%,   3%); }
+}
+
+/* ==========================================================
+   STATE A — INTRO (same shape as images/)
+   ========================================================== */
+
+.intro {
+  position: relative;
+  z-index: 5;
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 96px 24px;
+  text-align: center;
+  transition: opacity 1.4s var(--e-breath-out);
+}
+
+.intro[data-phase="exiting"] { opacity: 0; pointer-events: none; }
+.intro[data-phase="hidden"] { display: none; }
+
+.intro-inner {
+  max-width: 540px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 40px;
+}
+
+.intro-headline {
+  font-family: var(--font-display);
+  font-style: italic;
+  font-weight: 300;
+  font-size: clamp(32px, 5.6vw, 56px);
+  line-height: 1.22;
+  letter-spacing: -0.012em;
+  color: var(--c-beige);
+
+  opacity: 0;
+  filter: blur(14px);
+  letter-spacing: 0.10em;
+
+  transform: translate(
+    calc(var(--parallax-x) * 4px),
+    calc(var(--parallax-y) * 3px)
+  );
+  transition: transform 0.08s linear;
+}
+
+.intro-headline.is-revealed {
+  animation: intro-headline-reveal 1.8s var(--e-breath-in) forwards;
+}
+
+@keyframes intro-headline-reveal {
+  to {
+    opacity: 1;
+    filter: blur(0);
+    letter-spacing: -0.012em;
+  }
+}
+
+.hairline {
+  width: 32px;
+  height: 1px;
+  background: var(--c-bone);
+  opacity: 0;
+  transform: scaleX(0);
+  transform-origin: center;
+}
+
+.hairline.is-revealed {
+  animation: hairline-draw 1.0s var(--e-breath-in) forwards;
+}
+
+@keyframes hairline-draw {
+  to { opacity: 0.4; transform: scaleX(1); }
+}
+
+.intro-sub {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-width: 480px;
+}
+
+.sub-line {
+  font-family: var(--font-display);
+  font-style: italic;
+  font-weight: 300;
+  font-size: clamp(16px, 2.0vw, 20px);
+  line-height: 1.78;
+  color: var(--c-mist);
+  letter-spacing: -0.002em;
+  opacity: 0;
+  transform: translateY(6px);
+}
+
+.sub-line.is-revealed {
+  animation: sub-line-reveal 1.2s var(--e-breath-in) forwards;
+}
+
+@keyframes sub-line-reveal {
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* ==========================================================
+   BEACON
+   ========================================================== */
+
+.beacon {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  padding: 13px 28px;
+  border: 1px solid rgba(216, 199, 172, 0.20);
+  border-radius: 2px;
+  font-family: var(--font-text);
+  font-weight: 400;
+  font-size: 13px;
+  letter-spacing: 0.04em;
+  color: var(--c-beige);
+  background: transparent;
+  position: relative;
+  opacity: 0;
+
+  transition:
+    border-color 0.7s ease,
+    background 0.7s ease,
+    transform 0.2s ease,
+    opacity 0.7s ease;
+}
+
+.beacon::before {
+  content: "";
+  position: absolute;
+  inset: -3px;
+  border-radius: 4px;
+  pointer-events: none;
+  box-shadow: 0 0 0 1px rgba(176, 118, 114, 0);
+  animation: beacon-pulse 3.6s ease-in-out infinite;
+}
+
+.beacon.is-revealed { animation: beacon-fade 1.0s ease forwards; }
+
+@keyframes beacon-fade { to { opacity: 1; } }
+
+.beacon:hover:not(:disabled) {
+  border-color: rgba(176, 118, 114, 0.55);
+  background: rgba(176, 118, 114, 0.07);
+}
+
+.beacon:disabled {
+  opacity: 0.22;
+  cursor: not-allowed;
+  border-color: rgba(216, 199, 172, 0.10);
+}
+
+.beacon:disabled::before { animation: none; }
+
+.beacon:active { transform: translateY(1px); }
+
+.beacon .dash {
+  color: var(--c-mist);
+  opacity: 0.45;
+  font-size: 10px;
+  letter-spacing: -0.05em;
+}
+
+.beacon .beacon-label { padding: 0 6px; }
+
+@keyframes beacon-pulse {
+  0%, 100% { box-shadow: 0 0 0 1px rgba(176, 118, 114, 0); }
+  50%      { box-shadow: 0 0 0 3px rgba(176, 118, 114, 0.10); }
+}
+
+/* ==========================================================
+   STATE B — SONIC CANVAS
+   ========================================================== */
+
+.canvas-state {
+  position: relative;
+  z-index: 5;
+  min-height: 100vh;
+  display: none;
+  flex-direction: column;
+  padding: 96px 24px 96px;
+  opacity: 0;
+  transition: opacity 1.4s var(--e-breath-in);
+}
+
+.canvas-state[data-phase="active"] {
+  display: flex;
+  opacity: 1;
+}
+
+.canvas-state[data-phase="exiting"] {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.canvas-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 24px;
+  margin-bottom: 24px;
+  flex-shrink: 0;
+}
+
+.canvas-prompt {
+  font-family: var(--font-display);
+  font-style: italic;
+  font-size: 15px;
+  color: var(--c-mist);
+  letter-spacing: -0.002em;
+  opacity: 0.75;
+  flex: 1;
+}
+
+.add-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  border-radius: 9999px;
+  border: 1px solid rgba(216, 199, 172, 0.18);
+  font-family: var(--font-text);
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  color: var(--c-beige);
+  background: rgba(26, 23, 20, 0.55);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  transition: all 0.4s ease;
+}
+
+.add-button:hover {
+  border-color: rgba(176, 118, 114, 0.5);
+  background: rgba(176, 118, 114, 0.07);
+}
+
+.add-button span:first-child {
+  color: var(--c-mist);
+  font-size: 14px;
+  opacity: 0.7;
+}
+
+.add-button:hover span:first-child { color: var(--c-rose); opacity: 1; }
+
+/* === Canvas Stage === */
+
+.canvas-stage {
+  flex: 1;
+  position: relative;
+  min-height: 480px;
+  width: 100%;
+  max-width: 1280px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.empty-hint {
+  font-family: var(--font-display);
+  font-style: italic;
+  font-size: clamp(18px, 2.2vw, 22px);
+  line-height: 1.7;
+  color: var(--c-beige);
+  text-align: center;
+  max-width: 540px;
+  opacity: 0.85;
+  transition: opacity 0.6s ease;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.empty-hint.is-hidden { opacity: 0; }
+
+.music-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+}
+
+/* ==========================================================
+   MUSIC CARD — Echo Disc
+   ========================================================== */
+
+.music-card {
+  --tilt: 0deg;
+  --drift: 0s;
+  --echo-delay: 0s;
+
+  position: absolute;
+  width: clamp(160px, 18vw, 220px);
+  background: var(--c-coal);
+  border: 1px solid rgba(68, 62, 55, 0.55);
+  border-radius: 2px;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  cursor: pointer;
+
+  opacity: 0;
+  transform: rotate(var(--tilt)) translateY(16px);
+  transition:
+    opacity 1.0s ease,
+    transform 1.4s var(--e-settle),
+    border-color 0.6s ease,
+    box-shadow 0.6s ease;
+
+  will-change: transform, opacity;
+}
+
+.music-card.is-placed {
+  opacity: 1;
+  transform: rotate(var(--tilt)) translateY(0);
+  animation: card-drift 9s ease-in-out infinite;
+  animation-delay: var(--drift);
+}
+
+.music-card.is-fresh {
+  box-shadow: 0 0 32px rgba(217, 166, 108, 0.18);
+}
+
+@keyframes card-drift {
+  0%, 100% { transform: rotate(var(--tilt)) translateY(0); }
+  50%      { transform: rotate(var(--tilt)) translateY(-3px); }
+}
+
+.music-card:hover {
+  border-color: rgba(176, 118, 114, 0.32);
+  animation-play-state: paused;
+  z-index: 10;
+}
+
+.music-card.is-releasing {
+  opacity: 0;
+  transform: rotate(var(--tilt)) scale(0.95);
+}
+
+/* === Echo Rings — SIGNATURE === */
+
+.music-card::before,
+.music-card::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 100%;
+  height: 100%;
+  border: 1px solid rgba(176, 118, 114, 0.5);
+  border-radius: 50%;
+  transform: translate(-50%, -50%) scale(0.5);
+  opacity: 0;
+  pointer-events: none;
+  animation: echo-pulse 6s ease-out infinite;
+  animation-delay: var(--echo-delay);
+}
+
+.music-card::after {
+  animation-delay: calc(var(--echo-delay) + 3s);
+  border-color: rgba(143, 160, 172, 0.4);
+}
+
+@keyframes echo-pulse {
+  0%   { transform: translate(-50%, -50%) scale(0.5); opacity: 0; }
+  20%  { opacity: 0.55; }
+  100% { transform: translate(-50%, -50%) scale(2.2); opacity: 0; }
+}
+
+.music-card:hover::before,
+.music-card:hover::after {
+  animation-duration: 3s;
+  border-color: rgba(176, 118, 114, 0.7);
+}
+
+/* === Disc === */
+
+.disc {
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 50% 50%, rgba(176, 118, 114, 0.12) 0%, transparent 18%),
+    repeating-radial-gradient(circle at 50% 50%,
+      rgba(216, 199, 172, 0.04) 0px,
+      rgba(216, 199, 172, 0.04) 4px,
+      rgba(176, 118, 114, 0.08) 5px,
+      rgba(176, 118, 114, 0.08) 6px),
+    var(--c-night);
+  border: 1px solid rgba(176, 118, 114, 0.18);
+  position: relative;
+  animation: disc-spin 12s linear infinite;
+  z-index: 2;
+}
+
+.disc::after {
+  content: "";
+  position: absolute;
+  top: 50%; left: 50%;
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background: var(--c-rose);
+  transform: translate(-50%, -50%);
+  opacity: 0.55;
+}
+
+@keyframes disc-spin { to { transform: rotate(360deg); } }
+
+/* === Track text === */
+
+.track-title {
+  font-family: var(--font-display);
+  font-style: italic;
+  font-weight: 300;
+  font-size: 17px;
+  line-height: 1.3;
+  color: var(--c-beige);
+  text-align: center;
+  letter-spacing: -0.005em;
+  width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.track-sub {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  color: var(--c-mist);
+  opacity: 0.6;
+  text-transform: lowercase;
+  text-align: center;
+}
+
+.micro-rule {
+  width: 24px;
+  height: 1px;
+  background: var(--c-bone);
+  opacity: 0.5;
+  margin: 4px 0;
+}
+
+.memory-note {
+  font-family: var(--font-display);
+  font-style: italic;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--c-mist);
+  text-align: center;
+  letter-spacing: -0.002em;
+  max-width: 100%;
+  word-break: break-word;
+}
+
+/* === Canvas Footer === */
+
+.canvas-footer {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 24px;
+  margin-top: 32px;
+  margin-bottom: 80px;          /* leave space for ambient wave */
+  flex-shrink: 0;
+}
+
+.counter {
+  font-family: var(--font-display);
+  font-style: italic;
+  font-weight: 300;
+  font-size: 15px;
+  color: var(--c-mist);
+  text-align: center;
+  letter-spacing: -0.002em;
+  opacity: 0;
+  transition: opacity 0.7s ease;
+  min-height: 24px;
+}
+
+.counter.is-visible { opacity: 0.75; }
+
+.cta-forward {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 1.0s ease;
+}
+
+.cta-forward[data-state="visible"] {
+  opacity: 1;
+  pointer-events: auto;
+  animation: beacon-fade 1.0s ease forwards;
+}
+
+/* ==========================================================
+   ADD PANEL (slides up from bottom)
+   ========================================================== */
+
+.add-panel {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 30;
+  padding: 64px 24px calc(64px + 48px);
+  background: linear-gradient(0deg, var(--c-night) 60%, transparent);
+  transform: translateY(100%);
+  transition: transform 1.4s var(--e-breath-out);
+  pointer-events: none;
+}
+
+.add-panel[data-panel-state="visible"] {
+  transform: translateY(0);
+  transition: transform 1.0s var(--e-breath-in);
+  pointer-events: auto;
+}
+
+.add-panel-inner {
+  max-width: 640px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.panel-hint {
+  font-family: var(--font-display);
+  font-style: italic;
+  font-size: 18px;
+  color: var(--c-mist);
+  letter-spacing: -0.005em;
+  text-align: center;
+  margin-bottom: 12px;
+}
+
+.panel-input {
+  font-family: var(--font-display);
+  font-style: italic;
+  font-weight: 300;
+  font-size: 20px;
+  line-height: 1.4;
+  color: var(--c-beige);
+  letter-spacing: -0.005em;
+  text-align: center;
+  border-bottom: 1px solid rgba(68, 62, 55, 0.5);
+  padding: 12px 0;
+  width: 100%;
+  transition: border-color 0.6s ease;
+}
+
+.panel-input::placeholder {
+  color: var(--c-mist);
+  opacity: 0.4;
+  font-style: italic;
+}
+
+.panel-input:focus {
+  border-bottom-color: rgba(176, 118, 114, 0.55);
+}
+
+.panel-label {
+  font-family: var(--font-text);
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  color: var(--c-mist);
+  opacity: 0.6;
+  text-transform: lowercase;
+  margin-top: 12px;
+}
+
+.panel-memory {
+  font-size: 17px;
+}
+
+.panel-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.skip-link {
+  font-family: var(--font-text);
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  color: var(--c-mist);
+  opacity: 0.5;
+  padding: 8px 12px;
+  transition: opacity 0.7s ease, color 0.7s ease;
+}
+
+.skip-link:hover { color: var(--c-rose); opacity: 1; }
+
+.panel-scrim {
+  position: fixed;
+  inset: 0;
+  background: rgba(14, 12, 11, 0.65);
+  backdrop-filter: blur(4px);
+  z-index: 25;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.7s ease;
+}
+
+.panel-scrim.is-visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* ==========================================================
+   AMBIENT WAVE — SIGNATURE
+   ========================================================== */
+
+.ambient-wave {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  height: 80px;
+  pointer-events: none;
+  z-index: 3;
+  opacity: 0;
+  transition: opacity 2s ease;
+}
+
+body.music-low .ambient-wave { opacity: 0.4; }
+body.music-mid .ambient-wave { opacity: 0.7; }
+body.music-full .ambient-wave { opacity: 1; }
+
+.wave {
+  stroke-width: 1;
+  fill: none;
+  transform-origin: 50% 50%;
+  will-change: transform;
+  vector-effect: non-scaling-stroke;
+}
+
+.wave-1 {
+  stroke: rgba(176, 118, 114, 0.4);
+  animation: wave-undulate-1 14s ease-in-out infinite;
+}
+
+.wave-2 {
+  stroke: rgba(143, 160, 172, 0.3);
+  animation: wave-undulate-2 16s ease-in-out infinite;
+}
+
+@keyframes wave-undulate-1 {
+  0%, 100% { transform: scaleY(1)   translateX(0); }
+  25%      { transform: scaleY(1.3) translateX(-30px); }
+  50%      { transform: scaleY(0.7) translateX(20px); }
+  75%      { transform: scaleY(1.2) translateX(-10px); }
+}
+
+@keyframes wave-undulate-2 {
+  0%, 100% { transform: scaleY(1)   translateX(0); }
+  25%      { transform: scaleY(0.8) translateX(20px); }
+  50%      { transform: scaleY(1.4) translateX(-30px); }
+  75%      { transform: scaleY(0.9) translateX(10px); }
+}
+
+/* In music-full, waves become more active */
+body.music-full .wave-1 { animation-duration: 10s; }
+body.music-full .wave-2 { animation-duration: 12s; }
+
+/* ==========================================================
+   STATE C — FORWARD THRESHOLD BEAT
+   ========================================================== */
+
+.forward-beat {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  pointer-events: none;
+  opacity: 0;
+  background: rgba(14, 12, 11, 0.85);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  transition: opacity 1.4s var(--e-breath-in);
+}
+
+.forward-beat[data-phase="active"] {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.beat-line {
+  position: absolute;
+  font-family: var(--font-display);
+  font-weight: 300;
+  font-style: italic;
+  font-size: clamp(26px, 3.8vw, 40px);
+  line-height: 1.2;
+  letter-spacing: -0.005em;
+  color: var(--c-beige);
+  text-align: center;
+  max-width: 540px;
+
+  opacity: 0;
+  filter: blur(14px);
+  letter-spacing: 0.10em;
+  transition:
+    opacity 1.6s var(--e-breath-in),
+    filter 1.6s var(--e-breath-in),
+    letter-spacing 1.6s var(--e-breath-in);
+}
+
+.beat-line.is-revealed {
+  opacity: 1;
+  filter: blur(0);
+  letter-spacing: -0.005em;
+}
+
+.beat-line.is-exiting {
+  opacity: 0;
+  filter: blur(8px);
+  transition:
+    opacity 1.4s var(--e-breath-out),
+    filter 1.4s var(--e-breath-out);
+}
+
+/* Disable parallax during threshold beat */
+body[data-threshold="active"] .intro-headline,
+body[data-threshold="active"] .sub-line,
+body[data-threshold="active"] .music-card {
+  transform: translate(0, 0) !important;
+  transition: transform 0.4s ease !important;
+}
+
+/* ==========================================================
+   RESPONSIVE
+   ========================================================== */
+
+@media (max-width: 768px) {
+  .sigil { top: 20px; left: 20px; }
+
+  .intro { padding: 64px 20px; }
+
+  .intro-headline { font-size: clamp(28px, 8vw, 40px); }
+
+  .canvas-state { padding: 80px 16px 80px; }
+
+  .canvas-prompt { font-size: 13px; }
+
+  .canvas-stage { min-height: 360px; }
+
+  .music-card {
+    width: clamp(140px, 30vw, 180px);
+    padding: 16px;
+  }
+
+  .disc { width: 56px; height: 56px; }
+
+  .empty-hint { font-size: 16px; }
+
+  .ambient-wave { height: 60px; }
+
+  .orb-3, .orb-4 { display: none; }
+}
+
+/* ==========================================================
+   REDUCED MOTION
+   ========================================================== */
+
+@media (prefers-reduced-motion: reduce) {
+  .orb, .sigil, .grain, .dust,
+  .beacon::before, .music-card,
+  .disc, .wave,
+  .music-card::before, .music-card::after {
+    animation: none !important;
+  }
+
+  .orb { opacity: 1; }
+  .grain { opacity: 0.055; }
+  .sigil { opacity: 0.22; }
+
+  .intro-headline, .sub-line, .beacon, .beat-line, .music-card {
+    transform: none !important;
+    filter: none !important;
+    letter-spacing: inherit !important;
+  }
+
+  .intro-headline.is-revealed { animation: none; opacity: 1; }
+  .sub-line.is-revealed { animation: none; opacity: 1; }
+  .beacon.is-revealed { animation: none; opacity: 1; }
+  .music-card.is-placed { opacity: 1; transform: rotate(var(--tilt)); }
+  .beat-line.is-revealed { opacity: 1; }
+
+  /* Echo rings still visible but static — single ring at mid-pulse */
+  .music-card::before {
+    opacity: 0.35;
+    transform: translate(-50%, -50%) scale(1.2);
+  }
+  .music-card::after { opacity: 0; }
+}
+
+/* ==========================================================
+   SELECTION
+   ========================================================== */
+
+::selection { background: rgba(176, 118, 114, 0.40); color: var(--c-beige); }
+
+:focus-visible {
+  outline: 1px solid rgba(176, 118, 114, 0.55);
+  outline-offset: 4px;
+  border-radius: 2px;
+}

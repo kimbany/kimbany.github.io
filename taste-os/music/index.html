@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#0E0C0B" />
+  <title>Taste OS — 마음을 닮은 소리</title>
+  <meta name="description" content="오래 반복해서 듣게 되는 음악들 속에는 당신의 감정 리듬이 담겨 있습니다." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;1,300;1,400&family=Inter:wght@300;400;500&family=JetBrains+Mono:wght@300&family=Noto+Serif+KR:wght@300;400&display=swap" />
+  <link rel="stylesheet" href="./style.css" />
+</head>
+<body class="music-silent">
+
+  <!-- Ambient layers -->
+  <div class="orb orb-1" aria-hidden="true"></div>
+  <div class="orb orb-2" aria-hidden="true"></div>
+  <div class="orb orb-3" aria-hidden="true"></div>
+  <div class="orb orb-4" aria-hidden="true"></div>
+
+  <div class="dust-field" aria-hidden="true"></div>
+
+  <div class="sigil" aria-hidden="true">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round">
+      <path d="M12 3.5 A 8.5 8.5 0 1 0 20.4 11.2" />
+    </svg>
+  </div>
+
+  <!-- ============================================================
+       STATE A — INTRO
+       ============================================================ -->
+  <main class="intro" data-phase="active">
+    <div class="intro-inner">
+
+      <h1 class="intro-headline" data-reveal="headline">
+        당신의 내면은<br />
+        어떤 소리를 닮아 있나요?
+      </h1>
+
+      <hr class="hairline" data-reveal="hairline" />
+
+      <div class="intro-sub">
+        <p class="sub-line" data-reveal="sub-1">오래 반복해서 듣게 되는 음악들 속에는</p>
+        <p class="sub-line" data-reveal="sub-2">당신의 감정 리듬이 담겨 있습니다.</p>
+      </div>
+
+      <button class="beacon" type="button" data-reveal="cta" data-action="start">
+        <span class="dash">────</span>
+        <span class="beacon-label">시작하기</span>
+        <span class="dash">────</span>
+      </button>
+
+    </div>
+  </main>
+
+  <!-- ============================================================
+       STATE B — SONIC CANVAS
+       ============================================================ -->
+  <main class="canvas-state" data-phase="hidden">
+
+    <header class="canvas-header">
+      <p class="canvas-prompt">당신의 내면은 어떤 소리를 닮아 있나요?</p>
+      <button class="add-button" type="button" data-action="open-panel">
+        <span>+</span>
+        <span class="add-label">노래 두기</span>
+      </button>
+    </header>
+
+    <div class="canvas-stage">
+      <p class="empty-hint" data-empty-hint>
+        마음에 머무는 소리들을 두어보세요.<br />
+        <span class="mist sm">곡 이름, Spotify 링크, 또는 그저 떠오르는 음악.</span>
+      </p>
+      <div class="music-layer" data-music-layer>
+        <!-- Filled by JS -->
+      </div>
+    </div>
+
+    <footer class="canvas-footer">
+      <p class="counter" data-counter></p>
+      <button class="beacon ceremonial cta-forward" type="button" data-action="forward" data-state="hidden">
+        <span class="dash">────</span>
+        <span class="beacon-label">다음 감정으로 이어가기</span>
+        <span class="dash">────</span>
+      </button>
+    </footer>
+
+  </main>
+
+  <!-- ============================================================
+       ADD PANEL (slides up from bottom)
+       ============================================================ -->
+  <div class="add-panel" data-panel-state="hidden">
+    <div class="add-panel-inner">
+
+      <p class="panel-hint">곡 이름, Spotify 링크, 무엇이든.</p>
+
+      <input
+        type="text"
+        class="panel-input panel-main"
+        data-panel-main
+        placeholder="Sigur Rós — Glósóli"
+        maxlength="200" />
+
+      <p class="panel-label">─ 이 노래가 머무는 자리 (선택)</p>
+
+      <input
+        type="text"
+        class="panel-input panel-memory"
+        data-panel-memory
+        placeholder="비 오는 일요일 오후"
+        maxlength="60" />
+
+      <div class="panel-actions">
+        <button class="beacon ceremonial" type="button" data-action="confirm-add" disabled>
+          <span class="dash">────</span>
+          <span class="beacon-label">두기</span>
+          <span class="dash">────</span>
+        </button>
+        <button class="skip-link" type="button" data-action="close-panel">취소</button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Panel scrim -->
+  <div class="panel-scrim" data-scrim></div>
+
+  <!-- ============================================================
+       AMBIENT SOUND WAVE (signature visual)
+       ============================================================ -->
+  <svg class="ambient-wave" viewBox="0 0 1200 80" preserveAspectRatio="none" aria-hidden="true">
+    <path class="wave wave-1" d="M0,40 Q150,20 300,40 T600,40 T900,40 T1200,40" />
+    <path class="wave wave-2" d="M0,40 Q150,55 300,40 T600,40 T900,40 T1200,40" />
+  </svg>
+
+  <!-- ============================================================
+       STATE C — FORWARD THRESHOLD BEAT
+       ============================================================ -->
+  <div class="forward-beat" data-phase="hidden" aria-hidden="true">
+    <p class="beat-line" data-line="0">여기까지 들은 결을 잘 두었어요.</p>
+    <p class="beat-line" data-line="1">이제, 다음 감정으로.</p>
+  </div>
+
+  <!-- Grain (always on top) -->
+  <div class="grain" aria-hidden="true"></div>
+
+  <script src="./script.js"></script>
+</body>
+</html>

@@ -672,6 +672,12 @@
       if (action === 'restart') {
         window.location.reload();
       }
+
+      if (action === 'to-analysis') {
+        document.body.style.transition = 'opacity 1.4s ease';
+        document.body.style.opacity = '0';
+        window.setTimeout(function () { window.location.href = '../analysis/'; }, 1400);
+      }
     });
   }
 

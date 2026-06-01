@@ -1,0 +1,15 @@
+/node_modules
+/.next
+/out
+/build
+.env
+.env*.local
+*.tsbuildinfo
+next-env.d.ts
+.vercel
+.DS_Store
+.firebase
+firebase-debug.log
+functions/lib
+functions/node_modules
+serviceAccount*.json

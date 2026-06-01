@@ -1,0 +1,62 @@
+{
+  "indexes": [
+    {
+      "//": "KNN vector recall over a user's emotional_memories (uid + released prefilter)",
+      "queryScope": "COLLECTION",
+      "collectionGroup": "emotional_memories",
+      "fields": [
+        { "fieldPath": "uid", "order": "ASCENDING" },
+        { "fieldPath": "released", "order": "ASCENDING" },
+        { "fieldPath": "embedding", "vectorConfig": { "dimension": 1024, "flat": {} } }
+      ]
+    },
+    {
+      "//": "a user's memories, newest first",
+      "queryScope": "COLLECTION",
+      "collectionGroup": "emotional_memories",
+      "fields": [
+        { "fieldPath": "uid", "order": "ASCENDING" },
+        { "fieldPath": "released", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "//": "nostalgic recall: a user's older memories, oldest-first",
+      "queryScope": "COLLECTION",
+      "collectionGroup": "emotional_memories",
+      "fields": [
+        { "fieldPath": "uid", "order": "ASCENDING" },
+        { "fieldPath": "released", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "//": "recent narrations per user (dedup + memory injection)",
+      "queryScope": "COLLECTION",
+      "collectionGroup": "narrations",
+      "fields": [
+        { "fieldPath": "uid", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "//": "atmosphere trajectory per user",
+      "queryScope": "COLLECTION",
+      "collectionGroup": "atmosphere_states",
+      "fields": [
+        { "fieldPath": "uid", "order": "ASCENDING" },
+        { "fieldPath": "periodStart", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "//": "timeline events per user, in order",
+      "queryScope": "COLLECTION",
+      "collectionGroup": "emotional_timelines",
+      "fields": [
+        { "fieldPath": "uid", "order": "ASCENDING" },
+        { "fieldPath": "occurredAt", "order": "ASCENDING" }
+      ]
+    }
+  ],
+  "fieldOverrides": []
+}

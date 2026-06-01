@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#0E0C0B" />
+  <title>Taste OS — 당신을 천천히 이해하고 있어요</title>
+  <meta name="description" content="당신 안에 오래 머물렀던 감정들을 연결하고 있어요." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;1,300;1,400&family=Inter:wght@300;400;500&family=Noto+Serif+KR:wght@300;400&display=swap" />
+  <link rel="stylesheet" href="./style.css" />
+</head>
+<body class="phase-stillness">
+
+  <!-- Ambient layers -->
+  <div class="orb orb-1" aria-hidden="true"></div>
+  <div class="orb orb-2" aria-hidden="true"></div>
+  <div class="orb orb-3" aria-hidden="true"></div>
+  <div class="orb orb-4" aria-hidden="true"></div>
+
+  <div class="dust-field" aria-hidden="true"></div>
+
+  <div class="sigil" aria-hidden="true">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round">
+      <path d="M12 3.5 A 8.5 8.5 0 1 0 20.4 11.2" />
+    </svg>
+  </div>
+
+  <!-- ============================================================
+       FRAGMENT FIELD — emerges in PHASE 3, converges in PHASE 7
+       ============================================================ -->
+  <div class="fragment-field" data-fragment-field aria-hidden="true"></div>
+
+  <!-- ============================================================
+       OPENING — Headline + Sub Copy (PHASE 1–2)
+       ============================================================ -->
+  <main class="opening" data-opening>
+    <div class="opening-inner">
+      <h1 class="opening-headline" data-reveal="headline">
+        당신 안에 오래 머물렀던 감정들을<br />
+        연결하고 있어요.
+      </h1>
+
+      <p class="opening-sub" data-reveal="sub">
+        <span class="sub-line" data-sub-line="0">자꾸 시선이 머물렀던 장면들,</span>
+        <span class="sub-line" data-sub-line="1">반복해서 들었던 음악들,</span>
+        <span class="sub-line" data-sub-line="2">쉽게 잊히지 않았던 문장들 속에서</span>
+        <span class="sub-line" data-sub-line="3">당신만의 분위기를 읽어가고 있습니다.</span>
+      </p>
+    </div>
+  </main>
+
+  <!-- ============================================================
+       NARRATION STAGE — three lines, one at a time (PHASE 4–6)
+       ============================================================ -->
+  <section class="narration-stage" data-narration-stage aria-live="polite">
+    <p class="narration-line" data-narration="0">
+      당신은 조용한 따뜻함에 반복적으로 마음이 머물고 있어요.
+    </p>
+    <p class="narration-line" data-narration="1">
+      최근에는 완벽함보다 인간적인 흔적에 더 오래 시선을 두고 있어요.
+    </p>
+    <p class="narration-line" data-narration="2">
+      당신 안에는 차가운 고독감과 따뜻한 감성이 함께 흐르고 있어요.
+    </p>
+  </section>
+
+  <!-- ============================================================
+       FINAL — convergence point + final line + beacon (PHASE 7–8)
+       ============================================================ -->
+  <section class="final-stage" data-final-stage>
+    <div class="convergence-point" data-convergence-point aria-hidden="true"></div>
+
+    <p class="final-line" data-final-line>
+      이제 당신만의 분위기를 보여드릴게요.
+    </p>
+
+    <button class="beacon" type="button" data-final-beacon>
+      <span class="dash">────</span>
+      <span class="beacon-label">분위기 보러 가기</span>
+      <span class="dash">────</span>
+    </button>
+  </section>
+
+  <!-- A nearly-invisible affordance, bottom-right -->
+  <button class="slow-toggle" type="button" data-slow-toggle aria-label="더 천천히 보기 토글">
+    <span class="slow-toggle-label" data-slow-label>더 천천히 보고 싶어요</span>
+  </button>
+
+  <!-- Grain -->
+  <div class="grain" aria-hidden="true"></div>
+
+  <script src="./script.js"></script>
+</body>
+</html>

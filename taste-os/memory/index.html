@@ -1,0 +1,167 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#0E0C0B" />
+  <title>Taste OS — 감정의 기억</title>
+  <meta name="description" content="당신을 당신으로 만드는 감정의 결을 기억하는 자리." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;1,300;1,400&family=Inter:wght@300;400;500&family=Noto+Serif+KR:wght@300;400&display=swap" />
+  <link rel="stylesheet" href="./style.css" />
+</head>
+<body>
+
+  <!-- Persistent ambient -->
+  <div class="orb orb-1" aria-hidden="true"></div>
+  <div class="orb orb-2" aria-hidden="true"></div>
+  <div class="orb orb-3" aria-hidden="true"></div>
+
+  <div class="dust-field" aria-hidden="true"></div>
+
+  <div class="sigil" aria-hidden="true">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round">
+      <path d="M12 3.5 A 8.5 8.5 0 1 0 20.4 11.2" />
+    </svg>
+  </div>
+
+  <!-- ============================================================
+       01 — OPENING
+       ============================================================ -->
+  <section class="section opening-section" data-section="opening">
+    <div class="opening-inner">
+      <h1 class="cinematic-head" data-reveal>
+        이 공간은 당신을 당신으로 만드는<br />
+        감정의 결을 기억하고 있어요.
+      </h1>
+      <hr class="hairline-mark" data-reveal data-reveal-delay="900" />
+      <p class="opening-sub mist" data-reveal data-reveal-delay="1500">
+        알고리즘이 아니라, 조용한 기억으로.<br />
+        기억되지만, 감시받지 않아요.
+      </p>
+      <div class="scroll-cue" aria-hidden="true" data-reveal data-reveal-delay="3000">
+        <span class="cue-line"></span>
+        <span class="cue-label">당신의 기억 별자리</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================
+       02 — EMOTIONAL MEMORY GRAPH (the constellation)
+       ============================================================ -->
+  <section class="section graph-section" data-section="graph">
+    <div class="graph-frame" data-graph-frame>
+      <svg class="graph-edges" data-graph-edges aria-hidden="true" preserveAspectRatio="none"></svg>
+      <div class="graph-nodes" data-graph-nodes></div>
+    </div>
+
+    <div class="graph-legend" data-reveal>
+      <span class="legend-item"><span class="legend-dot tone-warm"></span>따뜻한 결</span>
+      <span class="legend-item"><span class="legend-dot tone-cool"></span>차가운 결</span>
+      <span class="legend-item"><span class="legend-line"></span>공명하는 기억</span>
+      <span class="legend-hint mist">노드 위에 머물면, 이어진 기억이 함께 빛나요.</span>
+    </div>
+  </section>
+
+  <!-- ============================================================
+       03 — WHAT IT REMEMBERS
+       ============================================================ -->
+  <section class="section remembers-section" data-section="remembers">
+    <div class="section-inner">
+      <p class="eyebrow" data-reveal>이 기억이 간직하는 것들</p>
+
+      <ul class="remembers-list" data-reveal-list>
+        <li><span class="rm-mark">─</span><span class="rm-text">자꾸 시선이 머물렀던 이미지</span></li>
+        <li><span class="rm-mark">─</span><span class="rm-text">쉽게 잊히지 않았던 문장</span></li>
+        <li><span class="rm-mark">─</span><span class="rm-text">반복해서 들었던 음악의 결</span></li>
+        <li><span class="rm-mark">─</span><span class="rm-text">오래 머물렀던 분위기</span></li>
+        <li><span class="rm-mark">─</span><span class="rm-text">조용히 적어 내려간 감정</span></li>
+        <li><span class="rm-mark">─</span><span class="rm-text">그리고, 그 모든 것이 변해온 방향</span></li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- ============================================================
+       04 — RECALL MODES (cinematic recall)
+       ============================================================ -->
+  <section class="section recall-section" data-section="recall">
+    <div class="section-inner">
+      <p class="eyebrow" data-reveal>기억은 이렇게 다시 떠올라요</p>
+
+      <div class="recall-grid" data-reveal-list>
+        <article class="recall-card">
+          <span class="recall-glyph tone-warm" aria-hidden="true"></span>
+          <p class="recall-name">공명</p>
+          <p class="recall-desc mist">지금의 결과 가장 가까운 기억을 곁에 둬요.</p>
+        </article>
+        <article class="recall-card">
+          <span class="recall-glyph tone-dormant" aria-hidden="true"></span>
+          <p class="recall-name">향수</p>
+          <p class="recall-desc mist">한동안 잊고 있던 결을 조용히 다시 비춰요.</p>
+        </article>
+        <article class="recall-card">
+          <span class="recall-glyph tone-evolving" aria-hidden="true"></span>
+          <p class="recall-name">변화</p>
+          <p class="recall-desc mist">결이 흘러온 궤적을 계절처럼 보여줘요.</p>
+        </article>
+        <article class="recall-card">
+          <span class="recall-glyph tone-contrast" aria-hidden="true"></span>
+          <p class="recall-name">모순</p>
+          <p class="recall-desc mist">함께 흐르는 반대되는 결을 알아봐요.</p>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================
+       05 — PRIVACY (emotional safety)
+       ============================================================ -->
+  <section class="section privacy-section" data-section="privacy">
+    <div class="section-inner">
+      <p class="eyebrow" data-reveal>당신의 기억은, 당신의 것이에요</p>
+
+      <ul class="privacy-list" data-reveal-list>
+        <li>
+          <span class="pv-mark">◜</span>
+          <p class="pv-text">무엇을 기억할지, 매번 당신이 정해요.</p>
+        </li>
+        <li>
+          <span class="pv-mark">◜</span>
+          <p class="pv-text">원본은 당신의 자리에. 이 곳엔 결의 좌표만 남아요.</p>
+        </li>
+        <li>
+          <span class="pv-mark">◜</span>
+          <p class="pv-text">언제든 '놓아주기' 한 번이면, 그 기억은 조용히 사라져요.</p>
+        </li>
+        <li>
+          <span class="pv-mark">◜</span>
+          <p class="pv-text">광고도, 외부 공유도 없어요. 그저 당신과 당신 사이에만.</p>
+        </li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- ============================================================
+       06 — SOFT CONTINUATION
+       ============================================================ -->
+  <section class="section continuation-section" data-section="continuation">
+    <div class="continuation-inner">
+      <hr class="hairline-mark" data-reveal />
+      <button class="beacon ceremonial" type="button" data-reveal data-reveal-delay="500" data-action="continue">
+        <span class="dash">────</span>
+        <span class="beacon-label">지금의 나로 돌아가기</span>
+        <span class="dash">────</span>
+      </button>
+      <p class="continuation-foot mist" data-reveal data-reveal-delay="1100">
+        기억은 늘 여기 있어요. 서두르지 않고.
+      </p>
+    </div>
+  </section>
+
+  <!-- Grain -->
+  <div class="grain" aria-hidden="true"></div>
+
+  <script src="./script.js"></script>
+</body>
+</html>

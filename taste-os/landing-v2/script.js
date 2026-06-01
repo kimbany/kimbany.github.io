@@ -148,17 +148,13 @@
         beacon.style.borderColor = 'rgba(176, 118, 114, 0.65)';
         beacon.style.background = 'rgba(176, 118, 114, 0.10)';
 
-        // threshold beat — page fades briefly, then returns
+        // threshold beat — page fades, then walks into the onboarding
         window.setTimeout(() => {
           document.body.style.transition = 'opacity 1.6s ease';
           document.body.style.opacity = '0';
-
           window.setTimeout(() => {
-            document.body.style.transition = 'opacity 1.0s ease';
-            document.body.style.opacity = '1';
-            beacon.style.borderColor = '';
-            beacon.style.background = '';
-          }, 2000);
+            window.location.href = '../onboarding/';
+          }, 1600);
         }, 700);
       });
     });

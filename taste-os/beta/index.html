@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#0E0C0B" />
+  <title>Taste OS — 조용히 문을 열어둘게요</title>
+  <meta name="description" content="조용한 감정의 공간으로의 초대." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;1,300;1,400&family=Inter:wght@300;400;500&family=Noto+Serif+KR:wght@300;400&display=swap" />
+  <link rel="stylesheet" href="./style.css" />
+</head>
+<body>
+
+  <!-- Ambient -->
+  <div class="orb orb-1" aria-hidden="true"></div>
+  <div class="orb orb-2" aria-hidden="true"></div>
+  <div class="orb orb-3" aria-hidden="true"></div>
+  <div class="dust-field" aria-hidden="true"></div>
+
+  <div class="sigil" aria-hidden="true">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round">
+      <path d="M12 3.5 A 8.5 8.5 0 1 0 20.4 11.2" />
+    </svg>
+  </div>
+
+  <main class="gate">
+
+    <p class="eyebrow" data-reveal>조용한 베타</p>
+
+    <h1 class="cinematic-head" data-reveal data-reveal-delay="500">
+      당신을 위한 자리를,<br />
+      조용히 열어두고 있어요.
+    </h1>
+
+    <p class="sub mist" data-reveal data-reveal-delay="1200">
+      서두르지 않아도 괜찮아요.<br />
+      준비되면, 가장 조용한 시간에 문을 열어둘게요.
+    </p>
+
+    <!-- ── 초대 코드 ── -->
+    <form class="gate-form" data-invite-form data-reveal data-reveal-delay="1900" novalidate>
+      <label class="field-label" for="invite">초대 코드가 있다면</label>
+      <div class="field-row">
+        <input class="field-input" id="invite" name="invite" type="text"
+               placeholder="조용히 건네받은 코드" autocomplete="off"
+               inputmode="latin" data-invite-input />
+        <button class="field-go" type="submit" aria-label="입장">
+          <span class="go-arc" aria-hidden="true">→</span>
+        </button>
+      </div>
+      <p class="field-note" data-invite-note aria-live="polite"></p>
+    </form>
+
+    <div class="gate-divider" data-reveal data-reveal-delay="2300" aria-hidden="true">
+      <span class="divider-line"></span>
+      <span class="divider-word">또는</span>
+      <span class="divider-line"></span>
+    </div>
+
+    <!-- ── 대기자리 ── -->
+    <form class="gate-form" data-waitlist-form data-reveal data-reveal-delay="2700" novalidate>
+      <label class="field-label" for="email">자리를 맡아둘게요</label>
+      <div class="field-row">
+        <input class="field-input" id="email" name="email" type="email"
+               placeholder="당신에게 닿을 곳" autocomplete="email" data-waitlist-input />
+        <button class="field-go" type="submit" aria-label="자리 맡기">
+          <span class="go-arc" aria-hidden="true">→</span>
+        </button>
+      </div>
+      <p class="field-note" data-waitlist-note aria-live="polite"></p>
+    </form>
+
+    <p class="hint mist" data-reveal data-reveal-delay="3200">
+      대기 인원도, 카운트다운도 보여드리지 않아요.<br />
+      이건 줄 서기가 아니라, 조용한 약속이니까요.
+    </p>
+
+    <!-- ── 미리 둘러보기 (소수의 문) ── -->
+    <nav class="peek" data-reveal data-reveal-delay="3700" aria-label="미리 둘러보기">
+      <p class="peek-label mist">먼저, 공기만 느껴보고 싶다면</p>
+      <div class="peek-links">
+        <a class="peek-link" href="../hero/">입장</a>
+        <a class="peek-link" href="../report-reveal/">분위기 리포트</a>
+        <a class="peek-link" href="../home/">조용한 방</a>
+        <a class="peek-link" href="../sound/">감정의 공기</a>
+      </div>
+    </nav>
+
+  </main>
+
+  <!-- Door-opening transition veil -->
+  <div class="door-veil" data-door-veil aria-hidden="true">
+    <p class="door-line" data-door-line></p>
+  </div>
+
+  <div class="grain" aria-hidden="true"></div>
+
+  <script src="./script.js"></script>
+</body>
+</html>
