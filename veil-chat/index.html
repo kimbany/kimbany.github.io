@@ -194,8 +194,8 @@
         옆사람 어깨너머는 못 봅니다.<br>
         메시지가 <b>업무 대화처럼</b> 위장되고, 탭해야 잠깐 보여요.
       </div>
-      <input id="nickname-input" class="field" type="text" maxlength="20"
-             placeholder="닉네임을 입력하세요" autocomplete="off">
+      <input id="nickname-input" class="field" type="text" maxlength="30"
+             placeholder="이름을 입력하세요 (예: 김바니)" autocomplete="name">
       <button id="login-btn" class="btn">시작하기</button>
       <div class="tagline" style="font-size:12px">
         ⚠️ 이 앱은 <b>시각적 위장</b>용입니다. 진짜 암호화가 필요하면 Signal을 쓰세요.
@@ -256,9 +256,7 @@
   <section id="screen-chat" class="screen">
     <div class="topbar">
       <button id="chat-back" class="icon-btn">←</button>
-      <div class="title"><span id="chat-name">상대방</span>
-        <span class="sub" id="chat-mode"></span>
-      </div>
+      <div class="title"><span id="chat-name">상대방</span></div>
       <button id="chat-settings-btn" class="icon-btn" title="설정">⚙</button>
     </div>
     <div id="msg-body" class="body">
@@ -912,12 +910,7 @@ function persistRoomUserState() {
   if (!state.currentRoomId || !state.roomUserState) return;
   db.ref('roomUserState/' + state.currentRoomId + '/' + state.uid).update(state.roomUserState).catch(() => {});
 }
-function updateChatModePill() {
-  const rus = state.roomUserState;
-  if (!rus) return;
-  const tone = rus.toneMode === 'casual' ? '반말' : '존댓말';
-  $('#chat-mode').textContent = '내 모드: ' + jobLabel(rus.jobMode) + ' · ' + tone;
-}
+function updateChatModePill() { /* 헤더 부제 비표시 — 채팅방 설정 화면에서만 보이게 */ }
 
 /* --- 메시지 렌더 --- */
 function appendMessage(msgId, msg) {
