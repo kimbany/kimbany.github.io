@@ -171,6 +171,23 @@
     .mode-pill { font-size: 11px; padding: 5px 10px; border-radius: 999px;
       background: var(--surface-2); color: var(--text-dim); white-space: nowrap; }
 
+    .invite-label { font-size: 12px; color: var(--text-dim); margin: 2px 2px 4px; font-weight: 600; }
+    .invite-link { background: var(--surface-2); padding: 10px 12px; border-radius: 10px;
+      font-size: 12px; word-break: break-all; user-select: all; margin-bottom: 8px; line-height: 1.4; }
+    .invite-pin { background: var(--surface-2); padding: 12px; border-radius: 10px;
+      font-size: 24px; font-weight: 800; letter-spacing: 8px; text-align: center;
+      font-variant-numeric: tabular-nums; user-select: all; margin-bottom: 8px;
+      color: var(--accent); }
+
+    .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.5);
+      display: flex; align-items: center; justify-content: center; z-index: 100; padding: 20px; }
+    .modal-card { background: var(--surface); border-radius: 18px; padding: 22px;
+      width: 100%; max-width: 360px; box-shadow: 0 12px 36px rgba(0,0,0,.35); }
+    .modal-card h3 { margin: 0 0 6px; font-size: 17px; }
+    .modal-msg { margin: 0 0 14px; font-size: 13px; color: var(--text-dim); line-height: 1.45; word-break: break-all; }
+    .modal-actions { display: flex; gap: 8px; margin-top: 14px; }
+    .modal-actions .btn { flex: 1; }
+
     #toast { position: absolute; left: 50%; bottom: 90px; transform: translateX(-50%);
       background: rgba(0,0,0,.82); color: #fff; padding: 10px 16px; border-radius: 12px;
       font-size: 13px; opacity: 0; pointer-events: none; transition: opacity .25s; z-index: 10;
@@ -235,17 +252,35 @@
     <div class="body">
       <div class="pad">
         <div class="card">
-          <h3>내 초대 코드 (그룹)</h3>
-          <p>코드를 만들면 새 채팅방이 생기고, 이 코드를 받은 여러 명이 모두 같은 방에 들어올 수 있어요.</p>
-          <div id="my-code" class="code-display">······</div>
-          <button id="gen-code-btn" class="btn secondary">새 채팅방 + 코드 만들기</button>
+          <h3>새 채팅방 + 초대 링크 만들기</h3>
+          <p>4자리 비밀번호를 정하면 초대 링크가 만들어집니다. 링크와 비밀번호를 함께 친구에게 보내세요. 여러 명이 같은 링크로 입장할 수 있어요.</p>
+          <div id="create-form">
+            <input id="create-pin-input" class="field code-input" type="text"
+                   inputmode="numeric" pattern="\d*" maxlength="4" placeholder="0000" autocomplete="off">
+            <div style="height:10px"></div>
+            <button id="create-room-btn" class="btn">초대 링크 만들기</button>
+          </div>
+          <div id="create-result" class="hidden">
+            <div class="invite-label">초대 링크</div>
+            <div id="invite-link-box" class="invite-link"></div>
+            <button class="btn secondary" id="copy-link-btn">링크 복사</button>
+            <div style="height:10px"></div>
+            <div class="invite-label">비밀번호</div>
+            <div id="invite-pin-box" class="invite-pin"></div>
+            <button class="btn secondary" id="copy-pin-btn">비밀번호 복사</button>
+            <div style="height:10px"></div>
+            <button class="btn" id="copy-both-btn">링크 + 비밀번호 한번에 복사</button>
+          </div>
         </div>
         <div class="card">
-          <h3>친구 코드 입력</h3>
-          <p>친구가 만든 6자리 코드를 입력하면 그 채팅방에 입장합니다.</p>
-          <input id="join-code-input" class="field code-input" type="text"
-                 maxlength="6" placeholder="------" autocomplete="off">
-          <div style="height:12px"></div>
+          <h3>초대 링크로 입장</h3>
+          <p>친구가 보낸 링크를 붙여넣고 4자리 비밀번호를 입력하세요.</p>
+          <input id="join-link-input" class="field" type="text"
+                 placeholder="https://invedory.com/veil-chat/#join=…" autocomplete="off">
+          <div style="height:8px"></div>
+          <input id="join-pin-input" class="field code-input" type="text"
+                 inputmode="numeric" pattern="\d*" maxlength="4" placeholder="0000" autocomplete="off">
+          <div style="height:10px"></div>
           <button id="join-btn" class="btn">입장하기</button>
         </div>
       </div>
@@ -276,6 +311,30 @@
     </div>
     <div class="body">
       <div class="pad">
+        <div class="card" id="settings-invite-card">
+          <h3>초대 링크</h3>
+          <p>이 방에 더 초대하려면 아래 링크와 비밀번호를 같이 공유하세요. 링크만 알아도 비밀번호 없으면 못 들어옵니다.</p>
+          <div id="settings-invite-area">
+            <div class="invite-label">초대 링크</div>
+            <div id="settings-invite-link" class="invite-link">—</div>
+            <button class="btn secondary" id="settings-copy-link">링크 복사</button>
+            <div style="height:10px"></div>
+            <div class="invite-label">비밀번호</div>
+            <div id="settings-invite-pin" class="invite-pin">----</div>
+            <button class="btn secondary" id="settings-copy-pin">비밀번호 복사</button>
+            <div style="height:10px"></div>
+            <button class="btn" id="settings-copy-both">링크 + 비밀번호 한번에 복사</button>
+            <div style="height:14px"></div>
+            <button class="btn secondary" id="settings-change-pin">비밀번호 변경</button>
+          </div>
+          <div id="settings-invite-create" class="hidden">
+            <p style="color:var(--text-dim);font-size:13px">이 방은 아직 초대 링크가 없어요. 비밀번호를 정해서 새로 만드세요.</p>
+            <input id="settings-create-pin" class="field code-input" type="text"
+                   inputmode="numeric" pattern="\d*" maxlength="4" placeholder="0000" autocomplete="off">
+            <div style="height:10px"></div>
+            <button class="btn" id="settings-create-invite">초대 링크 만들기</button>
+          </div>
+        </div>
         <div class="card">
           <h3>내 위장 직업</h3>
           <p>이 채팅방의 <b>내 화면</b>에만 적용돼요. 상대는 영향받지 않습니다. 변경하면 진행 중인 위장 시나리오가 리셋됩니다.</p>
@@ -290,6 +349,20 @@
       </div>
     </div>
   </section>
+
+  <!-- PIN 입력 모달 -->
+  <div id="modal-overlay" class="modal-overlay hidden">
+    <div class="modal-card">
+      <h3 id="modal-title">비밀번호</h3>
+      <p id="modal-msg" class="modal-msg"></p>
+      <input id="modal-input" class="field code-input" type="text"
+             inputmode="numeric" pattern="\d*" maxlength="4" placeholder="0000" autocomplete="off">
+      <div class="modal-actions">
+        <button id="modal-cancel" class="btn secondary">취소</button>
+        <button id="modal-ok" class="btn">확인</button>
+      </div>
+    </div>
+  </div>
 
   <div id="toast"></div>
   <div id="overlay">불러오는 중…</div>
@@ -526,12 +599,6 @@ function timeLabel(ts) {
     return d.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
   return d.toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' });
 }
-function genCode() {
-  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-  let c = '';
-  for (let i = 0; i < 6; i++) c += chars[Math.floor(Math.random() * chars.length)];
-  return c;
-}
 function jobLabel(id) { const j = JOBS.find(j => j.id === id); return j ? j.label : id; }
 function jobIsMono(id) { const j = JOBS.find(j => j.id === id); return !!(j && j.mono); }
 
@@ -657,6 +724,12 @@ $('#logout-btn').addEventListener('click', () => {
   auth.signOut();
 });
 
+// URL에서 초대 토큰을 미리 추출 — 로그인 절차 후 입장 처리
+(function bootstrapInvite() {
+  const t = parseInviteFromUrl();
+  if (t) sessionStorage.setItem('pendingInvite', t);
+})();
+
 auth.onAuthStateChanged(async (user) => {
   $('#overlay').classList.add('hidden');
   if (user) {
@@ -675,6 +748,7 @@ auth.onAuthStateChanged(async (user) => {
       showScreen('screen-setup');
     } else {
       enterRooms();
+      handlePendingInvite();
     }
   } else {
     state.uid = null;
@@ -720,6 +794,7 @@ $('#setup-done').addEventListener('click', () => {
   localStorage.setItem('veil_jobMode', setupJob);
   localStorage.setItem('veil_toneMode', setupTone);
   enterRooms();
+  handlePendingInvite();
 });
 
 /* ===================================================================
@@ -775,50 +850,107 @@ function renderRoomList(roomIds) {
 }
 
 /* ===================================================================
-   10. 친구 추가 (초대 코드)
+   10. 친구 추가 (초대 링크 + 4자리 PIN)
+   - 토큰: 12자 URL-safe 랜덤 (충돌 사실상 0)
+   - PIN: 4자리 숫자. 링크만 알아도 PIN 없으면 입장 불가
    =================================================================== */
+const TOKEN_CHARS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+function genToken(len) {
+  let s = ''; for (let i = 0; i < len; i++) s += TOKEN_CHARS[Math.floor(Math.random() * TOKEN_CHARS.length)];
+  return s;
+}
+function inviteLinkFor(token) {
+  return location.origin + location.pathname + '#join=' + token;
+}
+function validPin(p) { return /^\d{4}$/.test(String(p || '')); }
+
+async function copyText(s) {
+  try { await navigator.clipboard.writeText(s); return true; }
+  catch {
+    const t = document.createElement('textarea');
+    t.value = s; document.body.appendChild(t); t.select();
+    try { document.execCommand('copy'); document.body.removeChild(t); return true; }
+    catch { document.body.removeChild(t); return false; }
+  }
+}
+
 $('#add-friend-fab').addEventListener('click', () => {
-  $('#my-code').textContent = '······';
-  $('#join-code-input').value = '';
+  // 폼 초기화
+  $('#create-pin-input').value = '';
+  $('#join-link-input').value = '';
+  $('#join-pin-input').value = '';
+  $('#create-form').classList.remove('hidden');
+  $('#create-result').classList.add('hidden');
   showScreen('screen-add');
 });
 $('#add-back').addEventListener('click', () => showScreen('screen-rooms'));
 
-// 코드 생성 = 새 그룹방을 만들고 재사용 가능한 초대코드 발급(여러 명 입장 가능)
-$('#gen-code-btn').addEventListener('click', async () => {
-  const code = genCode();
+// --- 새 채팅방 만들기 ---
+$('#create-room-btn').addEventListener('click', createRoomWithLink);
+$('#create-pin-input').addEventListener('keydown', e => { if (e.key === 'Enter') createRoomWithLink(); });
+
+async function createRoomWithLink() {
+  const pin = $('#create-pin-input').value.trim();
+  if (!validPin(pin)) { toast('비밀번호는 숫자 4자리예요'); return; }
   try {
+    const token = genToken(12);
     const roomRef = db.ref('rooms').push();
     const roomId = roomRef.key;
     await roomRef.set({
       members: { [state.uid]: true },
       memberNicknames: { [state.uid]: state.nickname },
-      owner: state.uid, inviteCode: code, createdAt: TS, lastMessage: TS
+      owner: state.uid,
+      inviteToken: token,
+      invitePin: pin,
+      createdAt: TS, lastMessage: TS
     });
     await db.ref('users/' + state.uid + '/rooms/' + roomId).set(true);
-    await db.ref('inviteCodes/' + code).set({
-      roomId, creator: state.uid, creatorNick: state.nickname, createdAt: TS
+    await db.ref('inviteCodes/' + token).set({
+      roomId, pin, creator: state.uid, createdAt: TS
     });
-    $('#my-code').textContent = code;
-    toast('초대 코드 생성됨 — 여러 명이 입장할 수 있어요');
-  } catch (e) { toast('코드 생성 실패: ' + e.message); }
-});
+    // 결과 표시
+    const link = inviteLinkFor(token);
+    $('#invite-link-box').textContent = link;
+    $('#invite-pin-box').textContent = pin;
+    $('#create-form').classList.add('hidden');
+    $('#create-result').classList.remove('hidden');
+    // 복사 버튼 와이어링
+    $('#copy-link-btn').onclick = async () => (await copyText(link)) ? toast('링크 복사됨') : toast('복사 실패');
+    $('#copy-pin-btn').onclick = async () => (await copyText(pin)) ? toast('비밀번호 복사됨') : toast('복사 실패');
+    $('#copy-both-btn').onclick = async () => (await copyText(link + '\n비밀번호: ' + pin)) ? toast('링크+비밀번호 복사됨') : toast('복사 실패');
+    toast('초대 링크가 만들어졌어요');
+  } catch (e) { toast('생성 실패: ' + e.message); }
+}
 
-$('#join-btn').addEventListener('click', joinByCode);
-$('#join-code-input').addEventListener('keydown', e => { if (e.key === 'Enter') joinByCode(); });
+// --- 초대 링크로 입장 ---
+$('#join-btn').addEventListener('click', joinFromForm);
+$('#join-pin-input').addEventListener('keydown', e => { if (e.key === 'Enter') joinFromForm(); });
 
-async function joinByCode() {
-  const code = $('#join-code-input').value.trim().toUpperCase();
-  if (code.length !== 6) { toast('6자리 코드를 입력하세요'); return; }
+function extractTokenFromInput(s) {
+  s = (s || '').trim();
+  if (!s) return null;
+  const m = s.match(/#join=([A-Za-z0-9_-]+)/);
+  if (m) return m[1];
+  // 링크 형태가 아니면 토큰만 입력한 걸로 간주
+  if (/^[A-Za-z0-9_-]{6,40}$/.test(s)) return s;
+  return null;
+}
+async function joinFromForm() {
+  const token = extractTokenFromInput($('#join-link-input').value);
+  if (!token) { toast('초대 링크를 다시 확인해주세요'); return; }
+  const pin = $('#join-pin-input').value.trim();
+  if (!validPin(pin)) { toast('비밀번호는 숫자 4자리예요'); return; }
+  await joinByTokenAndPin(token, pin);
+}
+
+async function joinByTokenAndPin(token, pin) {
   try {
-    const invite = (await db.ref('inviteCodes/' + code).get()).val();
-    if (!invite || !invite.roomId) { toast('존재하지 않는 코드입니다'); return; }
+    const invite = (await db.ref('inviteCodes/' + token).get()).val();
+    if (!invite || !invite.roomId) { toast('존재하지 않는 초대 링크입니다'); return; }
+    if (String(invite.pin) !== String(pin)) { toast('비밀번호가 틀렸어요'); return; }
     const roomId = invite.roomId;
-
-    // 이미 들어가 있으면 그냥 입장
     const meMember = (await db.ref('users/' + state.uid + '/rooms/' + roomId).get()).val();
     if (!meMember) {
-      // 자기 자신만 members/memberNicknames에 추가 (규칙상 본인 노드만 쓰기 가능)
       await db.ref('rooms/' + roomId + '/members/' + state.uid).set(true);
       await db.ref('rooms/' + roomId + '/memberNicknames/' + state.uid).set(state.nickname);
       await db.ref('users/' + state.uid + '/rooms/' + roomId).set(true);
@@ -826,6 +958,53 @@ async function joinByCode() {
     toast('채팅방에 입장했어요!');
     openChat(roomId);
   } catch (e) { toast('입장 실패: ' + e.message); }
+}
+
+// --- URL 해시(#join=토큰)로 들어오면 자동으로 PIN 입력 모달 띄움 ---
+function parseInviteFromUrl() {
+  const m = (location.hash || '').match(/#join=([A-Za-z0-9_-]+)/);
+  if (m) {
+    history.replaceState(null, '', location.pathname);
+    return m[1];
+  }
+  return null;
+}
+async function handlePendingInvite() {
+  if (!state.uid) return;
+  const token = sessionStorage.getItem('pendingInvite');
+  if (!token) return;
+  sessionStorage.removeItem('pendingInvite');
+  const pin = await showPinModal('초대 링크 입장', '받은 비밀번호 4자리를 입력하세요');
+  if (!pin) { toast('입장이 취소됐어요'); return; }
+  await joinByTokenAndPin(token, pin);
+}
+
+/* ===================================================================
+   10b. 모달 (PIN 입력 공용)
+   =================================================================== */
+function showPinModal(title, msg, initial) {
+  return new Promise(resolve => {
+    $('#modal-title').textContent = title;
+    $('#modal-msg').textContent = msg || '';
+    const input = $('#modal-input');
+    input.value = initial || '';
+    $('#modal-overlay').classList.remove('hidden');
+    setTimeout(() => input.focus(), 80);
+    const done = (v) => {
+      $('#modal-overlay').classList.add('hidden');
+      $('#modal-ok').onclick = null;
+      $('#modal-cancel').onclick = null;
+      input.onkeydown = null;
+      resolve(v);
+    };
+    $('#modal-ok').onclick = () => {
+      const v = input.value.trim();
+      if (!validPin(v)) { toast('숫자 4자리를 입력하세요'); return; }
+      done(v);
+    };
+    $('#modal-cancel').onclick = () => done(null);
+    input.onkeydown = (e) => { if (e.key === 'Enter') $('#modal-ok').click(); };
+  });
 }
 
 /* ===================================================================
@@ -861,6 +1040,7 @@ async function openChat(roomId) {
   state.roomRef.on('value', snap => {
     const room = snap.val();
     if (!room || !room.members) return;
+    state.room = room;
     state.memberNicks = room.memberNicknames || {};
     const others = Object.keys(room.members).filter(u => u !== state.uid)
       .map(u => state.memberNicks[u] || '익명');
@@ -1054,7 +1234,64 @@ function openChatSettings() {
   if (!rus) return;
   renderJobGrid($('#settings-jobs'), rus.jobMode, changeJob);
   renderToneRow($('#settings-tones'), rus.toneMode, changeTone);
+  renderSettingsInvite();
   showScreen('screen-chat-settings');
+}
+
+function renderSettingsInvite() {
+  const room = state.room;
+  const area = $('#settings-invite-area');
+  const create = $('#settings-invite-create');
+  if (room && room.inviteToken && room.invitePin) {
+    area.classList.remove('hidden');
+    create.classList.add('hidden');
+    const link = inviteLinkFor(room.inviteToken);
+    const pin = String(room.invitePin);
+    $('#settings-invite-link').textContent = link;
+    $('#settings-invite-pin').textContent = pin;
+    $('#settings-copy-link').onclick = async () => (await copyText(link)) ? toast('링크 복사됨') : toast('복사 실패');
+    $('#settings-copy-pin').onclick = async () => (await copyText(pin)) ? toast('비밀번호 복사됨') : toast('복사 실패');
+    $('#settings-copy-both').onclick = async () => (await copyText(link + '\n비밀번호: ' + pin)) ? toast('링크+비밀번호 복사됨') : toast('복사 실패');
+    $('#settings-change-pin').onclick = changeInvitePin;
+  } else {
+    // 구버전 방: 토큰/PIN 없음 → 만들 수 있게
+    area.classList.add('hidden');
+    create.classList.remove('hidden');
+    $('#settings-create-pin').value = '';
+    $('#settings-create-invite').onclick = createInviteForExistingRoom;
+  }
+}
+
+async function changeInvitePin() {
+  const room = state.room;
+  if (!room || !room.inviteToken) return;
+  const newPin = await showPinModal('비밀번호 변경', '새 비밀번호 4자리를 입력하세요');
+  if (!newPin) return;
+  try {
+    await db.ref('rooms/' + state.currentRoomId + '/invitePin').set(newPin);
+    await db.ref('inviteCodes/' + room.inviteToken + '/pin').set(newPin);
+    toast('비밀번호가 바뀌었어요');
+    // state.room은 실시간 리스너로 곧 갱신되지만 즉시 반영
+    state.room.invitePin = newPin;
+    renderSettingsInvite();
+  } catch (e) { toast('변경 실패: ' + e.message); }
+}
+
+async function createInviteForExistingRoom() {
+  const pin = $('#settings-create-pin').value.trim();
+  if (!validPin(pin)) { toast('비밀번호는 숫자 4자리예요'); return; }
+  const roomId = state.currentRoomId;
+  try {
+    const token = genToken(12);
+    await db.ref('rooms/' + roomId).update({ inviteToken: token, invitePin: pin });
+    await db.ref('inviteCodes/' + token).set({
+      roomId, pin, creator: state.uid, createdAt: TS
+    });
+    toast('초대 링크가 만들어졌어요');
+    state.room.inviteToken = token;
+    state.room.invitePin = pin;
+    renderSettingsInvite();
+  } catch (e) { toast('생성 실패: ' + e.message); }
 }
 
 function changeJob(jobId) {
