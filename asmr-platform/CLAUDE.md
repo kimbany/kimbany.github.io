@@ -87,17 +87,19 @@
 | 분석 | Firebase Analytics + Crashlytics | 무료, 충분 |
 
 ### Flutter 핵심 패키지
-- 재생: `just_audio` + `just_audio_background` (잠금화면/백그라운드)
+- **믹싱 엔진**: `flutter_soloud` (다중 트랙 동시 재생 + 트랙별 볼륨 + 페이드 + 이펙트. SoLoud C++ 엔진 기반)
+- **백그라운드/잠금화면**: `audio_service` (시스템 미디어 세션. `just_audio_background`는 단일 플레이어만 지원하므로 사용 안 함)
 - 오디오 라우팅: `audio_session`
-- 녹음: `record` (또는 `flutter_sound`)
+- 녹음: `record`
 - 편집(자르기/페이드/노이즈): `ffmpeg_kit_flutter` (저작권 LGPL 빌드 사용)
-- 상태관리: **Riverpod** (Provider 2세대. BLoC보다 학습곡선 완만)
+- 상태관리: **Riverpod**
 - 라우팅: `go_router`
 
-### 다중 트랙 실시간 믹싱 — **알려진 리스크**
-Flutter 단독으로는 다중 `just_audio` 인스턴스를 동시 재생하는 정도까지만 안정적이고, 트랙별 실시간 이펙트·정밀 동기화·페이드 처리는 native 모듈이 필요합니다.
-- **v1.0 절충안**: 동시 재생 트랙 **최대 4개**, 이펙트는 페이드 인/아웃만. 정밀 동기화는 보장하지 않음(±50ms 허용).
-- **v1.0 PoC 1순위**: "4개 트랙 동시 재생 + 백그라운드 + 잠금화면 컨트롤"이 Flutter 기본 스택에서 안정적인지 검증. 안 되면 native 모듈(iOS=AVAudioEngine, Android=Oboe) Method Channel로 분리.
+### 다중 트랙 실시간 믹싱 — 채택 구조
+- **flutter_soloud가 내부에서 4개 트랙을 실시간 믹싱**해 하나의 오디오 출력을 만든다.
+- **audio_service는 그 합쳐진 출력을 단일 "미디어 세션"으로 시스템에 노출**한다 (잠금화면에는 믹스 1개 = 1줄로 보임).
+- v1.0 제약: 동시 재생 트랙 **최대 4개**, 이펙트는 페이드 인/아웃 + 볼륨/팬만. 정교한 EQ·노이즈 제거는 v2.0.
+- **PoC 1순위**: `asmr-platform/poc/` 의 샘플 앱으로 "4트랙 동시 재생 + 잠금화면 컨트롤 + 백그라운드 8시간"을 실기기에서 검증. 실패 시 native 모듈(iOS=AVAudioEngine, Android=Oboe) Method Channel로 분리.
 
 ### 미선택 / 보류
 - React Native: Flutter 대신 RN을 쓰지 않습니다. 단일 결정.
@@ -408,6 +410,11 @@ NoSQL이므로 **읽기 패턴 우선 설계**. 집계 필드(좋아요 수 등)
 - 컨텍스트: Flutter vs RN, Firebase vs AWS 후보.
 - 결정: Flutter + Firebase. 검색은 Algolia 보조.
 - 영향: 단일 코드베이스로 iOS/Android 출시. 초기 운영비 0에 가까움. 다중 트랙 정밀 동기화는 PoC 1순위로 별도 검증.
+
+### 2026-06-16 — 오디오 패키지 재선택 (just_audio_background → flutter_soloud + audio_service)
+- 컨텍스트: 핵심 기능인 "4개 트랙 동시 재생"을 PoC 직전에 사전 검증한 결과, `just_audio_background`는 GitHub Issue #935에서 공식적으로 단일 플레이어만 지원함을 확인.
+- 결정: 믹싱 엔진은 `flutter_soloud`(C++ SoLoud 엔진 기반, 트랙별 핸들·볼륨·페이드 지원), 시스템 미디어 세션은 `audio_service`(다중 플레이어 호환)로 분리. SoLoud의 믹스 출력은 하나의 미디어 세션으로 노출되어 잠금화면에는 1개 항목으로만 보임.
+- 영향: 동시 재생 4트랙 + 백그라운드 + 잠금화면이 native 모듈 없이 가능. 다만 실기기 8시간 연속 재생 안정성은 PoC로 별도 검증 필요. CLAUDE.md §5 갱신 완료.
 
 ### 2026-06-16 — 시드 콘텐츠 30종 큐레이션
 - 컨텍스트: 양면 마켓 콜드 스타트 위험.
