@@ -3,6 +3,9 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
 <title>Veil — 익명 친구 매칭 (프로토타입)</title>
 <style>
   :root{
@@ -448,6 +451,19 @@ function renderSettings(){
 }
 window._cseg='active';
 buildOnboarding();
+
+/* ---------- 항상 첫 화면에서 시작 (탭 복원/뒤로가기 캐시 대응) ---------- */
+function resetToStart(){
+  clearInterval(countdown); clearInterval(clockT);
+  closeAll();
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+  document.getElementById('s-start').classList.add('active');
+  // 메인 탭 상태도 초기화
+  ['match','chats','settings'].forEach(n=>{const p=document.getElementById('page-'+n);if(p)p.style.display=n==='match'?'':'none';});
+}
+resetToStart();
+// bfcache(뒤로가기/탭 전환 복원)로 되돌아와도 첫 화면부터 시작
+window.addEventListener('pageshow', function(e){ if(e.persisted) resetToStart(); });
 </script>
 </body>
 </html>
