@@ -1,0 +1,26 @@
+[package]
+name = "deskmemo"
+version = "0.1.0"
+description = "Desktop sticky note app with sync and alarms"
+authors = ["kimbany"]
+edition = "2021"
+rust-version = "1.77.2"
+
+# The library is what Tauri actually runs; main.rs is a thin launcher.
+[lib]
+name = "deskmemo_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = ["tray-icon"] }
+tauri-plugin-global-shortcut = "2"
+tauri-plugin-notification = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+[features]
+# Default Tauri custom-protocol used in release builds.
+custom-protocol = ["tauri/custom-protocol"]
