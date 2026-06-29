@@ -499,9 +499,8 @@ function renderItemRow(item, note, depth) {
   const st = statusOf(item);
   const row = document.createElement("div");
   row.dataset.item = item.id;
-  // 보류만 행 배경(연주황). 진행중은 토글 색, 완료는 기존 그대로(배경 없음).
-  const bgByStatus = { active: "", hold: "bg-orange-400/20", done: "" };
-  row.className = "item-row flex items-center gap-1 rounded py-0.5 " + bgByStatus[st];
+  // 상태는 토글 색/글씨로 표현 → 행 배경 없음
+  row.className = "item-row flex items-center gap-1 rounded py-0.5";
   row.style.paddingLeft = depth * 14 + "px";
 
   // 접기/펼치기
@@ -525,16 +524,16 @@ function renderItemRow(item, note, depth) {
   cb.setAttribute("role", "switch");
   cb.setAttribute("aria-checked", st === "done" ? "true" : "false");
   let knobStyle = "";
-  if (st === "active") {
-    // 켜진 모양 + 초록색 (이미지 참고)
+  if (st === "done") {
+    // 완료: knob 오른쪽(on), 기존 채움 그대로
     cb.className = "toggle shrink-0 on";
-    cb.style.background = "#10b981";
-    cb.style.borderColor = "#10b981";
-    knobStyle = ' style="background:#ffffff"';
-  } else if (st === "done") {
-    cb.className = "toggle shrink-0 on"; // 기존 그대로 (currentColor 채움)
   } else {
-    cb.className = "toggle shrink-0"; // 보류: 빈 스위치
+    // 진행중/보류: knob 왼쪽(off) + pill 색 채움(초록/주황) + 흰 knob
+    cb.className = "toggle shrink-0";
+    const fill = st === "active" ? "#10b981" : "#f59e0b";
+    cb.style.background = fill;
+    cb.style.borderColor = fill;
+    knobStyle = ' style="background:#ffffff"';
   }
   cb.innerHTML = '<span class="toggle-knob"' + knobStyle + "></span>";
   cb.title = "클릭: 완료/진행 전환 · 우클릭: 상태 변경";
@@ -554,14 +553,17 @@ function renderItemRow(item, note, depth) {
   text.type = "text";
   text.value = item.text;
   text.placeholder = "할 일...";
+  // 글씨: 진행중=흰색(상속, 우선순위색 우선) / 보류=회색 / 완료=회색+취소선
   const prioColor = { 1: "text-red-500", 2: "text-orange-500", 3: "text-yellow-400" };
   text.className =
     "item-text min-w-0 flex-1 bg-transparent text-sm outline-none" +
     (st === "done"
-      ? " line-through opacity-50"
-      : item.priority
-        ? " font-semibold " + prioColor[item.priority]
-        : "");
+      ? " line-through opacity-50 text-neutral-400"
+      : st === "hold"
+        ? " text-neutral-400"
+        : item.priority
+          ? " font-semibold " + prioColor[item.priority]
+          : "");
   text.addEventListener("input", () => {
     item.text = text.value;
     persist(note);
