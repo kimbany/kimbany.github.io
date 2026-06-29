@@ -12,8 +12,9 @@ dist/
 .env
 .env.local
 
-# Firebase client config (copied from firebase-config.example.js)
-src/firebase-config.js
+# Firebase client config: 웹(GitHub Pages) 배포를 위해 커밋함.
+# (Firebase 웹 config는 공개 안전 — 실제 보안은 Firestore 규칙이 담당)
+# src/firebase-config.js
 
 # Firebase tooling
 .firebase/
