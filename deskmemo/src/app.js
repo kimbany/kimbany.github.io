@@ -72,6 +72,7 @@ function normalize(n) {
     w: Number.isFinite(n.w) ? n.w : DEFAULT_W,
     h: Number.isFinite(n.h) ? n.h : DEFAULT_H,
     pinned: !!n.pinned,
+    hidden: !!n.hidden,
     order: Number.isFinite(n.order) ? n.order : 0,
     createdAt: Number.isFinite(n.createdAt) ? n.createdAt : Date.now(),
     updatedAt: Number.isFinite(n.updatedAt) ? n.updatedAt : Date.now(),
@@ -103,6 +104,19 @@ function fmtDue(iso) {
 function setDoneRecursive(item, value) {
   item.done = value;
   (item.children || []).forEach((c) => setDoneRecursive(c, value));
+}
+
+/** 항목을 하위까지 깊은 복사(모든 id 새로 발급). */
+function cloneItemDeep(item) {
+  return {
+    id: uid(),
+    text: item.text || "",
+    done: !!item.done,
+    collapsed: !!item.collapsed,
+    due: item.due || null,
+    memo: item.memo == null ? null : item.memo,
+    children: (item.children || []).map(cloneItemDeep),
+  };
 }
 
 function findItem(items, id) {
@@ -211,7 +225,23 @@ function deleteNote(id) {
 // ---- rendering -------------------------------------------------------------
 
 function refreshEmptyHint() {
-  emptyHint.style.display = notes.length ? "none" : "flex";
+  const anyVisible = notes.some((n) => !n.hidden);
+  emptyHint.style.display = anyVisible ? "none" : "flex";
+}
+
+/** 메모 숨김/표시 토글. */
+function setHidden(id, hidden) {
+  updateNote(id, { hidden });
+  const note = getNote(id);
+  const card = document.querySelector(`[data-id="${id}"]`);
+  if (hidden) {
+    card?._ro?.disconnect();
+    card?.remove();
+  } else if (note && !card) {
+    board.appendChild(renderNote(note));
+  }
+  refreshEmptyHint();
+  renderNoteList();
 }
 
 /** 카드를 새로 만들어 반환(보드에 붙이지는 않음). */
@@ -296,13 +326,19 @@ function renderHead(note, card) {
     }
   );
 
+  // 숨기기 (목록 패널에서 다시 표시)
+  const hideBtn = iconButton("🙈", "숨기기 (목록에서 다시 표시)", (e) => {
+    e.stopPropagation();
+    setHidden(note.id, true);
+  });
+
   const del = iconButton("×", "삭제", (e) => {
     e.stopPropagation();
     deleteNote(note.id);
   });
   del.classList.add("text-neutral-600");
 
-  tools.append(typeBtn, pinBtn, del);
+  tools.append(typeBtn, pinBtn, hideBtn, del);
   head.append(dots, tools);
   return head;
 }
@@ -588,6 +624,15 @@ function showItemContextMenu(x, y, note, itemId) {
       rerenderCard(note.id);
     });
   }
+  add("📋 복사 (하위 포함)", () => {
+    const copy = cloneItemDeep(item);
+    const list = findParentList(note.items, itemId) || note.items;
+    let idx = list.findIndex((x) => x.id === itemId);
+    if (idx < 0) idx = list.length - 1;
+    list.splice(idx + 1, 0, copy);
+    persist(note);
+    rerenderCard(note.id);
+  });
   add("＋ 하위 항목", () => {
     item.children = item.children || [];
     const c = newItem();
@@ -739,9 +784,11 @@ function renderAll() {
   });
   notes
     .slice()
+    .filter((n) => !n.hidden)
     .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
     .forEach((n) => board.appendChild(renderNote(n)));
   refreshEmptyHint();
+  renderNoteList();
 }
 
 /** 원격 스냅샷을 DOM과 맞춤. 편집/드래그 중인 카드는 건드리지 않음. */
@@ -758,6 +805,13 @@ function reconcile(remote) {
 
   for (const note of notes) {
     const card = board.querySelector(`[data-id="${note.id}"]`);
+    if (note.hidden) {
+      if (card) {
+        card._ro?.disconnect();
+        card.remove();
+      }
+      continue;
+    }
     if (!card) {
       board.appendChild(renderNote(note));
     } else if (
@@ -770,6 +824,7 @@ function reconcile(remote) {
     // 편집/드래그 중인 카드는 echo로 덮지 않음
   }
   refreshEmptyHint();
+  renderNoteList();
   scheduleCalendar();
 }
 
@@ -985,6 +1040,106 @@ function renderCalendar() {
   cal.appendChild(list);
 }
 
+function toggleCalendar() {
+  const cal = document.getElementById("calendar");
+  if (cal) cal.classList.toggle("hidden");
+}
+
+// ---- 메모 목록 패널 (숨김 포함) -------------------------------------------
+
+let noteListOpen = false;
+
+function notePreview(note) {
+  if (note.title) return note.title;
+  if (note.type === "todo") {
+    const first = (note.items || []).find((i) => i.text);
+    return first ? first.text : "(빈 체크리스트)";
+  }
+  return (note.text || "").split("\n")[0] || "(빈 메모)";
+}
+
+function ensureNoteListPanel() {
+  let panel = document.getElementById("note-list-panel");
+  if (panel) return panel;
+  panel = document.createElement("aside");
+  panel.id = "note-list-panel";
+  panel.className =
+    "fixed right-0 top-0 z-[900] flex h-full w-64 max-w-[80vw] translate-x-full flex-col " +
+    "border-l border-white/15 bg-neutral-800/95 p-3 text-neutral-100 shadow-2xl " +
+    "backdrop-blur transition-transform duration-200";
+  const head = document.createElement("div");
+  head.className = "mb-2 flex items-center justify-between";
+  const title = document.createElement("div");
+  title.className = "text-sm font-semibold";
+  title.textContent = "메모 목록";
+  const close = document.createElement("button");
+  close.textContent = "✕";
+  close.className = "rounded px-1 hover:bg-white/15";
+  close.addEventListener("click", () => toggleNoteList(false));
+  head.append(title, close);
+  const body = document.createElement("div");
+  body.id = "note-list-body";
+  body.className = "no-scrollbar flex-1 overflow-auto";
+  panel.append(head, body);
+  document.body.appendChild(panel);
+  return panel;
+}
+
+function renderNoteList() {
+  const panel = document.getElementById("note-list-panel");
+  if (!panel) return; // 패널이 아직 열린 적 없음
+  const body = panel.querySelector("#note-list-body");
+  body.innerHTML = "";
+  if (!notes.length) {
+    body.innerHTML = '<div class="text-xs text-neutral-400">메모가 없습니다</div>';
+    return;
+  }
+  notes
+    .slice()
+    .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+    .forEach((note) => {
+      const row = document.createElement("div");
+      row.className = "mb-1 flex items-center gap-2 rounded px-2 py-1.5 hover:bg-white/10";
+      const dot = document.createElement("span");
+      dot.className = "h-2.5 w-2.5 shrink-0 rounded-full ring-1 ring-black/20";
+      dot.style.background = COLORS[note.color] || COLORS.yellow;
+      const label = document.createElement("button");
+      label.className =
+        "min-w-0 flex-1 truncate text-left text-sm " +
+        (note.hidden ? "text-neutral-500" : "text-neutral-100");
+      label.textContent = (note.type === "todo" ? "☑ " : "📝 ") + notePreview(note);
+      label.title = "클릭하면 화면에 표시";
+      label.addEventListener("click", () => {
+        if (note.hidden) setHidden(note.id, false);
+        focusCard(note.id);
+      });
+      const toggle = document.createElement("button");
+      toggle.textContent = note.hidden ? "🙈" : "👁";
+      toggle.title = note.hidden ? "표시" : "숨기기";
+      toggle.className = "shrink-0 rounded px-1 text-xs hover:bg-white/15";
+      toggle.addEventListener("click", () => setHidden(note.id, !note.hidden));
+      row.append(dot, label, toggle);
+      body.appendChild(row);
+    });
+}
+
+function focusCard(id) {
+  setTimeout(() => {
+    const card = document.querySelector(`[data-id="${id}"]`);
+    if (!card) return;
+    card.scrollIntoView({ behavior: "smooth", block: "center" });
+    card.classList.add("ring-2", "ring-indigo-400");
+    setTimeout(() => card.classList.remove("ring-2", "ring-indigo-400"), 1200);
+  }, 0);
+}
+
+function toggleNoteList(open) {
+  const panel = ensureNoteListPanel();
+  noteListOpen = open === undefined ? !noteListOpen : open;
+  renderNoteList();
+  panel.classList.toggle("translate-x-full", !noteListOpen);
+}
+
 // ---- mode switching --------------------------------------------------------
 
 function goLocal() {
@@ -1043,7 +1198,8 @@ document.getElementById("btn-new").addEventListener("click", () => addNote());
 document
   .getElementById("btn-new-todo")
   .addEventListener("click", () => addNote({ type: "todo" }));
-document.getElementById("btn-hide").addEventListener("click", hideBoard);
+document.getElementById("btn-list").addEventListener("click", () => toggleNoteList());
+document.getElementById("btn-cal").addEventListener("click", toggleCalendar);
 
 authBtn.addEventListener("click", async () => {
   try {
