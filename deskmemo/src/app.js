@@ -96,6 +96,7 @@ function newItem() {
     id: uid(),
     text: "",
     status: "active", // "active"(진행중) | "hold"(보류) | "done"(완료)
+    priority: null, // 1 | 2 | 3 | null
     collapsed: false,
     due: null, // 마감일 "YYYY-MM-DD" | null
     memo: null, // 이슈/메모 텍스트 | null (null이면 숨김)
@@ -130,6 +131,7 @@ function cloneItemDeep(item) {
     id: uid(),
     text: item.text || "",
     status: statusOf(item),
+    priority: item.priority || null,
     collapsed: !!item.collapsed,
     due: item.due || null,
     memo: item.memo == null ? null : item.memo,
@@ -497,12 +499,8 @@ function renderItemRow(item, note, depth) {
   const st = statusOf(item);
   const row = document.createElement("div");
   row.dataset.item = item.id;
-  // 상태별 행 배경: 진행중=초록, 보류=주황, 완료=회색
-  const bgByStatus = {
-    active: "bg-emerald-500/15",
-    hold: "bg-orange-400/20",
-    done: "bg-neutral-500/20",
-  };
+  // 보류만 행 배경(연주황). 진행중은 토글 색, 완료는 기존 그대로(배경 없음).
+  const bgByStatus = { active: "", hold: "bg-orange-400/20", done: "" };
   row.className = "item-row flex items-center gap-1 rounded py-0.5 " + bgByStatus[st];
   row.style.paddingLeft = depth * 14 + "px";
 
@@ -520,18 +518,25 @@ function renderItemRow(item, note, depth) {
     });
   }
 
-  // 토글 스위치 — 클릭=완료/진행 전환(하위까지), 우클릭=상태 메뉴(보류 등)
-  const statusColor = { active: "#10b981", hold: "#f59e0b", done: null };
+  // 토글 — 진행중=초록 스위치, 완료=기존(채움), 보류=빈 스위치
+  // 클릭=완료/진행 전환(하위까지), 우클릭=상태 메뉴
   const cb = document.createElement("button");
   cb.type = "button";
   cb.setAttribute("role", "switch");
   cb.setAttribute("aria-checked", st === "done" ? "true" : "false");
-  cb.className = "toggle shrink-0" + (st === "done" ? " on" : "");
-  cb.innerHTML =
-    '<span class="toggle-knob" style="background:' +
-    (statusColor[st] || "currentColor") +
-    '"></span>';
-  if (st !== "done") cb.style.borderColor = statusColor[st];
+  let knobStyle = "";
+  if (st === "active") {
+    // 켜진 모양 + 초록색 (이미지 참고)
+    cb.className = "toggle shrink-0 on";
+    cb.style.background = "#10b981";
+    cb.style.borderColor = "#10b981";
+    knobStyle = ' style="background:#ffffff"';
+  } else if (st === "done") {
+    cb.className = "toggle shrink-0 on"; // 기존 그대로 (currentColor 채움)
+  } else {
+    cb.className = "toggle shrink-0"; // 보류: 빈 스위치
+  }
+  cb.innerHTML = '<span class="toggle-knob"' + knobStyle + "></span>";
   cb.title = "클릭: 완료/진행 전환 · 우클릭: 상태 변경";
   cb.addEventListener("click", () => {
     setStatusRecursive(item, st === "done" ? "active" : "done");
@@ -549,9 +554,14 @@ function renderItemRow(item, note, depth) {
   text.type = "text";
   text.value = item.text;
   text.placeholder = "할 일...";
+  const prioColor = { 1: "text-red-500", 2: "text-orange-500", 3: "text-yellow-400" };
   text.className =
     "item-text min-w-0 flex-1 bg-transparent text-sm outline-none" +
-    (st === "done" ? " line-through opacity-50" : "");
+    (st === "done"
+      ? " line-through opacity-50"
+      : item.priority
+        ? " font-semibold " + prioColor[item.priority]
+        : "");
   text.addEventListener("input", () => {
     item.text = text.value;
     persist(note);
@@ -666,7 +676,7 @@ function showItemContextMenu(x, y, note, itemId) {
 
   const menu = document.createElement("div");
   menu.className =
-    "fixed z-[1000] min-w-32 overflow-hidden rounded-md border border-black/10 bg-white py-1 text-sm text-neutral-800 shadow-xl";
+    "fixed z-[1000] min-w-32 rounded-md border border-black/10 bg-white py-1 text-sm text-neutral-800 shadow-xl";
   menu.style.left = x + "px";
   menu.style.top = y + "px";
 
@@ -678,6 +688,30 @@ function showItemContextMenu(x, y, note, itemId) {
       closeContextMenu();
       fn();
     });
+    menu.appendChild(b);
+  };
+
+  // hover로 펼치는 서브메뉴
+  const addSubmenu = (label, options) => {
+    const b = document.createElement("button");
+    b.className = "relative block w-full px-3 py-1.5 text-left hover:bg-neutral-100";
+    b.textContent = label + " ▸";
+    const sub = document.createElement("div");
+    sub.className =
+      "absolute left-full top-0 z-[1001] hidden min-w-28 rounded-md border border-black/10 bg-white py-1 shadow-xl";
+    for (const [optLabel, fn] of options) {
+      const ob = document.createElement("button");
+      ob.innerHTML = optLabel;
+      ob.className = "block w-full px-3 py-1.5 text-left hover:bg-neutral-100";
+      ob.addEventListener("click", () => {
+        closeContextMenu();
+        fn();
+      });
+      sub.appendChild(ob);
+    }
+    b.appendChild(sub);
+    b.addEventListener("mouseenter", () => sub.classList.remove("hidden"));
+    b.addEventListener("mouseleave", () => sub.classList.add("hidden"));
     menu.appendChild(b);
   };
 
@@ -724,6 +758,21 @@ function showItemContextMenu(x, y, note, itemId) {
     persist(note);
     rerenderCard(note.id, { focusItemId: c.id });
   });
+  addSubmenu("⚑ 우선순위", [
+    [
+      '<span class="text-red-500 font-semibold">● 1순위</span>',
+      () => setPriority(note, itemId, 1),
+    ],
+    [
+      '<span class="text-orange-500 font-semibold">● 2순위</span>',
+      () => setPriority(note, itemId, 2),
+    ],
+    [
+      '<span class="text-yellow-500 font-semibold">● 3순위</span>',
+      () => setPriority(note, itemId, 3),
+    ],
+    ['<span class="text-neutral-500">없음</span>', () => setPriority(note, itemId, null)],
+  ]);
   add("➡ 다른 체크리스트로 이동", () => showMoveMenu(x, y, note, itemId));
   add("🗑 삭제", async () => {
     const ok = await confirmDialog("이 항목을 삭제할까요?<br>하위 항목도 함께 삭제됩니다.");
@@ -795,6 +844,14 @@ function moveItemToNote(srcNote, itemId, destNote) {
   rerenderCard(destNote.id); // 대상이 보드에 떠 있으면 갱신(숨김이면 무시됨)
 }
 
+function setPriority(note, itemId, p) {
+  const it = findItem(note.items, itemId);
+  if (!it) return;
+  it.priority = p;
+  persist(note);
+  rerenderCard(note.id);
+}
+
 /** 토글 우클릭: 항목 상태(진행중/보류/완료) 변경. */
 function showStatusMenu(x, y, note, itemId) {
   closeContextMenu();
@@ -817,14 +874,8 @@ function showStatusMenu(x, y, note, itemId) {
     });
     menu.appendChild(b);
   };
-  add("🟢 진행 중", () => {
-    item.status = "active";
-    delete item.done;
-  });
-  add("🟠 보류", () => {
-    item.status = "hold";
-    delete item.done;
-  });
+  add("🟢 진행 중 (하위 포함)", () => setStatusRecursive(item, "active"));
+  add("🟠 보류 (하위 포함)", () => setStatusRecursive(item, "hold"));
   add("⚪ 완료 (하위 포함)", () => setStatusRecursive(item, "done"));
 
   document.body.appendChild(menu);
