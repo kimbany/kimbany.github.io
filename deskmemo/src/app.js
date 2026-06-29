@@ -22,12 +22,8 @@ import {
 // 각 색: bg(카드 배경) + dark(어두운 카드 → 흰 글씨)
 const COLORS = {
   navy: { bg: "#2b3a5c", dark: true }, // 첨부 이미지 톤
-  teal: { bg: "#1f4d4a", dark: true }, // 네이비와 어울리는 딥 틸
-  plum: { bg: "#46314f", dark: true }, // 네이비와 어울리는 딥 플럼
-  yellow: { bg: "#fde68a", dark: false },
-  pink: { bg: "#fbcfe8", dark: false },
-  blue: { bg: "#bfdbfe", dark: false },
-  green: { bg: "#bbf7d0", dark: false },
+  teal: { bg: "#1f4d4a", dark: true }, // 딥 틸
+  plum: { bg: "#46314f", dark: true }, // 딥 플럼
   gray: { bg: "#e5e7eb", dark: false },
 };
 const COLOR_KEYS = Object.keys(COLORS);
@@ -67,11 +63,18 @@ function setStatus(text) {
 
 /** 누락 필드를 기본값으로 채워 구버전/신버전 메모를 안전하게 다룬다. */
 function normalize(n) {
+  const type = n.type === "todo" || n.type === "event" ? n.type : "note";
   return {
     id: n.id,
-    type: n.type === "todo" ? "todo" : "note",
+    type,
     title: typeof n.title === "string" ? n.title : "",
     text: typeof n.text === "string" ? n.text : "",
+    // 달력 이벤트(type === "event") 전용 필드
+    start: typeof n.start === "string" ? n.start : null,
+    end: typeof n.end === "string" ? n.end : null,
+    allDay: n.allDay !== false,
+    startTime: typeof n.startTime === "string" ? n.startTime : null,
+    endTime: typeof n.endTime === "string" ? n.endTime : null,
     items: Array.isArray(n.items) ? n.items : [],
     color: COLORS[n.color] ? n.color : "navy",
     x: Number.isFinite(n.x) ? n.x : 16,
@@ -231,8 +234,12 @@ function deleteNote(id) {
 
 // ---- rendering -------------------------------------------------------------
 
+function isBoardNote(n) {
+  return !n.hidden && n.type !== "event";
+}
+
 function refreshEmptyHint() {
-  const anyVisible = notes.some((n) => !n.hidden);
+  const anyVisible = notes.some(isBoardNote);
   emptyHint.style.display = anyVisible ? "none" : "flex";
 }
 
@@ -589,45 +596,15 @@ function renderItemRow(item, note, depth) {
     }
   });
 
-  // 하위 항목 추가
-  const addSub = iconButton(
-    svgIcon("plus"),
-    "하위 항목 추가",
-    (e) => {
-      e.stopPropagation();
-      item.children = item.children || [];
-      item.children.push(newItem());
-      item.collapsed = false;
-      persist(note);
-      rerenderCard(note.id, { focusItemId: item.children[item.children.length - 1].id });
-    },
-    true
-  );
-  addSub.classList.add("shrink-0");
-
-  // 삭제
-  const del = iconButton(
-    svgIcon("x"),
-    "항목 삭제",
-    (e) => {
-      e.stopPropagation();
-      removeItem(note.items, item.id);
-      persist(note);
-      rerenderCard(note.id);
-    },
-    true
-  );
-  del.classList.add("shrink-0");
-
-  // 드래그 핸들(맨 뒤): 잡고 항목 이동
+  // 드래그 핸들(맨 뒤): 잡고 항목 이동. 추가/삭제/하위는 우클릭 메뉴로.
   const handle = document.createElement("button");
   handle.textContent = "⠿";
-  handle.title = "드래그로 이동 (가장자리=형제, 가운데=하위)";
+  handle.title = "드래그로 이동 (가장자리=형제, 가운데=하위) · 우클릭=메뉴";
   handle.className =
-    "drag-handle-item shrink-0 px-0.5 text-xs leading-none text-neutral-400 hover:text-neutral-700";
+    "drag-handle-item shrink-0 px-0.5 text-xs leading-none opacity-60 hover:opacity-100";
   setupItemDrag(handle, note, item.id);
 
-  const parts = [toggle, cb, text, dueSpan, addSub, del, handle, dateWrap].filter(Boolean);
+  const parts = [toggle, cb, text, dueSpan, handle, dateWrap].filter(Boolean);
   row.append(...parts);
   return row;
 }
@@ -707,7 +684,10 @@ function showItemContextMenu(x, y, note, itemId) {
     persist(note);
     rerenderCard(note.id, { focusItemId: c.id });
   });
-  add("🗑 항목 삭제", () => {
+  add("➡ 다른 체크리스트로 이동", () => showMoveMenu(x, y, note, itemId));
+  add("🗑 삭제", async () => {
+    const ok = await confirmDialog("이 항목을 삭제할까요?<br>하위 항목도 함께 삭제됩니다.");
+    if (!ok) return;
     removeItem(note.items, itemId);
     persist(note);
     rerenderCard(note.id);
@@ -722,6 +702,105 @@ function showItemContextMenu(x, y, note, itemId) {
 
   document.addEventListener("pointerdown", onCtxOutside, true);
   document.addEventListener("keydown", onCtxKey, true);
+}
+
+/** 항목을 다른 체크리스트(note)로 이동. */
+function showMoveMenu(x, y, srcNote, itemId) {
+  closeContextMenu();
+  const targets = notes.filter((n) => n.type === "todo" && n.id !== srcNote.id);
+  const menu = document.createElement("div");
+  menu.className =
+    "fixed z-[1000] max-h-64 min-w-40 overflow-auto rounded-md border border-black/10 bg-white py-1 text-sm text-neutral-800 shadow-xl";
+  menu.style.left = x + "px";
+  menu.style.top = y + "px";
+
+  if (!targets.length) {
+    const d = document.createElement("div");
+    d.className = "px-3 py-2 text-neutral-500";
+    d.textContent = "이동할 다른 체크리스트가 없습니다";
+    menu.appendChild(d);
+  } else {
+    const headEl = document.createElement("div");
+    headEl.className = "px-3 py-1 text-[11px] font-semibold text-neutral-400";
+    headEl.textContent = "이동할 체크리스트 선택";
+    menu.appendChild(headEl);
+    for (const t of targets) {
+      const b = document.createElement("button");
+      b.textContent = "☑ " + notePreview(t);
+      b.className = "block w-full truncate px-3 py-1.5 text-left hover:bg-neutral-100";
+      b.addEventListener("click", () => {
+        closeContextMenu();
+        moveItemToNote(srcNote, itemId, t);
+      });
+      menu.appendChild(b);
+    }
+  }
+
+  document.body.appendChild(menu);
+  ctxMenuEl = menu;
+  const r = menu.getBoundingClientRect();
+  if (r.right > window.innerWidth) menu.style.left = window.innerWidth - r.width - 8 + "px";
+  if (r.bottom > window.innerHeight) menu.style.top = window.innerHeight - r.height - 8 + "px";
+  document.addEventListener("pointerdown", onCtxOutside, true);
+  document.addEventListener("keydown", onCtxKey, true);
+}
+
+function moveItemToNote(srcNote, itemId, destNote) {
+  const moved = detachItem(srcNote.items, itemId);
+  if (!moved) return;
+  destNote.items.push(moved);
+  persist(srcNote);
+  persist(destNote);
+  rerenderCard(srcNote.id);
+  rerenderCard(destNote.id); // 대상이 보드에 떠 있으면 갱신(숨김이면 무시됨)
+}
+
+/** 예/아니오 확인 모달. Enter=예, Esc=아니오. Promise<boolean>. */
+function confirmDialog(messageHtml) {
+  return new Promise((resolve) => {
+    const overlay = document.createElement("div");
+    overlay.className =
+      "fixed inset-0 z-[2000] flex items-center justify-center bg-black/40";
+    const box = document.createElement("div");
+    box.className = "w-64 rounded-lg bg-white p-4 text-neutral-800 shadow-2xl";
+    const msg = document.createElement("div");
+    msg.className = "mb-4 text-sm leading-relaxed";
+    msg.innerHTML = messageHtml;
+    const btns = document.createElement("div");
+    btns.className = "flex justify-end gap-2";
+    const no = document.createElement("button");
+    no.textContent = "아니오";
+    no.className = "rounded px-3 py-1.5 text-sm bg-neutral-200 hover:bg-neutral-300";
+    const yes = document.createElement("button");
+    yes.textContent = "예";
+    yes.className = "rounded px-3 py-1.5 text-sm bg-rose-500 text-white hover:bg-rose-600";
+    btns.append(no, yes);
+    box.append(msg, btns);
+    overlay.appendChild(box);
+    document.body.appendChild(overlay);
+
+    const close = (val) => {
+      overlay.remove();
+      document.removeEventListener("keydown", onKey, true);
+      resolve(val);
+    };
+    const onKey = (e) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        close(true);
+      } else if (e.key === "Escape") {
+        e.preventDefault();
+        close(false);
+      }
+    };
+    yes.addEventListener("click", () => close(true));
+    no.addEventListener("click", () => close(false));
+    overlay.addEventListener("click", (e) => {
+      if (e.target === overlay) close(false);
+    });
+    document.addEventListener("keydown", onKey, true);
+    setTimeout(() => yes.focus(), 0);
+  });
 }
 
 /** ＋ 버튼 드롭다운: 메모 / 체크리스트 선택. */
@@ -877,7 +956,7 @@ function renderAll() {
   });
   notes
     .slice()
-    .filter((n) => !n.hidden)
+    .filter(isBoardNote)
     .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
     .forEach((n) => board.appendChild(renderNote(n)));
   refreshEmptyHint();
@@ -898,7 +977,7 @@ function reconcile(remote) {
 
   for (const note of notes) {
     const card = board.querySelector(`[data-id="${note.id}"]`);
-    if (note.hidden) {
+    if (!isBoardNote(note)) {
       if (card) {
         card._ro?.disconnect();
         card.remove();
@@ -1025,6 +1104,225 @@ function collectDueItems() {
   return map;
 }
 
+// 달력 이벤트(type === "event")를 메모와 같은 저장소에 둔다 → 동기화 재사용.
+function addEvent(data) {
+  const ev = normalize({
+    id: uid(),
+    type: "event",
+    color: "navy",
+    order: notes.length,
+    createdAt: Date.now(),
+    updatedAt: Date.now(),
+    ...data,
+  });
+  notes.push(ev);
+  persist(ev);
+}
+
+/** 특정 날짜(key)에 걸치는 이벤트들. */
+function eventsOnDate(key) {
+  return notes.filter(
+    (n) =>
+      n.type === "event" &&
+      n.start &&
+      key >= n.start &&
+      key <= (n.end || n.start)
+  );
+}
+
+/** 모든 체크리스트 항목을 평탄화(이벤트 연동 선택용). */
+function allTodoItems() {
+  const out = [];
+  for (const n of notes) {
+    if (n.type !== "todo") continue;
+    (function walk(items) {
+      for (const it of items || []) {
+        out.push({
+          noteId: n.id,
+          itemId: it.id,
+          label: (n.title ? n.title + " / " : "") + (it.text || "(내용 없음)"),
+        });
+        walk(it.children);
+      }
+    })(n.items);
+  }
+  return out;
+}
+
+function timeOptions() {
+  const opts = [];
+  for (let h = 0; h < 24; h++) {
+    for (let m = 0; m < 60; m += 10) {
+      opts.push(String(h).padStart(2, "0") + ":" + String(m).padStart(2, "0"));
+    }
+  }
+  return opts;
+}
+
+/** 이벤트 추가 폼(모달). 연동 선택 시 체크리스트 항목의 마감일을 설정. */
+function showEventForm(defaultDate) {
+  closeContextMenu();
+  const overlay = document.createElement("div");
+  overlay.className =
+    "fixed inset-0 z-[2000] flex items-center justify-center bg-black/40 p-4";
+  const box = document.createElement("div");
+  box.className =
+    "w-72 max-w-full rounded-lg bg-white p-4 text-neutral-800 shadow-2xl text-sm";
+  const heading = document.createElement("div");
+  heading.className = "mb-2 text-sm font-semibold";
+  heading.textContent = "이벤트 추가";
+  box.appendChild(heading);
+
+  const field = (labelText, el) => {
+    const w = document.createElement("label");
+    w.className = "mb-2 block";
+    const t = document.createElement("div");
+    t.className = "mb-0.5 text-[11px] text-neutral-500";
+    t.textContent = labelText;
+    w.append(t, el);
+    return w;
+  };
+  const inputCls = "w-full rounded border border-neutral-300 px-2 py-1";
+
+  const title = document.createElement("input");
+  title.type = "text";
+  title.placeholder = "이벤트 제목";
+  title.className = inputCls;
+
+  const link = document.createElement("select");
+  link.className = inputCls;
+  const opt0 = document.createElement("option");
+  opt0.value = "";
+  opt0.textContent = "(연동 안 함 — 새 이벤트)";
+  link.appendChild(opt0);
+  for (const it of allTodoItems()) {
+    const o = document.createElement("option");
+    o.value = it.noteId + "|" + it.itemId;
+    o.textContent = it.label;
+    link.appendChild(o);
+  }
+  link.addEventListener("change", () => {
+    title.disabled = !!link.value;
+    title.placeholder = link.value ? "(연동 항목 내용 사용)" : "이벤트 제목";
+  });
+
+  const startD = document.createElement("input");
+  startD.type = "date";
+  startD.value = defaultDate || ymd(new Date());
+  startD.className = inputCls;
+  const endD = document.createElement("input");
+  endD.type = "date";
+  endD.value = defaultDate || ymd(new Date());
+  endD.className = inputCls;
+
+  const allDay = document.createElement("input");
+  allDay.type = "checkbox";
+  allDay.checked = true;
+  const allDayWrap = document.createElement("label");
+  allDayWrap.className = "mb-2 flex items-center gap-2 text-[12px]";
+  const adt = document.createElement("span");
+  adt.textContent = "종일";
+  allDayWrap.append(allDay, adt);
+
+  const timeRow = document.createElement("div");
+  timeRow.className = "mb-2 items-center gap-1";
+  timeRow.style.display = "none";
+  const startT = document.createElement("select");
+  const endT = document.createElement("select");
+  for (const s of timeOptions()) {
+    const o1 = document.createElement("option");
+    o1.value = s;
+    o1.textContent = s;
+    startT.appendChild(o1);
+    const o2 = document.createElement("option");
+    o2.value = s;
+    o2.textContent = s;
+    endT.appendChild(o2);
+  }
+  startT.value = "09:00";
+  endT.value = "10:00";
+  startT.className = "rounded border border-neutral-300 px-1 py-1";
+  endT.className = "rounded border border-neutral-300 px-1 py-1";
+  const tilde = document.createElement("span");
+  tilde.textContent = " ~ ";
+  timeRow.append(startT, tilde, endT);
+  allDay.addEventListener("change", () => {
+    timeRow.style.display = allDay.checked ? "none" : "flex";
+  });
+
+  box.append(
+    field("제목", title),
+    field("체크리스트 연동 (선택)", link),
+    field("시작일", startD),
+    field("종료일", endD),
+    allDayWrap,
+    timeRow
+  );
+
+  const btns = document.createElement("div");
+  btns.className = "flex justify-end gap-2 pt-1";
+  const cancel = document.createElement("button");
+  cancel.textContent = "취소";
+  cancel.className = "rounded px-3 py-1.5 bg-neutral-200 hover:bg-neutral-300";
+  const save = document.createElement("button");
+  save.textContent = "저장";
+  save.className = "rounded px-3 py-1.5 bg-indigo-500 text-white hover:bg-indigo-600";
+  btns.append(cancel, save);
+  box.appendChild(btns);
+  overlay.appendChild(box);
+  document.body.appendChild(overlay);
+
+  const close = () => {
+    overlay.remove();
+    document.removeEventListener("keydown", onKey, true);
+  };
+  const onKey = (e) => {
+    if (e.key === "Escape") {
+      e.preventDefault();
+      close();
+    }
+  };
+  cancel.addEventListener("click", close);
+  overlay.addEventListener("click", (e) => {
+    if (e.target === overlay) close();
+  });
+  document.addEventListener("keydown", onKey, true);
+
+  save.addEventListener("click", () => {
+    const start = startD.value;
+    let end = endD.value || start;
+    if (end < start) end = start;
+    if (link.value) {
+      // 체크리스트 항목 마감일 연동
+      const [nid, iid] = link.value.split("|");
+      const n = getNote(nid);
+      const it = n && findItem(n.items, iid);
+      if (it) {
+        it.due = start;
+        persist(n);
+        rerenderCard(nid);
+      }
+    } else {
+      const t = title.value.trim();
+      if (!t) {
+        title.focus();
+        return;
+      }
+      addEvent({
+        title: t,
+        start,
+        end,
+        allDay: allDay.checked,
+        startTime: allDay.checked ? null : startT.value,
+        endTime: allDay.checked ? null : endT.value,
+      });
+    }
+    close();
+    renderCalendar();
+  });
+  setTimeout(() => title.focus(), 0);
+}
+
 function renderCalendar() {
   const cal = document.getElementById("calendar");
   if (!cal) return;
@@ -1091,12 +1389,23 @@ function renderCalendar() {
     const num = document.createElement("div");
     num.textContent = day;
     cell.appendChild(num);
-    if (due[key]) {
-      const dot = document.createElement("div");
-      const allDone = due[key].every((x) => x.done);
-      dot.className =
-        "mt-1 h-2 w-2 rounded-full " + (allDone ? "bg-neutral-400" : "bg-rose-400");
-      cell.appendChild(dot);
+    const evs = eventsOnDate(key);
+    if (due[key] || evs.length) {
+      const dotRow = document.createElement("div");
+      dotRow.className = "mt-1 flex gap-0.5";
+      if (due[key]) {
+        const d = document.createElement("div");
+        const allDone = due[key].every((x) => x.done);
+        d.className =
+          "h-2 w-2 rounded-full " + (allDone ? "bg-neutral-400" : "bg-rose-400");
+        dotRow.appendChild(d);
+      }
+      if (evs.length) {
+        const d = document.createElement("div");
+        d.className = "h-2 w-2 rounded-full bg-indigo-400";
+        dotRow.appendChild(d);
+      }
+      cell.appendChild(dotRow);
     }
     cell.addEventListener("click", () => {
       selectedDate = selectedDate === key ? null : key;
@@ -1113,46 +1422,86 @@ function renderCalendar() {
   const listHead = document.createElement("div");
   listHead.className = "mb-1 text-[11px] font-semibold text-neutral-300";
 
-  let keys;
+  const monthPrefix = `${calYear}-${String(calMonth + 1).padStart(2, "0")}`;
+  let dueKeys, evList;
   if (selectedDate) {
     listHead.textContent = `${Number(selectedDate.slice(5, 7))}월 ${Number(
       selectedDate.slice(8)
-    )}일 마감`;
-    keys = due[selectedDate] ? [selectedDate] : [];
+    )}일`;
+    dueKeys = due[selectedDate] ? [selectedDate] : [];
+    evList = eventsOnDate(selectedDate);
   } else {
-    listHead.textContent = "이번 달 마감 (날짜 클릭 시 그 날만)";
-    const monthPrefix = `${calYear}-${String(calMonth + 1).padStart(2, "0")}`;
-    keys = Object.keys(due)
+    listHead.textContent = "이번 달 (날짜 클릭 시 그 날만)";
+    dueKeys = Object.keys(due)
       .filter((k) => k.startsWith(monthPrefix))
       .sort();
+    evList = notes
+      .filter((n) => n.type === "event" && n.start && n.start.startsWith(monthPrefix))
+      .sort((a, b) => (a.start < b.start ? -1 : 1));
   }
   list.appendChild(listHead);
 
-  if (!keys.length) {
-    const empty = document.createElement("div");
-    empty.className = "text-neutral-400";
-    empty.textContent = "마감 없음";
-    list.appendChild(empty);
-  } else {
-    for (const k of keys) {
-      for (const it of due[k]) {
-        const row = document.createElement("div");
-        row.className = "flex items-start gap-1 py-0.5";
-        const dot = document.createElement("span");
-        dot.className = "mt-1 h-2 w-2 shrink-0 rounded-full";
-        dot.style.background = colorBg(it.color);
-        const txt = document.createElement("span");
-        txt.className =
-          "min-w-0 flex-1 " + (it.done ? "text-neutral-500 line-through" : "text-neutral-100");
-        const dd = k.slice(8);
-        const mm = k.slice(5, 7);
-        const label = it.title ? `${it.title} · ${it.text}` : it.text;
-        txt.textContent = `${mm}.${dd}  ${label}`;
-        row.append(dot, txt);
-        list.appendChild(row);
+  const mmdd = (iso) => `${iso.slice(5, 7)}.${iso.slice(8)}`;
+
+  // 이벤트 행 (삭제 가능)
+  for (const ev of evList) {
+    const row = document.createElement("div");
+    row.className = "flex items-start gap-1 py-0.5";
+    const dot = document.createElement("span");
+    dot.className = "mt-1 h-2 w-2 shrink-0 rounded-full bg-indigo-400";
+    const txt = document.createElement("span");
+    txt.className = "min-w-0 flex-1 text-neutral-100";
+    const range =
+      ev.end && ev.end !== ev.start ? `${mmdd(ev.start)}~${mmdd(ev.end)}` : mmdd(ev.start);
+    const time = ev.allDay ? "" : ` ${ev.startTime || ""}~${ev.endTime || ""}`;
+    txt.textContent = `${range}${time}  ${ev.title}`;
+    const del = document.createElement("button");
+    del.textContent = "×";
+    del.title = "이벤트 삭제";
+    del.className = "shrink-0 px-1 text-neutral-400 hover:text-rose-300";
+    del.addEventListener("click", async () => {
+      if (await confirmDialog("이 이벤트를 삭제할까요?")) {
+        deleteNote(ev.id);
+        renderCalendar();
       }
+    });
+    row.append(dot, txt, del);
+    list.appendChild(row);
+  }
+
+  // 체크리스트 마감 행
+  for (const k of dueKeys) {
+    for (const it of due[k]) {
+      const row = document.createElement("div");
+      row.className = "flex items-start gap-1 py-0.5";
+      const dot = document.createElement("span");
+      dot.className = "mt-1 h-2 w-2 shrink-0 rounded-full";
+      dot.style.background = colorBg(it.color);
+      const txt = document.createElement("span");
+      txt.className =
+        "min-w-0 flex-1 " + (it.done ? "text-neutral-500 line-through" : "text-neutral-100");
+      const label = it.title ? `${it.title} · ${it.text}` : it.text;
+      txt.textContent = `${mmdd(k)}  ${label}`;
+      row.append(dot, txt);
+      list.appendChild(row);
     }
   }
+
+  if (!evList.length && !dueKeys.length) {
+    const empty = document.createElement("div");
+    empty.className = "text-neutral-400";
+    empty.textContent = "마감/이벤트 없음";
+    list.appendChild(empty);
+  }
+
+  // 이벤트 추가 버튼
+  const addEv = document.createElement("button");
+  addEv.textContent = "＋ 이벤트 추가";
+  addEv.className =
+    "mt-2 w-full rounded border border-white/20 px-2 py-1 text-[11px] text-neutral-200 hover:bg-white/10";
+  addEv.addEventListener("click", () => showEventForm(selectedDate || todayKey));
+  list.appendChild(addEv);
+
   cal.appendChild(list);
 }
 
@@ -1212,6 +1561,7 @@ function renderNoteList() {
   }
   notes
     .slice()
+    .filter((n) => n.type !== "event")
     .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
     .forEach((note) => {
       const row = document.createElement("div");
