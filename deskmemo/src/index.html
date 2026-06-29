@@ -14,6 +14,11 @@
     .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
     /* The drag region must not capture text selection */
     [data-tauri-drag-region] { -webkit-user-select: none; user-select: none; }
+    /* Note cards are individually resizable from the bottom-right grip */
+    .note-card { resize: both; overflow: hidden; }
+    .note-card.pinned { resize: none; }
+    /* Subtle resize grip hint */
+    .note-card::-webkit-resizer { background: rgba(0,0,0,0.15); }
   </style>
 </head>
 <body class="overflow-hidden select-none">
@@ -30,8 +35,11 @@
                 title="로그인/로그아웃"
                 class="hidden rounded-md px-2 py-1 text-xs leading-none hover:bg-white/15">로그인</button>
         <button id="btn-new"
-                title="새 메모 (Ctrl+Alt+N)"
+                title="새 일반 메모 (Ctrl+Alt+N)"
                 class="rounded-md px-2 py-1 text-lg leading-none hover:bg-white/15">＋</button>
+        <button id="btn-new-todo"
+                title="새 체크리스트 메모"
+                class="rounded-md px-2 py-1 text-base leading-none hover:bg-white/15">☑</button>
         <button id="btn-hide"
                 title="숨기기 (Ctrl+Alt+Home)"
                 class="rounded-md px-2 py-1 text-lg leading-none hover:bg-white/15">－</button>
