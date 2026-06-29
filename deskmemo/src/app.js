@@ -658,6 +658,33 @@ function showItemContextMenu(x, y, note, itemId) {
   document.addEventListener("keydown", onCtxKey, true);
 }
 
+/** ＋ 버튼 드롭다운: 메모 / 체크리스트 선택. */
+function showAddMenu(btn) {
+  closeContextMenu();
+  const r = btn.getBoundingClientRect();
+  const menu = document.createElement("div");
+  menu.className =
+    "fixed z-[1000] min-w-32 overflow-hidden rounded-md border border-black/10 bg-white py-1 text-sm text-neutral-800 shadow-xl";
+  menu.style.left = r.left + "px";
+  menu.style.top = r.bottom + 4 + "px";
+  const add = (label, fn) => {
+    const b = document.createElement("button");
+    b.textContent = label;
+    b.className = "block w-full px-3 py-1.5 text-left hover:bg-neutral-100";
+    b.addEventListener("click", () => {
+      closeContextMenu();
+      fn();
+    });
+    menu.appendChild(b);
+  };
+  add("📝 메모", () => addNote());
+  add("☑ 체크리스트", () => addNote({ type: "todo" }));
+  document.body.appendChild(menu);
+  ctxMenuEl = menu;
+  document.addEventListener("pointerdown", onCtxOutside, true);
+  document.addEventListener("keydown", onCtxKey, true);
+}
+
 // ---- 체크리스트 항목 드래그 이동 ------------------------------------------
 
 let itemDrag = null;
@@ -893,6 +920,7 @@ const _now = new Date();
 let calYear = _now.getFullYear();
 let calMonth = _now.getMonth(); // 0-based
 let calTimer = null;
+let selectedDate = null; // "YYYY-MM-DD" | null (클릭한 날짜)
 
 function scheduleCalendar() {
   clearTimeout(calTimer);
@@ -950,6 +978,7 @@ function renderCalendar() {
       calMonth = 11;
       calYear--;
     }
+    selectedDate = null;
     renderCalendar();
   });
   const next = document.createElement("button");
@@ -961,6 +990,7 @@ function renderCalendar() {
       calMonth = 0;
       calYear++;
     }
+    selectedDate = null;
     renderCalendar();
   });
   const label = document.createElement("span");
@@ -979,17 +1009,19 @@ function renderCalendar() {
   });
   cal.appendChild(wd);
 
-  // 날짜 그리드
+  // 날짜 그리드 (칸 키움 + 클릭 선택)
   const grid = document.createElement("div");
-  grid.className = "grid grid-cols-7 gap-0.5 text-center text-[10px]";
+  grid.className = "grid grid-cols-7 gap-0.5 text-center text-[11px]";
   const startDay = new Date(calYear, calMonth, 1).getDay();
   const daysInMonth = new Date(calYear, calMonth + 1, 0).getDate();
   for (let i = 0; i < startDay; i++) grid.appendChild(document.createElement("div"));
   for (let day = 1; day <= daysInMonth; day++) {
     const key = `${calYear}-${String(calMonth + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
     const cell = document.createElement("div");
-    cell.className = "rounded py-0.5 leading-tight";
-    if (key === todayKey) cell.classList.add("bg-amber-400/30", "font-bold");
+    cell.className =
+      "flex min-h-[2.6rem] cursor-pointer flex-col items-center rounded py-1 leading-tight hover:bg-white/10";
+    if (key === todayKey) cell.classList.add("bg-amber-400/25", "font-bold");
+    if (key === selectedDate) cell.classList.add("ring-1", "ring-indigo-300", "bg-white/10");
     const num = document.createElement("div");
     num.textContent = day;
     cell.appendChild(num);
@@ -997,25 +1029,43 @@ function renderCalendar() {
       const dot = document.createElement("div");
       const allDone = due[key].every((x) => x.done);
       dot.className =
-        "mx-auto mt-0.5 h-1.5 w-1.5 rounded-full " +
-        (allDone ? "bg-neutral-400" : "bg-rose-400");
+        "mt-1 h-2 w-2 rounded-full " + (allDone ? "bg-neutral-400" : "bg-rose-400");
       cell.appendChild(dot);
     }
+    cell.addEventListener("click", () => {
+      selectedDate = selectedDate === key ? null : key;
+      renderCalendar();
+    });
     grid.appendChild(cell);
   }
   cal.appendChild(grid);
 
-  // 이번 달 마감 목록
+  // 하단 목록: 날짜 선택 시 그 날짜만, 아니면 이번 달 전체
   const list = document.createElement("div");
   list.className = "mt-2 border-t border-white/15 pt-2 text-[11px]";
-  const monthPrefix = `${calYear}-${String(calMonth + 1).padStart(2, "0")}`;
-  const keys = Object.keys(due)
-    .filter((k) => k.startsWith(monthPrefix))
-    .sort();
+
+  const listHead = document.createElement("div");
+  listHead.className = "mb-1 text-[11px] font-semibold text-neutral-300";
+
+  let keys;
+  if (selectedDate) {
+    listHead.textContent = `${Number(selectedDate.slice(5, 7))}월 ${Number(
+      selectedDate.slice(8)
+    )}일 마감`;
+    keys = due[selectedDate] ? [selectedDate] : [];
+  } else {
+    listHead.textContent = "이번 달 마감 (날짜 클릭 시 그 날만)";
+    const monthPrefix = `${calYear}-${String(calMonth + 1).padStart(2, "0")}`;
+    keys = Object.keys(due)
+      .filter((k) => k.startsWith(monthPrefix))
+      .sort();
+  }
+  list.appendChild(listHead);
+
   if (!keys.length) {
     const empty = document.createElement("div");
     empty.className = "text-neutral-400";
-    empty.textContent = "이번 달 마감 없음";
+    empty.textContent = "마감 없음";
     list.appendChild(empty);
   } else {
     for (const k of keys) {
@@ -1194,10 +1244,9 @@ function wireGlobalEvents() {
 
 // ---- wiring ----------------------------------------------------------------
 
-document.getElementById("btn-new").addEventListener("click", () => addNote());
 document
-  .getElementById("btn-new-todo")
-  .addEventListener("click", () => addNote({ type: "todo" }));
+  .getElementById("btn-add")
+  .addEventListener("click", (e) => showAddMenu(e.currentTarget));
 document.getElementById("btn-list").addEventListener("click", () => toggleNoteList());
 document.getElementById("btn-cal").addEventListener("click", toggleCalendar);
 
