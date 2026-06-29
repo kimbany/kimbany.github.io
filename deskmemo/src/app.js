@@ -95,13 +95,27 @@ function newItem() {
   return {
     id: uid(),
     text: "",
-    done: false,
+    status: "active", // "active"(진행중) | "hold"(보류) | "done"(완료)
     collapsed: false,
     due: null, // 마감일 "YYYY-MM-DD" | null
     memo: null, // 이슈/메모 텍스트 | null (null이면 숨김)
     children: [],
   };
 }
+
+// 상태 읽기(레거시 done 필드 호환)
+function statusOf(item) {
+  return item.status || (item.done ? "done" : "active");
+}
+// 상태 + 하위 일괄(토글로 완료/진행 전환 시 하위까지)
+function setStatusRecursive(item, status) {
+  item.status = status;
+  delete item.done;
+  (item.children || []).forEach((c) => setStatusRecursive(c, status));
+}
+
+// 메모 인라인 편집이 열린 항목 id(런타임 상태, 저장 안 함)
+const openMemos = new Set();
 
 /** "2026-06-30" → "26.06.30" */
 function fmtDue(iso) {
@@ -110,18 +124,12 @@ function fmtDue(iso) {
   return `${y.slice(2)}.${m}.${d}`;
 }
 
-/** 항목과 모든 하위 항목의 done을 일괄 설정(상위 체크 → 하위 전부). */
-function setDoneRecursive(item, value) {
-  item.done = value;
-  (item.children || []).forEach((c) => setDoneRecursive(c, value));
-}
-
 /** 항목을 하위까지 깊은 복사(모든 id 새로 발급). */
 function cloneItemDeep(item) {
   return {
     id: uid(),
     text: item.text || "",
-    done: !!item.done,
+    status: statusOf(item),
     collapsed: !!item.collapsed,
     due: item.due || null,
     memo: item.memo == null ? null : item.memo,
@@ -326,18 +334,6 @@ function renderHead(note, card) {
   const tools = document.createElement("div");
   tools.className = "flex items-center gap-0.5";
 
-  // 타입 전환 (일반 ↔ 체크리스트)
-  const typeBtn = iconButton(
-    svgIcon(note.type === "todo" ? "note" : "check"),
-    note.type === "todo" ? "일반 메모로 전환" : "체크리스트로 전환",
-    (e) => {
-      e.stopPropagation();
-      updateNote(note.id, { type: note.type === "todo" ? "note" : "todo" });
-      rerenderCard(note.id, { focus: false });
-    },
-    true
-  );
-
   // 위치 고정
   const pinBtn = iconButton(
     svgIcon(note.pinned ? "lock" : "unlock"),
@@ -371,7 +367,7 @@ function renderHead(note, card) {
     true
   );
 
-  tools.append(typeBtn, pinBtn, hideBtn, del);
+  tools.append(pinBtn, hideBtn, del);
   head.append(dots, tools);
   return head;
 }
@@ -403,6 +399,7 @@ function svgIcon(name) {
     note:
       '<rect x="4" y="3" width="16" height="18" rx="2"/><line x1="8" y1="8" x2="16" y2="8"/><line x1="8" y1="12" x2="16" y2="12"/><line x1="8" y1="16" x2="13" y2="16"/>',
     x: '<line x1="5" y1="5" x2="19" y2="19"/><line x1="19" y1="5" x2="5" y2="19"/>',
+    chat: '<path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/>',
   };
   return (
     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" ' +
@@ -469,7 +466,8 @@ function renderTodoBody(note) {
 function renderItemList(items, container, note, depth) {
   for (const item of items) {
     container.appendChild(renderItemRow(item, note, depth));
-    if (item.memo != null) container.appendChild(renderItemMemo(item, note, depth));
+    if (item.memo != null && openMemos.has(item.id))
+      container.appendChild(renderItemMemo(item, note, depth));
     if (item.children && item.children.length && !item.collapsed) {
       renderItemList(item.children, container, note, depth + 1);
     }
@@ -496,15 +494,22 @@ function renderItemMemo(item, note, depth) {
 }
 
 function renderItemRow(item, note, depth) {
+  const st = statusOf(item);
   const row = document.createElement("div");
   row.dataset.item = item.id;
-  row.className = "item-row flex items-center gap-1 py-0.5";
+  // 상태별 행 배경: 진행중=초록, 보류=주황, 완료=회색
+  const bgByStatus = {
+    active: "bg-emerald-500/15",
+    hold: "bg-orange-400/20",
+    done: "bg-neutral-500/20",
+  };
+  row.className = "item-row flex items-center gap-1 rounded py-0.5 " + bgByStatus[st];
   row.style.paddingLeft = depth * 14 + "px";
 
   // 접기/펼치기
   const hasChildren = item.children && item.children.length;
   const toggle = document.createElement("button");
-  toggle.className = "h-4 w-4 shrink-0 text-[10px] text-neutral-500";
+  toggle.className = "h-4 w-4 shrink-0 text-[10px] opacity-60";
   toggle.textContent = hasChildren ? (item.collapsed ? "▶" : "▼") : "";
   if (hasChildren) {
     toggle.addEventListener("click", (e) => {
@@ -515,17 +520,28 @@ function renderItemRow(item, note, depth) {
     });
   }
 
-  // 토글 스위치 — 상위 켜면 하위 전부 켜짐
+  // 토글 스위치 — 클릭=완료/진행 전환(하위까지), 우클릭=상태 메뉴(보류 등)
+  const statusColor = { active: "#10b981", hold: "#f59e0b", done: null };
   const cb = document.createElement("button");
   cb.type = "button";
   cb.setAttribute("role", "switch");
-  cb.setAttribute("aria-checked", item.done ? "true" : "false");
-  cb.className = "toggle shrink-0" + (item.done ? " on" : "");
-  cb.innerHTML = '<span class="toggle-knob"></span>';
+  cb.setAttribute("aria-checked", st === "done" ? "true" : "false");
+  cb.className = "toggle shrink-0" + (st === "done" ? " on" : "");
+  cb.innerHTML =
+    '<span class="toggle-knob" style="background:' +
+    (statusColor[st] || "currentColor") +
+    '"></span>';
+  if (st !== "done") cb.style.borderColor = statusColor[st];
+  cb.title = "클릭: 완료/진행 전환 · 우클릭: 상태 변경";
   cb.addEventListener("click", () => {
-    setDoneRecursive(item, !item.done);
+    setStatusRecursive(item, st === "done" ? "active" : "done");
     persist(note);
     rerenderCard(note.id);
+  });
+  cb.addEventListener("contextmenu", (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    showStatusMenu(e.clientX, e.clientY, note, item.id);
   });
 
   // 텍스트
@@ -535,7 +551,7 @@ function renderItemRow(item, note, depth) {
   text.placeholder = "할 일...";
   text.className =
     "item-text min-w-0 flex-1 bg-transparent text-sm outline-none" +
-    (item.done ? " line-through opacity-50" : "");
+    (st === "done" ? " line-through opacity-50" : "");
   text.addEventListener("input", () => {
     item.text = text.value;
     persist(note);
@@ -596,6 +612,23 @@ function renderItemRow(item, note, depth) {
     }
   });
 
+  // 메모 표시: 메모가 있으면 말풍선 아이콘(hover로 미리보기, 클릭=열기/닫기)
+  let memoIcon = null;
+  if (item.memo != null) {
+    memoIcon = iconButton(
+      svgIcon("chat"),
+      item.memo ? item.memo : "메모 (클릭하여 열기)",
+      (e) => {
+        e.stopPropagation();
+        if (openMemos.has(item.id)) openMemos.delete(item.id);
+        else openMemos.add(item.id);
+        rerenderCard(note.id);
+      },
+      true
+    );
+    memoIcon.classList.add("shrink-0");
+  }
+
   // 드래그 핸들(맨 뒤): 잡고 항목 이동. 추가/삭제/하위는 우클릭 메뉴로.
   const handle = document.createElement("button");
   handle.textContent = "⠿";
@@ -604,7 +637,7 @@ function renderItemRow(item, note, depth) {
     "drag-handle-item shrink-0 px-0.5 text-xs leading-none opacity-60 hover:opacity-100";
   setupItemDrag(handle, note, item.id);
 
-  const parts = [toggle, cb, text, dueSpan, handle, dateWrap].filter(Boolean);
+  const parts = [toggle, cb, text, dueSpan, memoIcon, handle, dateWrap].filter(Boolean);
   row.append(...parts);
   return row;
 }
@@ -651,6 +684,7 @@ function showItemContextMenu(x, y, note, itemId) {
   if (item.memo == null) {
     add("📝 메모하기", () => {
       item.memo = "";
+      openMemos.add(itemId);
       persist(note);
       rerenderCard(note.id);
       setTimeout(() => {
@@ -661,8 +695,14 @@ function showItemContextMenu(x, y, note, itemId) {
       }, 0);
     });
   } else {
+    add(openMemos.has(itemId) ? "📝 메모 닫기" : "📝 메모 열기", () => {
+      if (openMemos.has(itemId)) openMemos.delete(itemId);
+      else openMemos.add(itemId);
+      rerenderCard(note.id);
+    });
     add("📝 메모 삭제", () => {
       item.memo = null;
+      openMemos.delete(itemId);
       persist(note);
       rerenderCard(note.id);
     });
@@ -753,6 +793,47 @@ function moveItemToNote(srcNote, itemId, destNote) {
   persist(destNote);
   rerenderCard(srcNote.id);
   rerenderCard(destNote.id); // 대상이 보드에 떠 있으면 갱신(숨김이면 무시됨)
+}
+
+/** 토글 우클릭: 항목 상태(진행중/보류/완료) 변경. */
+function showStatusMenu(x, y, note, itemId) {
+  closeContextMenu();
+  const item = findItem(note.items, itemId);
+  if (!item) return;
+  const menu = document.createElement("div");
+  menu.className =
+    "fixed z-[1000] min-w-32 overflow-hidden rounded-md border border-black/10 bg-white py-1 text-sm text-neutral-800 shadow-xl";
+  menu.style.left = x + "px";
+  menu.style.top = y + "px";
+  const add = (label, fn) => {
+    const b = document.createElement("button");
+    b.textContent = label;
+    b.className = "block w-full px-3 py-1.5 text-left hover:bg-neutral-100";
+    b.addEventListener("click", () => {
+      closeContextMenu();
+      fn();
+      persist(note);
+      rerenderCard(note.id);
+    });
+    menu.appendChild(b);
+  };
+  add("🟢 진행 중", () => {
+    item.status = "active";
+    delete item.done;
+  });
+  add("🟠 보류", () => {
+    item.status = "hold";
+    delete item.done;
+  });
+  add("⚪ 완료 (하위 포함)", () => setStatusRecursive(item, "done"));
+
+  document.body.appendChild(menu);
+  ctxMenuEl = menu;
+  const r = menu.getBoundingClientRect();
+  if (r.right > window.innerWidth) menu.style.left = window.innerWidth - r.width - 8 + "px";
+  if (r.bottom > window.innerHeight) menu.style.top = window.innerHeight - r.height - 8 + "px";
+  document.addEventListener("pointerdown", onCtxOutside, true);
+  document.addEventListener("keydown", onCtxKey, true);
 }
 
 /** 예/아니오 확인 모달. Enter=예, Esc=아니오. Promise<boolean>. */
@@ -1093,7 +1174,7 @@ function collectDueItems() {
           (map[it.due] = map[it.due] || []).push({
             text: it.text || "(내용 없음)",
             title: note.title || "",
-            done: !!it.done,
+            done: statusOf(it) === "done",
             color: note.color,
           });
         }
@@ -1335,7 +1416,7 @@ function renderCalendar() {
   head.className = "mb-1 flex items-center justify-between text-xs font-semibold";
   const prev = document.createElement("button");
   prev.textContent = "◀";
-  prev.className = "rounded px-1 hover:bg-white/15";
+  prev.className = "rounded px-1 hover:bg-black/5";
   prev.addEventListener("click", () => {
     calMonth--;
     if (calMonth < 0) {
@@ -1347,7 +1428,7 @@ function renderCalendar() {
   });
   const next = document.createElement("button");
   next.textContent = "▶";
-  next.className = "rounded px-1 hover:bg-white/15";
+  next.className = "rounded px-1 hover:bg-black/5";
   next.addEventListener("click", () => {
     calMonth++;
     if (calMonth > 11) {
@@ -1383,9 +1464,9 @@ function renderCalendar() {
     const key = `${calYear}-${String(calMonth + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
     const cell = document.createElement("div");
     cell.className =
-      "flex min-h-[2.6rem] cursor-pointer flex-col items-center rounded py-1 leading-tight hover:bg-white/10";
+      "flex min-h-[2.6rem] cursor-pointer flex-col items-center rounded py-1 leading-tight hover:bg-black/5";
     if (key === todayKey) cell.classList.add("bg-amber-400/25", "font-bold");
-    if (key === selectedDate) cell.classList.add("ring-1", "ring-indigo-300", "bg-white/10");
+    if (key === selectedDate) cell.classList.add("ring-1", "ring-indigo-400", "bg-indigo-500/10");
     const num = document.createElement("div");
     num.textContent = day;
     cell.appendChild(num);
@@ -1417,10 +1498,10 @@ function renderCalendar() {
 
   // 하단 목록: 날짜 선택 시 그 날짜만, 아니면 이번 달 전체
   const list = document.createElement("div");
-  list.className = "mt-2 border-t border-white/15 pt-2 text-[11px]";
+  list.className = "mt-2 border-t border-black/10 pt-2 text-[11px]";
 
   const listHead = document.createElement("div");
-  listHead.className = "mb-1 text-[11px] font-semibold text-neutral-300";
+  listHead.className = "mb-1 text-[11px] font-semibold text-neutral-500";
 
   const monthPrefix = `${calYear}-${String(calMonth + 1).padStart(2, "0")}`;
   let dueKeys, evList;
@@ -1450,7 +1531,7 @@ function renderCalendar() {
     const dot = document.createElement("span");
     dot.className = "mt-1 h-2 w-2 shrink-0 rounded-full bg-indigo-400";
     const txt = document.createElement("span");
-    txt.className = "min-w-0 flex-1 text-neutral-100";
+    txt.className = "min-w-0 flex-1 text-neutral-700";
     const range =
       ev.end && ev.end !== ev.start ? `${mmdd(ev.start)}~${mmdd(ev.end)}` : mmdd(ev.start);
     const time = ev.allDay ? "" : ` ${ev.startTime || ""}~${ev.endTime || ""}`;
@@ -1458,7 +1539,7 @@ function renderCalendar() {
     const del = document.createElement("button");
     del.textContent = "×";
     del.title = "이벤트 삭제";
-    del.className = "shrink-0 px-1 text-neutral-400 hover:text-rose-300";
+    del.className = "shrink-0 px-1 text-neutral-400 hover:text-rose-500";
     del.addEventListener("click", async () => {
       if (await confirmDialog("이 이벤트를 삭제할까요?")) {
         deleteNote(ev.id);
@@ -1479,7 +1560,7 @@ function renderCalendar() {
       dot.style.background = colorBg(it.color);
       const txt = document.createElement("span");
       txt.className =
-        "min-w-0 flex-1 " + (it.done ? "text-neutral-500 line-through" : "text-neutral-100");
+        "min-w-0 flex-1 " + (it.done ? "text-neutral-500 line-through" : "text-neutral-700");
       const label = it.title ? `${it.title} · ${it.text}` : it.text;
       txt.textContent = `${mmdd(k)}  ${label}`;
       row.append(dot, txt);
@@ -1498,7 +1579,7 @@ function renderCalendar() {
   const addEv = document.createElement("button");
   addEv.textContent = "＋ 이벤트 추가";
   addEv.className =
-    "mt-2 w-full rounded border border-white/20 px-2 py-1 text-[11px] text-neutral-200 hover:bg-white/10";
+    "mt-2 w-full rounded border border-black/10 px-2 py-1 text-[11px] text-neutral-600 hover:bg-black/5";
   addEv.addEventListener("click", () => showEventForm(selectedDate || todayKey));
   list.appendChild(addEv);
 
@@ -1530,7 +1611,7 @@ function ensureNoteListPanel() {
   panel.id = "note-list-panel";
   panel.className =
     "fixed right-0 top-0 z-[900] flex h-full w-64 max-w-[80vw] translate-x-full flex-col " +
-    "border-l border-white/15 bg-neutral-800/95 p-3 text-neutral-100 shadow-2xl " +
+    "border-l border-black/10 bg-[#f5f4f2] p-3 text-neutral-700 shadow-2xl " +
     "backdrop-blur transition-transform duration-200";
   const head = document.createElement("div");
   head.className = "mb-2 flex items-center justify-between";
@@ -1539,7 +1620,7 @@ function ensureNoteListPanel() {
   title.textContent = "메모 목록";
   const close = document.createElement("button");
   close.textContent = "✕";
-  close.className = "rounded px-1 hover:bg-white/15";
+  close.className = "rounded px-1 hover:bg-black/5";
   close.addEventListener("click", () => toggleNoteList(false));
   head.append(title, close);
   const body = document.createElement("div");
@@ -1565,14 +1646,14 @@ function renderNoteList() {
     .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
     .forEach((note) => {
       const row = document.createElement("div");
-      row.className = "mb-1 flex items-center gap-2 rounded px-2 py-1.5 hover:bg-white/10";
+      row.className = "mb-1 flex items-center gap-2 rounded px-2 py-1.5 hover:bg-black/5";
       const dot = document.createElement("span");
       dot.className = "h-2.5 w-2.5 shrink-0 rounded-full ring-1 ring-black/20";
       dot.style.background = colorBg(note.color);
       const label = document.createElement("button");
       label.className =
         "min-w-0 flex-1 truncate text-left text-sm " +
-        (note.hidden ? "text-neutral-500" : "text-neutral-100");
+        (note.hidden ? "text-neutral-500" : "text-neutral-700");
       label.textContent = (note.type === "todo" ? "☑ " : "📝 ") + notePreview(note);
       label.title = "클릭하면 화면에 표시";
       label.addEventListener("click", () => {
@@ -1582,7 +1663,7 @@ function renderNoteList() {
       const toggle = document.createElement("button");
       toggle.textContent = note.hidden ? "🙈" : "👁";
       toggle.title = note.hidden ? "표시" : "숨기기";
-      toggle.className = "shrink-0 rounded px-1 text-xs hover:bg-white/15";
+      toggle.className = "shrink-0 rounded px-1 text-xs hover:bg-black/5";
       toggle.addEventListener("click", () => setHidden(note.id, !note.hidden));
       row.append(dot, label, toggle);
       body.appendChild(row);
