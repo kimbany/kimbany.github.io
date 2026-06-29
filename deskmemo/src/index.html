@@ -19,6 +19,12 @@
     .note-card.pinned { resize: none; }
     /* Subtle resize grip hint */
     .note-card::-webkit-resizer { background: rgba(0,0,0,0.15); }
+    /* Checklist item drag handle + drop indicators */
+    .drag-handle-item { cursor: grab; touch-action: none; }
+    .drag-handle-item:active { cursor: grabbing; }
+    .item-row.drop-before { box-shadow: inset 0 2px 0 0 #6366f1; }
+    .item-row.drop-after  { box-shadow: inset 0 -2px 0 0 #6366f1; }
+    .item-row.drop-child  { background: rgba(99,102,241,0.18); border-radius: 4px; }
   </style>
 </head>
 <body class="overflow-hidden select-none">

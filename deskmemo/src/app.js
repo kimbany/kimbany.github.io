@@ -63,6 +63,7 @@ function normalize(n) {
   return {
     id: n.id,
     type: n.type === "todo" ? "todo" : "note",
+    title: typeof n.title === "string" ? n.title : "",
     text: typeof n.text === "string" ? n.text : "",
     items: Array.isArray(n.items) ? n.items : [],
     color: COLORS[n.color] ? n.color : "yellow",
@@ -204,6 +205,7 @@ function renderNote(note, { focus = false, focusItemId = null } = {}) {
   card.style.background = COLORS[note.color] || COLORS.yellow;
 
   card.append(renderHead(note, card));
+  card.append(renderTitle(note));
   card.append(note.type === "todo" ? renderTodoBody(note) : renderTextBody(note));
 
   makeDraggable(card, card.querySelector(".drag-handle"), note.id);
@@ -282,6 +284,18 @@ function renderHead(note, card) {
   return head;
 }
 
+function renderTitle(note) {
+  const input = document.createElement("input");
+  input.type = "text";
+  input.value = note.title;
+  input.placeholder = "제목";
+  input.className =
+    "title-input mx-1 mb-0.5 bg-transparent text-sm font-bold text-neutral-800 " +
+    "outline-none placeholder:font-normal placeholder:text-neutral-500/70";
+  input.addEventListener("input", () => updateNote(note.id, { title: input.value }));
+  return input;
+}
+
 function iconButton(label, title, onClick) {
   const b = document.createElement("button");
   b.textContent = label;
@@ -307,7 +321,7 @@ function renderTextBody(note) {
 
 function renderTodoBody(note) {
   const wrap = document.createElement("div");
-  wrap.className = "no-scrollbar m-1 mt-0 flex-1 overflow-auto rounded bg-white/40 p-1";
+  wrap.className = "todo-wrap no-scrollbar m-1 mt-0 flex-1 overflow-auto rounded bg-white/40 p-1";
 
   if (!note.items.length) {
     const hint = document.createElement("div");
@@ -346,7 +360,7 @@ function renderItemList(items, container, note, depth) {
 function renderItemRow(item, note, depth) {
   const row = document.createElement("div");
   row.dataset.item = item.id;
-  row.className = "flex items-center gap-1 py-0.5";
+  row.className = "item-row flex items-center gap-1 py-0.5";
   row.style.paddingLeft = depth * 14 + "px";
 
   // 접기/펼치기
@@ -419,8 +433,116 @@ function renderItemRow(item, note, depth) {
   });
   del.classList.add("shrink-0", "text-neutral-500");
 
-  row.append(toggle, cb, text, addSub, del);
+  // 드래그 핸들(맨 뒤): 잡고 항목 이동
+  const handle = document.createElement("button");
+  handle.textContent = "⠿";
+  handle.title = "드래그로 이동 (가장자리=형제, 가운데=하위)";
+  handle.className =
+    "drag-handle-item shrink-0 px-0.5 text-xs leading-none text-neutral-400 hover:text-neutral-700";
+  setupItemDrag(handle, note, item.id);
+
+  row.append(toggle, cb, text, addSub, del, handle);
   return row;
+}
+
+// ---- 체크리스트 항목 드래그 이동 ------------------------------------------
+
+let itemDrag = null;
+
+function getSubtreeIds(item) {
+  const ids = new Set();
+  (function walk(it) {
+    ids.add(it.id);
+    (it.children || []).forEach(walk);
+  })(item);
+  return ids;
+}
+
+/** 트리에서 항목을 떼어내 반환(없으면 null). */
+function detachItem(items, id) {
+  const i = items.findIndex((x) => x.id === id);
+  if (i >= 0) return items.splice(i, 1)[0];
+  for (const it of items) {
+    const r = detachItem(it.children || [], id);
+    if (r) return r;
+  }
+  return null;
+}
+
+function clearDropIndicators(card) {
+  card.querySelectorAll(".item-row").forEach((r) =>
+    r.classList.remove("drop-before", "drop-after", "drop-child")
+  );
+}
+
+function setupItemDrag(handle, note, itemId) {
+  handle.addEventListener("pointerdown", (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const item = findItem(note.items, itemId);
+    if (!item) return;
+    const card = handle.closest(".note-card");
+    itemDrag = { note, id: itemId, subtree: getSubtreeIds(item), target: null, card };
+    handle.setPointerCapture(e.pointerId);
+    card?.querySelector(`[data-item="${itemId}"]`)?.classList.add("opacity-40");
+  });
+
+  handle.addEventListener("pointermove", (e) => {
+    if (!itemDrag) return;
+    const card = itemDrag.card;
+    if (!card) return;
+    clearDropIndicators(card);
+    itemDrag.target = null;
+    const rows = [...card.querySelectorAll(".item-row")];
+    for (const row of rows) {
+      const id = row.dataset.item;
+      if (itemDrag.subtree.has(id)) continue; // 자기/자손 위는 무시
+      const r = row.getBoundingClientRect();
+      if (e.clientY >= r.top && e.clientY <= r.bottom) {
+        const rel = (e.clientY - r.top) / r.height;
+        const pos = rel < 0.3 ? "before" : rel > 0.7 ? "after" : "child";
+        itemDrag.target = { id, pos };
+        row.classList.add("drop-" + pos);
+        break;
+      }
+    }
+  });
+
+  const end = () => {
+    if (!itemDrag) return;
+    const d = itemDrag;
+    itemDrag = null;
+    if (d.card) clearDropIndicators(d.card);
+    if (d.target && d.target.id !== d.id) {
+      moveItem(d.note, d.id, d.target.id, d.target.pos);
+      persist(d.note);
+    }
+    rerenderCard(d.note.id); // opacity 복구 + 재배치 반영
+  };
+  handle.addEventListener("pointerup", end);
+  handle.addEventListener("pointercancel", end);
+}
+
+/** dragId 항목을 targetId 기준 위치(before/after/child)로 이동. */
+function moveItem(note, dragId, targetId, pos) {
+  const moved = detachItem(note.items, dragId);
+  if (!moved) return;
+  if (pos === "child") {
+    const target = findItem(note.items, targetId);
+    if (!target) {
+      note.items.push(moved); // 안전장치
+      return;
+    }
+    target.children = target.children || [];
+    target.children.push(moved);
+    target.collapsed = false;
+  } else {
+    const list = findParentList(note.items, targetId) || note.items;
+    let idx = list.findIndex((x) => x.id === targetId);
+    if (idx < 0) idx = list.length - 1;
+    if (pos === "after") idx += 1;
+    list.splice(idx, 0, moved);
+  }
 }
 
 function findParentList(items, id) {
