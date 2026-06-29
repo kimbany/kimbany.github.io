@@ -26,6 +26,9 @@
         <span class="text-amber-300">●</span> DeskMemo
       </div>
       <div class="flex items-center gap-1">
+        <button id="btn-auth"
+                title="로그인/로그아웃"
+                class="hidden rounded-md px-2 py-1 text-xs leading-none hover:bg-white/15">로그인</button>
         <button id="btn-new"
                 title="새 메모 (Ctrl+Alt+N)"
                 class="rounded-md px-2 py-1 text-lg leading-none hover:bg-white/15">＋</button>
@@ -47,10 +50,10 @@
     </main>
 
     <footer class="px-3 py-1 text-[11px] text-neutral-400" id="status">
-      M0 · 로컬 저장 (Firebase 동기화는 M2)
+      로컬 모드
     </footer>
   </div>
 
-  <script src="app.js"></script>
+  <script type="module" src="app.js"></script>
 </body>
 </html>

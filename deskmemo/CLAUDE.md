@@ -39,15 +39,20 @@
 deskmemo/
 ├── CLAUDE.md                  # 이 파일
 ├── README.md
+├── SETUP.md                   # Firebase 셋업 가이드 (M2)
 ├── package.json
+├── firebase.json / .firebaserc / firestore.indexes.json   # Firebase 프로젝트 설정
 ├── src/                       # 프론트엔드 (웹뷰)
-│   ├── index.html             # 메인 포스트잇 보드 (단일 HTML)
-│   ├── app.js                 # 메모 CRUD, 드래그, 저장 (M2에서 firebase.js 추가)
-│   └── (firebase.js)          # ⬜ M2: Firebase 초기화 + 동기화 로직
+│   ├── index.html             # 메인 포스트잇 보드 (단일 HTML, type=module)
+│   ├── app.js                 # 메모 CRUD, 드래그, 로컬/클라우드 저장 전환
+│   ├── firebase.js            # Firebase 초기화 + 구글 로그인 + Firestore 동기화
+│   ├── firebase-config.example.js   # config 템플릿(복사 → firebase-config.js)
+│   └── (firebase-config.js)   # 실제 설정값, .gitignore (커밋 안 됨)
 └── src-tauri/
     ├── tauri.conf.json        # 창/권한/번들 설정
     ├── Cargo.toml
     ├── build.rs
+    ├── firestore.rules        # Firestore 보안 규칙 (users/{uid}/notes 본인만)
     ├── capabilities/
     │   └── default.json       # 권한 (window, global-shortcut, notification)
     ├── icons/                 # 앱/트레이 아이콘
@@ -98,7 +103,7 @@ users/{uid}/notes/{noteId}
 
 - [x] **M0 — 셸 띄우기**: Tauri 2.x 프로젝트 생성, 프레임 없는 always-on-top 창, 트레이 아이콘, Ctrl+Alt+N 단축키 ✅
 - [~] **M1 — 로컬 포스트잇**: 색상 카드 CRUD, 드래그 이동, 위치 저장(localStorage) — *기본 동작 구현, 다듬기 남음*
-- [ ] **M2 — Firebase 동기화**: Auth 로그인, Firestore onSnapshot 양방향 동기화, 2대 PC에서 검증
+- [~] **M2 — Firebase 동기화**: 구글 로그인 + Firestore onSnapshot 양방향 동기화 **코드 구현** — *Firebase Console 셋업(사용자) + 2대 PC 검증 남음. `SETUP.md` 참고*
 - [ ] **M3 — 알람**: alarmAt 지정 UI, 스케줄러, notification 발화
 - [ ] **M4 — 다듬기**: 환경설정(단축키/시작프로그램 등록), 색상/폰트, Tailwind 로컬 번들, 오프라인 영속성
 - [ ] **M5 (선택) — 모바일 웹**: 같은 Firebase로 읽기/쓰기 웹앱 (GitHub Pages)
@@ -106,8 +111,8 @@ users/{uid}/notes/{noteId}
 ## 9. 의사결정 / 열린 질문
 
 1. ✅ 포스트잇 표시 방식 → **A (보드 카드)로 확정**
-2. ⬜ Firebase 프로젝트: 기존 것 재사용 vs 신규 생성 — *M2 시작 전 결정 필요*
-3. ⬜ 로그인 방식: 이메일/비번 vs 익명 + 기기 페어링 코드 — *M2 시작 전 결정 필요*
+2. ✅ Firebase 프로젝트 → **신규 생성 `deskmemo`로 확정** (taste-os 재사용 시 보안 규칙 충돌·격리 상실. taste-os `firestore.rules`는 화이트리스트+catch-all deny라 notes 서브컬렉션이 막힘)
+3. ✅ 로그인 방식 → **구글 로그인으로 확정** (`signInWithPopup`; 데스크탑에서 막히면 시스템 브라우저+루프백으로 보강, SETUP.md 참고)
 4. ⬜ 시작프로그램 자동 등록을 기본 on으로 둘지 — *M4*
 
 ## 10. 참고 / 컨벤션
@@ -120,5 +125,6 @@ users/{uid}/notes/{noteId}
 
 ### 다음 세션 시작 시 Claude Code에게
 
-> "CLAUDE.md 읽고 M2(Firebase 동기화)부터. 먼저 9번 열린 질문 2·3번(Firebase 프로젝트, 로그인 방식) 확인하고 진행.
->  현재 `app.js`는 localStorage에 §5 형태로 저장 중 → Firestore onSnapshot/setDoc으로 교체하면 됨."
+> "CLAUDE.md 읽고 진행. M2 코드는 구현됨 → 사용자가 `SETUP.md`대로 Firebase Console 셋업 후 윈도우에서 검증 필요.
+>  검증되면 M3(알람)로: `app.js`에 alarmAt 지정 UI + 1분 타이머 스케줄러, `tauri-plugin-notification` 발화, `alarmFired` 갱신.
+>  남은 보완: (a) 로그인 시 로컬→클라우드 마이그레이션, (b) 데스크탑 구글 로그인이 팝업으로 안 되면 루프백 방식(SETUP.md)."

@@ -12,6 +12,13 @@ dist/
 .env
 .env.local
 
+# Firebase client config (copied from firebase-config.example.js)
+src/firebase-config.js
+
+# Firebase tooling
+.firebase/
+firebase-debug.log
+
 # OS
 .DS_Store
 Thumbs.db

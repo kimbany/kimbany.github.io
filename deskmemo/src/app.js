@@ -1,9 +1,21 @@
-// DeskMemo frontend — M0/M1
+// DeskMemo frontend — M1/M2
 //
-// Local-only note board (color cards, drag, edit, delete) persisted to
-// localStorage. Firebase sync replaces the storage layer in M2; the alarm
-// scheduler arrives in M3. The data shape already matches CLAUDE.md §5 so the
-// swap is mostly mechanical.
+// 색상 카드 보드. 두 가지 저장 모드:
+//   - local : 로그인 전. localStorage 에 저장.
+//   - cloud : 구글 로그인 후. Firestore users/{uid}/notes 실시간 동기화.
+//
+// 데이터 형태는 CLAUDE.md §5 와 동일.
+
+import {
+  initFirebase,
+  isConfigured,
+  onAuth,
+  signInGoogle,
+  signOutUser,
+  subscribeNotes,
+  upsertNote,
+  removeNote,
+} from "./firebase.js";
 
 const COLORS = {
   yellow: "#fde68a",
@@ -14,17 +26,39 @@ const COLORS = {
 };
 const COLOR_KEYS = Object.keys(COLORS);
 const STORAGE_KEY = "deskmemo.notes.v1";
+const CLOUD_DEBOUNCE_MS = 400;
 
 const board = document.getElementById("board");
 const emptyHint = document.getElementById("empty-hint");
+const statusEl = document.getElementById("status");
+const authBtn = document.getElementById("btn-auth");
 
 /** @typedef {{id:string,text:string,color:string,x:number,y:number,createdAt:number,updatedAt:number,order:number}} Note */
 /** @type {Note[]} */
-let notes = load();
+let notes = [];
 
-// ---- persistence (M2: swap for Firestore onSnapshot + setDoc) -------------
+let mode = "local"; // "local" | "cloud"
+let currentUid = null;
+let unsubscribeNotes = null;
+const cloudDebouncers = new Map();
 
-function load() {
+// ---- helpers ---------------------------------------------------------------
+
+function getNote(id) {
+  return notes.find((n) => n.id === id);
+}
+
+function uid() {
+  return "n_" + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+}
+
+function setStatus(text) {
+  if (statusEl) statusEl.textContent = text;
+}
+
+// ---- persistence -----------------------------------------------------------
+
+function loadLocal() {
   try {
     return JSON.parse(localStorage.getItem(STORAGE_KEY)) || [];
   } catch {
@@ -32,15 +66,34 @@ function load() {
   }
 }
 
-function save() {
+function saveLocal() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(notes));
 }
 
-function uid() {
-  return "n_" + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+/** 한 메모의 변경을 현재 모드에 맞게 저장. */
+function persist(note) {
+  if (mode === "cloud") {
+    clearTimeout(cloudDebouncers.get(note.id));
+    cloudDebouncers.set(
+      note.id,
+      setTimeout(() => {
+        upsertNote(currentUid, note).catch((e) => console.error("upsert", e));
+      }, CLOUD_DEBOUNCE_MS)
+    );
+  } else {
+    saveLocal();
+  }
 }
 
-// ---- CRUD -----------------------------------------------------------------
+function persistRemove(id) {
+  if (mode === "cloud") {
+    removeNote(currentUid, id).catch((e) => console.error("remove", e));
+  } else {
+    saveLocal();
+  }
+}
+
+// ---- CRUD ------------------------------------------------------------------
 
 function addNote(partial = {}) {
   const now = Date.now();
@@ -48,7 +101,6 @@ function addNote(partial = {}) {
     id: uid(),
     text: "",
     color: COLOR_KEYS[notes.length % COLOR_KEYS.length],
-    // Cascade new notes so they don't stack exactly on top of each other.
     x: 16 + (notes.length % 5) * 18,
     y: 16 + (notes.length % 5) * 18,
     createdAt: now,
@@ -57,27 +109,27 @@ function addNote(partial = {}) {
     ...partial,
   };
   notes.push(note);
-  save();
   renderNote(note, true);
   refreshEmptyHint();
+  persist(note);
   return note;
 }
 
 function updateNote(id, patch) {
-  const note = notes.find((n) => n.id === id);
+  const note = getNote(id);
   if (!note) return;
   Object.assign(note, patch, { updatedAt: Date.now() });
-  save();
+  persist(note);
 }
 
 function deleteNote(id) {
   notes = notes.filter((n) => n.id !== id);
-  save();
   document.querySelector(`[data-id="${id}"]`)?.remove();
   refreshEmptyHint();
+  persistRemove(id);
 }
 
-// ---- rendering ------------------------------------------------------------
+// ---- rendering -------------------------------------------------------------
 
 function refreshEmptyHint() {
   emptyHint.style.display = notes.length ? "none" : "flex";
@@ -92,7 +144,6 @@ function renderNote(note, focus = false) {
   card.style.top = note.y + "px";
   card.style.background = COLORS[note.color] || COLORS.yellow;
 
-  // header: drag handle + color dots + delete
   const head = document.createElement("div");
   head.className =
     "drag-handle flex items-center justify-between px-2 py-1 cursor-move";
@@ -124,10 +175,9 @@ function renderNote(note, focus = false) {
 
   head.append(dots, del);
 
-  // body: editable text
   const ta = document.createElement("textarea");
   ta.className =
-    "no-scrollbar m-1 mt-0 h-28 resize-none rounded bg-white/40 p-2 text-sm text-neutral-800 outline-none placeholder:text-neutral-500";
+    "note-text no-scrollbar m-1 mt-0 h-28 resize-none rounded bg-white/40 p-2 text-sm text-neutral-800 outline-none placeholder:text-neutral-500";
   ta.placeholder = "메모...";
   ta.value = note.text;
   ta.addEventListener("input", () => updateNote(note.id, { text: ta.value }));
@@ -135,25 +185,58 @@ function renderNote(note, focus = false) {
   card.append(head, ta);
   board.appendChild(card);
 
-  makeDraggable(card, head, note);
+  makeDraggable(card, head, note.id);
 
   if (focus) setTimeout(() => ta.focus(), 0);
 }
 
+/** 카드 DOM을 note 값으로 갱신(편집/드래그 중인 부분은 보호). */
+function updateCardDom(card, note) {
+  if (card.dataset.dragging !== "1") {
+    card.style.left = note.x + "px";
+    card.style.top = note.y + "px";
+  }
+  card.style.background = COLORS[note.color] || COLORS.yellow;
+  const ta = card.querySelector(".note-text");
+  if (ta && document.activeElement !== ta && ta.value !== note.text) {
+    ta.value = note.text;
+  }
+}
+
 function renderAll() {
   board.querySelectorAll("[data-id]").forEach((el) => el.remove());
-  notes.sort((a, b) => a.order - b.order).forEach((n) => renderNote(n));
+  notes.sort((a, b) => (a.order ?? 0) - (b.order ?? 0)).forEach((n) => renderNote(n));
   refreshEmptyHint();
 }
 
-// ---- dragging (card within the board) -------------------------------------
+/** 원격 스냅샷을 받아 DOM과 맞춤(추가/삭제/갱신). */
+function reconcile(remote) {
+  notes = remote.slice().sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+  const incoming = new Map(notes.map((n) => [n.id, n]));
 
-function makeDraggable(card, handle, note) {
+  board.querySelectorAll("[data-id]").forEach((card) => {
+    if (!incoming.has(card.dataset.id)) card.remove();
+  });
+
+  for (const note of notes) {
+    const card = board.querySelector(`[data-id="${note.id}"]`);
+    if (!card) renderNote(note);
+    else updateCardDom(card, note);
+  }
+  refreshEmptyHint();
+}
+
+// ---- dragging --------------------------------------------------------------
+
+function makeDraggable(card, handle, id) {
   let startX, startY, originX, originY, dragging = false;
 
   handle.addEventListener("pointerdown", (e) => {
-    if (e.target.closest("button")) return; // let color/delete buttons work
+    if (e.target.closest("button")) return;
+    const note = getNote(id);
+    if (!note) return;
     dragging = true;
+    card.dataset.dragging = "1";
     card.classList.add("z-50");
     startX = e.clientX;
     startY = e.clientY;
@@ -166,23 +249,57 @@ function makeDraggable(card, handle, note) {
     if (!dragging) return;
     const nx = Math.max(0, originX + (e.clientX - startX));
     const ny = Math.max(0, originY + (e.clientY - startY));
-    note.x = nx;
-    note.y = ny;
     card.style.left = nx + "px";
     card.style.top = ny + "px";
+    const note = getNote(id);
+    if (note) {
+      note.x = nx;
+      note.y = ny;
+    }
   });
 
   const end = () => {
     if (!dragging) return;
     dragging = false;
+    card.dataset.dragging = "0";
     card.classList.remove("z-50");
-    updateNote(note.id, { x: note.x, y: note.y });
+    const note = getNote(id);
+    if (note) updateNote(id, { x: note.x, y: note.y });
   };
   handle.addEventListener("pointerup", end);
   handle.addEventListener("pointercancel", end);
 }
 
-// ---- Tauri integration ----------------------------------------------------
+// ---- mode switching --------------------------------------------------------
+
+function goLocal() {
+  mode = "local";
+  currentUid = null;
+  if (unsubscribeNotes) {
+    unsubscribeNotes();
+    unsubscribeNotes = null;
+  }
+  notes = loadLocal();
+  renderAll();
+  setStatus("로컬 모드");
+  if (isConfigured()) {
+    authBtn.textContent = "로그인";
+    authBtn.classList.remove("hidden");
+  }
+}
+
+function goCloud(user) {
+  mode = "cloud";
+  currentUid = user.uid;
+  setStatus(`동기화 중 · ${user.displayName || user.email || "로그인됨"}`);
+  authBtn.textContent = "로그아웃";
+  authBtn.classList.remove("hidden");
+  // 첫 로그인 시 로컬→클라우드 마이그레이션은 추후(M2 보완). 지금은 분리.
+  if (unsubscribeNotes) unsubscribeNotes();
+  unsubscribeNotes = subscribeNotes(currentUid, (remote) => reconcile(remote));
+}
+
+// ---- Tauri integration -----------------------------------------------------
 
 function tauri() {
   return typeof window !== "undefined" ? window.__TAURI__ : undefined;
@@ -193,26 +310,47 @@ async function hideBoard() {
   if (t?.window?.getCurrentWindow) {
     try {
       await t.window.getCurrentWindow().hide();
-      return;
     } catch (e) {
       console.warn("hide failed", e);
     }
   }
-  // Browser dev fallback: nothing to hide.
 }
 
 function wireGlobalEvents() {
   const t = tauri();
-  // New-note event emitted from Rust on Ctrl+Alt+N / tray menu.
   if (t?.event?.listen) {
     t.event.listen("new-note", () => addNote());
   }
 }
 
-// ---- wiring ---------------------------------------------------------------
+// ---- wiring ----------------------------------------------------------------
 
 document.getElementById("btn-new").addEventListener("click", () => addNote());
 document.getElementById("btn-hide").addEventListener("click", hideBoard);
 
-renderAll();
+authBtn.addEventListener("click", async () => {
+  try {
+    if (mode === "cloud") {
+      await signOutUser();
+    } else {
+      await signInGoogle();
+    }
+  } catch (e) {
+    console.error("auth", e);
+    setStatus("로그인 실패: " + (e?.code || e?.message || e));
+  }
+});
+
+// 로컬 메모를 먼저 그려서 즉시 사용 가능하게 한 뒤, Firebase 준비되면 전환.
+goLocal();
 wireGlobalEvents();
+
+if (initFirebase()) {
+  onAuth((user) => {
+    if (user) goCloud(user);
+    else goLocal();
+  });
+} else {
+  // 미설정: 로컬 전용. 로그인 버튼 숨김 유지.
+  setStatus("로컬 모드 (Firebase 미설정)");
+}
