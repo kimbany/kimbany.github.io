@@ -402,6 +402,8 @@ function svgIcon(name) {
       '<rect x="4" y="3" width="16" height="18" rx="2"/><line x1="8" y1="8" x2="16" y2="8"/><line x1="8" y1="12" x2="16" y2="12"/><line x1="8" y1="16" x2="13" y2="16"/>',
     x: '<line x1="5" y1="5" x2="19" y2="19"/><line x1="19" y1="5" x2="5" y2="19"/>',
     chat: '<path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/>',
+    eyeOff:
+      '<path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><path d="M6.61 6.61A18.5 18.5 0 0 0 1 12s4 8 11 8a9.12 9.12 0 0 0 5.39-1.61"/><line x1="1" y1="1" x2="23" y2="23"/>',
   };
   return (
     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" ' +
@@ -1714,9 +1716,10 @@ function renderNoteList() {
         focusCard(note.id);
       });
       const toggle = document.createElement("button");
-      toggle.textContent = note.hidden ? "🙈" : "👁";
+      toggle.innerHTML = svgIcon(note.hidden ? "eyeOff" : "eye");
       toggle.title = note.hidden ? "표시" : "숨기기";
-      toggle.className = "shrink-0 rounded px-1 text-xs hover:bg-black/5";
+      toggle.className =
+        "inline-flex shrink-0 items-center justify-center rounded px-1 opacity-70 hover:opacity-100";
       toggle.addEventListener("click", () => setHidden(note.id, !note.hidden));
       row.append(dot, label, toggle);
       body.appendChild(row);
