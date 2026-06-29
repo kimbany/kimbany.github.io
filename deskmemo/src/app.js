@@ -1517,7 +1517,7 @@ function renderCalendar() {
     const key = `${calYear}-${String(calMonth + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
     const cell = document.createElement("div");
     cell.className =
-      "flex min-h-[2.6rem] cursor-pointer flex-col items-center rounded py-1 leading-tight hover:bg-black/5";
+      "flex min-h-[3.6rem] cursor-pointer flex-col items-center rounded py-1.5 leading-tight hover:bg-black/5";
     if (key === todayKey) cell.classList.add("bg-amber-400/25", "font-bold");
     if (key === selectedDate) cell.classList.add("ring-1", "ring-indigo-400", "bg-indigo-500/10");
     const num = document.createElement("div");
