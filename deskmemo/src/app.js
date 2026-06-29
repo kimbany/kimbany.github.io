@@ -19,14 +19,21 @@ import {
   removeNote,
 } from "./firebase.js";
 
+// 각 색: bg(카드 배경) + dark(어두운 카드 → 흰 글씨)
 const COLORS = {
-  yellow: "#fde68a",
-  pink: "#fbcfe8",
-  blue: "#bfdbfe",
-  green: "#bbf7d0",
-  gray: "#e5e7eb",
+  navy: { bg: "#2b3a5c", dark: true }, // 첨부 이미지 톤
+  teal: { bg: "#1f4d4a", dark: true }, // 네이비와 어울리는 딥 틸
+  plum: { bg: "#46314f", dark: true }, // 네이비와 어울리는 딥 플럼
+  yellow: { bg: "#fde68a", dark: false },
+  pink: { bg: "#fbcfe8", dark: false },
+  blue: { bg: "#bfdbfe", dark: false },
+  green: { bg: "#bbf7d0", dark: false },
+  gray: { bg: "#e5e7eb", dark: false },
 };
 const COLOR_KEYS = Object.keys(COLORS);
+function colorBg(key) {
+  return (COLORS[key] || COLORS.navy).bg;
+}
 const STORAGE_KEY = "deskmemo.notes.v1";
 const CLOUD_DEBOUNCE_MS = 400;
 const DEFAULT_W = 210;
@@ -66,7 +73,7 @@ function normalize(n) {
     title: typeof n.title === "string" ? n.title : "",
     text: typeof n.text === "string" ? n.text : "",
     items: Array.isArray(n.items) ? n.items : [],
-    color: COLORS[n.color] ? n.color : "yellow",
+    color: COLORS[n.color] ? n.color : "navy",
     x: Number.isFinite(n.x) ? n.x : 16,
     y: Number.isFinite(n.y) ? n.y : 16,
     w: Number.isFinite(n.w) ? n.w : DEFAULT_W,
@@ -255,7 +262,13 @@ function renderNote(note, { focus = false, focusItemId = null } = {}) {
   card.style.top = note.y + "px";
   card.style.width = note.w + "px";
   card.style.height = note.h + "px";
-  card.style.background = COLORS[note.color] || COLORS.yellow;
+  const c = COLORS[note.color] || COLORS.navy;
+  card.style.background = c.bg;
+  card.style.color = c.dark ? "#f3f4f6" : "#1f2937";
+  // 내부 요소가 참조하는 CSS 변수(구분선/입력 배경)
+  card.style.setProperty("--line", c.dark ? "rgba(255,255,255,0.16)" : "rgba(0,0,0,0.12)");
+  card.style.setProperty("--fld", c.dark ? "rgba(255,255,255,0.10)" : "rgba(255,255,255,0.45)");
+  card.style.setProperty("--card-bg", c.bg);
 
   card.append(renderHead(note, card));
   card.append(renderTitle(note));
@@ -291,12 +304,14 @@ function renderHead(note, card) {
   for (const key of COLOR_KEYS) {
     const dot = document.createElement("button");
     dot.title = key;
-    dot.className = "h-3 w-3 rounded-full ring-1 ring-black/20";
-    dot.style.background = COLORS[key];
+    dot.className =
+      "h-3 w-3 rounded-full ring-1 ring-current/30" +
+      (note.color === key ? " ring-2 ring-current" : "");
+    dot.style.background = colorBg(key);
     dot.addEventListener("click", (e) => {
       e.stopPropagation();
-      card.style.background = COLORS[key];
       updateNote(note.id, { color: key });
+      rerenderCard(note.id);
     });
     dots.appendChild(dot);
   }
@@ -306,37 +321,48 @@ function renderHead(note, card) {
 
   // 타입 전환 (일반 ↔ 체크리스트)
   const typeBtn = iconButton(
-    note.type === "todo" ? "📝" : "☑",
+    svgIcon(note.type === "todo" ? "note" : "check"),
     note.type === "todo" ? "일반 메모로 전환" : "체크리스트로 전환",
     (e) => {
       e.stopPropagation();
       updateNote(note.id, { type: note.type === "todo" ? "note" : "todo" });
       rerenderCard(note.id, { focus: false });
-    }
+    },
+    true
   );
 
   // 위치 고정
   const pinBtn = iconButton(
-    note.pinned ? "🔒" : "🔓",
+    svgIcon(note.pinned ? "lock" : "unlock"),
     note.pinned ? "고정 해제" : "위치 고정",
     (e) => {
       e.stopPropagation();
       updateNote(note.id, { pinned: !note.pinned });
       rerenderCard(note.id, { focus: false });
-    }
+    },
+    true
   );
 
   // 숨기기 (목록 패널에서 다시 표시)
-  const hideBtn = iconButton("🙈", "숨기기 (목록에서 다시 표시)", (e) => {
-    e.stopPropagation();
-    setHidden(note.id, true);
-  });
+  const hideBtn = iconButton(
+    svgIcon("eye"),
+    "숨기기 (목록에서 다시 표시)",
+    (e) => {
+      e.stopPropagation();
+      setHidden(note.id, true);
+    },
+    true
+  );
 
-  const del = iconButton("×", "삭제", (e) => {
-    e.stopPropagation();
-    deleteNote(note.id);
-  });
-  del.classList.add("text-neutral-600");
+  const del = iconButton(
+    svgIcon("x"),
+    "삭제",
+    (e) => {
+      e.stopPropagation();
+      deleteNote(note.id);
+    },
+    true
+  );
 
   tools.append(typeBtn, pinBtn, hideBtn, del);
   head.append(dots, tools);
@@ -349,17 +375,43 @@ function renderTitle(note) {
   input.value = note.title;
   input.placeholder = "제목";
   input.className =
-    "title-input mx-1 mb-0.5 bg-transparent text-sm font-bold text-neutral-800 " +
-    "outline-none placeholder:font-normal placeholder:text-neutral-500/70";
+    "title-input mx-1 mb-0.5 bg-transparent text-sm font-bold " +
+    "outline-none placeholder:font-normal";
   input.addEventListener("input", () => updateNote(note.id, { title: input.value }));
   return input;
 }
 
-function iconButton(label, title, onClick) {
+// 심플 라인 아이콘 (stroke=currentColor)
+function svgIcon(name) {
+  const P = {
+    plus: '<line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>',
+    list: '<line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/>',
+    calendar:
+      '<rect x="3" y="4" width="18" height="17" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="16" y1="2" x2="16" y2="6"/>',
+    lock: '<rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>',
+    unlock: '<rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 7-1"/>',
+    eye: '<path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/>',
+    check:
+      '<polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>',
+    note:
+      '<rect x="4" y="3" width="16" height="18" rx="2"/><line x1="8" y1="8" x2="16" y2="8"/><line x1="8" y1="12" x2="16" y2="12"/><line x1="8" y1="16" x2="13" y2="16"/>',
+    x: '<line x1="5" y1="5" x2="19" y2="19"/><line x1="19" y1="5" x2="5" y2="19"/>',
+  };
+  return (
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" ' +
+    'stroke-linecap="round" stroke-linejoin="round" class="h-4 w-4 pointer-events-none">' +
+    (P[name] || "") +
+    "</svg>"
+  );
+}
+
+function iconButton(content, title, onClick, isHtml = false) {
   const b = document.createElement("button");
-  b.textContent = label;
+  if (isHtml) b.innerHTML = content;
+  else b.textContent = content;
   b.title = title;
-  b.className = "h-5 min-w-5 rounded px-0.5 text-xs leading-none hover:bg-black/10";
+  b.className =
+    "inline-flex h-6 min-w-6 items-center justify-center rounded px-0.5 text-xs leading-none opacity-70 hover:opacity-100";
   b.addEventListener("click", onClick);
   return b;
 }
@@ -369,7 +421,7 @@ function iconButton(label, title, onClick) {
 function renderTextBody(note) {
   const ta = document.createElement("textarea");
   ta.className =
-    "note-text no-scrollbar m-1 mt-0 flex-1 resize-none rounded bg-white/40 p-2 text-sm text-neutral-800 outline-none placeholder:text-neutral-500";
+    "note-text fld no-scrollbar m-1 mt-0 flex-1 resize-none rounded p-2 text-sm outline-none";
   ta.placeholder = "메모...";
   ta.value = note.text;
   ta.addEventListener("input", () => updateNote(note.id, { text: ta.value }));
@@ -380,7 +432,7 @@ function renderTextBody(note) {
 
 function renderTodoBody(note) {
   const wrap = document.createElement("div");
-  wrap.className = "todo-wrap no-scrollbar m-1 mt-0 flex-1 overflow-auto rounded bg-white/40 p-1";
+  wrap.className = "todo-wrap fld no-scrollbar m-1 mt-0 flex-1 overflow-auto rounded p-1";
 
   if (!note.items.length) {
     const hint = document.createElement("div");
@@ -456,13 +508,15 @@ function renderItemRow(item, note, depth) {
     });
   }
 
-  // 체크박스 — 상위 체크 시 하위 전부 체크
-  const cb = document.createElement("input");
-  cb.type = "checkbox";
-  cb.checked = !!item.done;
-  cb.className = "h-3.5 w-3.5 shrink-0 accent-neutral-700";
-  cb.addEventListener("change", () => {
-    setDoneRecursive(item, cb.checked);
+  // 토글 스위치 — 상위 켜면 하위 전부 켜짐
+  const cb = document.createElement("button");
+  cb.type = "button";
+  cb.setAttribute("role", "switch");
+  cb.setAttribute("aria-checked", item.done ? "true" : "false");
+  cb.className = "toggle shrink-0" + (item.done ? " on" : "");
+  cb.innerHTML = '<span class="toggle-knob"></span>';
+  cb.addEventListener("click", () => {
+    setDoneRecursive(item, !item.done);
     persist(note);
     rerenderCard(note.id);
   });
@@ -473,8 +527,8 @@ function renderItemRow(item, note, depth) {
   text.value = item.text;
   text.placeholder = "할 일...";
   text.className =
-    "item-text min-w-0 flex-1 bg-transparent text-sm text-neutral-800 outline-none placeholder:text-neutral-400" +
-    (item.done ? " line-through text-neutral-400" : "");
+    "item-text min-w-0 flex-1 bg-transparent text-sm outline-none" +
+    (item.done ? " line-through opacity-50" : "");
   text.addEventListener("input", () => {
     item.text = text.value;
     persist(note);
@@ -484,7 +538,7 @@ function renderItemRow(item, note, depth) {
   let dueSpan = null;
   if (item.due) {
     dueSpan = document.createElement("span");
-    dueSpan.className = "shrink-0 text-[10px] text-neutral-500/80";
+    dueSpan.className = "shrink-0 text-[10px] opacity-60";
     dueSpan.textContent = "(" + fmtDue(item.due) + ")";
   }
 
@@ -501,7 +555,7 @@ function renderItemRow(item, note, depth) {
     rerenderCard(note.id);
   });
   const dateBtn = iconButton(
-    item.due ? "📅" : "🗓",
+    svgIcon("calendar"),
     item.due ? "마감일 변경 (" + fmtDue(item.due) + ")" : "마감일 선택",
     (e) => {
       e.stopPropagation();
@@ -510,9 +564,11 @@ function renderItemRow(item, note, depth) {
       } catch {
         dateIn.click();
       }
-    }
+    },
+    true
   );
   dateBtn.classList.add("shrink-0");
+  if (item.due) dateBtn.classList.replace("opacity-70", "opacity-100");
   dateWrap.append(dateBtn, dateIn);
 
   // 우클릭 메뉴 (메모하기 등)
@@ -534,24 +590,34 @@ function renderItemRow(item, note, depth) {
   });
 
   // 하위 항목 추가
-  const addSub = iconButton("＋", "하위 항목 추가", (e) => {
-    e.stopPropagation();
-    item.children = item.children || [];
-    item.children.push(newItem());
-    item.collapsed = false;
-    persist(note);
-    rerenderCard(note.id, { focusItemId: item.children[item.children.length - 1].id });
-  });
+  const addSub = iconButton(
+    svgIcon("plus"),
+    "하위 항목 추가",
+    (e) => {
+      e.stopPropagation();
+      item.children = item.children || [];
+      item.children.push(newItem());
+      item.collapsed = false;
+      persist(note);
+      rerenderCard(note.id, { focusItemId: item.children[item.children.length - 1].id });
+    },
+    true
+  );
   addSub.classList.add("shrink-0");
 
   // 삭제
-  const del = iconButton("×", "항목 삭제", (e) => {
-    e.stopPropagation();
-    removeItem(note.items, item.id);
-    persist(note);
-    rerenderCard(note.id);
-  });
-  del.classList.add("shrink-0", "text-neutral-500");
+  const del = iconButton(
+    svgIcon("x"),
+    "항목 삭제",
+    (e) => {
+      e.stopPropagation();
+      removeItem(note.items, item.id);
+      persist(note);
+      rerenderCard(note.id);
+    },
+    true
+  );
+  del.classList.add("shrink-0");
 
   // 드래그 핸들(맨 뒤): 잡고 항목 이동
   const handle = document.createElement("button");
@@ -1074,7 +1140,7 @@ function renderCalendar() {
         row.className = "flex items-start gap-1 py-0.5";
         const dot = document.createElement("span");
         dot.className = "mt-1 h-2 w-2 shrink-0 rounded-full";
-        dot.style.background = COLORS[it.color] || COLORS.yellow;
+        dot.style.background = colorBg(it.color);
         const txt = document.createElement("span");
         txt.className =
           "min-w-0 flex-1 " + (it.done ? "text-neutral-500 line-through" : "text-neutral-100");
@@ -1152,7 +1218,7 @@ function renderNoteList() {
       row.className = "mb-1 flex items-center gap-2 rounded px-2 py-1.5 hover:bg-white/10";
       const dot = document.createElement("span");
       dot.className = "h-2.5 w-2.5 shrink-0 rounded-full ring-1 ring-black/20";
-      dot.style.background = COLORS[note.color] || COLORS.yellow;
+      dot.style.background = colorBg(note.color);
       const label = document.createElement("button");
       label.className =
         "min-w-0 flex-1 truncate text-left text-sm " +
@@ -1244,11 +1310,16 @@ function wireGlobalEvents() {
 
 // ---- wiring ----------------------------------------------------------------
 
-document
-  .getElementById("btn-add")
-  .addEventListener("click", (e) => showAddMenu(e.currentTarget));
-document.getElementById("btn-list").addEventListener("click", () => toggleNoteList());
-document.getElementById("btn-cal").addEventListener("click", toggleCalendar);
+const btnAdd = document.getElementById("btn-add");
+const btnList = document.getElementById("btn-list");
+const btnCal = document.getElementById("btn-cal");
+btnAdd.innerHTML = svgIcon("plus");
+btnList.innerHTML = svgIcon("list");
+btnCal.innerHTML = svgIcon("calendar");
+[btnAdd, btnList, btnCal].forEach((b) => b.classList.add("inline-flex", "items-center"));
+btnAdd.addEventListener("click", (e) => showAddMenu(e.currentTarget));
+btnList.addEventListener("click", () => toggleNoteList());
+btnCal.addEventListener("click", toggleCalendar);
 
 authBtn.addEventListener("click", async () => {
   try {

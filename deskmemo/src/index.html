@@ -8,7 +8,7 @@
        Swap for a locally bundled stylesheet before release. -->
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
-    html, body { background: transparent; }
+    html, body { background: #edecea; }
     /* Hide scrollbars but keep scrolling */
     .no-scrollbar::-webkit-scrollbar { display: none; }
     .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
@@ -25,30 +25,50 @@
     .item-row.drop-before { box-shadow: inset 0 2px 0 0 #6366f1; }
     .item-row.drop-after  { box-shadow: inset 0 -2px 0 0 #6366f1; }
     .item-row.drop-child  { background: rgba(99,102,241,0.18); border-radius: 4px; }
+
+    /* Card inner elements adapt to card color via CSS vars set in JS */
+    .note-card .fld { background: var(--fld); }
+    .note-card .item-row { border-bottom: 1px solid var(--line); }
+    .note-card input::placeholder,
+    .note-card textarea::placeholder { color: currentColor; opacity: 0.45; }
+
+    /* Toggle switch (replaces checkbox) — uses currentColor of the card */
+    .toggle {
+      position: relative; width: 34px; height: 18px; flex: none;
+      border-radius: 9999px; border: 1.5px solid currentColor;
+      background: transparent; transition: background .15s; cursor: pointer;
+    }
+    .toggle .toggle-knob {
+      position: absolute; top: 1.5px; left: 1.5px;
+      width: 12px; height: 12px; border-radius: 9999px;
+      background: currentColor; transition: left .15s;
+    }
+    .toggle.on { background: currentColor; }
+    .toggle.on .toggle-knob { left: 18px; background: var(--card-bg, #2b3a5c); }
   </style>
 </head>
 <body class="overflow-hidden select-none">
-  <!-- Board shell: frameless, semi-transparent backdrop -->
-  <div class="flex h-screen w-screen flex-col rounded-xl border border-white/20 bg-neutral-900/40 backdrop-blur-sm">
+  <!-- Board shell -->
+  <div class="flex h-screen w-screen flex-col bg-[#edecea] text-neutral-700">
     <!-- Title bar (draggable) -->
     <header data-tauri-drag-region
-            class="flex items-center justify-between px-3 py-2 text-neutral-100">
+            class="flex items-center justify-between border-b border-black/5 px-3 py-2 text-neutral-700">
       <div data-tauri-drag-region class="flex items-center gap-2 text-sm font-semibold">
-        <span class="text-amber-300">●</span> DeskMemo
+        <span class="text-[#2b3a5c]">●</span> DeskMemo
       </div>
       <div class="flex items-center gap-1">
         <button id="btn-add"
                 title="새 메모 / 체크리스트 (Ctrl+Alt+N)"
-                class="rounded-md px-2 py-1 text-lg leading-none hover:bg-white/15">＋</button>
+                class="rounded-md px-2 py-1 text-lg leading-none hover:bg-black/5">＋</button>
         <button id="btn-list"
                 title="메모 목록 (숨김 포함)"
-                class="rounded-md px-2 py-1 text-base leading-none hover:bg-white/15">📋</button>
+                class="rounded-md px-2 py-1 text-base leading-none hover:bg-black/5">📋</button>
         <button id="btn-cal"
                 title="달력 열기/닫기"
-                class="rounded-md px-2 py-1 text-base leading-none hover:bg-white/15">📅</button>
+                class="rounded-md px-2 py-1 text-base leading-none hover:bg-black/5">📅</button>
         <button id="btn-auth"
                 title="로그인/로그아웃"
-                class="hidden rounded-md px-2 py-1 text-xs leading-none hover:bg-white/15">로그인</button>
+                class="hidden rounded-md px-2 py-1 text-xs leading-none hover:bg-black/5">로그인</button>
       </div>
     </header>
 
@@ -56,10 +76,10 @@
     <div class="flex flex-1 overflow-hidden">
       <main id="board" class="no-scrollbar relative flex-1 overflow-auto p-2">
         <div id="empty-hint"
-             class="pointer-events-none absolute inset-0 flex items-center justify-center text-center text-sm text-neutral-300">
+             class="pointer-events-none absolute inset-0 flex items-center justify-center text-center text-sm text-neutral-400">
           <div>
             <p>메모가 없습니다.</p>
-            <p class="mt-1 text-neutral-400">＋ 또는 <kbd class="rounded bg-white/20 px-1">Ctrl+Alt+N</kbd></p>
+            <p class="mt-1 text-neutral-400">＋ 또는 <kbd class="rounded bg-black/10 px-1">Ctrl+Alt+N</kbd></p>
           </div>
         </div>
       </main>
