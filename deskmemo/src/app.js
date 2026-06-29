@@ -81,7 +81,28 @@ function normalize(n) {
 // ---- checklist(todo) 트리 조작 --------------------------------------------
 
 function newItem() {
-  return { id: uid(), text: "", done: false, collapsed: false, children: [] };
+  return {
+    id: uid(),
+    text: "",
+    done: false,
+    collapsed: false,
+    due: null, // 마감일 "YYYY-MM-DD" | null
+    memo: null, // 이슈/메모 텍스트 | null (null이면 숨김)
+    children: [],
+  };
+}
+
+/** "2026-06-30" → "26.06.30" */
+function fmtDue(iso) {
+  if (!iso) return "";
+  const [y, m, d] = iso.split("-");
+  return `${y.slice(2)}.${m}.${d}`;
+}
+
+/** 항목과 모든 하위 항목의 done을 일괄 설정(상위 체크 → 하위 전부). */
+function setDoneRecursive(item, value) {
+  item.done = value;
+  (item.children || []).forEach((c) => setDoneRecursive(c, value));
 }
 
 function findItem(items, id) {
@@ -121,6 +142,7 @@ function saveLocal() {
 
 function persist(note) {
   note.updatedAt = Date.now();
+  scheduleCalendar();
   if (mode === "cloud") {
     clearTimeout(cloudDebouncers.get(note.id));
     cloudDebouncers.set(
@@ -135,6 +157,7 @@ function persist(note) {
 }
 
 function persistRemove(id) {
+  scheduleCalendar();
   if (mode === "cloud") {
     removeNote(currentUid, id).catch((e) => console.error("remove", e));
   } else {
@@ -351,10 +374,30 @@ function renderTodoBody(note) {
 function renderItemList(items, container, note, depth) {
   for (const item of items) {
     container.appendChild(renderItemRow(item, note, depth));
+    if (item.memo != null) container.appendChild(renderItemMemo(item, note, depth));
     if (item.children && item.children.length && !item.collapsed) {
       renderItemList(item.children, container, note, depth + 1);
     }
   }
+}
+
+function renderItemMemo(item, note, depth) {
+  const box = document.createElement("div");
+  box.className = "py-0.5";
+  box.style.paddingLeft = depth * 14 + 22 + "px";
+  const ta = document.createElement("textarea");
+  ta.rows = 2;
+  ta.placeholder = "메모 / 이슈 기록...";
+  ta.value = item.memo;
+  ta.className =
+    "no-scrollbar w-full resize-none rounded border border-amber-300/60 bg-amber-50/80 " +
+    "px-1.5 py-1 text-[11px] text-neutral-700 outline-none placeholder:text-neutral-400";
+  ta.addEventListener("input", () => {
+    item.memo = ta.value;
+    persist(note);
+  });
+  box.appendChild(ta);
+  return box;
 }
 
 function renderItemRow(item, note, depth) {
@@ -377,13 +420,13 @@ function renderItemRow(item, note, depth) {
     });
   }
 
-  // 체크박스
+  // 체크박스 — 상위 체크 시 하위 전부 체크
   const cb = document.createElement("input");
   cb.type = "checkbox";
   cb.checked = !!item.done;
   cb.className = "h-3.5 w-3.5 shrink-0 accent-neutral-700";
   cb.addEventListener("change", () => {
-    item.done = cb.checked;
+    setDoneRecursive(item, cb.checked);
     persist(note);
     rerenderCard(note.id);
   });
@@ -399,6 +442,47 @@ function renderItemRow(item, note, depth) {
   text.addEventListener("input", () => {
     item.text = text.value;
     persist(note);
+  });
+
+  // 마감일 표시(내용 오른쪽, 연하고 작게)
+  let dueSpan = null;
+  if (item.due) {
+    dueSpan = document.createElement("span");
+    dueSpan.className = "shrink-0 text-[10px] text-neutral-500/80";
+    dueSpan.textContent = "(" + fmtDue(item.due) + ")";
+  }
+
+  // 마감일 선택(달력 아이콘 + 숨은 date 입력)
+  const dateWrap = document.createElement("span");
+  dateWrap.className = "relative shrink-0";
+  const dateIn = document.createElement("input");
+  dateIn.type = "date";
+  dateIn.value = item.due || "";
+  dateIn.className = "absolute right-0 top-0 h-0 w-0 opacity-0";
+  dateIn.addEventListener("change", () => {
+    item.due = dateIn.value || null;
+    persist(note);
+    rerenderCard(note.id);
+  });
+  const dateBtn = iconButton(
+    item.due ? "📅" : "🗓",
+    item.due ? "마감일 변경 (" + fmtDue(item.due) + ")" : "마감일 선택",
+    (e) => {
+      e.stopPropagation();
+      try {
+        dateIn.showPicker();
+      } catch {
+        dateIn.click();
+      }
+    }
+  );
+  dateBtn.classList.add("shrink-0");
+  dateWrap.append(dateBtn, dateIn);
+
+  // 우클릭 메뉴 (메모하기 등)
+  row.addEventListener("contextmenu", (e) => {
+    e.preventDefault();
+    showItemContextMenu(e.clientX, e.clientY, note, item.id);
   });
   // Enter → 같은 깊이에 새 항목
   text.addEventListener("keydown", (e) => {
@@ -441,8 +525,92 @@ function renderItemRow(item, note, depth) {
     "drag-handle-item shrink-0 px-0.5 text-xs leading-none text-neutral-400 hover:text-neutral-700";
   setupItemDrag(handle, note, item.id);
 
-  row.append(toggle, cb, text, addSub, del, handle);
+  const parts = [toggle, cb, text, dueSpan, addSub, del, handle, dateWrap].filter(Boolean);
+  row.append(...parts);
   return row;
+}
+
+// ---- 우클릭 컨텍스트 메뉴 --------------------------------------------------
+
+let ctxMenuEl = null;
+
+function closeContextMenu() {
+  ctxMenuEl?.remove();
+  ctxMenuEl = null;
+  document.removeEventListener("pointerdown", onCtxOutside, true);
+  document.removeEventListener("keydown", onCtxKey, true);
+}
+function onCtxOutside(e) {
+  if (ctxMenuEl && !ctxMenuEl.contains(e.target)) closeContextMenu();
+}
+function onCtxKey(e) {
+  if (e.key === "Escape") closeContextMenu();
+}
+
+function showItemContextMenu(x, y, note, itemId) {
+  closeContextMenu();
+  const item = findItem(note.items, itemId);
+  if (!item) return;
+
+  const menu = document.createElement("div");
+  menu.className =
+    "fixed z-[1000] min-w-32 overflow-hidden rounded-md border border-black/10 bg-white py-1 text-sm text-neutral-800 shadow-xl";
+  menu.style.left = x + "px";
+  menu.style.top = y + "px";
+
+  const add = (label, fn) => {
+    const b = document.createElement("button");
+    b.textContent = label;
+    b.className = "block w-full px-3 py-1.5 text-left hover:bg-neutral-100";
+    b.addEventListener("click", () => {
+      closeContextMenu();
+      fn();
+    });
+    menu.appendChild(b);
+  };
+
+  if (item.memo == null) {
+    add("📝 메모하기", () => {
+      item.memo = "";
+      persist(note);
+      rerenderCard(note.id);
+      setTimeout(() => {
+        document
+          .querySelector(`[data-id="${note.id}"] [data-item="${itemId}"]`)
+          ?.nextElementSibling?.querySelector("textarea")
+          ?.focus();
+      }, 0);
+    });
+  } else {
+    add("📝 메모 삭제", () => {
+      item.memo = null;
+      persist(note);
+      rerenderCard(note.id);
+    });
+  }
+  add("＋ 하위 항목", () => {
+    item.children = item.children || [];
+    const c = newItem();
+    item.children.push(c);
+    item.collapsed = false;
+    persist(note);
+    rerenderCard(note.id, { focusItemId: c.id });
+  });
+  add("🗑 항목 삭제", () => {
+    removeItem(note.items, itemId);
+    persist(note);
+    rerenderCard(note.id);
+  });
+
+  document.body.appendChild(menu);
+  ctxMenuEl = menu;
+  // 화면 밖으로 나가면 위치 보정
+  const r = menu.getBoundingClientRect();
+  if (r.right > window.innerWidth) menu.style.left = window.innerWidth - r.width - 8 + "px";
+  if (r.bottom > window.innerHeight) menu.style.top = window.innerHeight - r.height - 8 + "px";
+
+  document.addEventListener("pointerdown", onCtxOutside, true);
+  document.addEventListener("keydown", onCtxKey, true);
 }
 
 // ---- 체크리스트 항목 드래그 이동 ------------------------------------------
@@ -602,6 +770,7 @@ function reconcile(remote) {
     // 편집/드래그 중인 카드는 echo로 덮지 않음
   }
   refreshEmptyHint();
+  scheduleCalendar();
 }
 
 // ---- 드래그 / 리사이즈 -----------------------------------------------------
@@ -661,6 +830,159 @@ function observeResize(card, note) {
   });
   ro.observe(card);
   card._ro = ro;
+}
+
+// ---- 달력 패널 (오른쪽 1/3) -----------------------------------------------
+
+const _now = new Date();
+let calYear = _now.getFullYear();
+let calMonth = _now.getMonth(); // 0-based
+let calTimer = null;
+
+function scheduleCalendar() {
+  clearTimeout(calTimer);
+  calTimer = setTimeout(renderCalendar, 120);
+}
+
+function ymd(d) {
+  return (
+    d.getFullYear() +
+    "-" +
+    String(d.getMonth() + 1).padStart(2, "0") +
+    "-" +
+    String(d.getDate()).padStart(2, "0")
+  );
+}
+
+/** 모든 체크리스트에서 마감일이 있는 항목 수집 → { "YYYY-MM-DD": [..] } */
+function collectDueItems() {
+  const map = {};
+  for (const note of notes) {
+    if (note.type !== "todo") continue;
+    (function walk(items) {
+      for (const it of items || []) {
+        if (it.due) {
+          (map[it.due] = map[it.due] || []).push({
+            text: it.text || "(내용 없음)",
+            title: note.title || "",
+            done: !!it.done,
+            color: note.color,
+          });
+        }
+        walk(it.children);
+      }
+    })(note.items);
+  }
+  return map;
+}
+
+function renderCalendar() {
+  const cal = document.getElementById("calendar");
+  if (!cal) return;
+  cal.innerHTML = "";
+  const due = collectDueItems();
+  const todayKey = ymd(new Date());
+
+  // 헤더: ◀ YYYY.MM ▶
+  const head = document.createElement("div");
+  head.className = "mb-1 flex items-center justify-between text-xs font-semibold";
+  const prev = document.createElement("button");
+  prev.textContent = "◀";
+  prev.className = "rounded px-1 hover:bg-white/15";
+  prev.addEventListener("click", () => {
+    calMonth--;
+    if (calMonth < 0) {
+      calMonth = 11;
+      calYear--;
+    }
+    renderCalendar();
+  });
+  const next = document.createElement("button");
+  next.textContent = "▶";
+  next.className = "rounded px-1 hover:bg-white/15";
+  next.addEventListener("click", () => {
+    calMonth++;
+    if (calMonth > 11) {
+      calMonth = 0;
+      calYear++;
+    }
+    renderCalendar();
+  });
+  const label = document.createElement("span");
+  label.textContent = `${calYear}.${String(calMonth + 1).padStart(2, "0")}`;
+  head.append(prev, label, next);
+  cal.appendChild(head);
+
+  // 요일
+  const wd = document.createElement("div");
+  wd.className = "grid grid-cols-7 text-center text-[10px] text-neutral-400";
+  ["일", "월", "화", "수", "목", "금", "토"].forEach((d, i) => {
+    const c = document.createElement("div");
+    c.textContent = d;
+    if (i === 0) c.classList.add("text-red-300");
+    wd.appendChild(c);
+  });
+  cal.appendChild(wd);
+
+  // 날짜 그리드
+  const grid = document.createElement("div");
+  grid.className = "grid grid-cols-7 gap-0.5 text-center text-[10px]";
+  const startDay = new Date(calYear, calMonth, 1).getDay();
+  const daysInMonth = new Date(calYear, calMonth + 1, 0).getDate();
+  for (let i = 0; i < startDay; i++) grid.appendChild(document.createElement("div"));
+  for (let day = 1; day <= daysInMonth; day++) {
+    const key = `${calYear}-${String(calMonth + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+    const cell = document.createElement("div");
+    cell.className = "rounded py-0.5 leading-tight";
+    if (key === todayKey) cell.classList.add("bg-amber-400/30", "font-bold");
+    const num = document.createElement("div");
+    num.textContent = day;
+    cell.appendChild(num);
+    if (due[key]) {
+      const dot = document.createElement("div");
+      const allDone = due[key].every((x) => x.done);
+      dot.className =
+        "mx-auto mt-0.5 h-1.5 w-1.5 rounded-full " +
+        (allDone ? "bg-neutral-400" : "bg-rose-400");
+      cell.appendChild(dot);
+    }
+    grid.appendChild(cell);
+  }
+  cal.appendChild(grid);
+
+  // 이번 달 마감 목록
+  const list = document.createElement("div");
+  list.className = "mt-2 border-t border-white/15 pt-2 text-[11px]";
+  const monthPrefix = `${calYear}-${String(calMonth + 1).padStart(2, "0")}`;
+  const keys = Object.keys(due)
+    .filter((k) => k.startsWith(monthPrefix))
+    .sort();
+  if (!keys.length) {
+    const empty = document.createElement("div");
+    empty.className = "text-neutral-400";
+    empty.textContent = "이번 달 마감 없음";
+    list.appendChild(empty);
+  } else {
+    for (const k of keys) {
+      for (const it of due[k]) {
+        const row = document.createElement("div");
+        row.className = "flex items-start gap-1 py-0.5";
+        const dot = document.createElement("span");
+        dot.className = "mt-1 h-2 w-2 shrink-0 rounded-full";
+        dot.style.background = COLORS[it.color] || COLORS.yellow;
+        const txt = document.createElement("span");
+        txt.className =
+          "min-w-0 flex-1 " + (it.done ? "text-neutral-500 line-through" : "text-neutral-100");
+        const dd = k.slice(8);
+        const mm = k.slice(5, 7);
+        const label = it.title ? `${it.title} · ${it.text}` : it.text;
+        txt.textContent = `${mm}.${dd}  ${label}`;
+        row.append(dot, txt);
+        list.appendChild(row);
+      }
+    }
+  }
+  cal.appendChild(list);
 }
 
 // ---- mode switching --------------------------------------------------------
@@ -738,6 +1060,7 @@ authBtn.addEventListener("click", async () => {
 
 goLocal();
 wireGlobalEvents();
+renderCalendar();
 
 if (initFirebase()) {
   onAuth((user) => {
