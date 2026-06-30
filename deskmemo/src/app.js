@@ -361,10 +361,13 @@ function renderHead(note, card) {
 
   const del = iconButton(
     svgIcon("x"),
-    "삭제",
-    (e) => {
+    "삭제 (되돌릴 수 없음)",
+    async (e) => {
       e.stopPropagation();
-      deleteNote(note.id);
+      const ok = await confirmDialog(
+        "이 메모를 삭제하면 <b>다시 열 수 없습니다.</b><br>삭제할까요?"
+      );
+      if (ok) deleteNote(note.id);
     },
     true
   );
