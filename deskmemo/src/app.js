@@ -182,6 +182,7 @@ function persist(note) {
     cloudDebouncers.set(
       note.id,
       setTimeout(() => {
+        cloudDebouncers.delete(note.id); // 저장 완료 → 이후 echo 반영 허용
         upsertNote(currentUid, note).catch((e) => console.error("upsert", e));
       }, CLOUD_DEBOUNCE_MS)
     );
@@ -1104,7 +1105,17 @@ function renderAll() {
 
 /** 원격 스냅샷을 DOM과 맞춤. 편집/드래그 중인 카드는 건드리지 않음. */
 function reconcile(remote) {
-  notes = remote.map(normalize).sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+  // 저장 대기 중(디바운스)인 로컬 변경은 원격 echo로 덮어쓰지 않는다.
+  const localById = new Map(notes.map((n) => [n.id, n]));
+  const merged = remote
+    .map(normalize)
+    .map((rn) =>
+      cloudDebouncers.has(rn.id) && localById.has(rn.id) ? localById.get(rn.id) : rn
+    );
+  for (const [id, ln] of localById) {
+    if (cloudDebouncers.has(id) && !merged.some((n) => n.id === id)) merged.push(ln);
+  }
+  notes = merged.sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
   const incoming = new Map(notes.map((n) => [n.id, n]));
 
   board.querySelectorAll("[data-id]").forEach((card) => {
