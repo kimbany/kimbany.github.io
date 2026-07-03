@@ -1,0 +1,470 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
+<title>Veil — 익명 친구 매칭 (프로토타입)</title>
+<style>
+  :root{
+    --bg:#0f1020; --surface:#1a1c2e; --surface2:#23263c; --text:#eceeffe; --text:#ecedf5;
+    --dim:#9aa0bd; --border:#2c2f48; --accent:#7c6cff; --accent2:#b06cff;
+    --good:#36d399; --warn:#fbbd23; --bad:#ff5c6c; --me:#7c6cff; --you:#23263c;
+    --grad:linear-gradient(135deg,#7c6cff,#b06cff);
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{height:100%;margin:0}
+  body{font-family:-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Malgun Gothic","Noto Sans KR",sans-serif;
+    background:#06070f;color:var(--text);display:flex;align-items:center;justify-content:center}
+  #app{position:relative;width:100%;max-width:440px;height:100dvh;max-height:920px;background:var(--bg);
+    overflow:hidden;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,.6)}
+  button{font-family:inherit;cursor:pointer;border:none;color:inherit}
+  input,textarea{font-family:inherit;font-size:16px}
+  .screen{position:absolute;inset:0;display:none;flex-direction:column;background:var(--bg);animation:fade .25s}
+  .screen.active{display:flex}
+  @keyframes fade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+  .pad{padding:20px}
+  .grow{flex:1;overflow-y:auto}
+  .center{display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center}
+  h1{font-size:26px;margin:0 0 6px} h2{font-size:20px;margin:0 0 4px}
+  .dim{color:var(--dim);font-size:14px;line-height:1.55}
+  .btn{display:block;width:100%;padding:15px;border-radius:14px;background:var(--grad);color:#fff;
+    font-weight:700;font-size:16px;text-align:center;margin-top:10px}
+  .btn.sec{background:var(--surface2);color:var(--text)}
+  .btn.ghost{background:transparent;border:1px solid var(--border);color:var(--dim)}
+  .btn.bad{background:var(--bad)}
+  .btn:disabled{opacity:.4}
+  .topbar{display:flex;align-items:center;gap:10px;padding:14px 16px;padding-top:max(14px,env(safe-area-inset-top));
+    background:var(--surface);border-bottom:1px solid var(--border)}
+  .topbar .ttl{font-weight:700;font-size:17px}
+  .iconbtn{width:34px;height:34px;border-radius:10px;background:var(--surface2);display:flex;align-items:center;justify-content:center;font-size:16px}
+  .logo{width:84px;height:84px;border-radius:26px;background:var(--grad);display:flex;align-items:center;justify-content:center;
+    font-size:42px;margin-bottom:18px;box-shadow:0 10px 30px rgba(124,108,255,.45)}
+  .chip{display:inline-flex;align-items:center;padding:9px 14px;border-radius:999px;background:var(--surface2);
+    border:1px solid var(--border);font-size:14px;margin:5px 5px 0 0;user-select:none}
+  .chip.on{background:var(--grad);border-color:transparent;color:#fff;font-weight:600}
+  .field{width:100%;padding:14px;border-radius:12px;background:var(--surface);border:1px solid var(--border);color:var(--text);margin-top:8px}
+  .label{font-size:13px;color:var(--dim);margin:16px 0 2px;font-weight:600}
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:16px;margin-top:12px}
+  .row{display:flex;align-items:center;gap:12px}
+  .av{width:46px;height:46px;border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:24px;flex:0 0 auto}
+  .badge{font-size:11px;padding:3px 8px;border-radius:999px;background:var(--surface2);color:var(--dim)}
+  .badge.live{background:rgba(54,211,153,.15);color:var(--good)}
+  .badge.warn{background:rgba(251,189,35,.15);color:var(--warn)}
+  /* tabs */
+  .tabbar{display:flex;background:var(--surface);border-top:1px solid var(--border);padding-bottom:env(safe-area-inset-bottom)}
+  .tab{flex:1;padding:11px 0;text-align:center;color:var(--dim);font-size:11px}
+  .tab .ic{font-size:20px;display:block;margin-bottom:2px;filter:grayscale(1);opacity:.7}
+  .tab.on{color:var(--accent)} .tab.on .ic{filter:none;opacity:1}
+  /* matching */
+  .pulse{width:160px;height:160px;border-radius:50%;background:var(--grad);display:flex;align-items:center;justify-content:center;
+    font-size:60px;font-weight:800;color:#fff;box-shadow:0 0 0 0 rgba(124,108,255,.5);animation:pulse 1s infinite}
+  @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(124,108,255,.5)}100%{box-shadow:0 0 0 40px rgba(124,108,255,0)}}
+  .seg{display:flex;background:var(--surface2);border-radius:12px;padding:4px;margin:14px 0}
+  .seg div{flex:1;text-align:center;padding:9px;border-radius:9px;font-size:14px;color:var(--dim)}
+  .seg div.on{background:var(--accent);color:#fff;font-weight:600}
+  /* chat */
+  .msgs{flex:1;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:8px}
+  .b{max-width:75%;padding:10px 13px;border-radius:16px;font-size:15px;line-height:1.4;word-break:break-word}
+  .b.me{align-self:flex-end;background:var(--me);color:#fff;border-bottom-right-radius:5px}
+  .b.you{align-self:flex-start;background:var(--you);border-bottom-left-radius:5px}
+  .b.sys{align-self:center;background:transparent;color:var(--dim);font-size:12px;text-align:center;max-width:90%}
+  .composer{display:flex;gap:8px;padding:10px;border-top:1px solid var(--border);background:var(--surface)}
+  .composer input{flex:1;padding:12px;border-radius:22px;background:var(--bg);border:1px solid var(--border);color:var(--text)}
+  .send{width:44px;height:44px;border-radius:50%;background:var(--grad);font-size:18px;color:#fff;flex:0 0 auto}
+  .timerbar{display:flex;align-items:center;justify-content:center;gap:6px;padding:7px;background:rgba(124,108,255,.12);
+    color:var(--accent);font-size:13px;font-weight:600}
+  .timerbar.warn{background:rgba(251,189,35,.14);color:var(--warn)}
+  /* modal */
+  .ovl{position:absolute;inset:0;background:rgba(0,0,0,.6);display:none;align-items:flex-end;z-index:50}
+  .ovl.on{display:flex;animation:fade .2s}
+  .sheet{width:100%;background:var(--surface);border-radius:22px 22px 0 0;padding:22px;animation:up .25s}
+  @keyframes up{from{transform:translateY(100%)}to{transform:none}}
+  .opt{padding:14px;border-radius:12px;background:var(--surface2);margin-top:8px;font-size:15px}
+  .opt.bad{color:var(--bad)}
+  .scale{display:flex;justify-content:space-between;margin-top:8px}
+  .scale b{flex:1;text-align:center;padding:10px 0;margin:0 3px;border-radius:10px;background:var(--surface2);font-size:13px;font-weight:500}
+  .scale b.on{background:var(--grad);color:#fff;font-weight:700}
+  .toast{position:absolute;left:50%;bottom:90px;transform:translateX(-50%);background:#000;color:#fff;padding:10px 18px;
+    border-radius:999px;font-size:13px;opacity:0;transition:.3s;z-index:99;white-space:nowrap}
+  .toast.on{opacity:.94}
+  .list-item{display:flex;align-items:center;gap:12px;padding:13px 16px;border-bottom:1px solid var(--border)}
+  .demo-note{position:absolute;top:max(8px,env(safe-area-inset-top));right:10px;z-index:60;background:rgba(0,0,0,.5);
+    color:#fff;font-size:10px;padding:4px 9px;border-radius:999px;backdrop-filter:blur(4px)}
+</style>
+</head>
+<body>
+<div id="app">
+  <div class="demo-note">PROTOTYPE v3</div>
+
+  <!-- ===== 시작 ===== -->
+  <section id="s-start" class="screen active center pad">
+    <div class="logo">🎭</div>
+    <h1>Veil</h1>
+    <p class="dim" style="max-width:280px">사진도, 외모도 아닌<br><b style="color:var(--text)">오직 대화</b>로 만나는 익명 친구 매칭</p>
+    <p style="color:var(--good);font-size:12px;margin-top:10px">✓ v3 · 이 문구가 보이면 최신 버전이에요</p>
+    <div style="width:100%;margin-top:30px">
+      <button class="btn" onclick="go('s-birth')">시작하기</button>
+      <button class="btn ghost" onclick="go('s-login')">이미 계정이 있어요</button>
+    </div>
+  </section>
+
+  <!-- ===== 로그인 ===== -->
+  <section id="s-login" class="screen">
+    <div class="topbar"><button class="iconbtn" onclick="go('s-start')">‹</button><span class="ttl">로그인</span></div>
+    <div class="grow pad">
+      <input class="field" placeholder="이메일">
+      <input class="field" type="password" placeholder="비밀번호">
+      <button class="btn" onclick="seed();go('main');tab('match')">이메일로 로그인</button>
+      <button class="btn sec" onclick="seed();go('main');tab('match')">🟦 Google로 계속</button>
+      <button class="btn sec" onclick="seed();go('main');tab('match')"> Apple로 계속</button>
+      <p class="dim center" style="margin-top:18px">비밀번호를 잊으셨나요?</p>
+    </div>
+  </section>
+
+  <!-- ===== 생년월일 (14세 검증) ===== -->
+  <section id="s-birth" class="screen">
+    <div class="topbar"><button class="iconbtn" onclick="go('s-start')">‹</button><span class="ttl">회원가입</span></div>
+    <div class="grow pad">
+      <h2>생년월일을 알려주세요</h2>
+      <p class="dim">만 14세 이상만 가입할 수 있어요.</p>
+      <input id="birth" class="field" type="date" max="2012-06-17">
+      <p id="ageMsg" class="dim" style="color:var(--bad);min-height:18px"></p>
+    </div>
+    <div class="pad"><button class="btn" onclick="checkAge()">다음</button></div>
+  </section>
+
+  <!-- ===== 온보딩: 닉네임 ===== -->
+  <section id="s-nick" class="screen">
+    <div class="topbar"><span class="ttl">프로필 만들기 (1/3)</span></div>
+    <div class="grow pad">
+      <div class="label">닉네임</div>
+      <input id="nick" class="field" placeholder="2~10자 · 중복/욕설 불가" oninput="nickCheck()" value="달빛여우">
+      <p id="nickMsg" class="dim" style="min-height:18px"></p>
+      <div class="label">상태메시지</div>
+      <input id="status" class="field" placeholder="자유롭게 적어보세요" value="조용한 밤 대화 좋아해요">
+    </div>
+    <div class="pad"><button class="btn" onclick="go('s-avatar')">다음</button></div>
+  </section>
+
+  <!-- ===== 온보딩: 아바타 ===== -->
+  <section id="s-avatar" class="screen">
+    <div class="topbar"><button class="iconbtn" onclick="go('s-nick')">‹</button><span class="ttl">프로필 만들기 (2/3)</span></div>
+    <div class="grow pad center">
+      <p class="dim">실제 사진은 사용할 수 없어요.<br>아바타와 배경색으로 나를 표현하세요.</p>
+      <div id="bigav" class="av" style="width:120px;height:120px;border-radius:36px;font-size:64px;background:#7c6cff;margin:18px 0">🦊</div>
+      <div id="avatars" style="text-align:center"></div>
+      <div class="label" style="align-self:flex-start">배경 색상</div>
+      <div id="colors" style="align-self:flex-start"></div>
+    </div>
+    <div class="pad"><button class="btn" onclick="go('s-interest')">다음</button></div>
+  </section>
+
+  <!-- ===== 온보딩: 관심사 ===== -->
+  <section id="s-interest" class="screen">
+    <div class="topbar"><button class="iconbtn" onclick="go('s-avatar')">‹</button><span class="ttl">프로필 만들기 (3/3)</span></div>
+    <div class="grow pad">
+      <h2>관심사를 골라주세요</h2>
+      <p class="dim"><span id="icount">0</span>개 선택 · 최소 3개</p>
+      <div id="interests" style="margin-top:8px"></div>
+    </div>
+    <div class="pad"><button id="iBtn" class="btn" disabled onclick="seed();go('main');tab('match');toast('환영해요! 매칭을 시작해보세요 🎉')">완료</button></div>
+  </section>
+
+  <!-- ===== 메인 ===== -->
+  <section id="main" class="screen">
+    <div id="page-match" class="grow"></div>
+    <div id="page-chats" class="grow" style="display:none"></div>
+    <div id="page-settings" class="grow" style="display:none"></div>
+    <div class="tabbar">
+      <div class="tab on" id="t-match" onclick="tab('match')"><span class="ic">🔀</span>매칭</div>
+      <div class="tab" id="t-chats" onclick="tab('chats')"><span class="ic">💬</span>대화</div>
+      <div class="tab" id="t-settings" onclick="tab('settings')"><span class="ic">⚙️</span>설정</div>
+    </div>
+  </section>
+
+  <!-- ===== 매칭 중 ===== -->
+  <section id="s-matching" class="screen center pad">
+    <div id="mPulse" class="pulse">5</div>
+    <h2 id="mTitle" style="margin-top:26px">잠시 후 매칭을 시작해요</h2>
+    <p class="dim" id="mSub">마음이 바뀌면 취소할 수 있어요</p>
+    <button class="btn ghost" style="width:auto;padding:12px 28px;margin-top:26px" onclick="cancelMatch()">취소</button>
+  </section>
+
+  <!-- ===== 채팅방 ===== -->
+  <section id="s-chat" class="screen">
+    <div class="topbar">
+      <button class="iconbtn" onclick="tab('chats');go('main')">‹</button>
+      <div id="chatAv" class="av" style="width:34px;height:34px;border-radius:10px;font-size:18px">🐰</div>
+      <div style="flex:1"><div class="ttl" id="chatName">달빛토끼</div></div>
+      <button class="iconbtn" onclick="open('sheetMenu')">⋯</button>
+    </div>
+    <div id="timerbar" class="timerbar">⏳ 남은 시간 <span id="clock">23:59:48</span></div>
+    <div id="msgs" class="msgs"></div>
+    <div class="composer">
+      <input id="msgInput" placeholder="메시지 입력…" onkeydown="if(event.key==='Enter')sendMsg()">
+      <button class="send" onclick="sendMsg()">➤</button>
+    </div>
+  </section>
+
+  <!-- ===== 시트: 채팅 메뉴 ===== -->
+  <div id="sheetMenu" class="ovl" onclick="closeOvl(event)">
+    <div class="sheet">
+      <h2>채팅방</h2>
+      <div class="opt" onclick="closeAll();open('sheetExtend')">⏳ 연장/종료 미리보기</div>
+      <div class="opt" onclick="closeAll();toast('🔔 알림 설정 (프로토타입)')">🔔 알림 · 미리보기 설정</div>
+      <div class="opt bad" onclick="closeAll();open('sheetLeave')">🚪 나가기</div>
+      <button class="btn ghost" style="margin-top:14px" onclick="closeAll()">닫기</button>
+    </div>
+  </div>
+
+  <!-- ===== 시트: 나가기 ===== -->
+  <div id="sheetLeave" class="ovl" onclick="closeOvl(event)">
+    <div class="sheet">
+      <h2>채팅방을 나갈까요?</h2>
+      <div class="opt bad" onclick="closeAll();go('s-report')">🚩 신고 후 나가기</div>
+      <div class="opt" onclick="closeAll();leaveChat()">그냥 나가기 <span class="dim">· 패널티가 부여될 수 있어요</span></div>
+      <button class="btn ghost" style="margin-top:8px" onclick="closeAll()">취소</button>
+    </div>
+  </div>
+
+  <!-- ===== 시트: 연장/종료 ===== -->
+  <div id="sheetExtend" class="ovl">
+    <div class="sheet">
+      <h2>24시간이 끝났어요</h2>
+      <p class="dim">대화를 이어가려면 양쪽 모두 연장을 선택해야 해요. (<span id="extLeft">3</span>회 남음)</p>
+      <button class="btn" onclick="closeAll();extend()">연장하기</button>
+      <button class="btn sec" onclick="closeAll();go('s-eval')">종료하기</button>
+    </div>
+  </div>
+
+  <!-- ===== 평가 ===== -->
+  <section id="s-eval" class="screen">
+    <div class="topbar"><span class="ttl">상대 평가</span></div>
+    <div class="grow pad">
+      <p class="dim">솔직한 평가는 건강한 커뮤니티를 만들어요.</p>
+      <div class="label">대화가 즐거웠나요?</div>
+      <div class="scale" data-q="fun"></div>
+      <div class="label">예의가 있었나요?</div>
+      <div class="scale" data-q="manner"></div>
+      <div class="label">다시 대화하고 싶나요?</div>
+      <div class="seg" id="again"><div onclick="segPick(this)">예</div><div onclick="segPick(this)">아니오</div></div>
+      <div class="label">추가 의견 (최대 500자)</div>
+      <textarea class="field" rows="3" maxlength="500" placeholder="선택 입력"></textarea>
+      <label class="card row" style="cursor:pointer" onclick="this.querySelector('input').checked=!this.querySelector('input').checked">
+        <input type="checkbox" style="width:20px;height:20px"><div>다시 만나고 싶지 않음 <div class="dim">자동 차단 · 재매칭 금지</div></div>
+      </label>
+    </div>
+    <div class="pad"><button class="btn" onclick="seedEnded();tab('chats');go('main');toast('평가가 제출되었어요')">제출</button></div>
+  </section>
+
+  <!-- ===== 신고 ===== -->
+  <section id="s-report" class="screen">
+    <div class="topbar"><button class="iconbtn" onclick="go('s-chat')">‹</button><span class="ttl">신고하기</span></div>
+    <div class="grow pad">
+      <div class="label">신고 사유</div>
+      <div id="reasons"></div>
+      <div class="label">추가 설명</div>
+      <textarea class="field" rows="3" placeholder="상황을 자세히 적어주세요"></textarea>
+      <div class="label">스크린샷 (최대 5장)</div>
+      <div class="row" style="flex-wrap:wrap">
+        <div class="av" style="background:var(--surface2);border:1px dashed var(--border);font-size:22px">＋</div>
+      </div>
+      <div class="card dim" style="font-size:13px;color:var(--warn)">
+        ⚠️ 허위 신고 또는 정당한 사유가 아닌 신고는 신고자에게 패널티가 부여될 수 있습니다.
+      </div>
+    </div>
+    <div class="pad"><button class="btn bad" onclick="leaveChat('신고가 접수되었어요. 상대를 차단했습니다.')">신고 후 나가기</button></div>
+  </section>
+
+  <div id="toast" class="toast"></div>
+</div>
+
+<script>
+/* ---------- 데이터 ---------- */
+const AV=['🦊','🐰','🐼','🐯','🐸','🦉','🐙','🦄','🐧','🐨'];
+const COLORS=['#7c6cff','#b06cff','#ff6c9d','#ff9f6c','#36d399','#3ba9ff','#fbbd23','#8a8f9c'];
+const INTERESTS=['게임','영화','음악','여행','운동','독서','반려동물','요리','IT','투자','자동차','애니메이션','패션','사진','기타'];
+const REASONS=['욕설','성희롱','광고','사기','혐오 발언','스팸','기타'];
+const PEERS=[
+  {name:'달빛토끼',av:'🐰',c:'#ff6c9d',tags:'게임 · 음악'},
+  {name:'구름고래',av:'🐙',c:'#3ba9ff',tags:'여행 · 사진'},
+  {name:'새벽올빼미',av:'🦉',c:'#fbbd23',tags:'독서 · IT'}
+];
+let picked={fun:0,manner:0}, selInterests=new Set(), curPeer=PEERS[0], countdown=null, clockT=null, extLeft=3;
+
+/* ---------- 네비 ---------- */
+function go(id){document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));document.getElementById(id).classList.add('active')}
+function open(id){document.getElementById(id).classList.add('on')}
+function closeOvl(e){if(e.target.classList.contains('ovl'))e.target.classList.remove('on')}
+function closeAll(){document.querySelectorAll('.ovl').forEach(o=>o.classList.remove('on'))}
+function toast(t){const e=document.getElementById('toast');e.textContent=t;e.classList.add('on');clearTimeout(e._t);e._t=setTimeout(()=>e.classList.remove('on'),2200)}
+
+/* ---------- 가입/온보딩 ---------- */
+function checkAge(){
+  const v=document.getElementById('birth').value;const m=document.getElementById('ageMsg');
+  if(!v){m.textContent='생년월일을 입력해주세요';return}
+  const age=(Date.now()-new Date(v))/(365.25*24*3600*1000);
+  if(age<14){m.textContent='만 14세 미만은 가입할 수 없어요.';return}
+  m.textContent='';go('s-nick');
+}
+function nickCheck(){
+  const v=document.getElementById('nick').value, m=document.getElementById('nickMsg');
+  const bad=['바보','시발','광고'];
+  if(v.length<2){m.style.color='var(--bad)';m.textContent='2자 이상 입력해주세요';}
+  else if(bad.some(b=>v.includes(b))){m.style.color='var(--bad)';m.textContent='사용할 수 없는 단어가 포함돼 있어요';}
+  else if(v==='admin'){m.style.color='var(--bad)';m.textContent='이미 사용 중인 닉네임이에요';}
+  else{m.style.color='var(--good)';m.textContent='✓ 사용 가능한 닉네임이에요';}
+}
+function buildOnboarding(){
+  const a=document.getElementById('avatars');a.innerHTML='';
+  AV.forEach(x=>{const b=document.createElement('button');b.className='chip';b.style.fontSize='22px';b.textContent=x;
+    b.onclick=()=>{document.getElementById('bigav').textContent=x};a.appendChild(b)});
+  const c=document.getElementById('colors');c.innerHTML='';
+  COLORS.forEach(x=>{const b=document.createElement('button');b.className='chip';b.style.background=x;b.style.width='38px';b.style.height='38px';b.style.padding='0';
+    b.onclick=()=>{document.getElementById('bigav').style.background=x};c.appendChild(b)});
+  const i=document.getElementById('interests');i.innerHTML='';
+  INTERESTS.forEach(x=>{const b=document.createElement('button');b.className='chip';b.textContent=x;
+    b.onclick=()=>{b.classList.toggle('on');b.classList.contains('on')?selInterests.add(x):selInterests.delete(x);
+      document.getElementById('icount').textContent=selInterests.size;
+      document.getElementById('iBtn').disabled=selInterests.size<3};i.appendChild(b)});
+  const r=document.getElementById('reasons');r.innerHTML='';
+  REASONS.forEach(x=>{const b=document.createElement('button');b.className='chip';b.textContent=x;
+    b.onclick=()=>{r.querySelectorAll('.chip').forEach(c=>c.classList.remove('on'));b.classList.add('on')};r.appendChild(b)});
+  document.querySelectorAll('.scale').forEach(s=>{const q=s.dataset.q;
+    ['매우 그렇다','그렇다','보통','아니다','매우'].forEach((t,idx)=>{const b=document.createElement('b');b.textContent=t;
+      b.onclick=()=>{s.querySelectorAll('b').forEach(x=>x.classList.remove('on'));b.classList.add('on');picked[q]=idx+1};s.appendChild(b)})});
+}
+function segPick(el){el.parentNode.querySelectorAll('div').forEach(d=>d.classList.remove('on'));el.classList.add('on')}
+
+/* ---------- 매칭 ---------- */
+let mode='similar';
+function startMatch(){
+  go('s-matching');let n=5;extLeft=3;
+  const p=document.getElementById('mPulse');p.textContent=n;
+  document.getElementById('mTitle').textContent='잠시 후 매칭을 시작해요';
+  document.getElementById('mSub').textContent='마음이 바뀌면 취소할 수 있어요';
+  countdown=setInterval(()=>{n--;if(n>0){p.textContent=n}else{clearInterval(countdown);searching()}},1000);
+}
+function searching(){
+  document.getElementById('mPulse').textContent='🔍';
+  document.getElementById('mTitle').textContent=(mode==='similar'?'관심사가 비슷한':'관심사가 다른')+' 상대를 찾는 중…';
+  document.getElementById('mSub').textContent='보통 몇 초 안에 매칭돼요';
+  setTimeout(()=>{curPeer=PEERS[Math.floor(Math.random()*PEERS.length)];openChat(true)},1800);
+}
+function cancelMatch(){clearInterval(countdown);go('main');tab('match');toast('매칭을 취소했어요')}
+
+/* ---------- 채팅 ---------- */
+let msgs=[];
+function openChat(fresh){
+  go('s-chat');
+  document.getElementById('chatName').textContent=curPeer.name;
+  const a=document.getElementById('chatAv');a.textContent=curPeer.av;a.style.background=curPeer.c;
+  if(fresh){msgs=[{t:'sys',x:'🎉 매칭됐어요! 24시간 동안 대화할 수 있어요.'},
+    {t:'you',x:'안녕하세요! 반가워요 :)'},{t:'you',x:'프로필 보니까 관심사가 잘 맞을 것 같아요'}];}
+  renderMsgs();startClock();
+}
+function renderMsgs(){
+  const c=document.getElementById('msgs');c.innerHTML='';
+  msgs.forEach(m=>{const d=document.createElement('div');d.className='b '+m.t;d.textContent=m.x;c.appendChild(d)});
+  c.scrollTop=c.scrollHeight;
+}
+const REPLIES=['오 정말요? 저도 그래요 ㅎㅎ','그거 완전 공감돼요','오늘 하루는 어땠어요?','대화 잘 통하네요 :)','그 얘기 더 듣고 싶어요!'];
+function sendMsg(){
+  const i=document.getElementById('msgInput');if(!i.value.trim())return;
+  msgs.push({t:'me',x:i.value.trim()});i.value='';renderMsgs();
+  setTimeout(()=>{msgs.push({t:'you',x:REPLIES[Math.floor(Math.random()*REPLIES.length)]});renderMsgs()},900);
+}
+function startClock(){
+  clearInterval(clockT);let s=24*3600-12;
+  clockT=setInterval(()=>{s--;const h=String(Math.floor(s/3600)).padStart(2,'0'),m=String(Math.floor(s%3600/60)).padStart(2,'0'),ss=String(s%60).padStart(2,'0');
+    const el=document.getElementById('clock');if(el)el.textContent=`${h}:${m}:${ss}`},1000);
+}
+function extend(){extLeft--;document.getElementById('extLeft').textContent=extLeft;
+  msgs.push({t:'sys',x:'⏳ 24시간이 연장됐어요. ('+(3-extLeft)+'/3회)'});renderMsgs();
+  toast(extLeft>0?'24시간 연장됐어요':'3회 연장 완료! 이제 친구 신청을 할 수 있어요 🤝')}
+function leaveChat(msg){clearInterval(clockT);seedEnded();tab('chats');go('main');toast(msg||'채팅을 종료했어요')}
+
+/* ---------- 메인 탭 ---------- */
+let store={active:[],ended:[],friends:[]};
+function seed(){buildOnboarding();store.active=[{...PEERS[1],last:'그 여행지 사진 진짜 멋지네요!',time:'18:24',left:'18:20:11'}];}
+function seedEnded(){if(!store.ended.find(e=>e.name===curPeer.name))store.ended.unshift({...curPeer,last:'대화 종료됨',time:'방금'});
+  store.active=store.active.filter(a=>a.name!==curPeer.name);}
+function tab(name){
+  ['match','chats','settings'].forEach(n=>{
+    document.getElementById('page-'+n).style.display=n===name?'':'none';
+    document.getElementById('t-'+n).classList.toggle('on',n===name);
+  });
+  if(name==='match')renderMatch();if(name==='chats')renderChats();if(name==='settings')renderSettings();
+}
+function renderMatch(){
+  document.getElementById('page-match').innerHTML=`
+    <div class="pad center" style="height:100%">
+      <div class="av" style="width:90px;height:90px;border-radius:28px;font-size:46px;background:var(--grad);margin-bottom:8px">🔀</div>
+      <h2>새로운 사람과 대화해요</h2>
+      <p class="dim">매칭 조건을 선택하세요</p>
+      <div style="width:100%">
+        <div class="seg">
+          <div class="${mode==='similar'?'on':''}" onclick="mode='similar';renderMatch()">관심사 일치</div>
+          <div class="${mode==='different'?'on':''}" onclick="mode='different';renderMatch()">관심사 불일치</div>
+        </div>
+        <p class="dim center">${mode==='similar'?'관심사가 비슷한 사람과 우선 매칭돼요':'관심사가 다른 사람과 우선 매칭돼요'}</p>
+        <div class="card dim center" style="font-size:13px">무료 회원은 동시에 최대 2명까지 매칭할 수 있어요</div>
+        <button class="btn" onclick="startMatch()">매칭하기</button>
+      </div>
+    </div>`;
+}
+function renderChats(){
+  const seg=window._cseg||'active';
+  const items={active:store.active,friends:store.friends,ended:store.ended}[seg];
+  let html=`<div class="topbar"><span class="ttl">대화</span></div>
+    <div class="seg" style="margin:12px 14px 0">
+      <div class="${seg==='active'?'on':''}" onclick="_cseg='active';renderChats()">진행중 ${store.active.length}</div>
+      <div class="${seg==='friends'?'on':''}" onclick="_cseg='friends';renderChats()">친구 ${store.friends.length}</div>
+      <div class="${seg==='ended'?'on':''}" onclick="_cseg='ended';renderChats()">종료됨 ${store.ended.length}</div>
+    </div>`;
+  if(items.length===0){html+=`<div class="center dim" style="height:60%">아직 없어요</div>`;}
+  else items.forEach((p,idx)=>{html+=`
+    <div class="list-item" onclick="curPeer=${JSON.stringify(p).replace(/"/g,'&quot;')};${seg==='ended'?'':'openChat(false)'}">
+      <div class="av" style="background:${p.c};font-size:22px">${p.av}</div>
+      <div style="flex:1;min-width:0">
+        <div class="row" style="gap:6px"><b>${p.name}</b>${seg==='active'?'<span class="badge live">⏳ '+p.left+'</span>':''}${seg==='ended'?'<span class="badge">종료</span>':''}</div>
+        <div class="dim" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${p.last||''}</div>
+      </div>
+      ${seg==='ended'?`<button class="iconbtn" onclick="event.stopPropagation();store.ended.splice(${idx},1);renderChats();toast('기록을 삭제했어요')">🗑</button>`:`<span class="dim">${p.time||''}</span>`}
+    </div>`});
+  document.getElementById('page-chats').innerHTML=html;
+}
+function renderSettings(){
+  document.getElementById('page-settings').innerHTML=`
+    <div class="topbar"><span class="ttl">설정</span></div>
+    <div class="pad">
+      <div class="card row">
+        <div class="av" style="background:#7c6cff;font-size:30px;width:60px;height:60px;border-radius:18px">🦊</div>
+        <div><b style="font-size:18px">달빛여우</b><div class="dim">조용한 밤 대화 좋아해요</div>
+        <span class="badge" style="margin-top:4px;display:inline-block">패널티 0 / 5</span></div>
+      </div>
+      ${['👤 내 정보 (닉네임·관심사·아바타)','🔔 알림 설정','🤝 친구 관리','🚫 차단 목록','💎 프리미엄 구독','📄 약관·개인정보','🚪 로그아웃'].map(t=>
+        `<div class="list-item" onclick="toast('${t.slice(2)} (프로토타입)')">${t}<span style="margin-left:auto" class="dim">›</span></div>`).join('')}
+    </div>`;
+}
+window._cseg='active';
+buildOnboarding();
+
+/* ---------- 항상 첫 화면에서 시작 (탭 복원/뒤로가기 캐시 대응) ---------- */
+function resetToStart(){
+  clearInterval(countdown); clearInterval(clockT);
+  closeAll();
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+  document.getElementById('s-start').classList.add('active');
+  // 메인 탭 상태도 초기화
+  ['match','chats','settings'].forEach(n=>{const p=document.getElementById('page-'+n);if(p)p.style.display=n==='match'?'':'none';});
+}
+resetToStart();
+// bfcache(뒤로가기/탭 전환 복원)로 되돌아와도 첫 화면부터 시작
+window.addEventListener('pageshow', function(e){ if(e.persisted) resetToStart(); });
+</script>
+</body>
+</html>
