@@ -138,7 +138,7 @@
 
   <!-- ===== 온보딩: 닉네임 ===== -->
   <section id="s-nick" class="screen">
-    <div class="topbar"><span class="ttl">프로필 만들기 (1/3)</span></div>
+    <div class="topbar"><span class="ttl">프로필 만들기 (1/5)</span></div>
     <div class="grow pad">
       <div class="label">닉네임</div>
       <input id="nick" class="field" placeholder="2~10자 · 중복/욕설 불가" oninput="nickCheck()" value="달빛여우">
@@ -151,7 +151,7 @@
 
   <!-- ===== 온보딩: 아바타 ===== -->
   <section id="s-avatar" class="screen">
-    <div class="topbar"><button class="iconbtn" onclick="go('s-nick')">‹</button><span class="ttl">프로필 만들기 (2/3)</span></div>
+    <div class="topbar"><button class="iconbtn" onclick="go('s-nick')">‹</button><span class="ttl">프로필 만들기 (2/5)</span></div>
     <div class="grow pad center">
       <p class="dim">실제 사진은 사용할 수 없어요.<br>아바타와 배경색으로 나를 표현하세요.</p>
       <div id="bigav" class="av" style="width:120px;height:120px;border-radius:36px;font-size:64px;background:#7c6cff;margin:18px 0">🦊</div>
@@ -159,12 +159,38 @@
       <div class="label" style="align-self:flex-start">배경 색상</div>
       <div id="colors" style="align-self:flex-start"></div>
     </div>
+    <div class="pad"><button class="btn" onclick="go('s-basic')">다음</button></div>
+  </section>
+
+  <!-- ===== 온보딩: 나에 대해 (성별/MBTI/연락스타일) ===== -->
+  <section id="s-basic" class="screen">
+    <div class="topbar"><button class="iconbtn" onclick="go('s-avatar')">‹</button><span class="ttl">프로필 만들기 (3/5)</span></div>
+    <div class="grow pad">
+      <h2>나에 대해 알려주세요</h2>
+      <p class="dim">비슷하거나 다른 성향의 사람을 매칭할 때 참고돼요.</p>
+      <div class="label">성별</div><div id="c-gender"></div>
+      <div class="label">MBTI</div><div id="c-mbti"></div>
+      <div class="label">연락 스타일</div><div id="c-contact"></div>
+    </div>
+    <div class="pad"><button class="btn" onclick="go('s-lifestyle')">다음</button></div>
+  </section>
+
+  <!-- ===== 온보딩: 평소 습관 & 반려동물 ===== -->
+  <section id="s-lifestyle" class="screen">
+    <div class="topbar"><button class="iconbtn" onclick="go('s-basic')">‹</button><span class="ttl">프로필 만들기 (4/5)</span></div>
+    <div class="grow pad">
+      <h2>평소 습관 & 반려동물</h2>
+      <div class="label">술</div><div id="c-drink"></div>
+      <div class="label">담배</div><div id="c-smoke"></div>
+      <div class="label">운동</div><div id="c-exercise"></div>
+      <div class="label">반려동물 <span class="dim" style="font-weight:400">· 여러 개 선택 가능</span></div><div id="c-pets"></div>
+    </div>
     <div class="pad"><button class="btn" onclick="go('s-interest')">다음</button></div>
   </section>
 
   <!-- ===== 온보딩: 관심사 ===== -->
   <section id="s-interest" class="screen">
-    <div class="topbar"><button class="iconbtn" onclick="go('s-avatar')">‹</button><span class="ttl">프로필 만들기 (3/3)</span></div>
+    <div class="topbar"><button class="iconbtn" onclick="go('s-lifestyle')">‹</button><span class="ttl">프로필 만들기 (5/5)</span></div>
     <div class="grow pad">
       <h2>관심사를 골라주세요</h2>
       <p class="dim"><span id="icount">0</span>개 선택 · 최소 3개</p>
@@ -288,11 +314,24 @@ const AV=['🦊','🐰','🐼','🐯','🐸','🦉','🐙','🦄','🐧','🐨']
 const COLORS=['#7c6cff','#b06cff','#ff6c9d','#ff9f6c','#36d399','#3ba9ff','#fbbd23','#8a8f9c'];
 const INTERESTS=['게임','영화','음악','여행','운동','독서','반려동물','요리','IT','투자','자동차','애니메이션','패션','사진','기타'];
 const REASONS=['욕설','성희롱','광고','사기','혐오 발언','스팸','기타'];
+const GENDERS=['남성','여성','기타','비공개'];
+const MBTIS=['INTJ','INTP','ENTJ','ENTP','INFJ','INFP','ENFJ','ENFP','ISTJ','ISFJ','ESTJ','ESFJ','ISTP','ISFP','ESTP','ESFP','모름'];
+const CONTACTS=['답이 빠른 편','답이 느린 편','읽씹 스타일','안읽씹 스타일'];
+const DRINKS=['안 마셔요','가끔','자주'];
+const SMOKES=['비흡연','가끔','흡연'];
+const EXERCISES=['거의 안 함','가끔','주 3회 이상'];
+const PETS=['강아지','고양이','파충류','양서류','새','물고기','없음','기타'];
 const PEERS=[
   {name:'달빛토끼',av:'🐰',c:'#ff6c9d',tags:'게임 · 음악'},
   {name:'구름고래',av:'🐙',c:'#3ba9ff',tags:'여행 · 사진'},
   {name:'새벽올빼미',av:'🦉',c:'#fbbd23',tags:'독서 · IT'}
 ];
+const TIER_INFO={
+  1:{label:'기준 1 · 완벽 매칭', desc:'관심사·성향이 거의 일치'},
+  2:{label:'기준 2 · 근접 매칭', desc:'관심사가 다수 겹침'},
+  3:{label:'기준 3 · 폭넓은 매칭', desc:'일부만 겹치는 상대'}
+};
+const profile={gender:'',mbti:'',contact:'',drink:'',smoke:'',exercise:'',pets:new Set()};
 let picked={fun:0,manner:0}, selInterests=new Set(), curPeer=PEERS[0], countdown=null, clockT=null, extLeft=3;
 
 /* ---------- 네비 ---------- */
@@ -336,8 +375,27 @@ function buildOnboarding(){
   document.querySelectorAll('.scale').forEach(s=>{const q=s.dataset.q;
     ['매우 그렇다','그렇다','보통','아니다','매우'].forEach((t,idx)=>{const b=document.createElement('b');b.textContent=t;
       b.onclick=()=>{s.querySelectorAll('b').forEach(x=>x.classList.remove('on'));b.classList.add('on');picked[q]=idx+1};s.appendChild(b)})});
+  // 추가 프로필 항목
+  chipGroup('c-gender',GENDERS,'gender');
+  chipGroup('c-mbti',MBTIS,'mbti');
+  chipGroup('c-contact',CONTACTS,'contact');
+  chipGroup('c-drink',DRINKS,'drink');
+  chipGroup('c-smoke',SMOKES,'smoke');
+  chipGroup('c-exercise',EXERCISES,'exercise');
+  chipGroup('c-pets',PETS,'pets',true);
 }
 function segPick(el){el.parentNode.querySelectorAll('div').forEach(d=>d.classList.remove('on'));el.classList.add('on')}
+// 칩 선택 그룹 (multi=true면 다중 선택)
+function chipGroup(id,opts,key,multi){
+  const box=document.getElementById(id); if(!box)return; box.innerHTML='';
+  opts.forEach(o=>{const b=document.createElement('button');b.className='chip';b.textContent=o;
+    b.onclick=()=>{
+      if(multi){ b.classList.toggle('on'); b.classList.contains('on')?profile[key].add(o):profile[key].delete(o); }
+      else { box.querySelectorAll('.chip').forEach(c=>c.classList.remove('on')); b.classList.add('on'); profile[key]=o; }
+    };
+    box.appendChild(b);
+  });
+}
 
 /* ---------- 매칭 ---------- */
 let mode='similar';
@@ -349,10 +407,21 @@ function startMatch(){
   countdown=setInterval(()=>{n--;if(n>0){p.textContent=n}else{clearInterval(countdown);searching()}},1000);
 }
 function searching(){
-  document.getElementById('mPulse').textContent='🔍';
-  document.getElementById('mTitle').textContent=(mode==='similar'?'관심사가 비슷한':'관심사가 다른')+' 상대를 찾는 중…';
-  document.getElementById('mSub').textContent='보통 몇 초 안에 매칭돼요';
-  setTimeout(()=>{curPeer=PEERS[Math.floor(Math.random()*PEERS.length)];openChat(true)},1800);
+  const p=document.getElementById('mPulse');
+  // 매칭될 기준 결정: 기준1(완벽) 우선, 없으면 2·3으로 자동 확장
+  const r=Math.random();
+  const matchedTier = r<0.4?1 : r<0.75?2 : 3;
+  let tier=1;
+  p.textContent='🔍';
+  function step(){
+    document.getElementById('mTitle').textContent=TIER_INFO[tier].label+' 탐색 중…';
+    document.getElementById('mSub').textContent = (tier<matchedTier)
+      ? '완벽 매칭이 없어 다음 기준으로 넓혀요…'
+      : TIER_INFO[tier].desc+' 상대를 찾았어요!';
+    if(tier<matchedTier){ tier++; setTimeout(step,1100); }
+    else { setTimeout(()=>{ curPeer=Object.assign({},PEERS[Math.floor(Math.random()*PEERS.length)],{tier:matchedTier}); openChat(true); },900); }
+  }
+  setTimeout(step,700);
 }
 function cancelMatch(){clearInterval(countdown);go('main');tab('match');toast('매칭을 취소했어요')}
 
@@ -362,8 +431,11 @@ function openChat(fresh){
   go('s-chat');
   document.getElementById('chatName').textContent=curPeer.name;
   const a=document.getElementById('chatAv');a.textContent=curPeer.av;a.style.background=curPeer.c;
-  if(fresh){msgs=[{t:'sys',x:'🎉 매칭됐어요! 24시간 동안 대화할 수 있어요.'},
-    {t:'you',x:'안녕하세요! 반가워요 :)'},{t:'you',x:'프로필 보니까 관심사가 잘 맞을 것 같아요'}];}
+  if(fresh){
+    msgs=[{t:'sys',x:'🎉 매칭됐어요! 24시간 동안 대화할 수 있어요.'}];
+    if(curPeer.tier){const ti=TIER_INFO[curPeer.tier];msgs.push({t:'sys',x:'🎯 '+ti.label+' — '+ti.desc});}
+    msgs.push({t:'you',x:'안녕하세요! 반가워요 :)'},{t:'you',x:'프로필 보니까 관심사가 잘 맞을 것 같아요'});
+  }
   renderMsgs();startClock();
 }
 function renderMsgs(){
@@ -411,6 +483,11 @@ function renderMatch(){
           <div class="${mode==='different'?'on':''}" onclick="mode='different';renderMatch()">관심사 불일치</div>
         </div>
         <p class="dim center">${mode==='similar'?'관심사가 비슷한 사람과 우선 매칭돼요':'관심사가 다른 사람과 우선 매칭돼요'}</p>
+        <div class="card" style="font-size:13px;text-align:left">
+          <b>기준별 자동 매칭</b>
+          <div class="dim" style="margin-top:4px">완벽 매칭이 없으면 자동으로 폭을 넓혀요.</div>
+          <div style="margin-top:6px"><span class="badge live">기준1</span> 완벽 매칭 · <span class="badge">기준2</span> 근접 · <span class="badge">기준3</span> 폭넓게</div>
+        </div>
         <div class="card dim center" style="font-size:13px">무료 회원은 동시에 최대 2명까지 매칭할 수 있어요</div>
         <button class="btn" onclick="startMatch()">매칭하기</button>
       </div>
