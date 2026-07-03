@@ -1,0 +1,24 @@
+rules_version = '2';
+
+// DeskMemo — 각 사용자는 자신의 메모만 읽고 쓴다.
+// 데이터 경로: users/{uid}/notes/{noteId}
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() { return request.auth != null; }
+
+    // 사용자 문서 + 그 아래 모든 서브컬렉션(notes 포함)을 소유자에게만 허용.
+    match /users/{uid} {
+      allow read, write: if signedIn() && request.auth.uid == uid;
+
+      match /{document=**} {
+        allow read, write: if signedIn() && request.auth.uid == uid;
+      }
+    }
+
+    // 그 외 경로는 전부 거부.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
