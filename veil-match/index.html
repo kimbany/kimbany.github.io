@@ -97,14 +97,14 @@
 </head>
 <body>
 <div id="app">
-  <div class="demo-note">PROTOTYPE v3</div>
+  <div class="demo-note">PROTOTYPE v4</div>
 
   <!-- ===== 시작 ===== -->
   <section id="s-start" class="screen active center pad">
     <div class="logo">🎭</div>
     <h1>Veil</h1>
     <p class="dim" style="max-width:280px">사진도, 외모도 아닌<br><b style="color:var(--text)">오직 대화</b>로 만나는 익명 친구 매칭</p>
-    <p style="color:var(--good);font-size:12px;margin-top:10px">✓ v3 · 이 문구가 보이면 최신 버전이에요</p>
+    <p style="color:var(--good);font-size:12px;margin-top:10px">✓ v4 · 이 문구가 보이면 최신 버전이에요</p>
     <div style="width:100%;margin-top:30px">
       <button class="btn" onclick="go('s-birth')">시작하기</button>
       <button class="btn ghost" onclick="go('s-login')">이미 계정이 있어요</button>
@@ -463,8 +463,10 @@ function resetToStart(){
   ['match','chats','settings'].forEach(n=>{const p=document.getElementById('page-'+n);if(p)p.style.display=n==='match'?'':'none';});
 }
 resetToStart();
-// bfcache(뒤로가기/탭 전환 복원)로 되돌아와도 첫 화면부터 시작
-window.addEventListener('pageshow', function(e){ if(e.persisted) resetToStart(); });
+// 어떤 경로로 다시 보게 되든(뒤로가기·탭복원·탭전환 후 복귀) 항상 첫 화면으로
+window.addEventListener('pageshow', function(){ resetToStart(); });
+document.addEventListener('visibilitychange', function(){ if(!document.hidden) resetToStart(); });
+window.addEventListener('focus', function(){ resetToStart(); });
 </script>
 </body>
 </html>
