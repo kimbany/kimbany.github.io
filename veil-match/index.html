@@ -97,14 +97,14 @@
 </head>
 <body>
 <div id="app">
-  <div class="demo-note">PROTOTYPE v4</div>
+  <div class="demo-note">PROTOTYPE v5 · DEBUG</div>
 
   <!-- ===== 시작 ===== -->
   <section id="s-start" class="screen active center pad">
     <div class="logo">🎭</div>
     <h1>Veil</h1>
     <p class="dim" style="max-width:280px">사진도, 외모도 아닌<br><b style="color:var(--text)">오직 대화</b>로 만나는 익명 친구 매칭</p>
-    <p style="color:var(--good);font-size:12px;margin-top:10px">✓ v4 · 이 문구가 보이면 최신 버전이에요</p>
+    <p style="color:var(--good);font-size:12px;margin-top:10px">✓ v5 DEBUG · 화면 맨 아래 초록 LOG를 캡처해 주세요</p>
     <div style="width:100%;margin-top:30px">
       <button class="btn" onclick="go('s-birth')">시작하기</button>
       <button class="btn ghost" onclick="go('s-login')">이미 계정이 있어요</button>
@@ -280,6 +280,8 @@
   </section>
 
   <div id="toast" class="toast"></div>
+  <div id="dbg" style="position:absolute;left:0;right:0;bottom:0;z-index:200;background:#000;color:#0f0;
+       font:11px/1.5 monospace;padding:8px 10px;max-height:90px;overflow:auto;word-break:break-all;border-top:1px solid #0f0">LOG:</div>
 </div>
 
 <script>
@@ -295,8 +297,13 @@ const PEERS=[
 ];
 let picked={fun:0,manner:0}, selInterests=new Set(), curPeer=PEERS[0], countdown=null, clockT=null, extLeft=3;
 
+/* ---------- 디버그 로그 ---------- */
+let _dbgLog=[];
+function DBG(m){ _dbgLog.push(m); if(_dbgLog.length>10)_dbgLog.shift();
+  const e=document.getElementById('dbg'); if(e)e.textContent='LOG: '+_dbgLog.join('  ▸  '); }
+
 /* ---------- 네비 ---------- */
-function go(id){document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));document.getElementById(id).classList.add('active')}
+function go(id){DBG('go→'+id);document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));document.getElementById(id).classList.add('active')}
 function open(id){document.getElementById(id).classList.add('on')}
 function closeOvl(e){if(e.target.classList.contains('ovl'))e.target.classList.remove('on')}
 function closeAll(){document.querySelectorAll('.ovl').forEach(o=>o.classList.remove('on'))}
@@ -342,6 +349,7 @@ function segPick(el){el.parentNode.querySelectorAll('div').forEach(d=>d.classLis
 /* ---------- 매칭 ---------- */
 let mode='similar';
 function startMatch(){
+  DBG('startMatch() 호출됨!');
   go('s-matching');let n=5;extLeft=3;
   const p=document.getElementById('mPulse');p.textContent=n;
   document.getElementById('mTitle').textContent='잠시 후 매칭을 시작해요';
@@ -454,7 +462,8 @@ window._cseg='active';
 buildOnboarding();
 
 /* ---------- 항상 첫 화면에서 시작 (탭 복원/뒤로가기 캐시 대응) ---------- */
-function resetToStart(){
+function resetToStart(trigger){
+  DBG('reset('+(trigger||'?')+')');
   clearInterval(countdown); clearInterval(clockT);
   closeAll();
   document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
@@ -462,11 +471,12 @@ function resetToStart(){
   // 메인 탭 상태도 초기화
   ['match','chats','settings'].forEach(n=>{const p=document.getElementById('page-'+n);if(p)p.style.display=n==='match'?'':'none';});
 }
-resetToStart();
+DBG('boot: 활성화면='+(document.querySelector('.screen.active')||{}).id);
+resetToStart('load');
 // 어떤 경로로 다시 보게 되든(뒤로가기·탭복원·탭전환 후 복귀) 항상 첫 화면으로
-window.addEventListener('pageshow', function(){ resetToStart(); });
-document.addEventListener('visibilitychange', function(){ if(!document.hidden) resetToStart(); });
-window.addEventListener('focus', function(){ resetToStart(); });
+window.addEventListener('pageshow', function(){ resetToStart('pageshow'); });
+document.addEventListener('visibilitychange', function(){ if(!document.hidden) resetToStart('visible'); });
+window.addEventListener('focus', function(){ resetToStart('focus'); });
 </script>
 </body>
 </html>
