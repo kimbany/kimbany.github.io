@@ -22,7 +22,8 @@
     overflow:hidden;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,.6)}
   button{font-family:inherit;cursor:pointer;border:none;color:inherit}
   input,textarea{font-family:inherit;font-size:16px}
-  .screen{position:absolute;inset:0;display:none;flex-direction:column;background:var(--bg);animation:fade .25s}
+  .screen{position:absolute;inset:0;flex-direction:column;background:var(--bg);animation:fade .25s}
+  .screen:not(.active){display:none!important}
   .screen.active{display:flex}
   @keyframes fade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
   .pad{padding:20px}

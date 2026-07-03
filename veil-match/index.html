@@ -22,7 +22,8 @@
     overflow:hidden;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,.6)}
   button{font-family:inherit;cursor:pointer;border:none;color:inherit}
   input,textarea{font-family:inherit;font-size:16px}
-  .screen{position:absolute;inset:0;display:none;flex-direction:column;background:var(--bg);animation:fade .25s}
+  .screen{position:absolute;inset:0;flex-direction:column;background:var(--bg);animation:fade .25s}
+  .screen:not(.active){display:none!important}
   .screen.active{display:flex}
   @keyframes fade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
   .pad{padding:20px}
@@ -97,14 +98,13 @@
 </head>
 <body>
 <div id="app">
-  <div class="demo-note">PROTOTYPE v6 · DEBUG</div>
+  <div class="demo-note">PROTOTYPE</div>
 
   <!-- ===== 시작 ===== -->
   <section id="s-start" class="screen active center pad">
     <div class="logo">🎭</div>
     <h1>Veil</h1>
     <p class="dim" style="max-width:280px">사진도, 외모도 아닌<br><b style="color:var(--text)">오직 대화</b>로 만나는 익명 친구 매칭</p>
-    <p style="color:var(--good);font-size:12px;margin-top:10px">✓ v6 DEBUG · 아래 파랑 STATE + 초록 LOG 두 줄 다 캡처해 주세요</p>
     <div style="width:100%;margin-top:30px">
       <button class="btn" onclick="go('s-birth')">시작하기</button>
       <button class="btn ghost" onclick="go('s-login')">이미 계정이 있어요</button>
@@ -280,10 +280,6 @@
   </section>
 
   <div id="toast" class="toast"></div>
-  <div id="dbg2" style="position:absolute;left:0;right:0;bottom:38px;z-index:201;background:#001a00;color:#0ff;
-       font:11px/1.4 monospace;padding:6px 10px;word-break:break-all;border-top:1px solid #0ff">STATE:</div>
-  <div id="dbg" style="position:absolute;left:0;right:0;bottom:0;z-index:200;background:#000;color:#0f0;
-       font:11px/1.4 monospace;padding:6px 10px;max-height:36px;overflow:auto;word-break:break-all;border-top:1px solid #0f0">LOG:</div>
 </div>
 
 <script>
@@ -299,13 +295,8 @@ const PEERS=[
 ];
 let picked={fun:0,manner:0}, selInterests=new Set(), curPeer=PEERS[0], countdown=null, clockT=null, extLeft=3;
 
-/* ---------- 디버그 로그 ---------- */
-let _dbgLog=[];
-function DBG(m){ _dbgLog.push(m); if(_dbgLog.length>10)_dbgLog.shift();
-  const e=document.getElementById('dbg'); if(e)e.textContent='LOG: '+_dbgLog.join('  ▸  '); }
-
 /* ---------- 네비 ---------- */
-function go(id){DBG('go→'+id);document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));document.getElementById(id).classList.add('active')}
+function go(id){document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));document.getElementById(id).classList.add('active')}
 function open(id){document.getElementById(id).classList.add('on')}
 function closeOvl(e){if(e.target.classList.contains('ovl'))e.target.classList.remove('on')}
 function closeAll(){document.querySelectorAll('.ovl').forEach(o=>o.classList.remove('on'))}
@@ -351,7 +342,6 @@ function segPick(el){el.parentNode.querySelectorAll('div').forEach(d=>d.classLis
 /* ---------- 매칭 ---------- */
 let mode='similar';
 function startMatch(){
-  DBG('startMatch() 호출됨!');
   go('s-matching');let n=5;extLeft=3;
   const p=document.getElementById('mPulse');p.textContent=n;
   document.getElementById('mTitle').textContent='잠시 후 매칭을 시작해요';
@@ -465,7 +455,6 @@ buildOnboarding();
 
 /* ---------- 항상 첫 화면에서 시작 (탭 복원/뒤로가기 캐시 대응) ---------- */
 function resetToStart(trigger){
-  DBG('reset('+(trigger||'?')+')');
   clearInterval(countdown); clearInterval(clockT);
   closeAll();
   document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
@@ -473,16 +462,7 @@ function resetToStart(trigger){
   // 메인 탭 상태도 초기화
   ['match','chats','settings'].forEach(n=>{const p=document.getElementById('page-'+n);if(p)p.style.display=n==='match'?'':'none';});
 }
-DBG('boot: 활성화면='+(document.querySelector('.screen.active')||{}).id);
 resetToStart('load');
-// 실시간 DOM/CSS 상태 표시 (확장프로그램 간섭 진단용)
-setInterval(function(){
-  const e=document.getElementById('dbg2'); if(!e)return;
-  function st(id){const el=document.getElementById(id);if(!el)return id+'=없음';
-    const cs=getComputedStyle(el);return id.replace('s-','')+'[active='+el.classList.contains('active')+',disp='+cs.display+']';}
-  const active=(document.querySelector('.screen.active')||{}).id||'없음';
-  e.textContent='STATE: 활성='+active+' | '+st('s-start')+' '+st('s-matching');
-}, 500);
 // 어떤 경로로 다시 보게 되든(뒤로가기·탭복원·탭전환 후 복귀) 항상 첫 화면으로
 window.addEventListener('pageshow', function(){ resetToStart('pageshow'); });
 document.addEventListener('visibilitychange', function(){ if(!document.hidden) resetToStart('visible'); });
