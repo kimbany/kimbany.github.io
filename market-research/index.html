@@ -103,7 +103,8 @@
       </div>
       <div class="panel rounded-xl p-4">
         <div class="text-[13px] font-semibold mb-3 text-[var(--muted)]">가격 분포</div>
-        <canvas id="priceHist" height="150"></canvas>
+        <!-- 고정 높이 래퍼: Chart.js 무한 세로 확장 버그 방지 (maintainAspectRatio:false 사용 시 필수) -->
+        <div class="relative" style="height:180px"><canvas id="priceHist"></canvas></div>
       </div>
     </div>
   </section>
@@ -151,7 +152,7 @@
                  class="rounded-lg px-3 py-1.5 text-xs w-64" />
         </div>
       </div>
-      <canvas id="trendChart" height="120"></canvas>
+      <div class="relative" style="height:240px"><canvas id="trendChart"></canvas></div>
       <p class="text-[11px] text-[var(--muted)] mt-2">
         ※ 데이터랩 상대지수: 기간 내 최댓값 100 기준. 절대 판매량이 아닌 클릭 관심도 추이입니다.
         카테고리는 관심도를 집계할 쇼핑 분류입니다 (검색어와 함께 조합).
@@ -163,15 +164,15 @@
   <section id="tab-demo" class="hidden fade grid md:grid-cols-3 gap-4">
     <div class="panel rounded-xl p-4">
       <div class="text-[13px] font-semibold mb-3 text-[var(--muted)]">연령대</div>
-      <canvas id="ageChart" height="180"></canvas>
+      <div class="relative" style="height:200px"><canvas id="ageChart"></canvas></div>
     </div>
     <div class="panel rounded-xl p-4">
       <div class="text-[13px] font-semibold mb-3 text-[var(--muted)]">성별</div>
-      <canvas id="genderChart" height="180"></canvas>
+      <div class="relative" style="height:200px"><canvas id="genderChart"></canvas></div>
     </div>
     <div class="panel rounded-xl p-4">
       <div class="text-[13px] font-semibold mb-3 text-[var(--muted)]">기기 (PC vs 모바일)</div>
-      <canvas id="deviceChart" height="180"></canvas>
+      <div class="relative" style="height:200px"><canvas id="deviceChart"></canvas></div>
     </div>
   </section>
 
