@@ -1,0 +1,518 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>쇼핑 인사이트 · 네이버 통합 대시보드</title>
+<meta name="theme-color" content="#0d1117" />
+<link rel="manifest" href="manifest.json" />
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<style>
+  :root {
+    --bg: #0d1117; --panel: #161b22; --panel2: #1c2129;
+    --line: #2a313c; --ink: #e6edf3; --muted: #8b949e;
+    --accent: #2dd4a7; --accent2: #f0883e; --warn: #f85149;
+  }
+  * { -webkit-tap-highlight-color: transparent; }
+  body { background: var(--bg); color: var(--ink);
+    font-family: -apple-system, "Pretendard", "Segoe UI", system-ui, sans-serif; }
+  .panel { background: var(--panel); border: 1px solid var(--line); }
+  .mono { font-variant-numeric: tabular-nums; font-feature-settings: "tnum"; }
+  input, select { background: var(--panel2); border: 1px solid var(--line); color: var(--ink); }
+  input:focus, select:focus { outline: none; border-color: var(--accent); }
+  .chip { background: var(--panel2); border: 1px solid var(--line); }
+  .chip:hover { border-color: var(--accent); }
+  .chip.on { background: var(--accent); color: #06231a; border-color: var(--accent); font-weight: 600; }
+  ::-webkit-scrollbar { height: 8px; width: 8px; }
+  ::-webkit-scrollbar-thumb { background: var(--line); border-radius: 8px; }
+  .tab.on { color: var(--accent); border-color: var(--accent); }
+  .spin { animation: sp 0.7s linear infinite; }
+  @keyframes sp { to { transform: rotate(360deg); } }
+  .fade { animation: fd 0.3s ease; }
+  @keyframes fd { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+</style>
+</head>
+<body class="min-h-screen">
+
+<!-- 상단 바 -->
+<header class="sticky top-0 z-20 panel border-x-0 border-t-0 px-4 py-3">
+  <div class="max-w-6xl mx-auto flex items-center gap-3 flex-wrap">
+    <div class="flex items-center gap-2 mr-2">
+      <div class="w-7 h-7 rounded-md flex items-center justify-center font-bold text-sm"
+           style="background:var(--accent);color:#06231a">쇼</div>
+      <h1 class="font-bold text-[15px] tracking-tight">쇼핑 인사이트</h1>
+    </div>
+    <div class="flex-1 flex items-center gap-2 min-w-[240px]">
+      <input id="q" placeholder="키워드 검색 (예: 지위픽, 강아지 사료)"
+             class="flex-1 rounded-lg px-3 py-2 text-sm" />
+      <button id="go" class="rounded-lg px-4 py-2 text-sm font-semibold"
+              style="background:var(--accent);color:#06231a">검색</button>
+    </div>
+    <button id="cfgBtn" class="text-xs px-2 py-2 rounded-lg chip" title="설정">⚙</button>
+  </div>
+  <!-- 빠른 키워드 -->
+  <div class="max-w-6xl mx-auto flex gap-2 mt-2 overflow-x-auto pb-1" id="quick"></div>
+</header>
+
+<!-- 설정 패널 -->
+<div id="cfg" class="hidden max-w-6xl mx-auto mt-3 px-4">
+  <div class="panel rounded-xl p-4 text-sm space-y-3">
+    <div class="font-semibold text-[13px] text-[var(--muted)]">Workers 프록시 주소</div>
+    <input id="proxyUrl" placeholder="https://xxx.workers.dev"
+           class="w-full rounded-lg px-3 py-2 text-sm" />
+    <p class="text-xs text-[var(--muted)] leading-relaxed">
+      네이버 API는 브라우저 직접 호출이 막혀 있어 Cloudflare Workers 프록시가 필요합니다.
+      배포한 Workers 주소를 넣으면 저장됩니다. 미설정 시 <b>데모 데이터</b>로 동작합니다.
+    </p>
+    <button id="saveCfg" class="rounded-lg px-4 py-2 text-xs font-semibold"
+            style="background:var(--accent);color:#06231a">저장</button>
+    <span id="cfgState" class="text-xs text-[var(--muted)] ml-2"></span>
+  </div>
+</div>
+
+<!-- 탭 -->
+<nav class="max-w-6xl mx-auto px-4 mt-4 flex gap-1 border-b" style="border-color:var(--line)">
+  <button data-tab="overview" class="tab on px-3 py-2 text-sm border-b-2 -mb-px">개요</button>
+  <button data-tab="products" class="tab px-3 py-2 text-sm border-b-2 border-transparent text-[var(--muted)]">상품·가격</button>
+  <button data-tab="trend" class="tab px-3 py-2 text-sm border-b-2 border-transparent text-[var(--muted)]">키워드 트렌드</button>
+  <button data-tab="demo" class="tab px-3 py-2 text-sm border-b-2 border-transparent text-[var(--muted)]">연령·성별·기기</button>
+</nav>
+
+<main class="max-w-6xl mx-auto px-4 py-5">
+
+  <!-- 로딩 -->
+  <div id="loading" class="hidden flex items-center gap-2 text-sm text-[var(--muted)] py-8 justify-center">
+    <svg class="spin w-4 h-4" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="var(--line)" stroke-width="3"/><path d="M21 12a9 9 0 0 0-9-9" stroke="var(--accent)" stroke-width="3" stroke-linecap="round"/></svg>
+    불러오는 중…
+  </div>
+
+  <!-- 시작 안내 -->
+  <div id="empty" class="text-center py-16 text-[var(--muted)]">
+    <div class="text-4xl mb-3">🔍</div>
+    <p class="text-sm">키워드를 검색하면 상품·가격·트렌드가 한 화면에 정리됩니다.</p>
+  </div>
+
+  <!-- ===== 개요 탭 ===== -->
+  <section id="tab-overview" class="hidden fade space-y-5">
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-3" id="statCards"></div>
+    <div class="grid md:grid-cols-2 gap-4">
+      <div class="panel rounded-xl p-4">
+        <div class="text-[13px] font-semibold mb-3 text-[var(--muted)]">판매처 분포 (상위)</div>
+        <div id="mallBars" class="space-y-2"></div>
+      </div>
+      <div class="panel rounded-xl p-4">
+        <div class="text-[13px] font-semibold mb-3 text-[var(--muted)]">가격 분포</div>
+        <canvas id="priceHist" height="150"></canvas>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== 상품·가격 탭 ===== -->
+  <section id="tab-products" class="hidden fade">
+    <div class="flex items-center gap-2 mb-3 text-xs">
+      <span class="text-[var(--muted)]">정렬</span>
+      <select id="sortSel" class="rounded-lg px-2 py-1.5">
+        <option value="lprice-asc">가격 낮은순</option>
+        <option value="lprice-desc">가격 높은순</option>
+        <option value="rel">관련도순</option>
+      </select>
+      <label class="flex items-center gap-1 ml-2 text-[var(--muted)] cursor-pointer">
+        <input type="checkbox" id="catalogOnly" class="accent-[var(--accent)]" /> 가격비교(카탈로그)만
+      </label>
+    </div>
+    <div class="panel rounded-xl overflow-hidden">
+      <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+          <thead class="text-[var(--muted)] text-xs" style="background:var(--panel2)">
+            <tr class="text-left">
+              <th class="px-3 py-2 font-medium">상품</th>
+              <th class="px-3 py-2 font-medium">브랜드</th>
+              <th class="px-3 py-2 font-medium">판매처</th>
+              <th class="px-3 py-2 font-medium text-right">최저가</th>
+              <th class="px-3 py-2 font-medium">유형</th>
+            </tr>
+          </thead>
+          <tbody id="prodRows"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== 트렌드 탭 ===== -->
+  <section id="tab-trend" class="hidden fade space-y-4">
+    <div class="panel rounded-xl p-4">
+      <div class="flex items-center justify-between mb-3 flex-wrap gap-2">
+        <div class="text-[13px] font-semibold text-[var(--muted)]">키워드 관심도 추이 (최근 12개월, 상대지수)</div>
+        <div class="flex items-center gap-2 flex-wrap">
+          <!-- 데이터랩 카테고리 선택 (P1: 반려동물 세부 카테고리 코드 매핑) -->
+          <select id="catSel" class="rounded-lg px-2 py-1.5 text-xs" title="데이터랩 카테고리"></select>
+          <input id="trendKw" placeholder="비교 키워드 쉼표로 (예: 지위픽,아첨)"
+                 class="rounded-lg px-3 py-1.5 text-xs w-64" />
+        </div>
+      </div>
+      <canvas id="trendChart" height="120"></canvas>
+      <p class="text-[11px] text-[var(--muted)] mt-2">
+        ※ 데이터랩 상대지수: 기간 내 최댓값 100 기준. 절대 판매량이 아닌 클릭 관심도 추이입니다.
+        카테고리는 관심도를 집계할 쇼핑 분류입니다 (검색어와 함께 조합).
+      </p>
+    </div>
+  </section>
+
+  <!-- ===== 연령·성별·기기 탭 ===== -->
+  <section id="tab-demo" class="hidden fade grid md:grid-cols-3 gap-4">
+    <div class="panel rounded-xl p-4">
+      <div class="text-[13px] font-semibold mb-3 text-[var(--muted)]">연령대</div>
+      <canvas id="ageChart" height="180"></canvas>
+    </div>
+    <div class="panel rounded-xl p-4">
+      <div class="text-[13px] font-semibold mb-3 text-[var(--muted)]">성별</div>
+      <canvas id="genderChart" height="180"></canvas>
+    </div>
+    <div class="panel rounded-xl p-4">
+      <div class="text-[13px] font-semibold mb-3 text-[var(--muted)]">기기 (PC vs 모바일)</div>
+      <canvas id="deviceChart" height="180"></canvas>
+    </div>
+  </section>
+
+</main>
+
+<footer class="max-w-6xl mx-auto px-4 py-6 text-[11px] text-[var(--muted)]">
+  데이터 출처: 네이버 검색 API · 데이터랩 쇼핑인사이트 · 프록시 미설정 시 데모 데이터로 동작
+</footer>
+
+<script>
+// ================= 상태 =================
+const KEY_PROXY = "naver_dash_proxy";
+const QUICK_KW = ["지위픽", "질 사료", "아첨 간식", "강아지 사료", "고양이 간식", "츄이씬"];
+let state = { items: [], keyword: "", charts: {} };
+
+const $ = (s) => document.querySelector(s);
+const fmt = (n) => Number(n).toLocaleString("ko-KR");
+const stripTag = (s) => s.replace(/<[^>]+>/g, "");
+
+// ================= 데이터랩 카테고리 맵 (P1) =================
+// 네이버 데이터랩 쇼핑인사이트 실제 카테고리 코드 (생활/건강 > 반려동물 하위).
+// find_category(네이버 쇼핑) 조회로 확인한 값. 검색어 자동 매칭 + 수동 드롭다운 겸용.
+const CATEGORY_MAP = [
+  { code: "50000233", label: "반려동물 · 기타용품", match: ["반려", "펫", "용품"] },
+  { code: "50006631", label: "강아지 사료 · 건식", match: ["강아지 사료", "강아지사료", "건식", "지위픽", "질 사료", "츄이씬"] },
+  { code: "50006632", label: "강아지 사료 · 소프트", match: ["소프트"] },
+  { code: "50006633", label: "강아지 사료 · 습식", match: ["강아지 습식"] },
+  { code: "50008289", label: "강아지 사료 · 동결건조", match: ["강아지 동결건조", "에어드라이"] },
+  { code: "50006637", label: "강아지 간식 · 개껌", match: ["개껌"] },
+  { code: "50006638", label: "강아지 간식 · 육포/건조", match: ["강아지 간식", "강아지간식", "아첨", "육포", "트릿"] },
+  { code: "50006679", label: "고양이 사료 · 건식", match: ["고양이 사료", "고양이사료", "고양이 건식"] },
+  { code: "50006680", label: "고양이 사료 · 습식", match: ["고양이 습식"] },
+  { code: "50008388", label: "고양이 사료 · 동결건조", match: ["고양이 동결건조"] },
+  { code: "50006685", label: "고양이 간식 · 캔/파우치", match: ["고양이 간식", "고양이간식", "캔", "파우치"] },
+];
+const DEFAULT_CAT = "50006631"; // 미매칭 시 기본값: 강아지 건식사료
+
+// 검색어로 가장 적합한 카테고리 코드 추정
+function guessCategory(kw) {
+  const k = (kw || "").toLowerCase();
+  for (const c of CATEGORY_MAP) {
+    if (c.match.some(m => k.includes(m.toLowerCase()))) return c.code;
+  }
+  return DEFAULT_CAT;
+}
+// 현재 선택된 카테고리 코드 (드롭다운 우선, 없으면 검색어 추정)
+function currentCategory() {
+  const sel = $("#catSel").value;
+  return sel || guessCategory(state.keyword);
+}
+
+// ================= 초기화 =================
+function initQuick() {
+  $("#quick").innerHTML = QUICK_KW.map(k =>
+    `<button class="chip whitespace-nowrap text-xs px-3 py-1 rounded-full" data-kw="${k}">${k}</button>`
+  ).join("");
+  $("#quick").querySelectorAll("[data-kw]").forEach(b =>
+    b.onclick = () => { $("#q").value = b.dataset.kw; runSearch(); });
+}
+function initCatSelect() {
+  // "자동" 옵션 + 카테고리 목록
+  $("#catSel").innerHTML =
+    `<option value="">카테고리 자동</option>` +
+    CATEGORY_MAP.map(c => `<option value="${c.code}">${c.label}</option>`).join("");
+  // 카테고리 바꾸면 트렌드 다시 로드
+  $("#catSel").onchange = () =>
+    loadTrend($("#trendKw").value.split(",").map(s=>s.trim()).filter(Boolean));
+}
+function loadCfg() {
+  const p = localStorage.getItem(KEY_PROXY) || "";
+  $("#proxyUrl").value = p;
+  $("#cfgState").textContent = p ? "✓ 프록시 설정됨" : "미설정 · 데모 모드";
+}
+$("#cfgBtn").onclick = () => $("#cfg").classList.toggle("hidden");
+$("#saveCfg").onclick = () => {
+  localStorage.setItem(KEY_PROXY, $("#proxyUrl").value.trim());
+  loadCfg(); $("#cfg").classList.add("hidden");
+};
+
+// ================= 탭 전환 =================
+document.querySelectorAll(".tab").forEach(t => t.onclick = () => {
+  document.querySelectorAll(".tab").forEach(x => {
+    x.classList.remove("on"); x.classList.add("text-[var(--muted)]","border-transparent");
+  });
+  t.classList.add("on"); t.classList.remove("text-[var(--muted)]","border-transparent");
+  ["overview","products","trend","demo"].forEach(id =>
+    $("#tab-"+id).classList.toggle("hidden", id !== t.dataset.tab));
+});
+
+// ================= API 호출 =================
+async function api(path, opts) {
+  const proxy = localStorage.getItem(KEY_PROXY);
+  if (!proxy) return null; // 데모 모드
+  const res = await fetch(proxy.replace(/\/$/,"") + path, opts);
+  if (!res.ok) throw new Error("API " + res.status);
+  return res.json();
+}
+
+// ---- 검색 실행 ----
+async function runSearch() {
+  const kw = $("#q").value.trim();
+  if (!kw) return;
+  state.keyword = kw;
+  $("#empty").classList.add("hidden");
+  $("#loading").classList.remove("hidden");
+  try {
+    let data = await api(`/search?query=${encodeURIComponent(kw)}&display=40`);
+    if (!data) data = demoSearch(kw);       // 프록시 없으면 데모
+    state.items = data.items || [];
+    state._total = data.total || null;
+    render();
+    loadTrend([kw]);
+    loadDemo(kw);
+  } catch (e) {
+    // 실패 시 데모로 폴백
+    const demo = demoSearch(kw);
+    state.items = demo.items; state._total = demo.total;
+    render(); loadTrend([kw]); loadDemo(kw);
+    $("#cfgState").textContent = "API 오류 · 데모로 표시 (" + e.message + ")";
+  } finally {
+    $("#loading").classList.add("hidden");
+  }
+}
+
+// ================= 렌더 =================
+function render() {
+  const items = state.items;
+  if (!items.length) return;
+  renderOverview(items);
+  renderProducts();
+}
+
+function renderOverview(items) {
+  const prices = items.map(i => +i.lprice).filter(Boolean);
+  const min = Math.min(...prices), max = Math.max(...prices);
+  const avg = Math.round(prices.reduce((a,b)=>a+b,0)/prices.length);
+  const brands = new Set(items.map(i => i.brand).filter(Boolean)).size;
+  const cards = [
+    ["검색 결과", state._total ? fmt(state._total)+"개" : items.length+"개", "전체 상품 수"],
+    ["최저가", "₩"+fmt(min), "이 키워드 최저"],
+    ["평균가", "₩"+fmt(avg), "표본 "+prices.length+"개"],
+    ["브랜드 수", brands+"개", "노출 브랜드"],
+  ];
+  $("#statCards").innerHTML = cards.map(([l,v,s]) =>
+    `<div class="panel rounded-xl p-3">
+      <div class="text-[11px] text-[var(--muted)]">${l}</div>
+      <div class="text-xl font-bold mono mt-1">${v}</div>
+      <div class="text-[10px] text-[var(--muted)] mt-0.5">${s}</div>
+    </div>`).join("");
+
+  // 판매처 분포
+  const mallCount = {};
+  items.forEach(i => { mallCount[i.mallName] = (mallCount[i.mallName]||0)+1; });
+  const malls = Object.entries(mallCount).sort((a,b)=>b[1]-a[1]).slice(0,6);
+  const maxM = malls[0][1];
+  $("#mallBars").innerHTML = malls.map(([m,c]) =>
+    `<div class="flex items-center gap-2 text-xs">
+      <span class="w-24 truncate text-[var(--muted)]">${m}</span>
+      <div class="flex-1 rounded-full h-2.5" style="background:var(--panel2)">
+        <div class="h-2.5 rounded-full" style="width:${c/maxM*100}%;background:var(--accent)"></div>
+      </div>
+      <span class="mono w-6 text-right">${c}</span>
+    </div>`).join("");
+
+  // 가격 히스토그램
+  drawPriceHist(prices, min, max);
+}
+
+function drawPriceHist(prices, min, max) {
+  const bins = 8, step = (max-min)/bins || 1;
+  const counts = new Array(bins).fill(0);
+  prices.forEach(p => { let b = Math.min(bins-1, Math.floor((p-min)/step)); counts[b]++; });
+  const labels = counts.map((_,i)=> "₩"+Math.round((min+i*step)/1000)+"k");
+  chart("priceHist", {
+    type:"bar",
+    data:{ labels, datasets:[{ data:counts, backgroundColor:"#2dd4a7", borderRadius:4 }] },
+    options: baseOpts(false),
+  });
+}
+
+function renderProducts() {
+  let items = [...state.items];
+  if ($("#catalogOnly").checked) items = items.filter(i => i.productType === "1");
+  const [k,dir] = $("#sortSel").value.split("-");
+  if (k === "lprice") items.sort((a,b)=> dir==="asc" ? a.lprice-b.lprice : b.lprice-a.lprice);
+  $("#prodRows").innerHTML = items.map(i => `
+    <tr class="border-t" style="border-color:var(--line)">
+      <td class="px-3 py-2 max-w-[300px]">
+        <a href="${i.link}" target="_blank" class="hover:text-[var(--accent)] line-clamp-1">${stripTag(i.title)}</a>
+      </td>
+      <td class="px-3 py-2 text-[var(--muted)] text-xs">${i.brand||"—"}</td>
+      <td class="px-3 py-2 text-xs">${i.mallName}</td>
+      <td class="px-3 py-2 text-right mono font-semibold">₩${fmt(i.lprice)}</td>
+      <td class="px-3 py-2">
+        <span class="text-[10px] px-1.5 py-0.5 rounded"
+          style="background:var(--panel2);color:${i.productType==='1'?'var(--accent)':'var(--muted)'}">
+          ${i.productType==='1'?'가격비교':'단독'}</span>
+      </td>
+    </tr>`).join("");
+}
+$("#sortSel").onchange = renderProducts;
+$("#catalogOnly").onchange = renderProducts;
+
+// ---- 트렌드 ----
+async function loadTrend(kws) {
+  $("#trendKw").value = kws.join(",");
+  let data;
+  try {
+    data = await api("/datalab", { method:"POST", headers:{"Content-Type":"application/json"},
+      body: JSON.stringify(datalabBody(kws)) });
+  } catch(e){ data = null; }
+  if (!data) data = demoTrend(kws);
+  drawTrend(data);
+}
+$("#trendKw").onchange = () => loadTrend($("#trendKw").value.split(",").map(s=>s.trim()).filter(Boolean));
+
+function drawTrend(data) {
+  const colors = ["#2dd4a7","#f0883e","#a371f7","#58a6ff"];
+  const ds = (data.results||[]).map((r,i)=>({
+    label:r.title, data:r.data.map(d=>d.ratio),
+    borderColor:colors[i%4], backgroundColor:"transparent",
+    tension:0.35, borderWidth:2, pointRadius:0,
+  }));
+  const labels = data.results?.[0]?.data.map(d=>d.period.slice(2)) || [];
+  chart("trendChart", { type:"line", data:{labels,datasets:ds}, options: baseOpts(true) });
+}
+
+// ---- 연령/성별/기기 (P1: 실API 병렬 호출 + 데모 폴백) ----
+async function loadDemo(kw) {
+  const body = JSON.stringify(datalabBody([kw]));  // 데이터랩 인구통계도 동일 바디 구조 사용
+  const post = (path) => api(path, {
+    method:"POST", headers:{"Content-Type":"application/json"}, body
+  });
+
+  let age, gender, device;
+  try {
+    // 3개 엔드포인트 병렬 호출. 프록시 미설정이면 api()가 null 반환 → 데모 폴백.
+    const [ra, rg, rd] = await Promise.all([
+      post("/datalab-age"), post("/datalab-gender"), post("/datalab-device"),
+    ]);
+    if (ra && rg && rd) {
+      age    = mapRatios(ra, ["10","20","30","40","50","60"]);
+      gender = mapRatios(rg, ["f","m"]);
+      device = mapRatios(rd, ["mo","pc"]);
+    }
+  } catch (e) { /* 아래 데모 폴백 */ }
+
+  if (!age || !gender || !device) {
+    const d = demoDemographics(kw);
+    age = d.age; gender = d.gender; device = d.device;
+  }
+
+  chart("ageChart", { type:"bar", data:{
+    labels:["10대","20대","30대","40대","50대","60대+"],
+    datasets:[{ data:age, backgroundColor:"#2dd4a7", borderRadius:4 }]
+  }, options: baseOpts(false) });
+  chart("genderChart", { type:"doughnut", data:{
+    labels:["여성","남성"],
+    datasets:[{ data:gender, backgroundColor:["#f0883e","#58a6ff"] }]
+  }, options:{ plugins:{legend:{labels:{color:"#8b949e",font:{size:11}}}}, cutout:"60%" }});
+  chart("deviceChart", { type:"doughnut", data:{
+    labels:["모바일","PC"],
+    datasets:[{ data:device, backgroundColor:["#2dd4a7","#a371f7"] }]
+  }, options:{ plugins:{legend:{labels:{color:"#8b949e",font:{size:11}}}}, cutout:"60%" }});
+}
+
+// 데이터랩 인구통계 응답 → 지정한 그룹 순서대로 평균 비율 배열로 변환.
+// 응답 형태: { results:[{ data:[{ period, group, ratio }] }] } (기간별 여러 행).
+// 그룹별로 ratio 평균을 내 order 순서에 맞춰 반환. 매칭 실패 그룹은 0.
+function mapRatios(resp, order) {
+  const rows = (resp.results && resp.results[0] && resp.results[0].data) || [];
+  const sum = {}, cnt = {};
+  rows.forEach(r => {
+    const g = String(r.group);
+    sum[g] = (sum[g]||0) + (+r.ratio||0);
+    cnt[g] = (cnt[g]||0) + 1;
+  });
+  return order.map(g => cnt[g] ? Math.round(sum[g]/cnt[g]) : 0);
+}
+
+// ================= 차트 유틸 =================
+function baseOpts(legend) {
+  return {
+    responsive:true, maintainAspectRatio:false,
+    plugins:{ legend: legend ? {labels:{color:"#8b949e",font:{size:11}}} : {display:false} },
+    scales:{
+      x:{ ticks:{color:"#8b949e",font:{size:10}}, grid:{display:false} },
+      y:{ ticks:{color:"#8b949e",font:{size:10}}, grid:{color:"#2a313c"} },
+    },
+  };
+}
+function chart(id, cfg) {
+  if (state.charts[id]) state.charts[id].destroy();
+  state.charts[id] = new Chart($("#"+id), cfg);
+}
+
+// ================= 데이터랩 요청 바디 =================
+function datalabBody(kws) {
+  const end = new Date(), start = new Date(); start.setMonth(start.getMonth()-12);
+  const iso = d => d.toISOString().slice(0,10);
+  return {
+    startDate: iso(start), endDate: iso(end), timeUnit: "month",
+    category: currentCategory(), // P1: 드롭다운 선택값 또는 검색어 기반 자동 매칭
+    keyword: kws.map(k => ({ name:k, param:[k] })),
+  };
+}
+
+// ================= 데모 데이터 (프록시 미설정 시) =================
+function demoSearch(kw) {
+  const malls = ["네이버","지위픽 공식몰","지펫온라인","펫프렌즈","어바웃펫","쿠팡"];
+  const brands = ["지위픽","질","아첨","웰츠","","츄이씬"];
+  const items = Array.from({length:32}, (_,i)=>({
+    title:`${kw} ${["오리지널","프리미엄","에어드라이","소프트"][i%4]} ${(i%3+1)*454}g`,
+    link:"#", brand:brands[i%brands.length], mallName:malls[i%malls.length],
+    lprice: 30000 + Math.round(Math.random()*90000/100)*100,
+    productType: i%3===0 ? "1":"2",
+  }));
+  return { total:3879, items };
+}
+function demoTrend(kws) {
+  const periods = Array.from({length:12},(_,i)=>{
+    const d=new Date(); d.setMonth(d.getMonth()-(11-i));
+    return d.toISOString().slice(0,7);
+  });
+  return { results: kws.map((k,ki)=>({
+    title:k, data: periods.map(p=>({period:p, ratio: 40+Math.round(Math.random()*60)+ki*5}))
+  })) };
+}
+function demoDemographics(kw) {
+  return { age:[5,28,32,20,10,5], gender:[62,38], device:[78,22] };
+}
+
+// ================= 이벤트 =================
+$("#go").onclick = runSearch;
+$("#q").addEventListener("keydown", e => { if(e.key==="Enter") runSearch(); });
+initQuick(); initCatSelect(); loadCfg();
+
+// PWA
+if ("serviceWorker" in navigator) {
+  navigator.serviceWorker.register("sw.js").catch(()=>{});
+}
+</script>
+</body>
+</html>
