@@ -258,9 +258,14 @@ document.querySelectorAll(".tab").forEach(t => t.onclick = () => {
     x.classList.remove("on"); x.classList.add("text-[var(--muted)]","border-transparent");
   });
   t.classList.add("on"); t.classList.remove("text-[var(--muted)]","border-transparent");
-  ["overview","products","trend","demo"].forEach(id =>
-    $("#tab-"+id).classList.toggle("hidden", id !== t.dataset.tab));
+  showTab(t.dataset.tab);
 });
+// 현재 활성 탭(.tab.on) 영역을 보이게 하고 나머지는 숨김
+function showTab(tab) {
+  const active = tab || document.querySelector(".tab.on")?.dataset.tab || "overview";
+  ["overview","products","trend","demo"].forEach(id =>
+    $("#tab-"+id).classList.toggle("hidden", id !== active));
+}
 
 // ================= API 호출 =================
 async function api(path, opts) {
@@ -303,6 +308,7 @@ function render() {
   if (!items.length) return;
   renderOverview(items);
   renderProducts();
+  showTab();  // 검색 후 현재 활성 탭 영역을 실제로 노출 (숨김 상태 해제)
 }
 
 function renderOverview(items) {
