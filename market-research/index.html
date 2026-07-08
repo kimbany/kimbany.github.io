@@ -153,7 +153,12 @@
         </div>
       </div>
       <div class="relative" style="height:240px"><canvas id="trendChart"></canvas></div>
-      <p class="text-[11px] text-[var(--muted)] mt-2">
+      <p class="text-[11px] text-[var(--accent)] mt-2">
+        💡 그래프의 <b>점</b>에 마우스를 올리면(세로 어느 위치든 OK) 그 달의 모든 키워드 수치가 한 번에 표시됩니다.
+      </p>
+      <!-- 키워드 비교표 (여러 키워드 입력 시 최근값/평균/최고 비교) -->
+      <div id="trendCompare" class="mt-4"></div>
+      <p class="text-[11px] text-[var(--muted)] mt-3">
         ※ 데이터랩 상대지수: 기간 내 최댓값 100 기준. 절대 판매량이 아닌 클릭 관심도 추이입니다.
         카테고리는 관심도를 집계할 쇼핑 분류입니다 (검색어와 함께 조합).
       </p>
@@ -421,15 +426,101 @@ async function loadTrend(kws) {
 }
 $("#trendKw").onchange = () => loadTrend($("#trendKw").value.split(",").map(s=>s.trim()).filter(Boolean));
 
+// 마우스 올린 지점에 세로 안내선을 그려 "어느 달인지" 명확히 표시하는 미니 플러그인
+const hoverLinePlugin = {
+  id: "hoverLine",
+  afterDraw(chart) {
+    const act = chart.tooltip && chart.tooltip.getActiveElements ? chart.tooltip.getActiveElements() : [];
+    if (!act.length) return;
+    const x = act[0].element.x;
+    const { top, bottom } = chart.chartArea;
+    const ctx = chart.ctx;
+    ctx.save();
+    ctx.beginPath(); ctx.moveTo(x, top); ctx.lineTo(x, bottom);
+    ctx.lineWidth = 1; ctx.strokeStyle = "rgba(230,237,243,0.28)"; ctx.stroke();
+    ctx.restore();
+  }
+};
+
+const TREND_COLORS = ["#2dd4a7","#f0883e","#a371f7","#58a6ff","#e3b341","#db61a2"];
+
 function drawTrend(data) {
-  const colors = ["#2dd4a7","#f0883e","#a371f7","#58a6ff"];
-  const ds = (data.results||[]).map((r,i)=>({
+  const results = data.results || [];
+  const C = TREND_COLORS;
+  const ds = results.map((r,i)=>({
     label:r.title, data:r.data.map(d=>d.ratio),
-    borderColor:colors[i%4], backgroundColor:"transparent",
-    tension:0.35, borderWidth:2, pointRadius:0,
+    borderColor:C[i%C.length], backgroundColor:"transparent",
+    tension:0.35, borderWidth:2,
+    pointRadius:3, pointHoverRadius:6,                 // 점을 항상 보이게 → 어디 올릴지 명확
+    pointBackgroundColor:C[i%C.length], pointBorderColor:"#0d1117", pointBorderWidth:1.5,
   }));
-  const labels = data.results?.[0]?.data.map(d=>d.period.slice(2)) || [];
-  chart("trendChart", { type:"line", data:{labels,datasets:ds}, options: baseOpts(true) });
+  const labels = results[0]?.data.map(d=>d.period.slice(2)) || [];
+  chart("trendChart", {
+    type:"line",
+    data:{ labels, datasets:ds },
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      interaction:{ mode:"index", intersect:false }, // 세로 아무 위치나 → 그 달 전체 키워드 툴팁
+      plugins:{
+        legend:{ labels:{ color:"#8b949e", font:{size:11} } },
+        tooltip:{
+          backgroundColor:"#1c2129", borderColor:"#2a313c", borderWidth:1,
+          titleColor:"#e6edf3", bodyColor:"#e6edf3", padding:10,
+          callbacks:{ title:(t)=> (t[0]?.label||"") + "월 · 상대지수" }
+        }
+      },
+      scales:{
+        x:{ ticks:{color:"#8b949e",font:{size:10}}, grid:{display:false} },
+        y:{ ticks:{color:"#8b949e",font:{size:10}}, grid:{color:"#2a313c"}, beginAtZero:true, suggestedMax:100 },
+      },
+    },
+    plugins:[hoverLinePlugin],
+  });
+  renderTrendCompare(results, labels);
+}
+
+// 키워드 비교표: 각 키워드의 최근값·평균·최고치를 한눈에 비교 (최근값 내림차순)
+function renderTrendCompare(results, labels) {
+  const box = $("#trendCompare");
+  if (!results.length) { box.innerHTML = ""; return; }
+  const C = TREND_COLORS;
+  const rows = results.map((r,i)=>{
+    const vals = r.data.map(d=>+d.ratio);
+    const latest = vals[vals.length-1] ?? 0;
+    const avg = Math.round(vals.reduce((a,b)=>a+b,0)/vals.length);
+    const peak = Math.max(...vals);
+    const peakLabel = labels[vals.indexOf(peak)] || "";
+    return { title:r.title, color:C[i%C.length], latest, avg, peak, peakLabel };
+  }).sort((a,b)=> b.latest - a.latest);
+  const maxLatest = Math.max(...rows.map(r=>r.latest), 1);
+  box.innerHTML = `
+    <div class="text-[13px] font-semibold mb-2 text-[var(--muted)]">키워드 비교 (최근값 순)</div>
+    <div class="overflow-x-auto"><table class="w-full text-xs">
+      <thead class="text-[var(--muted)]"><tr class="text-left">
+        <th class="py-1.5 pr-2 font-medium">키워드</th>
+        <th class="py-1.5 px-2 font-medium">최근값 비교</th>
+        <th class="py-1.5 px-2 font-medium text-right">최근</th>
+        <th class="py-1.5 px-2 font-medium text-right">평균</th>
+        <th class="py-1.5 px-2 font-medium text-right">최고</th>
+        <th class="py-1.5 pl-2 font-medium">최고 시점</th>
+      </tr></thead>
+      <tbody>${rows.map(r=>`
+        <tr class="border-t" style="border-color:var(--line)">
+          <td class="py-1.5 pr-2 whitespace-nowrap">
+            <span class="inline-block w-2.5 h-2.5 rounded-full mr-1.5 align-middle" style="background:${r.color}"></span>${r.title}
+          </td>
+          <td class="py-1.5 px-2" style="min-width:90px">
+            <div class="rounded-full h-2" style="background:var(--panel2)">
+              <div class="h-2 rounded-full" style="width:${r.latest/maxLatest*100}%;background:${r.color}"></div>
+            </div>
+          </td>
+          <td class="py-1.5 px-2 text-right mono font-semibold">${r.latest}</td>
+          <td class="py-1.5 px-2 text-right mono">${r.avg}</td>
+          <td class="py-1.5 px-2 text-right mono">${r.peak}</td>
+          <td class="py-1.5 pl-2 text-[var(--muted)] whitespace-nowrap">${r.peakLabel}월</td>
+        </tr>`).join("")}
+      </tbody>
+    </table></div>`;
 }
 
 // ---- 연령/성별/기기 (P1: 실API 병렬 호출 + 데모 폴백) ----
