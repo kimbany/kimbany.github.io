@@ -28,6 +28,13 @@ GitHub Pages(정적)에서는 서버가 없으므로 Cloudflare Workers를 프�
 2. 사용 API: **검색** + **데이터랩(쇼핑인사이트)** 둘 다 체크
 3. Client ID / Secret 확보
 
+### 1-B. (선택) 검색광고 API 키 — 실제 검색량·연관키워드용
+데이터랩은 상대지수만 주므로, **실제 월간검색량 + 연관키워드**를 보려면 별도로:
+1. searchad.naver.com(네이버 검색광고) 가입
+2. 우상단 **도구 → API 사용 관리** → API 라이선스 발급
+3. 확보할 값 3개: **액세스라이선스(API키)**, **비밀키(SECRET)**, **CUSTOMER_ID**(내 정보에서 확인)
+   - 미설정 시 트렌드 탭의 월간검색량·연관키워드는 데모값으로 표시됨(검색·데이터랩은 정상 동작)
+
 ### 2. Cloudflare Workers 배포
 1. dash.cloudflare.com → Workers & Pages → Create Worker
 2. `worker.js` 내용 붙여넣기
@@ -35,6 +42,7 @@ GitHub Pages(정적)에서는 서버가 없으므로 Cloudflare Workers를 프�
    - `NAVER_CLIENT_ID`
    - `NAVER_CLIENT_SECRET`
    - `ALLOWED_ORIGINS` = `https://kimbany.github.io`
+   - (선택) `NAVER_AD_API_KEY` · `NAVER_AD_SECRET_KEY` · `NAVER_AD_CUSTOMER_ID` — 검색광고 API용
 4. Deploy → `https://xxx.workers.dev` 주소 확보
 
 ### 3. GitHub Pages 배포

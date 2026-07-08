@@ -166,9 +166,18 @@
       <!-- 키워드 비교표 (여러 키워드 입력 시 최근값/평균/최고 비교) -->
       <div id="trendCompare" class="mt-4"></div>
       <p class="text-[11px] text-[var(--muted)] mt-3">
-        ※ 데이터랩 상대지수: 기간 내 최댓값 100 기준. 절대 판매량이 아닌 클릭 관심도 추이입니다.
-        카테고리는 관심도를 집계할 쇼핑 분류입니다 (검색어와 함께 조합).
+        ※ 위 그래프는 데이터랩 <b>상대지수</b>(기간 내 최댓값 100 기준, 관심도 추이)입니다.
+        아래 표의 <b>월간검색량</b>은 검색광고 API의 실제 검색수입니다.
       </p>
+    </div>
+
+    <!-- 연관 키워드 · 실제 월간검색량 (검색광고 API) -->
+    <div class="panel rounded-xl p-4">
+      <div class="text-[13px] font-semibold mb-1 text-[var(--muted)]">연관 키워드 · 실제 월간검색량</div>
+      <p class="text-[11px] text-[var(--muted)] mb-3">
+        검색어와 연관된 키워드를 실제 월간 검색수(PC+모바일) 순으로 보여줍니다. (검색광고 API)
+      </p>
+      <div id="relKw"></div>
     </div>
   </section>
 
@@ -472,15 +481,55 @@ $("#csvBtn").onclick = downloadCSV;
 // ---- 트렌드 ----
 async function loadTrend(kws) {
   $("#trendKw").value = kws.join(",");
-  let data;
-  try {
-    data = await api("/datalab", { method:"POST", headers:{"Content-Type":"application/json"},
-      body: JSON.stringify(datalabBody(kws)) });
-  } catch(e){ data = null; }
-  if (!data) data = demoTrend(kws);
-  drawTrend(data);
+  // 데이터랩(상대추이) + 검색광고(실검색량·연관키워드) 병렬 조회
+  const [trend, kwData] = await Promise.all([ fetchTrend(kws), fetchKeywordVolumes(kws) ]);
+  drawTrend(trend, kwData);
+  renderRelated(kwData.related);
 }
 $("#trendKw").onchange = () => loadTrend($("#trendKw").value.split(",").map(s=>s.trim()).filter(Boolean));
+
+// 데이터랩 상대추이 (실패/미설정 시 데모)
+async function fetchTrend(kws) {
+  try {
+    const d = await api("/datalab", { method:"POST", headers:{"Content-Type":"application/json"},
+      body: JSON.stringify(datalabBody(kws)) });
+    if (d) return d;
+  } catch(e){}
+  return demoTrend(kws);
+}
+
+// 검색광고 키워드도구: 연관키워드 + 실제 월간검색량 (실패/미설정 시 데모)
+async function fetchKeywordVolumes(kws) {
+  try {
+    const d = await api(`/keywords?hintKeywords=${encodeURIComponent(kws.join(","))}`);
+    if (d && d.keywordList) return parseKeywordTool(d, kws);
+  } catch(e){}
+  return demoKeywords(kws);
+}
+
+// 키워드 정규화(공백 제거·대문자) — 검색광고 응답의 relKeyword 표기에 맞춤
+const normKw = (s) => String(s||"").replace(/\s+/g,"").toUpperCase();
+// 월간검색수 파싱: "< 10" 같은 문자열은 5로 근사, 숫자는 그대로
+const qcNum = (v) => {
+  if (v==null) return 0;
+  const s = String(v);
+  if (s.includes("<")) return 5;
+  const n = parseInt(s.replace(/[^0-9]/g,""),10);
+  return isFinite(n) ? n : 0;
+};
+// 검색광고 응답 → { volumes:{정규화kw:{pc,mo,total,comp}}, related:[...상위 15] }
+function parseKeywordTool(d, kws) {
+  const list = (d.keywordList||[]).map(k=>{
+    const pc = qcNum(k.monthlyPcQcCnt), mo = qcNum(k.monthlyMobileQcCnt);
+    return { kw:k.relKeyword, pc, mo, total:pc+mo, comp:k.compIdx||"" };
+  });
+  const wanted = new Set(kws.map(normKw));
+  const volumes = {};
+  list.forEach(k => { if (wanted.has(normKw(k.kw))) volumes[normKw(k.kw)] = k; });
+  const related = list.filter(k => !wanted.has(normKw(k.kw)))
+    .sort((a,b)=> b.total - a.total).slice(0,15);
+  return { volumes, related };
+}
 
 // 마우스 올린 지점에 세로 안내선을 그려 "어느 달인지" 명확히 표시하는 미니 플러그인
 const hoverLinePlugin = {
@@ -500,7 +549,7 @@ const hoverLinePlugin = {
 
 const TREND_COLORS = ["#2dd4a7","#f0883e","#a371f7","#58a6ff","#e3b341","#db61a2"];
 
-function drawTrend(data) {
+function drawTrend(data, kwData) {
   const results = data.results || [];
   const C = TREND_COLORS;
   const ds = results.map((r,i)=>({
@@ -532,33 +581,43 @@ function drawTrend(data) {
     },
     plugins:[hoverLinePlugin],
   });
-  renderTrendCompare(results, labels);
+  renderTrendCompare(results, kwData && kwData.volumes);
 }
 
-// 키워드 비교표: 각 키워드의 최근값·평균·최고치를 한눈에 비교 (최근값 내림차순)
-function renderTrendCompare(results, labels) {
+// 경쟁도 배지 (검색광고 compIdx: 낮음/중간/높음)
+function compBadge(c) {
+  if (!c) return `<span class="text-[var(--muted)]">—</span>`;
+  const color = c.includes("높") ? "var(--warn)" : c.includes("중") ? "var(--accent2)" : "var(--accent)";
+  return `<span class="text-[10px] px-1.5 py-0.5 rounded" style="background:var(--panel2);color:${color}">${c}</span>`;
+}
+
+// 키워드 비교표: 실제 월간검색량 + 12개월 평균(추정) 비교. volumes 없으면 "—".
+// 12개월 평균(추정) = 실월간검색량 × (12개월 상대지수 평균 / 최근달 상대지수). 데이터랩 곡선으로 스케일한 추정값.
+function renderTrendCompare(results, volumes) {
   const box = $("#trendCompare");
   if (!results.length) { box.innerHTML = ""; return; }
   const C = TREND_COLORS;
   const rows = results.map((r,i)=>{
     const vals = r.data.map(d=>+d.ratio);
-    const latest = vals[vals.length-1] ?? 0;
-    const avg = Math.round(vals.reduce((a,b)=>a+b,0)/vals.length);
-    const peak = Math.max(...vals);
-    const peakLabel = labels[vals.indexOf(peak)] || "";
-    return { title:r.title, color:C[i%C.length], latest, avg, peak, peakLabel };
-  }).sort((a,b)=> b.latest - a.latest);
-  const maxLatest = Math.max(...rows.map(r=>r.latest), 1);
+    const avgR = vals.reduce((a,b)=>a+b,0)/vals.length;
+    const lastR = vals[vals.length-1] || 0;
+    const vol = volumes && volumes[normKw(r.title)];
+    const monthly = vol ? vol.total : null;
+    const est = (monthly!=null && lastR>0) ? Math.round(monthly * avgR / lastR) : null;
+    return { title:r.title, color:C[i%C.length], monthly, est, comp:vol?vol.comp:"",
+             metric: monthly!=null ? monthly : avgR };
+  }).sort((a,b)=> b.metric - a.metric);
+  const maxMetric = Math.max(...rows.map(r=>r.metric), 1);
+  const hasVol = rows.some(r=>r.monthly!=null);
   box.innerHTML = `
-    <div class="text-[13px] font-semibold mb-2 text-[var(--muted)]">키워드 비교 (최근값 순)</div>
+    <div class="text-[13px] font-semibold mb-2 text-[var(--muted)]">키워드 비교 (월간검색량 순)</div>
     <div class="overflow-x-auto"><table class="w-full text-xs">
       <thead class="text-[var(--muted)]"><tr class="text-left">
         <th class="py-1.5 pr-2 font-medium">키워드</th>
-        <th class="py-1.5 px-2 font-medium">최근값 비교</th>
-        <th class="py-1.5 px-2 font-medium text-right">최근</th>
-        <th class="py-1.5 px-2 font-medium text-right">평균</th>
-        <th class="py-1.5 px-2 font-medium text-right">최고</th>
-        <th class="py-1.5 pl-2 font-medium">최고 시점</th>
+        <th class="py-1.5 px-2 font-medium">검색량 비교</th>
+        <th class="py-1.5 px-2 font-medium text-right">월간검색량</th>
+        <th class="py-1.5 px-2 font-medium text-right">12개월 평균(추정)</th>
+        <th class="py-1.5 pl-2 font-medium">경쟁도</th>
       </tr></thead>
       <tbody>${rows.map(r=>`
         <tr class="border-t" style="border-color:var(--line)">
@@ -567,16 +626,61 @@ function renderTrendCompare(results, labels) {
           </td>
           <td class="py-1.5 px-2" style="min-width:90px">
             <div class="rounded-full h-2" style="background:var(--panel2)">
-              <div class="h-2 rounded-full" style="width:${r.latest/maxLatest*100}%;background:${r.color}"></div>
+              <div class="h-2 rounded-full" style="width:${r.metric/maxMetric*100}%;background:${r.color}"></div>
             </div>
           </td>
-          <td class="py-1.5 px-2 text-right mono font-semibold">${r.latest}</td>
-          <td class="py-1.5 px-2 text-right mono">${r.avg}</td>
-          <td class="py-1.5 px-2 text-right mono">${r.peak}</td>
-          <td class="py-1.5 pl-2 text-[var(--muted)] whitespace-nowrap">${r.peakLabel}월</td>
+          <td class="py-1.5 px-2 text-right mono font-semibold">${r.monthly!=null?fmt(r.monthly):"—"}</td>
+          <td class="py-1.5 px-2 text-right mono text-[var(--muted)]">${r.est!=null?fmt(r.est):"—"}</td>
+          <td class="py-1.5 pl-2">${compBadge(r.comp)}</td>
+        </tr>`).join("")}
+      </tbody>
+    </table></div>
+    <p class="text-[11px] text-[var(--muted)] mt-2">
+      · 월간검색량 = 최근 30일 PC+모바일 실검색수. · 12개월 평균(추정)은 위 관심도 곡선으로 환산한 값입니다.
+      ${hasVol ? "" : "<br>※ 지금은 데모/미연동 값입니다. 검색광고 API 연동 시 실제 수치가 표시됩니다."}
+    </p>`;
+}
+
+// 연관 키워드 표: 실제 월간검색량(PC/모바일) 순
+function renderRelated(related) {
+  const box = $("#relKw");
+  if (!related || !related.length) {
+    box.innerHTML = `<p class="text-xs text-[var(--muted)]">연관 키워드가 없습니다.</p>`; return;
+  }
+  const max = Math.max(...related.map(r=>r.total), 1);
+  box.innerHTML = `
+    <div class="overflow-x-auto"><table class="w-full text-xs">
+      <thead class="text-[var(--muted)]"><tr class="text-left">
+        <th class="py-1.5 pr-2 font-medium">연관 키워드</th>
+        <th class="py-1.5 px-2 font-medium">검색량 비교</th>
+        <th class="py-1.5 px-2 font-medium text-right">월간검색량</th>
+        <th class="py-1.5 px-2 font-medium text-right">PC</th>
+        <th class="py-1.5 px-2 font-medium text-right">모바일</th>
+        <th class="py-1.5 pl-2 font-medium">경쟁도</th>
+      </tr></thead>
+      <tbody>${related.map(r=>`
+        <tr class="border-t" style="border-color:var(--line)">
+          <td class="py-1.5 pr-2 whitespace-nowrap">
+            <button class="hover:text-[var(--accent)]" onclick="quickTrend('${(r.kw||'').replace(/'/g,"")}')" title="이 키워드로 트렌드 보기">${r.kw}</button>
+          </td>
+          <td class="py-1.5 px-2" style="min-width:90px">
+            <div class="rounded-full h-2" style="background:var(--panel2)">
+              <div class="h-2 rounded-full" style="width:${r.total/max*100}%;background:var(--accent)"></div>
+            </div>
+          </td>
+          <td class="py-1.5 px-2 text-right mono font-semibold">${fmt(r.total)}</td>
+          <td class="py-1.5 px-2 text-right mono text-[var(--muted)]">${fmt(r.pc)}</td>
+          <td class="py-1.5 px-2 text-right mono text-[var(--muted)]">${fmt(r.mo)}</td>
+          <td class="py-1.5 pl-2">${compBadge(r.comp)}</td>
         </tr>`).join("")}
       </tbody>
     </table></div>`;
+}
+// 연관 키워드 클릭 → 트렌드 비교에 추가
+function quickTrend(kw) {
+  const cur = $("#trendKw").value.split(",").map(s=>s.trim()).filter(Boolean);
+  if (!cur.includes(kw)) cur.push(kw);
+  loadTrend(cur.slice(0,5)); // 데이터랩 최대 5개
 }
 
 // ---- 연령/성별/기기 (P1: 실API 병렬 호출 + 데모 폴백) ----
@@ -682,6 +786,24 @@ function demoTrend(kws) {
 }
 function demoDemographics(kw) {
   return { age:[5,28,32,20,10,5], gender:[62,38], device:[78,22] };
+}
+// 검색광고 데모: 입력 키워드 볼륨 + 연관키워드 (프록시/광고키 미설정 시)
+function demoKeywords(kws) {
+  const comps = ["낮음","중간","높음"];
+  const volumes = {};
+  kws.forEach((k,i)=>{
+    const total = 8000 + Math.round(Math.random()*42000);
+    const pc = Math.round(total*0.25);
+    volumes[normKw(k)] = { kw:k, pc, mo:total-pc, total, comp:comps[i%3] };
+  });
+  const base = kws[0] || "키워드";
+  const sfx = ["추천","가격","후기","브랜드","순위","선물세트","대용량","유기농"];
+  const related = sfx.map((s,i)=>{
+    const total = 2000 + Math.round(Math.random()*33000);
+    const pc = Math.round(total*0.25);
+    return { kw:`${base} ${s}`, pc, mo:total-pc, total, comp:comps[i%3] };
+  }).sort((a,b)=> b.total - a.total);
+  return { volumes, related };
 }
 
 // ================= 이벤트 =================

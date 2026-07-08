@@ -6,9 +6,12 @@
  * 인증 헤더를 서버 측에서 붙여 중계한다.
  *
  * 환경변수 (Cloudflare > Settings > Variables 에 등록, 하드코딩 금지):
- *   - NAVER_CLIENT_ID
+ *   - NAVER_CLIENT_ID          (검색/데이터랩 오픈API)
  *   - NAVER_CLIENT_SECRET
- *   - ALLOWED_ORIGINS  (쉼표 구분, 예: "https://kimbany.github.io")
+ *   - ALLOWED_ORIGINS          (쉼표 구분, 예: "https://kimbany.github.io")
+ *   - NAVER_AD_API_KEY         (검색광고 API 액세스라이선스) ── /keywords 용
+ *   - NAVER_AD_SECRET_KEY      (검색광고 API 비밀키)
+ *   - NAVER_AD_CUSTOMER_ID     (검색광고 CUSTOMER_ID)
  *
  * 엔드포인트:
  *   GET  /search          → search/shop.json
@@ -16,9 +19,11 @@
  *   POST /datalab-age     → datalab/shopping/category/keyword/age
  *   POST /datalab-gender  → datalab/shopping/category/keyword/gender
  *   POST /datalab-device  → datalab/shopping/category/keyword/device
+ *   GET  /keywords        → (검색광고) /keywordstool : 연관키워드 + 실제 월간검색량
  */
 
 const NAVER = "https://openapi.naver.com/v1";
+const NAVER_AD = "https://api.naver.com"; // 검색광고 API 베이스
 
 export default {
   async fetch(request, env) {
@@ -45,6 +50,8 @@ export default {
         result = await proxyDatalab("/datalab/shopping/category/keyword/gender", request, env);
       } else if (path === "/datalab-device" && request.method === "POST") {
         result = await proxyDatalab("/datalab/shopping/category/keyword/device", request, env);
+      } else if (path === "/keywords" && request.method === "GET") {
+        result = await proxyKeywords(url, env);
       } else {
         return json({ error: "Not Found" }, 404, cors);
       }
@@ -75,6 +82,40 @@ async function proxyDatalab(apiPath, request, env) {
     body,
   });
   return { status: res.status, body: await res.json() };
+}
+
+// ---- 검색광고 키워드도구 중계 (HMAC-SHA256 서명 인증) ----
+// 연관키워드 + 실제 월간검색수(PC/모바일)를 반환. 오픈API와 인증 방식이 완전히 다름.
+async function proxyKeywords(url, env) {
+  const hint = url.searchParams.get("hintKeywords") || "";
+  const method = "GET";
+  const apiPath = "/keywordstool";
+  const ts = Date.now().toString();
+  // 서명 = Base64( HMAC-SHA256( secretKey, "{timestamp}.{method}.{apiPath}" ) )
+  const signature = await signHmac(`${ts}.${method}.${apiPath}`, env.NAVER_AD_SECRET_KEY || "");
+  const target = `${NAVER_AD}${apiPath}?hintKeywords=${encodeURIComponent(hint)}&showDetail=1`;
+  const res = await fetch(target, {
+    method,
+    headers: {
+      "X-Timestamp": ts,
+      "X-API-KEY": env.NAVER_AD_API_KEY || "",
+      "X-Customer": env.NAVER_AD_CUSTOMER_ID || "",
+      "X-Signature": signature,
+    },
+  });
+  return { status: res.status, body: await res.json() };
+}
+
+// HMAC-SHA256 서명 (Base64). Cloudflare Workers의 Web Crypto 사용.
+async function signHmac(message, secret) {
+  const enc = new TextEncoder();
+  const key = await crypto.subtle.importKey(
+    "raw", enc.encode(secret), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]
+  );
+  const sig = await crypto.subtle.sign("HMAC", key, enc.encode(message));
+  let bin = "";
+  new Uint8Array(sig).forEach((b) => (bin += String.fromCharCode(b)));
+  return btoa(bin);
 }
 
 // ---- 공통 유틸 ----
