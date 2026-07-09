@@ -117,9 +117,9 @@
     <div class="grow pad">
       <input class="field" placeholder="이메일">
       <input class="field" type="password" placeholder="비밀번호">
-      <button class="btn" onclick="seed();go('main');tab('match')">이메일로 로그인</button>
-      <button class="btn sec" onclick="seed();go('main');tab('match')">🟦 Google로 계속</button>
-      <button class="btn sec" onclick="seed();go('main');tab('match')"> Apple로 계속</button>
+      <button class="btn" onclick="loginDemo()">이메일로 로그인</button>
+      <button class="btn sec" onclick="loginDemo()">🟦 Google로 계속</button>
+      <button class="btn sec" onclick="loginDemo()"> Apple로 계속</button>
       <p class="dim center" style="margin-top:18px">비밀번호를 잊으셨나요?</p>
     </div>
   </section>
@@ -197,7 +197,7 @@
       <p class="dim"><span id="icount">0</span>개 선택 · 최소 3개</p>
       <div id="interests" style="margin-top:8px"></div>
     </div>
-    <div class="pad"><button id="iBtn" class="btn" disabled onclick="seed();go('main');tab('match');toast('환영해요! 매칭을 시작해보세요 🎉')">완료</button></div>
+    <div class="pad"><button id="iBtn" class="btn" disabled onclick="completeOnboarding()">완료</button></div>
   </section>
 
   <!-- ===== 메인 ===== -->
@@ -518,35 +518,62 @@ function renderChats(){
   document.getElementById('page-chats').innerHTML=html;
 }
 function renderSettings(){
+  const pr=loadProfile()||{};
+  const nick=pr.nick||'달빛여우', status=pr.status||'조용한 밤 대화 좋아해요', av=pr.avatar||'🦊', bg=pr.avatarBg||'#7c6cff';
+  const info=[pr.gender,pr.mbti,pr.contact1].filter(Boolean).join(' · ')||'프로필 미설정';
   document.getElementById('page-settings').innerHTML=`
     <div class="topbar"><span class="ttl">설정</span></div>
     <div class="pad">
       <div class="card row">
-        <div class="av" style="background:#7c6cff;font-size:30px;width:60px;height:60px;border-radius:18px">🦊</div>
-        <div><b style="font-size:18px">달빛여우</b><div class="dim">조용한 밤 대화 좋아해요</div>
+        <div class="av" style="background:${bg};font-size:30px;width:60px;height:60px;border-radius:18px">${av}</div>
+        <div><b style="font-size:18px">${nick}</b><div class="dim">${status}</div>
+        <div class="dim" style="font-size:12px;margin-top:2px">${info}</div>
         <span class="badge" style="margin-top:4px;display:inline-block">패널티 0 / 5</span></div>
       </div>
-      ${['👤 내 정보 (닉네임·관심사·아바타)','🔔 알림 설정','🤝 친구 관리','🚫 차단 목록','💎 프리미엄 구독','📄 약관·개인정보','🚪 로그아웃'].map(t=>
+      ${['👤 내 정보 (닉네임·관심사·아바타)','🔔 알림 설정','🤝 친구 관리','🚫 차단 목록','💎 프리미엄 구독','📄 약관·개인정보'].map(t=>
         `<div class="list-item" onclick="toast('${t.slice(2)} (프로토타입)')">${t}<span style="margin-left:auto" class="dim">›</span></div>`).join('')}
+      <div class="list-item" onclick="if(confirm('로그아웃하면 저장된 프로필이 지워지고 처음부터 다시 설정해요. 계속할까요?'))logout()">🚪 로그아웃 (프로필 초기화)<span style="margin-left:auto" class="dim">›</span></div>
     </div>`;
 }
 window._cseg='active';
 buildOnboarding();
 
-/* ---------- 항상 첫 화면에서 시작 (탭 복원/뒤로가기 캐시 대응) ---------- */
-function resetToStart(trigger){
-  clearInterval(countdown); clearInterval(clockT);
-  closeAll();
-  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
-  document.getElementById('s-start').classList.add('active');
-  // 메인 탭 상태도 초기화
-  ['match','chats','settings'].forEach(n=>{const p=document.getElementById('page-'+n);if(p)p.style.display=n==='match'?'':'none';});
+/* ---------- 프로필 저장/복원 (가입·온보딩 정보 유지) ---------- */
+const LS_KEY='veil_profile_v1';
+function saveProfile(){
+  try{
+    const bg=document.getElementById('bigav');
+    localStorage.setItem(LS_KEY, JSON.stringify({
+      nick:(document.getElementById('nick')||{}).value||'',
+      status:(document.getElementById('status')||{}).value||'',
+      avatar:bg?bg.textContent:'🦊',
+      avatarBg:bg&&bg.style?bg.style.background:'',
+      gender:profile.gender,mbti:profile.mbti,contact1:profile.contact1,contact2:profile.contact2,
+      drink:profile.drink,smoke:profile.smoke,exercise:profile.exercise,
+      pets:[...profile.pets],interests:[...selInterests]
+    }));
+  }catch(e){}
 }
-resetToStart('load');
-// 어떤 경로로 다시 보게 되든(뒤로가기·탭복원·탭전환 후 복귀) 항상 첫 화면으로
-window.addEventListener('pageshow', function(){ resetToStart('pageshow'); });
-document.addEventListener('visibilitychange', function(){ if(!document.hidden) resetToStart('visible'); });
-window.addEventListener('focus', function(){ resetToStart('focus'); });
+function loadProfile(){ try{const s=localStorage.getItem(LS_KEY);return s?JSON.parse(s):null;}catch(e){return null;} }
+function applyProfile(pr){
+  if(!pr)return;
+  selInterests=new Set(pr.interests||[]);
+  Object.assign(profile,{gender:pr.gender||'',mbti:pr.mbti||'',contact1:pr.contact1||'',contact2:pr.contact2||'',
+    drink:pr.drink||'',smoke:pr.smoke||'',exercise:pr.exercise||'',pets:new Set(pr.pets||[])});
+  const n=document.getElementById('nick'); if(n&&pr.nick)n.value=pr.nick;
+  const st=document.getElementById('status'); if(st&&pr.status)st.value=pr.status;
+  const bg=document.getElementById('bigav'); if(bg){bg.textContent=pr.avatar||'🦊'; if(pr.avatarBg)bg.style.background=pr.avatarBg;}
+}
+function completeOnboarding(){ saveProfile(); seed(); go('main'); tab('match'); toast('프로필이 저장됐어요 🎉'); }
+function loginDemo(){ if(!loadProfile())saveProfile(); seed(); go('main'); tab('match'); }
+function logout(){ try{localStorage.removeItem(LS_KEY);}catch(e){}; location.reload(); }
+
+/* 시작 시: 이미 가입/온보딩 했으면 메인으로, 아니면 시작화면 */
+(function boot(){
+  const pr=loadProfile();
+  if(pr){ applyProfile(pr); seed(); go('main'); tab('match'); }
+  else { go('s-start'); }
+})();
 </script>
 </body>
 </html>
