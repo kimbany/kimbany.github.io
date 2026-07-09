@@ -663,7 +663,7 @@ function renderChats(){
       <div class="av" style="background:${p.c};font-size:22px">${p.av}</div>
       <div style="flex:1;min-width:0">
         <div class="row" style="gap:6px"><b>${p.name}</b>${seg!=='ended'&&!notifyOn(p.name)?'<span style="opacity:.6">🔕</span>':''}${seg==='active'?'<span class="badge live exp-badge" data-exp="'+(p.expiresAt||0)+'">⏳ '+(p.expiresAt&&p.expiresAt<=Date.now()?'만료':remainStr(p.expiresAt||Date.now()))+'</span>':''}${seg==='ended'?'<span class="badge">종료</span>':''}</div>
-        <div class="dim" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${seg==='ended'||previewOn(p.name)?(p.last||''):'🔕 미리보기 꺼짐'}</div>
+        <div class="dim" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${seg==='ended'||loadNotif().listPreview?(p.last||''):'· · · 미리보기 꺼짐'}</div>
       </div>
       ${seg==='ended'?`<button class="iconbtn" onclick="event.stopPropagation();store.ended.splice(${idx},1);renderChats();toast('기록을 삭제했어요')">🗑</button>`:`<span class="dim">${p.time||''}</span>`}
     </div>`});
@@ -722,26 +722,35 @@ function logout(){ try{['veil_profile_v1','veil_chats_v1','veil_store_v1','veil_
 
 /* ---------- 알림 설정 (전역 + 채팅방별) ---------- */
 const NOTIF_KEY='veil_notif_v1';
-function loadNotif(){ try{return Object.assign({all:true,chat:true,preview:true},JSON.parse(localStorage.getItem(NOTIF_KEY))||{});}catch(e){return {all:true,chat:true,preview:true};} }
+function loadNotif(){ const d={all:true,chat:true,preview:true,listPreview:true}; try{return Object.assign(d,JSON.parse(localStorage.getItem(NOTIF_KEY))||{});}catch(e){return d;} }
 function saveNotif(n){ try{localStorage.setItem(NOTIF_KEY,JSON.stringify(n));}catch(e){} }
 function openNotif(){ renderNotif(); go('s-notif'); }
 function renderNotif(){
   const n=loadNotif();
+  // 알림 예시 (알림 미리보기 on/off 차이를 보여줌)
+  const exOn=n.all&&n.chat;
+  const exText=!exOn?'🔕 알림이 꺼져 있어요':(n.preview?'<b>구름고래</b>  그 얘기 더 듣고 싶어요!':'<b>구름고래</b>님이 새 메시지를 보냈어요');
+  const example=`<div class="label">알림 예시 (미리보기 차이)</div>
+    <div class="card" style="display:flex;gap:10px;align-items:center">
+      <div class="av" style="background:#3ba9ff;font-size:20px;width:38px;height:38px;border-radius:11px">🐙</div>
+      <div style="color:var(--text);font-size:14px">${exText}</div></div>`;
   const rows=[
     {k:'all',t:'전체 알림',d:'모든 알림의 마스터 스위치'},
     {k:'chat',t:'채팅 알림',d:'새 메시지가 오면 알림'},
-    {k:'preview',t:'대화 미리보기',d:'알림에 메시지 내용 표시'}
+    {k:'preview',t:'알림 미리보기',d:'알림창에 메시지 내용 표시 (끄면 상대 이름만)'},
+    {k:'listPreview',t:'채팅 목록 미리보기',d:'대화 목록에 마지막 메시지 표시'}
   ];
-  document.getElementById('notif-rows').innerHTML=rows.map(r=>{
-    const disabled=r.k!=='all'&&!n.all;
-    const on = r.k==='all' ? n.all : (n.all&&n[r.k]);
+  const toggles=rows.map(r=>{
+    const gated=(r.k==='chat'||r.k==='preview');   // 알림 관련만 마스터에 종속
+    const disabled=gated&&!n.all;
+    const on = r.k==='all'?n.all : gated?(n.all&&n[r.k]) : n[r.k];
     return `<div class="card row" style="justify-content:space-between${disabled?';opacity:.45':''}">
       <div><b>${r.t}</b><div class="dim" style="font-size:12px">${r.d}</div></div>
       <div class="switch ${on?'on':''}" onclick="toggleNotif('${r.k}')"></div></div>`;
   }).join('');
+  document.getElementById('notif-rows').innerHTML=example+toggles;
 }
-function toggleNotif(k){ const n=loadNotif(); if(k!=='all'&&!n.all){toast('전체 알림이 꺼져 있어요');return;} n[k]=!n[k]; saveNotif(n); renderNotif(); }
-// 알림 화면을 벗어날 때 대화 목록에 반영 (뒤로가기 버튼에서 호출)
+function toggleNotif(k){ const n=loadNotif(); if((k==='chat'||k==='preview')&&!n.all){toast('전체 알림이 꺼져 있어요');return;} n[k]=!n[k]; saveNotif(n); renderNotif(); if(document.getElementById('page-chats').style.display!=='none')renderChats(); }
 
 const ROOM_KEY='veil_roomnotif_v1';
 function loadRoomNotif(){ try{return JSON.parse(localStorage.getItem(ROOM_KEY))||{};}catch(e){return {};} }
@@ -750,7 +759,7 @@ function roomSettings(name){ return Object.assign({notify:true,preview:true},(lo
 function openRoomNotif(){ renderRoomNotif(); closeAll(); open('sheetRoomNotif'); }
 function renderRoomNotif(){
   const s=roomSettings(curPeer.name);
-  const rows=[{k:'notify',t:'이 방 알림',d:'끄면 이 대화만 음소거'},{k:'preview',t:'미리보기',d:'이 방 메시지 내용 표시'}];
+  const rows=[{k:'notify',t:'이 방 알림',d:'끄면 이 대화만 음소거'},{k:'preview',t:'이 방 알림 미리보기',d:'이 방 알림창에 메시지 내용 표시'}];
   document.getElementById('roomnotif-rows').innerHTML=rows.map(r=>`
     <div class="card row" style="justify-content:space-between">
       <div><b>${r.t}</b><div class="dim" style="font-size:12px">${r.d}</div></div>
