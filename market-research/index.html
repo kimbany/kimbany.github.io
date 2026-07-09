@@ -132,13 +132,13 @@
       <div class="overflow-x-auto">
         <table class="w-full text-sm">
           <thead class="text-[var(--muted)] text-xs" style="background:var(--panel2)">
-            <tr class="text-left">
-              <th class="px-3 py-2 font-medium text-right w-10">#</th>
-              <th class="px-3 py-2 font-medium">상품</th>
-              <th class="px-3 py-2 font-medium">브랜드</th>
-              <th class="px-3 py-2 font-medium">판매처</th>
-              <th class="px-3 py-2 font-medium text-right">최저가</th>
-              <th class="px-3 py-2 font-medium">유형</th>
+            <tr class="text-left select-none">
+              <th data-sort="orig"     class="px-3 py-2 font-medium text-right w-10 cursor-pointer hover:text-[var(--ink)]">#<span data-arrow></span></th>
+              <th data-sort="title"    class="px-3 py-2 font-medium cursor-pointer hover:text-[var(--ink)]">상품<span data-arrow></span></th>
+              <th data-sort="brand"    class="px-3 py-2 font-medium cursor-pointer hover:text-[var(--ink)]">브랜드<span data-arrow></span></th>
+              <th data-sort="mallName" class="px-3 py-2 font-medium cursor-pointer hover:text-[var(--ink)]">판매처<span data-arrow></span></th>
+              <th data-sort="lprice"   class="px-3 py-2 font-medium text-right cursor-pointer hover:text-[var(--ink)]">최저가<span data-arrow></span></th>
+              <th data-sort="productType" class="px-3 py-2 font-medium cursor-pointer hover:text-[var(--ink)]">유형<span data-arrow></span></th>
             </tr>
           </thead>
           <tbody id="prodRows"></tbody>
@@ -406,11 +406,24 @@ function drawPriceHist(prices, min, max) {
   });
 }
 
+// 현재 정렬 상태 (헤더 클릭·드롭다운 공용). key='orig'면 원래(관련도) 순서.
+state.sort = { key:"lprice", dir:"asc" };
+
 function renderProducts() {
   let items = [...state.items];
   if ($("#catalogOnly").checked) items = items.filter(i => i.productType === "1");
-  const [k,dir] = $("#sortSel").value.split("-");
-  if (k === "lprice") items.sort((a,b)=> dir==="asc" ? a.lprice-b.lprice : b.lprice-a.lprice);
+
+  const { key, dir } = state.sort;
+  if (key && key !== "orig") {
+    const numeric = key === "lprice";
+    items.sort((a,b)=>{
+      let av = a[key], bv = b[key];
+      if (numeric) { av = +av||0; bv = +bv||0; return dir==="asc" ? av-bv : bv-av; }
+      av = stripTag(String(av||"")); bv = stripTag(String(bv||""));
+      return dir==="asc" ? av.localeCompare(bv,"ko") : bv.localeCompare(av,"ko");
+    });
+  }
+  updateSortArrows();
   state.displayed = items;  // 엑셀 내보내기가 "현재 보이는 목록"과 일치하도록 저장
 
   // 행마다 순번(#) 부여 (1부터)
@@ -453,8 +466,43 @@ function renderProdSummary(items) {
     card("최고가", maxIdx+1, items[maxIdx].lprice, "var(--accent2)") +
     card("평균가", null, avg, "var(--ink)");
 }
-$("#sortSel").onchange = renderProducts;
 $("#catalogOnly").onchange = renderProducts;
+
+// 드롭다운 정렬 → state.sort 반영 (헤더 클릭과 동일 상태 공유)
+$("#sortSel").onchange = () => {
+  const v = $("#sortSel").value;
+  if (v === "rel") state.sort = { key:"orig", dir:"asc" };
+  else { const [k,dir] = v.split("-"); state.sort = { key:k, dir }; }
+  renderProducts();
+};
+
+// 표 제목(헤더) 클릭 → 그 열로 정렬, 같은 열 다시 누르면 오름/내림 토글
+document.querySelectorAll("#tab-products th[data-sort]").forEach(th => {
+  th.onclick = () => {
+    const key = th.dataset.sort;
+    if (state.sort.key === key) state.sort.dir = state.sort.dir === "asc" ? "desc" : "asc";
+    else state.sort = { key, dir: key === "lprice" ? "asc" : "asc" };
+    // 가격 정렬이면 드롭다운도 맞춰줌 (그 외엔 드롭다운은 그대로)
+    if (key === "lprice") $("#sortSel").value = "lprice-" + state.sort.dir;
+    else if (key === "orig") $("#sortSel").value = "rel";
+    renderProducts();
+  };
+});
+
+// 활성 정렬 열에 화살표(▲/▼) 표시, 나머지는 지움
+function updateSortArrows() {
+  document.querySelectorAll("#tab-products th[data-sort]").forEach(th => {
+    const arrow = th.querySelector("[data-arrow]");
+    if (!arrow) return;
+    if (th.dataset.sort === state.sort.key) {
+      arrow.textContent = state.sort.dir === "asc" ? " ▲" : " ▼";
+      th.classList.add("text-[var(--accent)]");
+    } else {
+      arrow.textContent = "";
+      th.classList.remove("text-[var(--accent)]");
+    }
+  });
+}
 
 // ---- 엑셀(CSV) 내보내기 ----
 // 현재 화면에 보이는 목록(state.displayed)을 CSV로 저장. 한글 깨짐 방지 위해 UTF-8 BOM 첨부.
