@@ -662,8 +662,8 @@ function renderChats(){
     <div class="list-item" onclick="curPeer=${JSON.stringify(p).replace(/"/g,'&quot;')};${seg==='ended'?'':'openChat(false)'}">
       <div class="av" style="background:${p.c};font-size:22px">${p.av}</div>
       <div style="flex:1;min-width:0">
-        <div class="row" style="gap:6px"><b>${p.name}</b>${seg==='active'?'<span class="badge live exp-badge" data-exp="'+(p.expiresAt||0)+'">⏳ '+(p.expiresAt&&p.expiresAt<=Date.now()?'만료':remainStr(p.expiresAt||Date.now()))+'</span>':''}${seg==='ended'?'<span class="badge">종료</span>':''}</div>
-        <div class="dim" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${p.last||''}</div>
+        <div class="row" style="gap:6px"><b>${p.name}</b>${seg!=='ended'&&!notifyOn(p.name)?'<span style="opacity:.6">🔕</span>':''}${seg==='active'?'<span class="badge live exp-badge" data-exp="'+(p.expiresAt||0)+'">⏳ '+(p.expiresAt&&p.expiresAt<=Date.now()?'만료':remainStr(p.expiresAt||Date.now()))+'</span>':''}${seg==='ended'?'<span class="badge">종료</span>':''}</div>
+        <div class="dim" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${seg==='ended'||previewOn(p.name)?(p.last||''):'🔕 미리보기 꺼짐'}</div>
       </div>
       ${seg==='ended'?`<button class="iconbtn" onclick="event.stopPropagation();store.ended.splice(${idx},1);renderChats();toast('기록을 삭제했어요')">🗑</button>`:`<span class="dim">${p.time||''}</span>`}
     </div>`});
@@ -741,6 +741,7 @@ function renderNotif(){
   }).join('');
 }
 function toggleNotif(k){ const n=loadNotif(); if(k!=='all'&&!n.all){toast('전체 알림이 꺼져 있어요');return;} n[k]=!n[k]; saveNotif(n); renderNotif(); }
+// 알림 화면을 벗어날 때 대화 목록에 반영 (뒤로가기 버튼에서 호출)
 
 const ROOM_KEY='veil_roomnotif_v1';
 function loadRoomNotif(){ try{return JSON.parse(localStorage.getItem(ROOM_KEY))||{};}catch(e){return {};} }
@@ -755,7 +756,10 @@ function renderRoomNotif(){
       <div><b>${r.t}</b><div class="dim" style="font-size:12px">${r.d}</div></div>
       <div class="switch ${s[r.k]?'on':''}" onclick="toggleRoomNotif('${r.k}')"></div></div>`).join('');
 }
-function toggleRoomNotif(k){ const m=loadRoomNotif(); const s=roomSettings(curPeer.name); s[k]=!s[k]; m[curPeer.name]=s; saveRoomNotif(m); renderRoomNotif(); }
+function toggleRoomNotif(k){ const m=loadRoomNotif(); const s=roomSettings(curPeer.name); s[k]=!s[k]; m[curPeer.name]=s; saveRoomNotif(m); renderRoomNotif(); if(document.getElementById('page-chats').style.display!=='none')renderChats(); }
+// 전역 + 방별 설정을 합쳐 실제 적용 여부 계산
+function previewOn(name){ const n=loadNotif(), r=roomSettings(name); return n.all&&n.preview&&r.preview; }
+function notifyOn(name){ const n=loadNotif(), r=roomSettings(name); return n.all&&n.chat&&r.notify; }
 
 /* 시작 시: 이미 가입/온보딩 했으면 메인으로, 아니면 시작화면 */
 (function boot(){
