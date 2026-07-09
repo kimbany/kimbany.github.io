@@ -765,7 +765,8 @@ function renderSettings(){
       </div>
       ${['👤 내 정보 (닉네임·관심사·아바타)','🔔 알림 설정','🤝 친구 관리','🚫 차단 목록','💎 프리미엄 구독','📄 약관·개인정보'].map(t=>
         `<div class="list-item" onclick="${t.includes('내 정보')?'openEdit()':t.includes('알림')?'openNotif()':t.includes('친구 관리')?'openFriends()':t.includes('차단')?`openFriends('blocks')`:`toast('${t.slice(2)} (프로토타입)')`}">${t}<span style="margin-left:auto" class="dim">›</span></div>`).join('')}
-      <div class="list-item" onclick="if(confirm('로그아웃하면 저장된 프로필이 지워지고 처음부터 다시 설정해요. 계속할까요?'))logout()">🚪 로그아웃 (프로필 초기화)<span style="margin-left:auto" class="dim">›</span></div>
+      <div class="list-item" onclick="if(confirm('로그아웃할까요?\n프로필·대화는 그대로 유지되고, 다시 로그인하면 복원됩니다.'))logout()">🚪 로그아웃<span style="margin-left:auto" class="dim">›</span></div>
+      <div class="list-item" style="color:var(--bad)" onclick="if(confirm('회원 탈퇴하면 프로필·대화·친구·차단 등 모든 정보가 영구 삭제되며 되돌릴 수 없습니다.\n정말 탈퇴할까요?'))withdraw()">❌ 회원 탈퇴 <span class="dim" style="color:var(--bad);opacity:.7">· 모든 정보 삭제</span><span style="margin-left:auto" class="dim">›</span></div>
     </div>`;
 }
 window._cseg='active';
@@ -799,9 +800,13 @@ function applyProfile(pr){
   const st=document.getElementById('status'); if(st&&pr.status)st.value=pr.status;
   const bg=document.getElementById('bigav'); if(bg){bg.textContent=pr.avatar||'🦊'; if(pr.avatarBg)bg.style.background=pr.avatarBg;}
 }
-function completeOnboarding(){ if(!profile.uid)profile.uid=genUid(); saveProfile(); seed(); go('main'); tab('match'); toast('프로필이 저장됐어요 🎉'); }
-function loginDemo(){ if(!profile.uid)profile.uid=genUid(); if(!loadProfile())saveProfile(); seed(); go('main'); tab('match'); }
-function logout(){ try{['veil_profile_v1','veil_chats_v1','veil_store_v1','veil_lock_until','veil_notif_v1','veil_roomnotif_v1','veil_blocks_v1'].forEach(k=>localStorage.removeItem(k));}catch(e){}; location.reload(); }
+function completeOnboarding(){ try{localStorage.removeItem(SESSION_KEY);}catch(e){} if(!profile.uid)profile.uid=genUid(); saveProfile(); seed(); go('main'); tab('match'); toast('프로필이 저장됐어요 🎉'); }
+function loginDemo(){ try{localStorage.removeItem(SESSION_KEY);}catch(e){} const pr=loadProfile(); if(pr){ applyProfile(pr); } else { if(!profile.uid)profile.uid=genUid(); saveProfile(); } seed(); go('main'); tab('match'); toast('로그인됐어요'); }
+const SESSION_KEY='veil_loggedout';
+// 로그아웃: 데이터는 유지, 로그인 화면으로 (다시 로그인하면 복원)
+function logout(){ try{localStorage.setItem(SESSION_KEY,'1');}catch(e){} location.reload(); }
+// 회원 탈퇴: 모든 정보 영구 삭제
+function withdraw(){ try{['veil_profile_v1','veil_chats_v1','veil_store_v1','veil_lock_until','veil_notif_v1','veil_roomnotif_v1','veil_blocks_v1',SESSION_KEY].forEach(k=>localStorage.removeItem(k));}catch(e){} location.reload(); }
 
 /* ---------- 알림 설정 (전역 + 채팅방별) ---------- */
 const NOTIF_KEY='veil_notif_v1';
@@ -855,9 +860,9 @@ function notifyOn(name){ const n=loadNotif(), r=roomSettings(name); return n.all
 
 /* 시작 시: 이미 가입/온보딩 했으면 메인으로, 아니면 시작화면 */
 (function boot(){
-  const pr=loadProfile();
-  if(pr){ applyProfile(pr); seed(); go('main'); tab('match'); }
-  else { go('s-start'); }
+  const pr=loadProfile(), loggedOut=localStorage.getItem(SESSION_KEY);
+  if(pr && !loggedOut){ applyProfile(pr); seed(); go('main'); tab('match'); }   // 로그인 유지
+  else { go('s-start'); }                                                        // 로그아웃 상태거나 신규
 })();
 // 대화 목록의 남은시간 뱃지 실시간 갱신
 setInterval(()=>{ document.querySelectorAll('.exp-badge').forEach(b=>{ const e=+b.dataset.exp; if(!e)return; b.textContent=(e<=Date.now())?'⏳ 만료':'⏳ '+remainStr(e); }); }, 1000);
