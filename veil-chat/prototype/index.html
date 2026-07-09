@@ -22,6 +22,10 @@
     overflow:hidden;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,.6)}
   button{font-family:inherit;cursor:pointer;border:none;color:inherit}
   input,textarea{font-family:inherit;font-size:16px}
+  /* 아이콘·텍스트 위 글자(I-beam) 커서 방지 */
+  #app{user-select:none;-webkit-user-select:none;cursor:default}
+  input,textarea{user-select:text;-webkit-user-select:text;cursor:text}
+  .tab,.seg div,.list-item,.opt,.chip,.iconbtn,.send,.btn{cursor:pointer}
   .screen{position:absolute;inset:0;flex-direction:column;background:var(--bg);animation:fade .25s}
   .screen:not(.active){display:none!important}
   .screen.active{display:flex}
@@ -287,6 +291,26 @@
     <div class="pad"><button class="btn" onclick="seedEnded();tab('chats');go('main');toast('평가가 제출되었어요')">제출</button></div>
   </section>
 
+  <!-- ===== 내 정보 수정 ===== -->
+  <section id="s-edit" class="screen">
+    <div class="topbar"><button class="iconbtn" onclick="tab('settings');go('main')">‹</button><span class="ttl">내 정보 수정</span></div>
+    <div class="grow pad">
+      <div class="center">
+        <div id="edit-bigav" class="av" style="width:100px;height:100px;border-radius:30px;font-size:54px;background:#7c6cff;margin:4px 0 10px">🦊</div>
+      </div>
+      <div class="label">아바타</div><div id="edit-avatars" style="text-align:center"></div>
+      <div class="label">배경 색상</div><div id="edit-colors"></div>
+      <div class="label">닉네임</div>
+      <input id="edit-nick" class="field" placeholder="2~10자" oninput="editNickCheck()">
+      <p id="edit-nickMsg" class="dim" style="min-height:18px"></p>
+      <div class="label">상태메시지</div>
+      <input id="edit-status" class="field" placeholder="자유롭게 적어보세요">
+      <div class="label">관심사 <span class="dim" style="font-weight:400">· 최소 3개</span></div>
+      <div id="edit-interests"></div>
+    </div>
+    <div class="pad"><button id="editSaveBtn" class="btn" onclick="saveEdit()">저장</button></div>
+  </section>
+
   <!-- ===== 신고 ===== -->
   <section id="s-report" class="screen">
     <div class="topbar"><button class="iconbtn" onclick="go('s-chat')">‹</button><span class="ttl">신고하기</span></div>
@@ -398,6 +422,49 @@ function chipGroup(id,opts,key,multi){
     };
     box.appendChild(b);
   });
+}
+
+/* ---------- 설정 > 내 정보 수정 ---------- */
+let editSel=new Set();
+function openEdit(){
+  const pr=loadProfile()||{};
+  const bg=document.getElementById('edit-bigav');
+  bg.textContent=pr.avatar||(document.getElementById('bigav')||{}).textContent||'🦊';
+  bg.style.background=pr.avatarBg||'#7c6cff';
+  document.getElementById('edit-nick').value=pr.nick||'';
+  document.getElementById('edit-status').value=pr.status||'';
+  document.getElementById('edit-nickMsg').textContent='';
+  const av=document.getElementById('edit-avatars'); av.innerHTML='';
+  AV.forEach(x=>{const b=document.createElement('button');b.className='chip';b.style.fontSize='22px';b.textContent=x;b.onclick=()=>bg.textContent=x;av.appendChild(b);});
+  const co=document.getElementById('edit-colors'); co.innerHTML='';
+  COLORS.forEach(x=>{const b=document.createElement('button');b.className='chip';b.style.background=x;b.style.width='38px';b.style.height='38px';b.style.padding='0';b.onclick=()=>bg.style.background=x;co.appendChild(b);});
+  editSel=new Set(pr.interests&&pr.interests.length?pr.interests:[...selInterests]);
+  const ic=document.getElementById('edit-interests'); ic.innerHTML='';
+  INTERESTS.forEach(x=>{const b=document.createElement('button');b.className='chip'+(editSel.has(x)?' on':'');b.textContent=x;
+    b.onclick=()=>{b.classList.toggle('on');b.classList.contains('on')?editSel.add(x):editSel.delete(x);editGate();};ic.appendChild(b);});
+  editGate();
+  go('s-edit');
+}
+function editGate(){document.getElementById('editSaveBtn').disabled=editSel.size<3;}
+function editNickCheck(){
+  const v=document.getElementById('edit-nick').value, m=document.getElementById('edit-nickMsg'), bad=['바보','시발','광고'];
+  if(v.length<2){m.style.color='var(--bad)';m.textContent='2자 이상 입력해주세요';}
+  else if(bad.some(b=>v.includes(b))){m.style.color='var(--bad)';m.textContent='사용할 수 없는 단어가 포함돼 있어요';}
+  else if(v==='admin'){m.style.color='var(--bad)';m.textContent='이미 사용 중인 닉네임이에요';}
+  else{m.style.color='var(--good)';m.textContent='✓ 사용 가능한 닉네임이에요';}
+}
+function saveEdit(){
+  const nick=document.getElementById('edit-nick').value.trim();
+  if(nick.length<2||['바보','시발','광고'].some(b=>nick.includes(b))||nick==='admin'){toast('닉네임을 확인해주세요');return;}
+  if(editSel.size<3){toast('관심사는 최소 3개예요');return;}
+  const bg=document.getElementById('edit-bigav');
+  document.getElementById('nick').value=nick;
+  document.getElementById('status').value=document.getElementById('edit-status').value;
+  const big=document.getElementById('bigav'); if(big){big.textContent=bg.textContent; big.style.background=bg.style.background;}
+  selInterests=new Set(editSel);
+  saveProfile();
+  toast('저장됐어요 ✓');
+  tab('settings'); go('main');
 }
 
 /* ---------- 매칭 ---------- */
@@ -550,7 +617,7 @@ function renderSettings(){
         <span class="badge" style="margin-top:4px;display:inline-block">패널티 0 / 5</span></div>
       </div>
       ${['👤 내 정보 (닉네임·관심사·아바타)','🔔 알림 설정','🤝 친구 관리','🚫 차단 목록','💎 프리미엄 구독','📄 약관·개인정보'].map(t=>
-        `<div class="list-item" onclick="toast('${t.slice(2)} (프로토타입)')">${t}<span style="margin-left:auto" class="dim">›</span></div>`).join('')}
+        `<div class="list-item" onclick="${t.includes('내 정보')?'openEdit()':`toast('${t.slice(2)} (프로토타입)')`}">${t}<span style="margin-left:auto" class="dim">›</span></div>`).join('')}
       <div class="list-item" onclick="if(confirm('로그아웃하면 저장된 프로필이 지워지고 처음부터 다시 설정해요. 계속할까요?'))logout()">🚪 로그아웃 (프로필 초기화)<span style="margin-left:auto" class="dim">›</span></div>
     </div>`;
 }
