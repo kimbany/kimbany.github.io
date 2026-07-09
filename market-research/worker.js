@@ -48,6 +48,8 @@ export default {
         result = await proxySearch(url, env);
       } else if (path === "/datalab" && request.method === "POST") {
         result = await proxyDatalab("/datalab/shopping/category/keywords", request, env);
+      } else if (path === "/datalab-search" && request.method === "POST") {
+        result = await proxyDatalab("/datalab/search", request, env); // 검색어트렌드(카테고리 불필요)
       } else if (path === "/datalab-age" && request.method === "POST") {
         result = await proxyDatalab("/datalab/shopping/category/keyword/age", request, env);
       } else if (path === "/datalab-gender" && request.method === "POST") {
