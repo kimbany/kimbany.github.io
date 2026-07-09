@@ -155,10 +155,8 @@
   <section id="tab-trend" class="hidden fade space-y-4">
     <div class="panel rounded-xl p-4">
       <div class="flex items-center justify-between mb-3 flex-wrap gap-2">
-        <div id="trendTitle" class="text-[13px] font-semibold text-[var(--muted)]">키워드 관심도 추이 (최근 12개월, 상대지수)</div>
+        <div id="trendTitle" class="text-[13px] font-semibold text-[var(--muted)]">키워드 관심도 추이 (최근 12개월)</div>
         <div class="flex items-center gap-2 flex-wrap">
-          <!-- 데이터랩 카테고리 선택 (P1: 반려동물 세부 카테고리 코드 매핑) -->
-          <select id="catSel" class="rounded-lg px-2 py-1.5 text-xs" title="데이터랩 카테고리"></select>
           <input id="trendKw" placeholder="비교 키워드 쉼표로 (예: 지위픽,아첨)"
                  class="rounded-lg px-3 py-1.5 text-xs w-64" />
         </div>
@@ -170,8 +168,8 @@
       <!-- 키워드 비교표 (여러 키워드 입력 시 최근값/평균/최고 비교) -->
       <div id="trendCompare" class="mt-4"></div>
       <p class="text-[11px] text-[var(--muted)] mt-3">
-        ※ 위 그래프는 데이터랩 <b>상대지수</b>(기간 내 최댓값 100 기준, 관심도 추이)입니다.
-        아래 표의 <b>월간검색량</b>은 검색광고 API의 실제 검색수입니다.
+        ※ 그래프는 네이버 <b>검색어 트렌드</b>(전체 검색 기준, 카테고리 무관)를 실제 월검색량으로 환산한 <b>추정 검색량</b>입니다.
+        키워드만 넣으면 어떤 상품이든 계절성 추이가 나옵니다.
       </p>
     </div>
 
@@ -186,18 +184,25 @@
   </section>
 
   <!-- ===== 연령·성별·기기 탭 ===== -->
-  <section id="tab-demo" class="hidden fade grid md:grid-cols-3 gap-4">
-    <div class="panel rounded-xl p-4">
-      <div class="text-[13px] font-semibold mb-3 text-[var(--muted)]">연령대</div>
-      <div class="relative" style="height:200px"><canvas id="ageChart"></canvas></div>
+  <section id="tab-demo" class="hidden fade space-y-4">
+    <div class="flex items-center gap-2 text-xs flex-wrap">
+      <span class="text-[var(--muted)]">쇼핑 카테고리</span>
+      <select id="catSel" class="rounded-lg px-2 py-1.5 text-xs" title="인구통계 집계 카테고리"></select>
+      <span class="text-[11px] text-[var(--muted)]">※ 인구통계(연령·성별·기기)는 쇼핑 카테고리 기준으로 집계됩니다.</span>
     </div>
-    <div class="panel rounded-xl p-4">
-      <div class="text-[13px] font-semibold mb-3 text-[var(--muted)]">성별</div>
-      <div class="relative" style="height:200px"><canvas id="genderChart"></canvas></div>
-    </div>
-    <div class="panel rounded-xl p-4">
-      <div class="text-[13px] font-semibold mb-3 text-[var(--muted)]">기기 (PC vs 모바일)</div>
-      <div class="relative" style="height:200px"><canvas id="deviceChart"></canvas></div>
+    <div class="grid md:grid-cols-3 gap-4">
+      <div class="panel rounded-xl p-4">
+        <div class="text-[13px] font-semibold mb-3 text-[var(--muted)]">연령대</div>
+        <div class="relative" style="height:200px"><canvas id="ageChart"></canvas></div>
+      </div>
+      <div class="panel rounded-xl p-4">
+        <div class="text-[13px] font-semibold mb-3 text-[var(--muted)]">성별</div>
+        <div class="relative" style="height:200px"><canvas id="genderChart"></canvas></div>
+      </div>
+      <div class="panel rounded-xl p-4">
+        <div class="text-[13px] font-semibold mb-3 text-[var(--muted)]">기기 (PC vs 모바일)</div>
+        <div class="relative" style="height:200px"><canvas id="deviceChart"></canvas></div>
+      </div>
     </div>
   </section>
 
@@ -288,9 +293,8 @@ function initCatSelect() {
       return `<optgroup label="${g}">${opts}</optgroup>`;
     }).join("");
   $("#catSel").innerHTML = html;
-  // 카테고리 바꾸면 트렌드 다시 로드
-  $("#catSel").onchange = () =>
-    loadTrend($("#trendKw").value.split(",").map(s=>s.trim()).filter(Boolean));
+  // 카테고리 바꾸면 인구통계(연령·성별·기기) 다시 로드
+  $("#catSel").onchange = () => { if (state.keyword) loadDemo(state.keyword); };
 }
 function loadCfg() {
   const p = localStorage.getItem(KEY_PROXY) || "";
@@ -628,14 +632,23 @@ async function fetchCoupangStats(kws) {
 }
 $("#trendKw").onchange = () => loadTrend($("#trendKw").value.split(",").map(s=>s.trim()).filter(Boolean));
 
-// 데이터랩 상대추이 (실패/미설정 시 데모)
+// 검색어 트렌드 (카테고리 불필요 → 아무 키워드나 실제 계절성 곡선). 실패/미설정 시 데모
 async function fetchTrend(kws) {
   try {
-    const d = await api("/datalab", { method:"POST", headers:{"Content-Type":"application/json"},
-      body: JSON.stringify(datalabBody(kws)) });
-    if (d) return d;
+    const d = await api("/datalab-search", { method:"POST", headers:{"Content-Type":"application/json"},
+      body: JSON.stringify(searchTrendBody(kws)) });
+    if (d && d.results) return d;
   } catch(e){}
   return demoTrend(kws);
+}
+// 검색어트렌드 요청 바디 (쇼핑 카테고리 없음)
+function searchTrendBody(kws) {
+  const end = new Date(), start = new Date(); start.setMonth(start.getMonth()-12);
+  const iso = d => d.toISOString().slice(0,10);
+  return {
+    startDate: iso(start), endDate: iso(end), timeUnit: "month",
+    keywordGroups: kws.map(k => ({ groupName: k, keywords: [k] })),
+  };
 }
 
 // 검색광고 키워드도구: 연관키워드 + 실제 월간검색량 (실패/미설정 시 데모)
@@ -711,7 +724,7 @@ function drawTrend(data, kwData) {
       pointBackgroundColor:C[i%C.length], pointBorderColor:"#0d1117", pointBorderWidth:1.5,
     };
   });
-  const labels = results[0]?.data.map(d=>d.period.slice(2)) || [];
+  const labels = results[0]?.data.map(d=>d.period.slice(2,7)) || []; // "2025-07-01"→"25-07"
   chart("trendChart", {
     type:"line",
     data:{ labels, datasets:ds },
