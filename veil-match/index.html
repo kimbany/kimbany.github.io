@@ -170,7 +170,8 @@
       <p class="dim">비슷하거나 다른 성향의 사람을 매칭할 때 참고돼요.</p>
       <div class="label">성별</div><div id="c-gender"></div>
       <div class="label">MBTI</div><div id="c-mbti"></div>
-      <div class="label">연락 스타일</div><div id="c-contact"></div>
+      <div class="label">연락 스타일 1 <span class="dim" style="font-weight:400">· 답장 속도</span></div><div id="c-contact1"></div>
+      <div class="label">연락 스타일 2 <span class="dim" style="font-weight:400">· 읽음 습관</span></div><div id="c-contact2"></div>
     </div>
     <div class="pad"><button class="btn" onclick="go('s-lifestyle')">다음</button></div>
   </section>
@@ -314,9 +315,10 @@ const AV=['🦊','🐰','🐼','🐯','🐸','🦉','🐙','🦄','🐧','🐨']
 const COLORS=['#7c6cff','#b06cff','#ff6c9d','#ff9f6c','#36d399','#3ba9ff','#fbbd23','#8a8f9c'];
 const INTERESTS=['게임','영화','음악','여행','운동','독서','반려동물','요리','IT','투자','자동차','애니메이션','패션','사진','기타'];
 const REASONS=['욕설','성희롱','광고','사기','혐오 발언','스팸','기타'];
-const GENDERS=['남성','여성','기타','비공개'];
+const GENDERS=['남성','여성','비공개'];
 const MBTIS=['INTJ','INTP','ENTJ','ENTP','INFJ','INFP','ENFJ','ENFP','ISTJ','ISFJ','ESTJ','ESFJ','ISTP','ISFP','ESTP','ESFP','모름'];
-const CONTACTS=['답이 빠른 편','답이 느린 편','읽씹 스타일','안읽씹 스타일'];
+const CONTACT1=['답이 빠른 편','답이 느린 편'];
+const CONTACT2=['읽씹 스타일','안읽씹 스타일'];
 const DRINKS=['안 마셔요','가끔','자주'];
 const SMOKES=['비흡연','가끔','흡연'];
 const EXERCISES=['거의 안 함','가끔','주 3회 이상'];
@@ -331,7 +333,7 @@ const TIER_INFO={
   2:{label:'기준 2 · 근접 매칭', desc:'관심사가 다수 겹침'},
   3:{label:'기준 3 · 폭넓은 매칭', desc:'일부만 겹치는 상대'}
 };
-const profile={gender:'',mbti:'',contact:'',drink:'',smoke:'',exercise:'',pets:new Set()};
+const profile={gender:'',mbti:'',contact1:'',contact2:'',drink:'',smoke:'',exercise:'',pets:new Set()};
 let picked={fun:0,manner:0}, selInterests=new Set(), curPeer=PEERS[0], countdown=null, clockT=null, extLeft=3;
 
 /* ---------- 네비 ---------- */
@@ -378,7 +380,8 @@ function buildOnboarding(){
   // 추가 프로필 항목
   chipGroup('c-gender',GENDERS,'gender');
   chipGroup('c-mbti',MBTIS,'mbti');
-  chipGroup('c-contact',CONTACTS,'contact');
+  chipGroup('c-contact1',CONTACT1,'contact1');
+  chipGroup('c-contact2',CONTACT2,'contact2');
   chipGroup('c-drink',DRINKS,'drink');
   chipGroup('c-smoke',SMOKES,'smoke');
   chipGroup('c-exercise',EXERCISES,'exercise');
