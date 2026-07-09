@@ -96,6 +96,10 @@
     border-radius:999px;font-size:13px;opacity:0;transition:.3s;z-index:99;white-space:nowrap}
   .toast.on{opacity:.94}
   .list-item{display:flex;align-items:center;gap:12px;padding:13px 16px;border-bottom:1px solid var(--border)}
+  .switch{width:48px;height:28px;border-radius:999px;background:var(--surface2);border:1px solid var(--border);position:relative;transition:.2s;flex:0 0 auto}
+  .switch::after{content:'';position:absolute;top:2px;left:2px;width:22px;height:22px;border-radius:50%;background:#fff;transition:.2s}
+  .switch.on{background:var(--accent);border-color:transparent}
+  .switch.on::after{left:calc(100% - 24px)}
   .demo-note{position:absolute;top:max(8px,env(safe-area-inset-top));right:10px;z-index:60;background:rgba(0,0,0,.5);
     color:#fff;font-size:10px;padding:4px 9px;border-radius:999px;backdrop-filter:blur(4px)}
 </style>
@@ -245,9 +249,18 @@
     <div class="sheet">
       <h2>채팅방</h2>
       <div class="opt" onclick="closeAll();open('sheetExtend')">⏳ 연장/종료 미리보기</div>
-      <div class="opt" onclick="closeAll();toast('🔔 알림 설정 (프로토타입)')">🔔 알림 · 미리보기 설정</div>
+      <div class="opt" onclick="openRoomNotif()">🔔 알림 · 미리보기 설정</div>
       <div class="opt bad" onclick="closeAll();open('sheetLeave')">🚪 나가기</div>
       <button class="btn ghost" style="margin-top:14px" onclick="closeAll()">닫기</button>
+    </div>
+  </div>
+
+  <!-- ===== 시트: 채팅방 알림 설정 ===== -->
+  <div id="sheetRoomNotif" class="ovl" onclick="closeOvl(event)">
+    <div class="sheet">
+      <h2>이 대화방 알림</h2>
+      <div id="roomnotif-rows"></div>
+      <button class="btn ghost" style="margin-top:12px" onclick="closeAll()">닫기</button>
     </div>
   </div>
 
@@ -319,6 +332,15 @@
     <div class="pad">
       <p class="dim" style="text-align:center;font-size:12px;color:var(--warn);margin:0 0 4px">⚠️ 저장하면 프로필(닉네임·관심사 등)은 7일 후에 다시 변경할 수 있어요. 신중하게 확인해주세요.</p>
       <button id="editSaveBtn" class="btn" onclick="saveEdit()">저장</button>
+    </div>
+  </section>
+
+  <!-- ===== 알림 설정 (전역) ===== -->
+  <section id="s-notif" class="screen">
+    <div class="topbar"><button class="iconbtn" onclick="tab('settings');go('main')">‹</button><span class="ttl">알림 설정</span></div>
+    <div class="grow pad">
+      <div id="notif-rows"></div>
+      <p class="dim" style="font-size:12px;margin-top:14px">전체 알림을 끄면 채팅 알림·미리보기도 함께 꺼집니다. 각 채팅방에서 따로 끌 수도 있어요.</p>
     </div>
   </section>
 
@@ -661,7 +683,7 @@ function renderSettings(){
         <span class="badge" style="margin-top:4px;display:inline-block">패널티 0 / 5</span></div>
       </div>
       ${['👤 내 정보 (닉네임·관심사·아바타)','🔔 알림 설정','🤝 친구 관리','🚫 차단 목록','💎 프리미엄 구독','📄 약관·개인정보'].map(t=>
-        `<div class="list-item" onclick="${t.includes('내 정보')?'openEdit()':`toast('${t.slice(2)} (프로토타입)')`}">${t}<span style="margin-left:auto" class="dim">›</span></div>`).join('')}
+        `<div class="list-item" onclick="${t.includes('내 정보')?'openEdit()':t.includes('알림')?'openNotif()':`toast('${t.slice(2)} (프로토타입)')`}">${t}<span style="margin-left:auto" class="dim">›</span></div>`).join('')}
       <div class="list-item" onclick="if(confirm('로그아웃하면 저장된 프로필이 지워지고 처음부터 다시 설정해요. 계속할까요?'))logout()">🚪 로그아웃 (프로필 초기화)<span style="margin-left:auto" class="dim">›</span></div>
     </div>`;
 }
@@ -696,7 +718,44 @@ function applyProfile(pr){
 }
 function completeOnboarding(){ saveProfile(); seed(); go('main'); tab('match'); toast('프로필이 저장됐어요 🎉'); }
 function loginDemo(){ if(!loadProfile())saveProfile(); seed(); go('main'); tab('match'); }
-function logout(){ try{localStorage.removeItem(LS_KEY);localStorage.removeItem(CHAT_KEY);localStorage.removeItem(STORE_KEY);localStorage.removeItem(LOCK_KEY);}catch(e){}; location.reload(); }
+function logout(){ try{['veil_profile_v1','veil_chats_v1','veil_store_v1','veil_lock_until','veil_notif_v1','veil_roomnotif_v1'].forEach(k=>localStorage.removeItem(k));}catch(e){}; location.reload(); }
+
+/* ---------- 알림 설정 (전역 + 채팅방별) ---------- */
+const NOTIF_KEY='veil_notif_v1';
+function loadNotif(){ try{return Object.assign({all:true,chat:true,preview:true},JSON.parse(localStorage.getItem(NOTIF_KEY))||{});}catch(e){return {all:true,chat:true,preview:true};} }
+function saveNotif(n){ try{localStorage.setItem(NOTIF_KEY,JSON.stringify(n));}catch(e){} }
+function openNotif(){ renderNotif(); go('s-notif'); }
+function renderNotif(){
+  const n=loadNotif();
+  const rows=[
+    {k:'all',t:'전체 알림',d:'모든 알림의 마스터 스위치'},
+    {k:'chat',t:'채팅 알림',d:'새 메시지가 오면 알림'},
+    {k:'preview',t:'대화 미리보기',d:'알림에 메시지 내용 표시'}
+  ];
+  document.getElementById('notif-rows').innerHTML=rows.map(r=>{
+    const disabled=r.k!=='all'&&!n.all;
+    const on = r.k==='all' ? n.all : (n.all&&n[r.k]);
+    return `<div class="card row" style="justify-content:space-between${disabled?';opacity:.45':''}">
+      <div><b>${r.t}</b><div class="dim" style="font-size:12px">${r.d}</div></div>
+      <div class="switch ${on?'on':''}" onclick="toggleNotif('${r.k}')"></div></div>`;
+  }).join('');
+}
+function toggleNotif(k){ const n=loadNotif(); if(k!=='all'&&!n.all){toast('전체 알림이 꺼져 있어요');return;} n[k]=!n[k]; saveNotif(n); renderNotif(); }
+
+const ROOM_KEY='veil_roomnotif_v1';
+function loadRoomNotif(){ try{return JSON.parse(localStorage.getItem(ROOM_KEY))||{};}catch(e){return {};} }
+function saveRoomNotif(m){ try{localStorage.setItem(ROOM_KEY,JSON.stringify(m));}catch(e){} }
+function roomSettings(name){ return Object.assign({notify:true,preview:true},(loadRoomNotif()[name])||{}); }
+function openRoomNotif(){ renderRoomNotif(); closeAll(); open('sheetRoomNotif'); }
+function renderRoomNotif(){
+  const s=roomSettings(curPeer.name);
+  const rows=[{k:'notify',t:'이 방 알림',d:'끄면 이 대화만 음소거'},{k:'preview',t:'미리보기',d:'이 방 메시지 내용 표시'}];
+  document.getElementById('roomnotif-rows').innerHTML=rows.map(r=>`
+    <div class="card row" style="justify-content:space-between">
+      <div><b>${r.t}</b><div class="dim" style="font-size:12px">${r.d}</div></div>
+      <div class="switch ${s[r.k]?'on':''}" onclick="toggleRoomNotif('${r.k}')"></div></div>`).join('');
+}
+function toggleRoomNotif(k){ const m=loadRoomNotif(); const s=roomSettings(curPeer.name); s[k]=!s[k]; m[curPeer.name]=s; saveRoomNotif(m); renderRoomNotif(); }
 
 /* 시작 시: 이미 가입/온보딩 했으면 메인으로, 아니면 시작화면 */
 (function boot(){
