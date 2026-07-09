@@ -155,7 +155,7 @@
   <section id="tab-trend" class="hidden fade space-y-4">
     <div class="panel rounded-xl p-4">
       <div class="flex items-center justify-between mb-3 flex-wrap gap-2">
-        <div class="text-[13px] font-semibold text-[var(--muted)]">키워드 관심도 추이 (최근 12개월, 상대지수)</div>
+        <div id="trendTitle" class="text-[13px] font-semibold text-[var(--muted)]">키워드 관심도 추이 (최근 12개월, 상대지수)</div>
         <div class="flex items-center gap-2 flex-wrap">
           <!-- 데이터랩 카테고리 선택 (P1: 반려동물 세부 카테고리 코드 매핑) -->
           <select id="catSel" class="rounded-lg px-2 py-1.5 text-xs" title="데이터랩 카테고리"></select>
@@ -600,10 +600,31 @@ $("#csvBtn").onclick = downloadCSV;
 // ---- 트렌드 ----
 async function loadTrend(kws) {
   $("#trendKw").value = kws.join(",");
-  // 데이터랩(상대추이) + 검색광고(실검색량·연관키워드) 병렬 조회
-  const [trend, kwData] = await Promise.all([ fetchTrend(kws), fetchKeywordVolumes(kws) ]);
-  drawTrend(trend, kwData);
+  // 데이터랩(상대추이) + 검색광고(네이버 실검색량) + 쿠팡(가격) 병렬 조회
+  const [trend, kwData, cpStats] = await Promise.all([
+    fetchTrend(kws), fetchKeywordVolumes(kws), fetchCoupangStats(kws)
+  ]);
+  drawTrend(trend, kwData);                              // 그래프: 월별 추정 검색량
+  renderTrendCompare(trend.results, kwData.volumes, cpStats); // 비교표: 네이버 검색량 + 쿠팡 가격
   renderRelated(kwData.related);
+}
+
+// 키워드별 쿠팡 가격 통계 {정규화kw:{count,min,avg}} (실패/미설정 시 데모)
+async function fetchCoupangStats(kws) {
+  const out = {};
+  await Promise.all(kws.map(async (kw) => {
+    let items = null;
+    try {
+      const d = await api(`/coupang?keyword=${encodeURIComponent(kw)}&limit=40`);
+      items = parseCoupang(d);
+    } catch(e){}
+    if (!items) items = demoCoupang(kw).items;
+    const prices = (items||[]).map(i=>+i.lprice).filter(Boolean);
+    out[normKw(kw)] = prices.length
+      ? { count: items.length, min: Math.min(...prices), avg: Math.round(prices.reduce((a,b)=>a+b,0)/prices.length) }
+      : { count: 0, min: null, avg: null };
+  }));
+  return out;
 }
 $("#trendKw").onchange = () => loadTrend($("#trendKw").value.split(",").map(s=>s.trim()).filter(Boolean));
 
@@ -671,36 +692,56 @@ const TREND_COLORS = ["#2dd4a7","#f0883e","#a371f7","#58a6ff","#e3b341","#db61a2
 function drawTrend(data, kwData) {
   const results = data.results || [];
   const C = TREND_COLORS;
-  const ds = results.map((r,i)=>({
-    label:r.title, data:r.data.map(d=>d.ratio),
-    borderColor:C[i%C.length], backgroundColor:"transparent",
-    tension:0.35, borderWidth:2,
-    pointRadius:3, pointHoverRadius:6,                 // 점을 항상 보이게 → 어디 올릴지 명확
-    pointBackgroundColor:C[i%C.length], pointBorderColor:"#0d1117", pointBorderWidth:1.5,
-  }));
+  const vols = (kwData && kwData.volumes) || {};
+  // 모든 키워드에 실검색량이 있으면 → "월별 추정 검색량"(절대수치) 모드, 아니면 상대지수
+  const absMode = results.length > 0 && results.every(r => vols[normKw(r.title)]);
+  const ds = results.map((r,i)=>{
+    let series = r.data.map(d=>+d.ratio);
+    if (absMode) {
+      // 데이터랩 12개월 곡선 × (실월간검색량 / 최근달 지수) = 월별 추정 검색량
+      const v = vols[normKw(r.title)];
+      const lastR = series[series.length-1] || 0;
+      const scale = lastR > 0 ? v.total / lastR : 0;
+      series = series.map(x => Math.round(x * scale));
+    }
+    return {
+      label:r.title, data:series,
+      borderColor:C[i%C.length], backgroundColor:"transparent",
+      tension:0.35, borderWidth:2, pointRadius:3, pointHoverRadius:6,
+      pointBackgroundColor:C[i%C.length], pointBorderColor:"#0d1117", pointBorderWidth:1.5,
+    };
+  });
   const labels = results[0]?.data.map(d=>d.period.slice(2)) || [];
   chart("trendChart", {
     type:"line",
     data:{ labels, datasets:ds },
     options:{
       responsive:true, maintainAspectRatio:false,
-      interaction:{ mode:"index", intersect:false }, // 세로 아무 위치나 → 그 달 전체 키워드 툴팁
+      interaction:{ mode:"index", intersect:false },
       plugins:{
         legend:{ labels:{ color:"#8b949e", font:{size:11} } },
         tooltip:{
           backgroundColor:"#1c2129", borderColor:"#2a313c", borderWidth:1,
           titleColor:"#e6edf3", bodyColor:"#e6edf3", padding:10,
-          callbacks:{ title:(t)=> (t[0]?.label||"") + "월 · 상대지수" }
+          callbacks:{
+            title:(t)=> (t[0]?.label||"") + "월",
+            label:(c)=> `${c.dataset.label}: ${fmt(c.parsed.y)}${absMode?" 회(추정)":""}`,
+          }
         }
       },
       scales:{
         x:{ ticks:{color:"#8b949e",font:{size:10}}, grid:{display:false} },
-        y:{ ticks:{color:"#8b949e",font:{size:10}}, grid:{color:"#2a313c"}, beginAtZero:true, suggestedMax:100 },
+        y:{ ticks:{color:"#8b949e",font:{size:10}, callback:(v)=>fmt(v)}, grid:{color:"#2a313c"},
+            beginAtZero:true, suggestedMax: absMode ? undefined : 100 },
       },
     },
     plugins:[hoverLinePlugin],
   });
-  renderTrendCompare(results, kwData && kwData.volumes);
+  // 그래프 제목 업데이트
+  const h = document.getElementById("trendTitle");
+  if (h) h.textContent = absMode
+    ? "월별 추정 검색량 (최근 12개월, 네이버)"
+    : "키워드 관심도 추이 (최근 12개월, 상대지수)";
 }
 
 // 경쟁도 배지 (검색광고 compIdx: 낮음/중간/높음)
@@ -710,33 +751,28 @@ function compBadge(c) {
   return `<span class="text-[10px] px-1.5 py-0.5 rounded" style="background:var(--panel2);color:${color}">${c}</span>`;
 }
 
-// 키워드 비교표: 실제 월간검색량 + 12개월 평균(추정) 비교. volumes 없으면 "—".
-// 12개월 평균(추정) = 실월간검색량 × (12개월 상대지수 평균 / 최근달 상대지수). 데이터랩 곡선으로 스케일한 추정값.
-function renderTrendCompare(results, volumes) {
+// 키워드 비교표: 네이버 월간검색량(관심도) vs 쿠팡 가격(최저/평균). 값 없으면 "—".
+function renderTrendCompare(results, volumes, cpStats) {
   const box = $("#trendCompare");
   if (!results.length) { box.innerHTML = ""; return; }
   const C = TREND_COLORS;
   const rows = results.map((r,i)=>{
-    const vals = r.data.map(d=>+d.ratio);
-    const avgR = vals.reduce((a,b)=>a+b,0)/vals.length;
-    const lastR = vals[vals.length-1] || 0;
     const vol = volumes && volumes[normKw(r.title)];
-    const monthly = vol ? vol.total : null;
-    const est = (monthly!=null && lastR>0) ? Math.round(monthly * avgR / lastR) : null;
-    return { title:r.title, color:C[i%C.length], monthly, est, comp:vol?vol.comp:"",
-             metric: monthly!=null ? monthly : avgR };
-  }).sort((a,b)=> b.metric - a.metric);
-  const maxMetric = Math.max(...rows.map(r=>r.metric), 1);
-  const hasVol = rows.some(r=>r.monthly!=null);
+    const naver = vol ? vol.total : null;
+    const cp = cpStats && cpStats[normKw(r.title)];
+    return { title:r.title, color:C[i%C.length], naver,
+      cpMin: cp?cp.min:null, cpAvg: cp?cp.avg:null };
+  }).sort((a,b)=> (b.naver||0) - (a.naver||0));
+  const maxN = Math.max(...rows.map(r=>r.naver||0), 1);
   box.innerHTML = `
-    <div class="text-[13px] font-semibold mb-2 text-[var(--muted)]">키워드 비교 (월간검색량 순)</div>
+    <div class="text-[13px] font-semibold mb-2 text-[var(--muted)]">키워드 비교 · 네이버 검색량 vs 쿠팡 가격</div>
     <div class="overflow-x-auto"><table class="w-full text-xs">
       <thead class="text-[var(--muted)]"><tr class="text-left">
         <th class="py-1.5 pr-2 font-medium">키워드</th>
-        <th class="py-1.5 px-2 font-medium">검색량 비교</th>
-        <th class="py-1.5 px-2 font-medium text-right">월간검색량</th>
-        <th class="py-1.5 px-2 font-medium text-right">12개월 평균(추정)</th>
-        <th class="py-1.5 pl-2 font-medium">경쟁도</th>
+        <th class="py-1.5 px-2 font-medium">네이버 검색량 비교</th>
+        <th class="py-1.5 px-2 font-medium text-right">네이버 월검색량</th>
+        <th class="py-1.5 px-2 font-medium text-right">쿠팡 최저가</th>
+        <th class="py-1.5 pl-2 font-medium text-right">쿠팡 평균가</th>
       </tr></thead>
       <tbody>${rows.map(r=>`
         <tr class="border-t" style="border-color:var(--line)">
@@ -745,18 +781,18 @@ function renderTrendCompare(results, volumes) {
           </td>
           <td class="py-1.5 px-2" style="min-width:90px">
             <div class="rounded-full h-2" style="background:var(--panel2)">
-              <div class="h-2 rounded-full" style="width:${r.metric/maxMetric*100}%;background:${r.color}"></div>
+              <div class="h-2 rounded-full" style="width:${(r.naver||0)/maxN*100}%;background:${r.color}"></div>
             </div>
           </td>
-          <td class="py-1.5 px-2 text-right mono font-semibold">${r.monthly!=null?fmt(r.monthly):"—"}</td>
-          <td class="py-1.5 px-2 text-right mono text-[var(--muted)]">${r.est!=null?fmt(r.est):"—"}</td>
-          <td class="py-1.5 pl-2">${compBadge(r.comp)}</td>
+          <td class="py-1.5 px-2 text-right mono font-semibold">${r.naver!=null?fmt(r.naver):"—"}</td>
+          <td class="py-1.5 px-2 text-right mono" style="color:var(--accent2)">${r.cpMin!=null?"₩"+fmt(r.cpMin):"—"}</td>
+          <td class="py-1.5 pl-2 text-right mono text-[var(--muted)]">${r.cpAvg!=null?"₩"+fmt(r.cpAvg):"—"}</td>
         </tr>`).join("")}
       </tbody>
     </table></div>
     <p class="text-[11px] text-[var(--muted)] mt-2">
-      · 월간검색량 = 최근 30일 PC+모바일 실검색수. · 12개월 평균(추정)은 위 관심도 곡선으로 환산한 값입니다.
-      ${hasVol ? "" : "<br>※ 지금은 데모/미연동 값입니다. 검색광고 API 연동 시 실제 수치가 표시됩니다."}
+      · 네이버 월검색량 = 검색광고 실검색수(관심도). · 쿠팡 가격 = 파트너스 상품 최저/평균가.
+      쿠팡은 검색량 지표가 없어 가격으로 대체했습니다.
     </p>`;
 }
 
