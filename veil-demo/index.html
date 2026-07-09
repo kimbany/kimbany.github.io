@@ -279,6 +279,20 @@
     </div>
   </div>
 
+  <!-- ===== 시트: 매칭 불가 (무료 2명 제한) ===== -->
+  <div id="sheetLimit" class="ovl" onclick="closeOvl(event)">
+    <div class="sheet">
+      <h2>매칭할 수 없어요</h2>
+      <p class="dim">무료 회원은 동시에 <b style="color:var(--text)">최대 2명</b>까지 대화할 수 있어요. 진행중인 대화를 종료하거나 프리미엄으로 업그레이드해보세요.</p>
+      <div class="card" style="border-color:var(--accent)">
+        <b>💎 프리미엄</b>
+        <div class="dim" style="font-size:13px;margin-top:4px">동시 매칭 무제한 · 우선 매칭 · 광고 제거</div>
+      </div>
+      <button class="btn" onclick="closeAll();toast('프리미엄 결제 (프로토타입)')">프리미엄 보기</button>
+      <button class="btn ghost" onclick="closeAll()">닫기</button>
+    </div>
+  </div>
+
   <!-- ===== 시트: 연장/종료 ===== -->
   <div id="sheetExtend" class="ovl">
     <div class="sheet">
@@ -582,7 +596,10 @@ function saveEdit(){
 
 /* ---------- 매칭 ---------- */
 let mode='similar';
+function isPremium(){ const pr=loadProfile(); return !!(pr&&pr.premium); }
 function startMatch(){
+  // 무료 회원: 동시 진행중 최대 2명
+  if(!isPremium() && (store.active||[]).length>=2){ open('sheetLimit'); return; }
   go('s-matching');let n=5;extLeft=3;
   const p=document.getElementById('mPulse');p.textContent=n;
   document.getElementById('mTitle').textContent='잠시 후 매칭을 시작해요';
@@ -603,9 +620,11 @@ function searching(){
       : TIER_INFO[tier].desc+' 상대를 찾았어요!';
     if(tier<matchedTier){ tier++; setTimeout(step,1100); }
     else { setTimeout(()=>{
-      // 차단(고유 ID 기준)·이미 친구인 상대는 매칭 제외 → 닉네임을 바꿔도 차단 유지
-      const pool=PEERS.filter(pe=>!isBlocked(pe.id) && !(store.friends||[]).some(f=>f.id===pe.id));
-      if(!pool.length){ clearInterval(countdown); go('main'); tab('match'); toast('지금은 매칭 가능한 상대가 없어요'); return; }
+      // 매칭 제외: 차단(고유 ID)·이미 친구·이미 진행중인 상대 → 닉네임 바꿔도 차단 유지, 중복 매칭 방지
+      const pool=PEERS.filter(pe=>!isBlocked(pe.id)
+        && !(store.friends||[]).some(f=>f.id===pe.id)
+        && !(store.active||[]).some(a=>a.id===pe.id));
+      if(!pool.length){ clearInterval(countdown); go('main'); tab('match'); toast('지금은 매칭 가능한 새 상대가 없어요'); return; }
       curPeer=Object.assign({},pool[Math.floor(Math.random()*pool.length)],{tier:matchedTier}); openChat(true);
     },900); }
   }
@@ -755,7 +774,7 @@ function renderMatch(){
           <div class="dim" style="margin-top:4px">완벽 매칭이 없으면 자동으로 폭을 넓혀요.</div>
           <div style="margin-top:6px"><span class="badge live">기준1</span> 완벽 매칭 · <span class="badge">기준2</span> 근접 · <span class="badge">기준3</span> 폭넓게</div>
         </div>
-        <div class="card dim center" style="font-size:13px">무료 회원은 동시에 최대 2명까지 매칭할 수 있어요</div>
+        <div class="card dim center" style="font-size:13px">무료 회원은 동시에 최대 2명까지 매칭할 수 있어요<br>(현재 진행중 <b style="color:${(store.active||[]).length>=2?'var(--bad)':'var(--text)'}">${(store.active||[]).length}/2</b>)</div>
         <button class="btn" onclick="startMatch()">매칭하기</button>
       </div>
     </div>`;
