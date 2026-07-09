@@ -252,8 +252,9 @@
   <div id="sheetMenu" class="ovl" onclick="closeOvl(event)">
     <div class="sheet">
       <h2>채팅방</h2>
-      <div class="opt" onclick="closeAll();open('sheetExtend')">⏳ 연장/종료 미리보기</div>
+      <div class="opt" onclick="closeAll();showExtend()">⏳ 연장/종료 선택</div>
       <div class="opt" onclick="openRoomNotif()">🔔 알림 · 미리보기 설정</div>
+      <div class="opt" onclick="closeAll();demoExpire()">🧪 지금 만료시키기 (테스트)</div>
       <div class="opt bad" onclick="closeAll();open('sheetLeave')">🚪 나가기</div>
       <button class="btn ghost" style="margin-top:14px" onclick="closeAll()">닫기</button>
     </div>
@@ -283,6 +284,7 @@
     <div class="sheet">
       <h2>24시간이 끝났어요</h2>
       <p class="dim">대화를 이어가려면 양쪽 모두 연장을 선택해야 해요. (<span id="extLeft">3</span>회 남음)</p>
+      <p id="extDeadline" class="dim" style="color:var(--warn);font-size:13px">미선택 시 12시간 뒤 자동 종료됩니다.</p>
       <button class="btn" onclick="closeAll();extend()">연장하기</button>
       <button class="btn sec" onclick="closeAll();go('s-eval')">종료하기</button>
     </div>
@@ -669,17 +671,47 @@ function updateChatPreview(){
   const arr=chatStore[curPeer.name]; if(!arr||!arr.length)return;
   const it=store.active.find(a=>a.name===curPeer.name); if(it){it.last=arr[arr.length-1].x; it.time='방금'; saveStore();}
 }
+const GRACE_MS=12*3600*1000;   // 만료 후 연장/종료 결정 유효시간 (12시간)
 function remainStr(exp){ let s=Math.max(0,Math.floor((exp-Date.now())/1000)); const h=String(Math.floor(s/3600)).padStart(2,'0'),m=String(Math.floor(s%3600/60)).padStart(2,'0'),ss=String(s%60).padStart(2,'0'); return h+':'+m+':'+ss; }
-function curExp(){ const it=store.active.find(a=>a.name===curPeer.name); return (it&&it.expiresAt)||curPeer.expiresAt||(Date.now()+24*3600*1000); }
+function curExp(){ const it=store.active.find(a=>a.id===curPeer.id||a.name===curPeer.name); return (it&&it.expiresAt)||curPeer.expiresAt||(Date.now()+24*3600*1000); }
+// A=대화중, B=만료(연장/종료 결정 대기), C=결정시간 지남→자동종료
+function chatPhase(exp){ const now=Date.now(); if(!exp)return 'A'; if(now<exp)return 'A'; if(now<exp+GRACE_MS)return 'B'; return 'C'; }
+function badgeText(exp){ const ph=chatPhase(exp); if(ph==='A')return '⏳ '+remainStr(exp); if(ph==='B')return '⌛ 연장대기 '+remainStr(exp+GRACE_MS); return '⏳ 만료'; }
 function startClock(){
   clearInterval(clockT);
-  const upd=()=>{const el=document.getElementById('clock');if(el)el.textContent=remainStr(curExp());};
+  const tb=document.getElementById('timerbar'); let ph0=null;
+  const upd=()=>{
+    const exp=curExp(), ph=chatPhase(exp);
+    if(ph!==ph0){ ph0=ph;
+      if(ph==='A'){ tb.classList.remove('warn'); tb.innerHTML='⏳ 남은 시간 <span id="clock"></span>'; }
+      else if(ph==='B'){ tb.classList.add('warn'); tb.innerHTML='⌛ 만료 · 연장/종료 결정 <span id="clock"></span> 남음';
+        if(!curPeer._promptShown){ curPeer._promptShown=true; showExtend(); } }
+    }
+    const el=document.getElementById('clock');
+    if(ph==='A'){ if(el)el.textContent=remainStr(exp); }
+    else if(ph==='B'){ if(el)el.textContent=remainStr(exp+GRACE_MS); }
+    else { clearInterval(clockT); autoEndChat(); }
+  };
   upd(); clockT=setInterval(upd,1000);
 }
+function autoEndChat(){
+  msgs.push({t:'sys',x:'⌛ 연장 결정 시간(12시간)이 지나 대화가 자동 종료됐어요.'}); saveChats();
+  seedEnded();
+  if(document.getElementById('s-chat').classList.contains('active')){ closeAll(); tab('chats'); go('main'); toast('연장 결정 시간이 지나 종료됐어요'); }
+}
+function showExtend(){
+  const exp=curExp(), dl=document.getElementById('extDeadline');
+  if(dl) dl.textContent = chatPhase(exp)==='B' ? ('⌛ '+remainStr(exp+GRACE_MS)+' 안에 선택하지 않으면 자동 종료돼요.') : '미선택 시 12시간 뒤 자동 종료됩니다.';
+  open('sheetExtend');
+}
+function demoExpire(){ const it=store.active.find(a=>a.id===curPeer.id||a.name===curPeer.name); const t=Date.now()-1000; if(it){it.expiresAt=t;saveStore();} curPeer.expiresAt=t; curPeer._promptShown=false; startClock(); }
 function extend(){extLeft--;document.getElementById('extLeft').textContent=extLeft;
-  const it=store.active.find(a=>a.id===curPeer.id||a.name===curPeer.name); if(it){it.expiresAt=(it.expiresAt||Date.now())+24*3600*1000; curPeer.expiresAt=it.expiresAt; saveStore();}
+  const it=store.active.find(a=>a.id===curPeer.id||a.name===curPeer.name);
+  const base=Math.max(Date.now(),(it&&it.expiresAt)||Date.now());
+  if(it){it.expiresAt=base+24*3600*1000; curPeer.expiresAt=it.expiresAt; saveStore();}
+  curPeer._promptShown=false;
   msgs.push({t:'sys',x:'⏳ 24시간이 연장됐어요. ('+(3-extLeft)+'/3회)'});saveChats();renderMsgs();
-  updateChatChrome();
+  startClock(); updateChatChrome();
   toast(extLeft>0?'24시간 연장됐어요':'3회 연장 완료! 이제 친구 신청을 할 수 있어요 🤝')}
 function leaveChat(msg){clearInterval(clockT);seedEnded();tab('chats');go('main');toast(msg||'채팅을 종료했어요')}
 function submitEval(){
@@ -742,7 +774,7 @@ function renderChats(){
     <div class="list-item" onclick="curPeer=${JSON.stringify(p).replace(/"/g,'&quot;')};${seg==='ended'?'':'openChat(false)'}">
       <div class="av" style="background:${p.c};font-size:22px">${p.av}</div>
       <div style="flex:1;min-width:0">
-        <div class="row" style="gap:6px"><b>${p.name}</b>${seg!=='ended'&&!notifyOn(p.name)?'<span style="opacity:.6">🔕</span>':''}${seg==='active'?'<span class="badge live exp-badge" data-exp="'+(p.expiresAt||0)+'">⏳ '+(p.expiresAt&&p.expiresAt<=Date.now()?'만료':remainStr(p.expiresAt||Date.now()))+'</span>':''}${seg==='ended'?'<span class="badge">종료</span>':''}</div>
+        <div class="row" style="gap:6px"><b>${p.name}</b>${seg!=='ended'&&!notifyOn(p.name)?'<span style="opacity:.6">🔕</span>':''}${seg==='active'?'<span class="badge '+(chatPhase(p.expiresAt)==='B'?'warn':'live')+' exp-badge" data-exp="'+(p.expiresAt||0)+'">'+badgeText(p.expiresAt)+'</span>':''}${seg==='ended'?'<span class="badge">종료</span>':''}</div>
         <div class="dim" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${seg==='ended'||loadNotif().listPreview?(p.last||''):'· · · 미리보기 꺼짐'}</div>
       </div>
       ${seg==='ended'?`<button class="iconbtn" onclick="event.stopPropagation();store.ended.splice(${idx},1);renderChats();toast('기록을 삭제했어요')">🗑</button>`:`<span class="dim">${p.time||''}</span>`}
@@ -864,8 +896,19 @@ function notifyOn(name){ const n=loadNotif(), r=roomSettings(name); return n.all
   if(pr && !loggedOut){ applyProfile(pr); seed(); go('main'); tab('match'); }   // 로그인 유지
   else { go('s-start'); }                                                        // 로그아웃 상태거나 신규
 })();
-// 대화 목록의 남은시간 뱃지 실시간 갱신
-setInterval(()=>{ document.querySelectorAll('.exp-badge').forEach(b=>{ const e=+b.dataset.exp; if(!e)return; b.textContent=(e<=Date.now())?'⏳ 만료':'⏳ '+remainStr(e); }); }, 1000);
+// 대화 목록: 남은시간 뱃지 갱신 + 결정시간(12h) 지난 대화 자동 종료
+function sweepExpired(){
+  if(!store||!store.active)return; let changed=false;
+  store.active=store.active.filter(a=>{
+    if(chatPhase(a.expiresAt)==='C'){ store.ended=store.ended||[]; if(!store.ended.find(e=>e.id===a.id||e.name===a.name))store.ended.unshift({...a,last:'연장 미선택으로 자동 종료',time:'방금'}); changed=true; return false; }
+    return true;
+  });
+  if(changed){ saveStore(); if(document.getElementById('page-chats')&&document.getElementById('page-chats').style.display!=='none')renderChats(); }
+}
+setInterval(()=>{
+  sweepExpired();
+  document.querySelectorAll('.exp-badge').forEach(b=>{ const e=+b.dataset.exp; if(!e)return; b.textContent=badgeText(e); });
+}, 1000);
 </script>
 </body>
 </html>
