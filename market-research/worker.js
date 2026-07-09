@@ -12,6 +12,8 @@
  *   - NAVER_AD_API_KEY         (검색광고 API 액세스라이선스) ── /keywords 용
  *   - NAVER_AD_SECRET_KEY      (검색광고 API 비밀키)
  *   - NAVER_AD_CUSTOMER_ID     (검색광고 CUSTOMER_ID)
+ *   - COUPANG_ACCESS_KEY       (쿠팡 파트너스 액세스키) ── /coupang 용
+ *   - COUPANG_SECRET_KEY       (쿠팡 파트너스 시크릿키)
  *
  * 엔드포인트:
  *   GET  /search          → search/shop.json
@@ -20,10 +22,12 @@
  *   POST /datalab-gender  → datalab/shopping/category/keyword/gender
  *   POST /datalab-device  → datalab/shopping/category/keyword/device
  *   GET  /keywords        → (검색광고) /keywordstool : 연관키워드 + 실제 월간검색량
+ *   GET  /coupang         → (쿠팡 파트너스) 상품 검색
  */
 
 const NAVER = "https://openapi.naver.com/v1";
 const NAVER_AD = "https://api.naver.com"; // 검색광고 API 베이스
+const COUPANG = "https://api-gateway.coupang.com"; // 쿠팡 파트너스 API 베이스
 
 export default {
   async fetch(request, env) {
@@ -52,6 +56,8 @@ export default {
         result = await proxyDatalab("/datalab/shopping/category/keyword/device", request, env);
       } else if (path === "/keywords" && request.method === "GET") {
         result = await proxyKeywords(url, env);
+      } else if (path === "/coupang" && request.method === "GET") {
+        result = await proxyCoupang(url, env);
       } else {
         return json({ error: "Not Found" }, 404, cors);
       }
@@ -116,6 +122,43 @@ async function signHmac(message, secret) {
   let bin = "";
   new Uint8Array(sig).forEach((b) => (bin += String.fromCharCode(b)));
   return btoa(bin);
+}
+
+// ---- 쿠팡 파트너스 상품 검색 중계 (CEA HMAC 서명) ----
+async function proxyCoupang(url, env) {
+  const keyword = url.searchParams.get("keyword") || "";
+  const limit = url.searchParams.get("limit") || "40";
+  const method = "GET";
+  const apiPath = "/v2/providers/affiliate_open_api/apis/openapi/v1/products/search";
+  const query = `keyword=${encodeURIComponent(keyword)}&limit=${limit}`;
+  const datetime = coupangDatetime();
+  // 쿠팡 서명 = HMAC-SHA256( secretKey, datetime + method + path + query ) 를 hex로
+  const signature = await signHmacHex(datetime + method + apiPath + query, env.COUPANG_SECRET_KEY || "");
+  const authorization =
+    `CEA algorithm=HmacSHA256, access-key=${env.COUPANG_ACCESS_KEY || ""}, signed-date=${datetime}, signature=${signature}`;
+  const res = await fetch(`${COUPANG}${apiPath}?${query}`, {
+    method,
+    headers: { "Authorization": authorization, "Content-Type": "application/json;charset=UTF-8" },
+  });
+  return { status: res.status, body: await res.json() };
+}
+
+// 쿠팡 서명용 시각: GMT 기준 yyMMdd'T'HHmmss'Z'
+function coupangDatetime() {
+  const d = new Date();
+  const p = (n) => String(n).padStart(2, "0");
+  return p(d.getUTCFullYear() % 100) + p(d.getUTCMonth() + 1) + p(d.getUTCDate())
+    + "T" + p(d.getUTCHours()) + p(d.getUTCMinutes()) + p(d.getUTCSeconds()) + "Z";
+}
+
+// HMAC-SHA256 서명 (hex). 쿠팡용.
+async function signHmacHex(message, secret) {
+  const enc = new TextEncoder();
+  const key = await crypto.subtle.importKey(
+    "raw", enc.encode(secret), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]
+  );
+  const sig = await crypto.subtle.sign("HMAC", key, enc.encode(message));
+  return [...new Uint8Array(sig)].map((b) => b.toString(16).padStart(2, "0")).join("");
 }
 
 // ---- 공통 유틸 ----
