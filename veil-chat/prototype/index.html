@@ -291,10 +291,11 @@
     <div class="pad"><button class="btn" onclick="seedEnded();tab('chats');go('main');toast('평가가 제출되었어요')">제출</button></div>
   </section>
 
-  <!-- ===== 내 정보 수정 ===== -->
+  <!-- ===== 프로필 수정 ===== -->
   <section id="s-edit" class="screen">
-    <div class="topbar"><button class="iconbtn" onclick="tab('settings');go('main')">‹</button><span class="ttl">내 정보 수정</span></div>
+    <div class="topbar"><button class="iconbtn" onclick="tab('settings');go('main')">‹</button><span class="ttl">프로필 수정</span></div>
     <div class="grow pad">
+      <div id="edit-lock" class="card" style="display:none;border-color:var(--warn);color:var(--warn);font-size:13px;text-align:center"></div>
       <div class="center">
         <div id="edit-bigav" class="av" style="width:100px;height:100px;border-radius:30px;font-size:54px;background:#7c6cff;margin:4px 0 10px">🦊</div>
       </div>
@@ -305,8 +306,15 @@
       <p id="edit-nickMsg" class="dim" style="min-height:18px"></p>
       <div class="label">상태메시지</div>
       <input id="edit-status" class="field" placeholder="자유롭게 적어보세요">
-      <div class="label">관심사 <span class="dim" style="font-weight:400">· 최소 3개</span></div>
-      <div id="edit-interests"></div>
+      <div class="label">성별 <span class="dim" style="font-weight:400">· 🔒 변경 불가</span></div><div id="edit-gender"></div>
+      <div class="label">MBTI</div><div id="edit-mbti"></div>
+      <div class="label">연락 스타일 1 <span class="dim" style="font-weight:400">· 답장 속도</span></div><div id="edit-contact1"></div>
+      <div class="label">연락 스타일 2 <span class="dim" style="font-weight:400">· 읽음 습관</span></div><div id="edit-contact2"></div>
+      <div class="label">술</div><div id="edit-drink"></div>
+      <div class="label">담배</div><div id="edit-smoke"></div>
+      <div class="label">운동</div><div id="edit-exercise"></div>
+      <div class="label">반려동물 <span class="dim" style="font-weight:400">· 다중 선택</span></div><div id="edit-pets"></div>
+      <div class="label">관심사 <span class="dim" style="font-weight:400">· 최소 3개</span></div><div id="edit-interests"></div>
     </div>
     <div class="pad"><button id="editSaveBtn" class="btn" onclick="saveEdit()">저장</button></div>
   </section>
@@ -424,28 +432,54 @@ function chipGroup(id,opts,key,multi){
   });
 }
 
-/* ---------- 설정 > 내 정보 수정 ---------- */
-let editSel=new Set();
+/* ---------- 설정 > 프로필 수정 (모든 항목 · 성별 잠금 · 7일 재수정 제한) ---------- */
+let editData=null;
+const LOCK_KEY='veil_lock_until';
+const LOCK_MS=7*24*3600*1000;
+function editLockRemaining(){ const t=parseInt(localStorage.getItem(LOCK_KEY)||'0',10); return Math.max(0,t-Date.now()); }
+function editLocked(){ return editLockRemaining()>0; }
+function fmtRemain(ms){ const d=Math.floor(ms/86400000), h=Math.floor(ms%86400000/3600000); return (d>0?d+'일 ':'')+h+'시간'; }
+function editChips(id,opts,key,multi){
+  const box=document.getElementById(id); box.innerHTML='';
+  opts.forEach(o=>{ const on=multi?editData[key].has(o):editData[key]===o;
+    const b=document.createElement('button'); b.className='chip'+(on?' on':''); b.textContent=o;
+    b.onclick=()=>{ if(editLocked()){toast('7일간 변경할 수 없어요');return;}
+      if(multi){ b.classList.toggle('on'); b.classList.contains('on')?editData[key].add(o):editData[key].delete(o); if(key==='interests')editGate(); }
+      else { box.querySelectorAll('.chip').forEach(c=>c.classList.remove('on')); b.classList.add('on'); editData[key]=o; } };
+    box.appendChild(b); });
+}
 function openEdit(){
   const pr=loadProfile()||{};
-  const bg=document.getElementById('edit-bigav');
-  bg.textContent=pr.avatar||(document.getElementById('bigav')||{}).textContent||'🦊';
-  bg.style.background=pr.avatarBg||'#7c6cff';
-  document.getElementById('edit-nick').value=pr.nick||'';
-  document.getElementById('edit-status').value=pr.status||'';
+  editData={ nick:pr.nick||'', status:pr.status||'', avatar:pr.avatar||(document.getElementById('bigav')||{}).textContent||'🦊',
+    avatarBg:pr.avatarBg||'#7c6cff', gender:pr.gender||profile.gender||'', mbti:pr.mbti||'', contact1:pr.contact1||'', contact2:pr.contact2||'',
+    drink:pr.drink||'', smoke:pr.smoke||'', exercise:pr.exercise||'',
+    pets:new Set(pr.pets||[...profile.pets]), interests:new Set(pr.interests&&pr.interests.length?pr.interests:[...selInterests]) };
+  const bg=document.getElementById('edit-bigav'); bg.textContent=editData.avatar; bg.style.background=editData.avatarBg;
+  document.getElementById('edit-nick').value=editData.nick;
+  document.getElementById('edit-status').value=editData.status;
   document.getElementById('edit-nickMsg').textContent='';
   const av=document.getElementById('edit-avatars'); av.innerHTML='';
-  AV.forEach(x=>{const b=document.createElement('button');b.className='chip';b.style.fontSize='22px';b.textContent=x;b.onclick=()=>bg.textContent=x;av.appendChild(b);});
+  AV.forEach(x=>{const b=document.createElement('button');b.className='chip';b.style.fontSize='22px';b.textContent=x;b.onclick=()=>{if(editLocked())return;editData.avatar=x;bg.textContent=x;};av.appendChild(b);});
   const co=document.getElementById('edit-colors'); co.innerHTML='';
-  COLORS.forEach(x=>{const b=document.createElement('button');b.className='chip';b.style.background=x;b.style.width='38px';b.style.height='38px';b.style.padding='0';b.onclick=()=>bg.style.background=x;co.appendChild(b);});
-  editSel=new Set(pr.interests&&pr.interests.length?pr.interests:[...selInterests]);
-  const ic=document.getElementById('edit-interests'); ic.innerHTML='';
-  INTERESTS.forEach(x=>{const b=document.createElement('button');b.className='chip'+(editSel.has(x)?' on':'');b.textContent=x;
-    b.onclick=()=>{b.classList.toggle('on');b.classList.contains('on')?editSel.add(x):editSel.delete(x);editGate();};ic.appendChild(b);});
-  editGate();
+  COLORS.forEach(x=>{const b=document.createElement('button');b.className='chip';b.style.background=x;b.style.width='38px';b.style.height='38px';b.style.padding='0';b.onclick=()=>{if(editLocked())return;editData.avatarBg=x;bg.style.background=x;};co.appendChild(b);});
+  // 성별: 읽기 전용(변경 불가)
+  const gb=document.getElementById('edit-gender'); gb.innerHTML='';
+  GENDERS.forEach(o=>{const b=document.createElement('button');b.className='chip'+(editData.gender===o?' on':'');b.style.opacity=editData.gender===o?'1':'.35';b.textContent=o;b.onclick=()=>toast('성별은 변경할 수 없어요 🔒');gb.appendChild(b);});
+  editChips('edit-mbti',MBTIS,'mbti'); editChips('edit-contact1',CONTACT1,'contact1'); editChips('edit-contact2',CONTACT2,'contact2');
+  editChips('edit-drink',DRINKS,'drink'); editChips('edit-smoke',SMOKES,'smoke'); editChips('edit-exercise',EXERCISES,'exercise');
+  editChips('edit-pets',PETS,'pets',true); editChips('edit-interests',INTERESTS,'interests',true);
+  applyEditLock();
   go('s-edit');
 }
-function editGate(){document.getElementById('editSaveBtn').disabled=editSel.size<3;}
+function applyEditLock(){
+  const locked=editLocked(), ban=document.getElementById('edit-lock');
+  document.getElementById('edit-nick').disabled=locked;
+  document.getElementById('edit-status').disabled=locked;
+  if(locked){ ban.style.display='block'; ban.textContent='🔒 프로필은 마지막 수정 후 7일간 변경할 수 없어요 (약 '+fmtRemain(editLockRemaining())+' 남음)'; }
+  else{ ban.style.display='none'; }
+  editGate();
+}
+function editGate(){ const btn=document.getElementById('editSaveBtn'); if(!editData){btn.disabled=true;return;} btn.disabled = editLocked() || editData.interests.size<3; }
 function editNickCheck(){
   const v=document.getElementById('edit-nick').value, m=document.getElementById('edit-nickMsg'), bad=['바보','시발','광고'];
   if(v.length<2){m.style.color='var(--bad)';m.textContent='2자 이상 입력해주세요';}
@@ -454,16 +488,20 @@ function editNickCheck(){
   else{m.style.color='var(--good)';m.textContent='✓ 사용 가능한 닉네임이에요';}
 }
 function saveEdit(){
+  if(editLocked()){ toast('아직 변경할 수 없어요 ('+fmtRemain(editLockRemaining())+' 남음)'); return; }
   const nick=document.getElementById('edit-nick').value.trim();
-  if(nick.length<2||['바보','시발','광고'].some(b=>nick.includes(b))||nick==='admin'){toast('닉네임을 확인해주세요');return;}
-  if(editSel.size<3){toast('관심사는 최소 3개예요');return;}
-  const bg=document.getElementById('edit-bigav');
-  document.getElementById('nick').value=nick;
-  document.getElementById('status').value=document.getElementById('edit-status').value;
-  const big=document.getElementById('bigav'); if(big){big.textContent=bg.textContent; big.style.background=bg.style.background;}
-  selInterests=new Set(editSel);
+  if(nick.length<2||['바보','시발','광고'].some(b=>nick.includes(b))||nick==='admin'){ toast('닉네임을 확인해주세요'); return; }
+  if(editData.interests.size<3){ toast('관심사는 최소 3개예요'); return; }
+  editData.nick=nick; editData.status=document.getElementById('edit-status').value;
+  document.getElementById('nick').value=editData.nick;
+  document.getElementById('status').value=editData.status;
+  const big=document.getElementById('bigav'); if(big){big.textContent=editData.avatar; big.style.background=editData.avatarBg;}
+  selInterests=new Set(editData.interests);
+  Object.assign(profile,{gender:editData.gender,mbti:editData.mbti,contact1:editData.contact1,contact2:editData.contact2,
+    drink:editData.drink,smoke:editData.smoke,exercise:editData.exercise,pets:new Set(editData.pets)});
   saveProfile();
-  toast('저장됐어요 ✓');
+  localStorage.setItem(LOCK_KEY, String(Date.now()+LOCK_MS));   // 7일 잠금
+  toast('저장됐어요 ✓ 이제 7일간 변경할 수 없어요');
   tab('settings'); go('main');
 }
 
@@ -652,7 +690,7 @@ function applyProfile(pr){
 }
 function completeOnboarding(){ saveProfile(); seed(); go('main'); tab('match'); toast('프로필이 저장됐어요 🎉'); }
 function loginDemo(){ if(!loadProfile())saveProfile(); seed(); go('main'); tab('match'); }
-function logout(){ try{localStorage.removeItem(LS_KEY);localStorage.removeItem(CHAT_KEY);localStorage.removeItem(STORE_KEY);}catch(e){}; location.reload(); }
+function logout(){ try{localStorage.removeItem(LS_KEY);localStorage.removeItem(CHAT_KEY);localStorage.removeItem(STORE_KEY);localStorage.removeItem(LOCK_KEY);}catch(e){}; location.reload(); }
 
 /* 시작 시: 이미 가입/온보딩 했으면 메인으로, 아니면 시작화면 */
 (function boot(){
