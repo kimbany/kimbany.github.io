@@ -237,6 +237,10 @@
       <button class="iconbtn" onclick="open('sheetMenu')">⋯</button>
     </div>
     <div id="timerbar" class="timerbar">⏳ 남은 시간 <span id="clock">23:59:48</span></div>
+    <div id="friendBar" style="display:none;padding:8px;text-align:center;background:rgba(54,211,153,.12)">
+      <span class="dim" style="font-size:12px;color:var(--good)">3회 연장 완료! </span>
+      <button class="btn" style="width:auto;padding:7px 18px;margin:0;display:inline-block;font-size:14px" onclick="requestFriend()">🤝 친구 신청</button>
+    </div>
     <div id="msgs" class="msgs"></div>
     <div class="composer">
       <input id="msgInput" placeholder="메시지 입력…" onkeydown="if(event.key==='Enter'&&!event.isComposing&&event.keyCode!==229)sendMsg()">
@@ -301,7 +305,7 @@
         <input type="checkbox" style="width:20px;height:20px"><div>다시 만나고 싶지 않음 <div class="dim">자동 차단 · 재매칭 금지</div></div>
       </label>
     </div>
-    <div class="pad"><button class="btn" onclick="seedEnded();tab('chats');go('main');toast('평가가 제출되었어요')">제출</button></div>
+    <div class="pad"><button class="btn" onclick="submitEval()">제출</button></div>
   </section>
 
   <!-- ===== 프로필 수정 ===== -->
@@ -344,6 +348,16 @@
     </div>
   </section>
 
+  <!-- ===== 친구 관리 ===== -->
+  <section id="s-friends" class="screen">
+    <div class="topbar"><button class="iconbtn" onclick="tab('settings');go('main')">‹</button><span class="ttl">친구 관리</span></div>
+    <div class="seg" style="margin:12px 14px 0">
+      <div id="fseg-friends" onclick="_fseg='friends';renderFriendsMgr()">친구 목록</div>
+      <div id="fseg-blocks" onclick="_fseg='blocks';renderFriendsMgr()">차단 목록</div>
+    </div>
+    <div id="friends-mgr" class="grow"></div>
+  </section>
+
   <!-- ===== 신고 ===== -->
   <section id="s-report" class="screen">
     <div class="topbar"><button class="iconbtn" onclick="go('s-chat')">‹</button><span class="ttl">신고하기</span></div>
@@ -360,7 +374,7 @@
         ⚠️ 허위 신고 또는 정당한 사유가 아닌 신고는 신고자에게 패널티가 부여될 수 있습니다.
       </div>
     </div>
-    <div class="pad"><button class="btn bad" onclick="leaveChat('신고가 접수되었어요. 상대를 차단했습니다.')">신고 후 나가기</button></div>
+    <div class="pad"><button class="btn bad" onclick="blockPeer(curPeer,'report');leaveChat('신고가 접수되었어요. 상대를 차단했습니다.')">신고 후 나가기</button></div>
   </section>
 
   <div id="toast" class="toast"></div>
@@ -381,16 +395,50 @@ const SMOKES=['비흡연','가끔','흡연'];
 const EXERCISES=['거의 안 함','가끔','주 3회 이상'];
 const PETS=['강아지','고양이','파충류','양서류','새','물고기','없음','기타'];
 const PEERS=[
-  {name:'달빛토끼',av:'🐰',c:'#ff6c9d',tags:'게임 · 음악'},
-  {name:'구름고래',av:'🐙',c:'#3ba9ff',tags:'여행 · 사진'},
-  {name:'새벽올빼미',av:'🦉',c:'#fbbd23',tags:'독서 · IT'}
+  {id:'VEIL-100201',name:'달빛토끼',av:'🐰',c:'#ff6c9d',tags:'게임 · 음악'},
+  {id:'VEIL-100202',name:'구름고래',av:'🐙',c:'#3ba9ff',tags:'여행 · 사진'},
+  {id:'VEIL-100203',name:'새벽올빼미',av:'🦉',c:'#fbbd23',tags:'독서 · IT'}
 ];
 const TIER_INFO={
   1:{label:'기준 1 · 완벽 매칭', desc:'관심사·성향이 거의 일치'},
   2:{label:'기준 2 · 근접 매칭', desc:'관심사가 다수 겹침'},
   3:{label:'기준 3 · 폭넓은 매칭', desc:'일부만 겹치는 상대'}
 };
-const profile={gender:'',mbti:'',contact1:'',contact2:'',drink:'',smoke:'',exercise:'',pets:new Set()};
+const profile={uid:'',gender:'',mbti:'',contact1:'',contact2:'',drink:'',smoke:'',exercise:'',pets:new Set()};
+function genUid(){ return 'VEIL-'+String(Math.floor(Math.random()*900000)+100000); }
+/* ---------- 차단 (고유 ID 기준 · 닉네임 바꿔도 유지) ---------- */
+const BLOCK_KEY='veil_blocks_v1';
+function loadBlocks(){ try{return JSON.parse(localStorage.getItem(BLOCK_KEY))||[];}catch(e){return [];} }
+function saveBlocks(a){ try{localStorage.setItem(BLOCK_KEY,JSON.stringify(a));}catch(e){} }
+function isBlocked(id){ return loadBlocks().some(b=>b.id===id); }
+function blockPeer(peer,reason){ if(!peer||!peer.id)return; const a=loadBlocks(); if(!a.some(b=>b.id===peer.id)){ a.unshift({id:peer.id,name:peer.name,av:peer.av,c:peer.c,reason:reason||'manual',at:Date.now()}); saveBlocks(a); } }
+function unblockPeer(id){ saveBlocks(loadBlocks().filter(b=>b.id!==id)); }
+function blockReasonLabel(r){ return {no_rematch:'재매칭 금지',report:'신고 차단',manual:'직접 차단'}[r]||'차단'; }
+/* ---------- 친구 관리 (친구 목록 / 차단 목록·해제) ---------- */
+let _fseg='friends';
+function openFriends(seg){ _fseg=seg||'friends'; renderFriendsMgr(); go('s-friends'); }
+function renderFriendsMgr(){
+  document.getElementById('fseg-friends').classList.toggle('on',_fseg==='friends');
+  document.getElementById('fseg-blocks').classList.toggle('on',_fseg==='blocks');
+  const box=document.getElementById('friends-mgr');
+  if(_fseg==='friends'){
+    const fs=(store&&store.friends)||[];
+    box.innerHTML = fs.length ? fs.map(f=>`
+      <div class="list-item" onclick="curPeer=${JSON.stringify(f).replace(/"/g,'&quot;')};openChat(false)">
+        <div class="av" style="background:${f.c};font-size:22px">${f.av}</div>
+        <div style="flex:1"><b>${f.name}</b><div class="dim" style="font-size:12px">${f.id} · ♾️ 무제한</div></div>
+        <span class="badge live">친구</span></div>`).join('')
+      : '<div class="center dim" style="padding:50px 20px">아직 친구가 없어요.<br>3회 연장 후 친구 신청으로 친구를 만들 수 있어요.</div>';
+  } else {
+    const bs=loadBlocks();
+    box.innerHTML = bs.length ? bs.map(b=>`
+      <div class="list-item">
+        <div class="av" style="background:${b.c};font-size:22px">${b.av}</div>
+        <div style="flex:1;min-width:0"><b>${b.name}</b><div class="dim" style="font-size:12px">${b.id} · ${blockReasonLabel(b.reason)}</div></div>
+        <button class="btn sec" style="width:auto;padding:8px 14px;margin:0" onclick="unblockPeer('${b.id}');renderFriendsMgr();toast('차단을 해제했어요')">차단 해제</button></div>`).join('')
+      : '<div class="center dim" style="padding:50px 20px">차단한 사용자가 없어요.</div>';
+  }
+}
 let picked={fun:0,manner:0}, selInterests=new Set(), curPeer=PEERS[0], countdown=null, clockT=null, extLeft=3;
 
 /* ---------- 네비 ---------- */
@@ -552,7 +600,12 @@ function searching(){
       ? '완벽 매칭이 없어 다음 기준으로 넓혀요…'
       : TIER_INFO[tier].desc+' 상대를 찾았어요!';
     if(tier<matchedTier){ tier++; setTimeout(step,1100); }
-    else { setTimeout(()=>{ curPeer=Object.assign({},PEERS[Math.floor(Math.random()*PEERS.length)],{tier:matchedTier}); openChat(true); },900); }
+    else { setTimeout(()=>{
+      // 차단(고유 ID 기준)·이미 친구인 상대는 매칭 제외 → 닉네임을 바꿔도 차단 유지
+      const pool=PEERS.filter(pe=>!isBlocked(pe.id) && !(store.friends||[]).some(f=>f.id===pe.id));
+      if(!pool.length){ clearInterval(countdown); go('main'); tab('match'); toast('지금은 매칭 가능한 상대가 없어요'); return; }
+      curPeer=Object.assign({},pool[Math.floor(Math.random()*pool.length)],{tier:matchedTier}); openChat(true);
+    },900); }
   }
   setTimeout(step,700);
 }
@@ -580,7 +633,26 @@ function openChat(fresh){
       if(!store.active.find(a=>a.name===key)){ store.active.unshift({...curPeer,last:'새 대화가 시작됐어요',time:'방금',expiresAt:curPeer.expiresAt}); saveStore(); } }
   }
   msgs=chatStore[key];   // 참조: 이후 push가 저장소에 그대로 반영됨
-  renderMsgs();startClock();
+  const isFriend=(store.friends||[]).some(f=>f.id===curPeer.id);
+  curPeer.friend=isFriend;
+  updateChatChrome();
+  renderMsgs();
+  if(isFriend) clearInterval(clockT); else startClock();
+}
+function updateChatChrome(){
+  const isFriend=(store.friends||[]).some(f=>f.id===curPeer.id);
+  const tb=document.getElementById('timerbar'), fb=document.getElementById('friendBar');
+  if(isFriend){ tb.innerHTML='♾️ 친구 · 무제한 대화'; fb.style.display='none'; }
+  else { tb.innerHTML='⏳ 남은 시간 <span id="clock"></span>'; fb.style.display=(extLeft<=0)?'block':'none'; }
+}
+function requestFriend(){ document.getElementById('friendBar').innerHTML='<span class="dim" style="font-size:13px;color:var(--good)">친구 신청을 보냈어요… 상대 수락 대기 중</span>'; setTimeout(befriend,1300); }
+function befriend(){
+  store.friends=store.friends||[];
+  if(!store.friends.some(f=>f.id===curPeer.id)){ store.friends.unshift({...curPeer,last:'친구가 됐어요!',time:'방금',friend:true}); }
+  store.active=(store.active||[]).filter(a=>!(a.id===curPeer.id||a.name===curPeer.name)); saveStore();
+  curPeer.friend=true;
+  msgs.push({t:'sys',x:'🤝 친구가 됐어요! 이제 무제한으로 대화할 수 있어요.'}); saveChats();
+  clearInterval(clockT); updateChatChrome(); renderMsgs(); toast('친구가 됐어요 🎉');
 }
 function renderMsgs(){
   const c=document.getElementById('msgs');c.innerHTML='';
@@ -605,9 +677,17 @@ function startClock(){
   upd(); clockT=setInterval(upd,1000);
 }
 function extend(){extLeft--;document.getElementById('extLeft').textContent=extLeft;
+  const it=store.active.find(a=>a.id===curPeer.id||a.name===curPeer.name); if(it){it.expiresAt=(it.expiresAt||Date.now())+24*3600*1000; curPeer.expiresAt=it.expiresAt; saveStore();}
   msgs.push({t:'sys',x:'⏳ 24시간이 연장됐어요. ('+(3-extLeft)+'/3회)'});saveChats();renderMsgs();
+  updateChatChrome();
   toast(extLeft>0?'24시간 연장됐어요':'3회 연장 완료! 이제 친구 신청을 할 수 있어요 🤝')}
 function leaveChat(msg){clearInterval(clockT);seedEnded();tab('chats');go('main');toast(msg||'채팅을 종료했어요')}
+function submitEval(){
+  const noRematch=(document.querySelector('#s-eval input[type=checkbox]')||{}).checked;
+  if(noRematch) blockPeer(curPeer,'no_rematch');   // 고유 ID 기준 차단 + 재매칭 금지
+  clearInterval(clockT); seedEnded(); tab('chats'); go('main');
+  toast(noRematch?'평가 제출 · 상대를 차단했어요 (재매칭 금지)':'평가가 제출되었어요');
+}
 
 /* ---------- 메인 탭 ---------- */
 let store={active:[],ended:[],friends:[]};
@@ -680,10 +760,11 @@ function renderSettings(){
         <div class="av" style="background:${bg};font-size:30px;width:60px;height:60px;border-radius:18px">${av}</div>
         <div><b style="font-size:18px">${nick}</b><div class="dim">${status}</div>
         <div class="dim" style="font-size:12px;margin-top:2px">${info}</div>
+        <div class="dim" style="font-size:11px;margin-top:2px">🆔 ${pr.uid||profile.uid||'-'} <span style="opacity:.6">· 변경 불가</span></div>
         <span class="badge" style="margin-top:4px;display:inline-block">패널티 0 / 5</span></div>
       </div>
       ${['👤 내 정보 (닉네임·관심사·아바타)','🔔 알림 설정','🤝 친구 관리','🚫 차단 목록','💎 프리미엄 구독','📄 약관·개인정보'].map(t=>
-        `<div class="list-item" onclick="${t.includes('내 정보')?'openEdit()':t.includes('알림')?'openNotif()':`toast('${t.slice(2)} (프로토타입)')`}">${t}<span style="margin-left:auto" class="dim">›</span></div>`).join('')}
+        `<div class="list-item" onclick="${t.includes('내 정보')?'openEdit()':t.includes('알림')?'openNotif()':t.includes('친구 관리')?'openFriends()':t.includes('차단')?`openFriends('blocks')`:`toast('${t.slice(2)} (프로토타입)')`}">${t}<span style="margin-left:auto" class="dim">›</span></div>`).join('')}
       <div class="list-item" onclick="if(confirm('로그아웃하면 저장된 프로필이 지워지고 처음부터 다시 설정해요. 계속할까요?'))logout()">🚪 로그아웃 (프로필 초기화)<span style="margin-left:auto" class="dim">›</span></div>
     </div>`;
 }
@@ -696,6 +777,7 @@ function saveProfile(){
   try{
     const bg=document.getElementById('bigav');
     localStorage.setItem(LS_KEY, JSON.stringify({
+      uid:profile.uid||'',
       nick:(document.getElementById('nick')||{}).value||'',
       status:(document.getElementById('status')||{}).value||'',
       avatar:bg?bg.textContent:'🦊',
@@ -709,6 +791,7 @@ function saveProfile(){
 function loadProfile(){ try{const s=localStorage.getItem(LS_KEY);return s?JSON.parse(s):null;}catch(e){return null;} }
 function applyProfile(pr){
   if(!pr)return;
+  profile.uid=pr.uid||profile.uid||genUid();
   selInterests=new Set(pr.interests||[]);
   Object.assign(profile,{gender:pr.gender||'',mbti:pr.mbti||'',contact1:pr.contact1||'',contact2:pr.contact2||'',
     drink:pr.drink||'',smoke:pr.smoke||'',exercise:pr.exercise||'',pets:new Set(pr.pets||[])});
@@ -716,9 +799,9 @@ function applyProfile(pr){
   const st=document.getElementById('status'); if(st&&pr.status)st.value=pr.status;
   const bg=document.getElementById('bigav'); if(bg){bg.textContent=pr.avatar||'🦊'; if(pr.avatarBg)bg.style.background=pr.avatarBg;}
 }
-function completeOnboarding(){ saveProfile(); seed(); go('main'); tab('match'); toast('프로필이 저장됐어요 🎉'); }
-function loginDemo(){ if(!loadProfile())saveProfile(); seed(); go('main'); tab('match'); }
-function logout(){ try{['veil_profile_v1','veil_chats_v1','veil_store_v1','veil_lock_until','veil_notif_v1','veil_roomnotif_v1'].forEach(k=>localStorage.removeItem(k));}catch(e){}; location.reload(); }
+function completeOnboarding(){ if(!profile.uid)profile.uid=genUid(); saveProfile(); seed(); go('main'); tab('match'); toast('프로필이 저장됐어요 🎉'); }
+function loginDemo(){ if(!profile.uid)profile.uid=genUid(); if(!loadProfile())saveProfile(); seed(); go('main'); tab('match'); }
+function logout(){ try{['veil_profile_v1','veil_chats_v1','veil_store_v1','veil_lock_until','veil_notif_v1','veil_roomnotif_v1','veil_blocks_v1'].forEach(k=>localStorage.removeItem(k));}catch(e){}; location.reload(); }
 
 /* ---------- 알림 설정 (전역 + 채팅방별) ---------- */
 const NOTIF_KEY='veil_notif_v1';
