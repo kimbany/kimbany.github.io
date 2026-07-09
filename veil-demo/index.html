@@ -231,7 +231,7 @@
     <div id="timerbar" class="timerbar">⏳ 남은 시간 <span id="clock">23:59:48</span></div>
     <div id="msgs" class="msgs"></div>
     <div class="composer">
-      <input id="msgInput" placeholder="메시지 입력…" onkeydown="if(event.key==='Enter')sendMsg()">
+      <input id="msgInput" placeholder="메시지 입력…" onkeydown="if(event.key==='Enter'&&!event.isComposing&&event.keyCode!==229)sendMsg()">
       <button class="send" onclick="sendMsg()">➤</button>
     </div>
   </section>
