@@ -429,16 +429,26 @@ function searching(){
 function cancelMatch(){clearInterval(countdown);go('main');tab('match');toast('매칭을 취소했어요')}
 
 /* ---------- 채팅 ---------- */
+/* ---------- 대화 저장/복원 (나갔다 와도, 새로고침해도 유지) ---------- */
+const CHAT_KEY='veil_chats_v1';
+let chatStore={};
+function loadChats(){ try{return JSON.parse(localStorage.getItem(CHAT_KEY))||{};}catch(e){return {};} }
+function saveChats(){ try{localStorage.setItem(CHAT_KEY,JSON.stringify(chatStore));}catch(e){} }
+chatStore=loadChats();
 let msgs=[];
 function openChat(fresh){
   go('s-chat');
   document.getElementById('chatName').textContent=curPeer.name;
   const a=document.getElementById('chatAv');a.textContent=curPeer.av;a.style.background=curPeer.c;
-  if(fresh){
-    msgs=[{t:'sys',x:'🎉 매칭됐어요! 24시간 동안 대화할 수 있어요.'}];
-    if(curPeer.tier){const ti=TIER_INFO[curPeer.tier];msgs.push({t:'sys',x:'🎯 '+ti.label+' — '+ti.desc});}
-    msgs.push({t:'you',x:'안녕하세요! 반가워요 :)'},{t:'you',x:'프로필 보니까 관심사가 잘 맞을 것 같아요'});
+  const key=curPeer.name;
+  if(fresh || !chatStore[key]){
+    const init=[{t:'sys',x:'🎉 매칭됐어요! 24시간 동안 대화할 수 있어요.'}];
+    if(curPeer.tier){const ti=TIER_INFO[curPeer.tier];init.push({t:'sys',x:'🎯 '+ti.label+' — '+ti.desc});}
+    init.push({t:'you',x:'안녕하세요! 반가워요 :)'},{t:'you',x:'프로필 보니까 관심사가 잘 맞을 것 같아요'});
+    chatStore[key]=init; saveChats();
+    if(fresh && !store.active.find(a=>a.name===key)){ store.active.unshift({...curPeer,last:'새 대화가 시작됐어요',time:'방금',left:'23:59:59'}); saveStore(); }
   }
+  msgs=chatStore[key];   // 참조: 이후 push가 저장소에 그대로 반영됨
   renderMsgs();startClock();
 }
 function renderMsgs(){
@@ -449,8 +459,12 @@ function renderMsgs(){
 const REPLIES=['오 정말요? 저도 그래요 ㅎㅎ','그거 완전 공감돼요','오늘 하루는 어땠어요?','대화 잘 통하네요 :)','그 얘기 더 듣고 싶어요!'];
 function sendMsg(){
   const i=document.getElementById('msgInput');if(!i.value.trim())return;
-  msgs.push({t:'me',x:i.value.trim()});i.value='';renderMsgs();
-  setTimeout(()=>{msgs.push({t:'you',x:REPLIES[Math.floor(Math.random()*REPLIES.length)]});renderMsgs()},900);
+  msgs.push({t:'me',x:i.value.trim()});i.value='';saveChats();updateChatPreview();renderMsgs();
+  setTimeout(()=>{msgs.push({t:'you',x:REPLIES[Math.floor(Math.random()*REPLIES.length)]});saveChats();updateChatPreview();renderMsgs()},900);
+}
+function updateChatPreview(){
+  const arr=chatStore[curPeer.name]; if(!arr||!arr.length)return;
+  const it=store.active.find(a=>a.name===curPeer.name); if(it){it.last=arr[arr.length-1].x; it.time='방금'; saveStore();}
 }
 function startClock(){
   clearInterval(clockT);let s=24*3600-12;
@@ -458,15 +472,20 @@ function startClock(){
     const el=document.getElementById('clock');if(el)el.textContent=`${h}:${m}:${ss}`},1000);
 }
 function extend(){extLeft--;document.getElementById('extLeft').textContent=extLeft;
-  msgs.push({t:'sys',x:'⏳ 24시간이 연장됐어요. ('+(3-extLeft)+'/3회)'});renderMsgs();
+  msgs.push({t:'sys',x:'⏳ 24시간이 연장됐어요. ('+(3-extLeft)+'/3회)'});saveChats();renderMsgs();
   toast(extLeft>0?'24시간 연장됐어요':'3회 연장 완료! 이제 친구 신청을 할 수 있어요 🤝')}
 function leaveChat(msg){clearInterval(clockT);seedEnded();tab('chats');go('main');toast(msg||'채팅을 종료했어요')}
 
 /* ---------- 메인 탭 ---------- */
 let store={active:[],ended:[],friends:[]};
-function seed(){buildOnboarding();store.active=[{...PEERS[1],last:'그 여행지 사진 진짜 멋지네요!',time:'18:24',left:'18:20:11'}];}
-function seedEnded(){if(!store.ended.find(e=>e.name===curPeer.name))store.ended.unshift({...curPeer,last:'대화 종료됨',time:'방금'});
-  store.active=store.active.filter(a=>a.name!==curPeer.name);}
+const STORE_KEY='veil_store_v1';
+function saveStore(){ try{localStorage.setItem(STORE_KEY,JSON.stringify(store));}catch(e){} }
+function loadStore(){ try{return JSON.parse(localStorage.getItem(STORE_KEY));}catch(e){return null;} }
+function seed(){ buildOnboarding(); const s=loadStore();
+  if(s&&s.active){ store=s; }
+  else { store={active:[{...PEERS[1],last:'그 여행지 사진 진짜 멋지네요!',time:'18:24',left:'18:20:11'}],ended:[],friends:[]}; saveStore(); } }
+function seedEnded(){ if(!store.ended.find(e=>e.name===curPeer.name))store.ended.unshift({...curPeer,last:'대화 종료됨',time:'방금'});
+  store.active=store.active.filter(a=>a.name!==curPeer.name); saveStore(); }
 function tab(name){
   ['match','chats','settings'].forEach(n=>{
     document.getElementById('page-'+n).style.display=n===name?'':'none';
@@ -566,7 +585,7 @@ function applyProfile(pr){
 }
 function completeOnboarding(){ saveProfile(); seed(); go('main'); tab('match'); toast('프로필이 저장됐어요 🎉'); }
 function loginDemo(){ if(!loadProfile())saveProfile(); seed(); go('main'); tab('match'); }
-function logout(){ try{localStorage.removeItem(LS_KEY);}catch(e){}; location.reload(); }
+function logout(){ try{localStorage.removeItem(LS_KEY);localStorage.removeItem(CHAT_KEY);localStorage.removeItem(STORE_KEY);}catch(e){}; location.reload(); }
 
 /* 시작 시: 이미 가입/온보딩 했으면 메인으로, 아니면 시작화면 */
 (function boot(){
