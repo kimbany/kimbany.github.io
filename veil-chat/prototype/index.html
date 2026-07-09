@@ -551,7 +551,8 @@ function openChat(fresh){
     if(curPeer.tier){const ti=TIER_INFO[curPeer.tier];init.push({t:'sys',x:'🎯 '+ti.label+' — '+ti.desc});}
     init.push({t:'you',x:'안녕하세요! 반가워요 :)'},{t:'you',x:'프로필 보니까 관심사가 잘 맞을 것 같아요'});
     chatStore[key]=init; saveChats();
-    if(fresh && !store.active.find(a=>a.name===key)){ store.active.unshift({...curPeer,last:'새 대화가 시작됐어요',time:'방금',left:'23:59:59'}); saveStore(); }
+    if(fresh){ curPeer.expiresAt=curPeer.expiresAt||(Date.now()+24*3600*1000);
+      if(!store.active.find(a=>a.name===key)){ store.active.unshift({...curPeer,last:'새 대화가 시작됐어요',time:'방금',expiresAt:curPeer.expiresAt}); saveStore(); } }
   }
   msgs=chatStore[key];   // 참조: 이후 push가 저장소에 그대로 반영됨
   renderMsgs();startClock();
@@ -571,10 +572,12 @@ function updateChatPreview(){
   const arr=chatStore[curPeer.name]; if(!arr||!arr.length)return;
   const it=store.active.find(a=>a.name===curPeer.name); if(it){it.last=arr[arr.length-1].x; it.time='방금'; saveStore();}
 }
+function remainStr(exp){ let s=Math.max(0,Math.floor((exp-Date.now())/1000)); const h=String(Math.floor(s/3600)).padStart(2,'0'),m=String(Math.floor(s%3600/60)).padStart(2,'0'),ss=String(s%60).padStart(2,'0'); return h+':'+m+':'+ss; }
+function curExp(){ const it=store.active.find(a=>a.name===curPeer.name); return (it&&it.expiresAt)||curPeer.expiresAt||(Date.now()+24*3600*1000); }
 function startClock(){
-  clearInterval(clockT);let s=24*3600-12;
-  clockT=setInterval(()=>{s--;const h=String(Math.floor(s/3600)).padStart(2,'0'),m=String(Math.floor(s%3600/60)).padStart(2,'0'),ss=String(s%60).padStart(2,'0');
-    const el=document.getElementById('clock');if(el)el.textContent=`${h}:${m}:${ss}`},1000);
+  clearInterval(clockT);
+  const upd=()=>{const el=document.getElementById('clock');if(el)el.textContent=remainStr(curExp());};
+  upd(); clockT=setInterval(upd,1000);
 }
 function extend(){extLeft--;document.getElementById('extLeft').textContent=extLeft;
   msgs.push({t:'sys',x:'⏳ 24시간이 연장됐어요. ('+(3-extLeft)+'/3회)'});saveChats();renderMsgs();
@@ -587,8 +590,8 @@ const STORE_KEY='veil_store_v1';
 function saveStore(){ try{localStorage.setItem(STORE_KEY,JSON.stringify(store));}catch(e){} }
 function loadStore(){ try{return JSON.parse(localStorage.getItem(STORE_KEY));}catch(e){return null;} }
 function seed(){ buildOnboarding(); const s=loadStore();
-  if(s&&s.active){ store=s; }
-  else { store={active:[{...PEERS[1],last:'그 여행지 사진 진짜 멋지네요!',time:'18:24',left:'18:20:11'}],ended:[],friends:[]}; saveStore(); } }
+  if(s&&s.active){ store=s; let fix=false; store.active.forEach(a=>{ if(!a.expiresAt){ a.expiresAt=Date.now()+18*3600*1000; fix=true; } }); if(fix)saveStore(); }
+  else { store={active:[{...PEERS[1],last:'그 여행지 사진 진짜 멋지네요!',time:'18:24',expiresAt:Date.now()+(18*3600+20*60+11)*1000}],ended:[],friends:[]}; saveStore(); } }
 function seedEnded(){ if(!store.ended.find(e=>e.name===curPeer.name))store.ended.unshift({...curPeer,last:'대화 종료됨',time:'방금'});
   store.active=store.active.filter(a=>a.name!==curPeer.name); saveStore(); }
 function tab(name){
@@ -634,7 +637,7 @@ function renderChats(){
     <div class="list-item" onclick="curPeer=${JSON.stringify(p).replace(/"/g,'&quot;')};${seg==='ended'?'':'openChat(false)'}">
       <div class="av" style="background:${p.c};font-size:22px">${p.av}</div>
       <div style="flex:1;min-width:0">
-        <div class="row" style="gap:6px"><b>${p.name}</b>${seg==='active'?'<span class="badge live">⏳ '+p.left+'</span>':''}${seg==='ended'?'<span class="badge">종료</span>':''}</div>
+        <div class="row" style="gap:6px"><b>${p.name}</b>${seg==='active'?'<span class="badge live exp-badge" data-exp="'+(p.expiresAt||0)+'">⏳ '+(p.expiresAt&&p.expiresAt<=Date.now()?'만료':remainStr(p.expiresAt||Date.now()))+'</span>':''}${seg==='ended'?'<span class="badge">종료</span>':''}</div>
         <div class="dim" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${p.last||''}</div>
       </div>
       ${seg==='ended'?`<button class="iconbtn" onclick="event.stopPropagation();store.ended.splice(${idx},1);renderChats();toast('기록을 삭제했어요')">🗑</button>`:`<span class="dim">${p.time||''}</span>`}
@@ -698,6 +701,8 @@ function logout(){ try{localStorage.removeItem(LS_KEY);localStorage.removeItem(C
   if(pr){ applyProfile(pr); seed(); go('main'); tab('match'); }
   else { go('s-start'); }
 })();
+// 대화 목록의 남은시간 뱃지 실시간 갱신
+setInterval(()=>{ document.querySelectorAll('.exp-badge').forEach(b=>{ const e=+b.dataset.exp; if(!e)return; b.textContent=(e<=Date.now())?'⏳ 만료':'⏳ '+remainStr(e); }); }, 1000);
 </script>
 </body>
 </html>
