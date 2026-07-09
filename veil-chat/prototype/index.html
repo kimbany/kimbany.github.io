@@ -316,7 +316,10 @@
       <div class="label">반려동물 <span class="dim" style="font-weight:400">· 다중 선택</span></div><div id="edit-pets"></div>
       <div class="label">관심사 <span class="dim" style="font-weight:400">· 최소 3개</span></div><div id="edit-interests"></div>
     </div>
-    <div class="pad"><button id="editSaveBtn" class="btn" onclick="saveEdit()">저장</button></div>
+    <div class="pad">
+      <p class="dim" style="text-align:center;font-size:12px;color:var(--warn);margin:0 0 4px">⚠️ 저장하면 프로필(닉네임·관심사 등)은 7일 후에 다시 변경할 수 있어요. 신중하게 확인해주세요.</p>
+      <button id="editSaveBtn" class="btn" onclick="saveEdit()">저장</button>
+    </div>
   </section>
 
   <!-- ===== 신고 ===== -->
