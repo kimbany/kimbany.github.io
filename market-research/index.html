@@ -387,6 +387,7 @@ function parseCoupang(d) {
     title: p.productName, link: p.productUrl, image: p.productImage,
     brand: "", mallName: p.isRocket ? "쿠팡(로켓)" : "쿠팡",
     lprice: p.productPrice, productType: "2", isRocket: !!p.isRocket,
+    isFreeShipping: !!p.isFreeShipping, rank: p.rank,   // 무료배송·쿠팡순위
     category: p.categoryName || "",
   }));
 }
@@ -519,16 +520,26 @@ function renderProducts() {
     <tr class="border-t" style="border-color:var(--line)">
       <td class="px-3 py-2 text-right mono text-[var(--muted)]">${idx+1}</td>
       <td class="px-3 py-2">${srcBadge(i.source)}</td>
-      <td class="px-3 py-2 max-w-[280px]">
-        <a href="${i.link}" target="_blank" class="hover:text-[var(--accent)] line-clamp-1">${stripTag(i.title)}</a>
+      <td class="px-3 py-2 max-w-[300px]">
+        <div class="flex items-center gap-2">
+          ${i.image ? `<img src="${i.image}" alt="" class="w-9 h-9 rounded object-cover shrink-0" style="background:var(--panel2)" loading="lazy" onerror="this.style.display='none'">` : ""}
+          <div class="min-w-0">
+            <a href="${i.link}" target="_blank" class="hover:text-[var(--accent)] line-clamp-1">${stripTag(i.title)}</a>
+            ${i.source==="coupang" && i.rank ? `<div class="text-[10px] text-[var(--muted)]">쿠팡 ${i.rank}위</div>` : ""}
+          </div>
+        </div>
       </td>
       <td class="px-3 py-2 text-[var(--muted)] text-xs">${i.brand||"—"}</td>
       <td class="px-3 py-2 text-xs">${i.mallName}</td>
       <td class="px-3 py-2 text-right mono font-semibold">₩${fmt(i.lprice)}</td>
       <td class="px-3 py-2">
+        <div class="flex flex-wrap gap-1">
         ${i.source==="coupang"
-          ? (i.isRocket ? `<span class="text-[10px] px-1.5 py-0.5 rounded" style="background:var(--panel2);color:var(--accent2)">로켓</span>` : `<span class="text-[var(--muted)]">—</span>`)
+          ? ((i.isRocket ? `<span class="text-[10px] px-1.5 py-0.5 rounded" style="background:var(--panel2);color:var(--accent2)">로켓</span>` : "")
+             + (i.isFreeShipping ? `<span class="text-[10px] px-1.5 py-0.5 rounded" style="background:var(--panel2);color:var(--accent)">무료배송</span>` : "")
+             + (!i.isRocket && !i.isFreeShipping ? `<span class="text-[var(--muted)]">—</span>` : ""))
           : `<span class="text-[10px] px-1.5 py-0.5 rounded" style="background:var(--panel2);color:${i.productType==='1'?'var(--accent)':'var(--muted)'}">${i.productType==='1'?'가격비교':'단독'}</span>`}
+        </div>
       </td>
     </tr>`).join("");
 
@@ -975,7 +986,7 @@ function demoCoupang(kw) {
       title:`[데모] ${kw} 샘플상품 ${i+1}`,
       link:"#", image:"", brand:"", mallName: rocket?"쿠팡(로켓)":"쿠팡",
       lprice: 25000 + Math.round(Math.random()*80000/100)*100,
-      productType:"2", isRocket: rocket, category:"",
+      productType:"2", isRocket: rocket, isFreeShipping: i%2===0, rank: i+1, category:"",
     };
   });
   return { total:24, items };
