@@ -344,6 +344,7 @@ async function runSearch() {
     state.raw = { naver: nv.items, coupang: cp.items };
     state._totalNaver = nv.total;
     state.demo = { naver: nv.demo, coupang: cp.demo }; // 소스별 데모 여부
+    state.demoReason = { naver: nv.reason, coupang: cp.reason }; // 데모로 빠진 이유(진단용)
     render();
     loadTrend([kw]);
     loadDemo(kw);
@@ -354,22 +355,27 @@ async function runSearch() {
 
 // 네이버 검색 (source 태깅 + 데모 폴백). demo:true면 실데이터 못 받아 데모로 표시 중
 async function fetchNaver(kw) {
+  let reason = "프록시 미설정";
   try {
     const d = await api(`/search?query=${encodeURIComponent(kw)}&display=40`);
     if (d) return { items: tagSource(d.items||[], "naver"), total: d.total||null, demo:false };
-  } catch(e){}
+  } catch(e){ reason = e.message || "요청실패"; }
   const demo = demoSearch(kw);
-  return { items: tagSource(demo.items, "naver"), total: demo.total, demo:true };
+  return { items: tagSource(demo.items, "naver"), total: demo.total, demo:true, reason };
 }
 // 쿠팡 파트너스 검색 (source 태깅 + 데모 폴백)
 async function fetchCoupang(kw) {
+  let reason = "프록시 미설정";
   try {
     const d = await api(`/coupang?keyword=${encodeURIComponent(kw)}&limit=40`);
-    const items = parseCoupang(d);
-    if (items) return { items: tagSource(items, "coupang"), total: items.length, demo:false };
-  } catch(e){}
+    if (d) {
+      const items = parseCoupang(d);
+      if (items) return { items: tagSource(items, "coupang"), total: items.length, demo:false };
+      reason = "응답형식오류(data.productData 없음)";
+    }
+  } catch(e){ reason = e.message || "요청실패"; }
   const demo = demoCoupang(kw);
-  return { items: tagSource(demo.items, "coupang"), total: demo.total, demo:true };
+  return { items: tagSource(demo.items, "coupang"), total: demo.total, demo:true, reason };
 }
 function tagSource(items, src){ (items||[]).forEach(i => i.source = src); return items||[]; }
 
@@ -416,13 +422,21 @@ function renderSourceToggle() {
     ["coupang",`쿠팡 ${nC}`, demo.coupang],
   ];
   const box = $("#srcToggle");
-  box.className = "flex items-center gap-2 mb-4 text-xs flex-wrap";
+  box.className = "flex flex-col gap-1 mb-4 text-xs";
   const anyDemo = demo.naver || demo.coupang;
-  box.innerHTML = `<span class="text-[var(--muted)] mr-1">데이터 소스</span>` +
-    opts.map(([v,label,isDemo]) =>
-      `<button class="chip px-3 py-1 rounded-full ${state.source===v?'on':''}" data-src="${v}">${label}${tag(isDemo)}</button>`
-    ).join("") +
-    (anyDemo ? `<span class="text-[11px] ml-1" style="color:var(--warn)">⚠ '데모' 표시는 가짜 샘플 데이터입니다 (API 미연동/오류). ⚙에서 프록시·키 확인</span>` : "");
+  const reason = state.demoReason || {};
+  // 데모로 빠진 소스별 이유 표시 (진단용)
+  const reasonLines = [];
+  if (demo.naver) reasonLines.push(`네이버 데모 사유: ${reason.naver||"?"}`);
+  if (demo.coupang) reasonLines.push(`쿠팡 데모 사유: ${reason.coupang||"?"}`);
+  box.innerHTML =
+    `<div class="flex items-center gap-2 flex-wrap">
+      <span class="text-[var(--muted)] mr-1">데이터 소스</span>` +
+      opts.map(([v,label,isDemo]) =>
+        `<button class="chip px-3 py-1 rounded-full ${state.source===v?'on':''}" data-src="${v}">${label}${tag(isDemo)}</button>`
+      ).join("") +
+    `</div>` +
+    (anyDemo ? `<div class="text-[11px]" style="color:var(--warn)">⚠ ${reasonLines.join(" · ")} — ⚙ 프록시·키 확인</div>` : "");
   box.querySelectorAll("[data-src]").forEach(b =>
     b.onclick = () => { state.source = b.dataset.src; render(); });
 }
