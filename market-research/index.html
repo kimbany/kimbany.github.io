@@ -377,7 +377,11 @@ async function fetchCoupang(kw) {
   const demo = demoCoupang(kw);
   return { items: tagSource(demo.items, "coupang"), total: demo.total, demo:true, reason };
 }
-function tagSource(items, src){ (items||[]).forEach(i => i.source = src); return items||[]; }
+// source 태깅 + 노출순위(rank) 부여. 이미 rank 있으면(쿠팡) 유지, 없으면 응답 순서로 매김(네이버=관련도순)
+function tagSource(items, src){
+  (items||[]).forEach((i,idx) => { i.source = src; if (i.rank==null) i.rank = idx+1; });
+  return items||[];
+}
 
 // 쿠팡 파트너스 응답 → 공통 item 구조로 변환
 function parseCoupang(d) {
@@ -525,7 +529,7 @@ function renderProducts() {
           ${i.image ? `<img src="${i.image}" alt="" class="w-9 h-9 rounded object-cover shrink-0" style="background:var(--panel2)" loading="lazy" onerror="this.style.display='none'">` : ""}
           <div class="min-w-0">
             <a href="${i.link}" target="_blank" class="hover:text-[var(--accent)] line-clamp-1">${stripTag(i.title)}</a>
-            ${i.source==="coupang" && i.rank ? `<div class="text-[10px] text-[var(--muted)]">쿠팡 ${i.rank}위</div>` : ""}
+            ${i.rank ? `<div class="text-[10px] text-[var(--muted)]">${i.source==="coupang"?"쿠팡":"네이버"} 노출순 ${i.rank}위</div>` : ""}
           </div>
         </div>
       </td>
