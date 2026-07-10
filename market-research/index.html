@@ -367,7 +367,7 @@ async function fetchNaver(kw) {
 async function fetchCoupang(kw) {
   let reason = "프록시 미설정";
   try {
-    const d = await api(`/coupang?keyword=${encodeURIComponent(kw)}&limit=40`);
+    const d = await api(`/coupang?keyword=${encodeURIComponent(kw)}&limit=10`);
     if (d) {
       const items = parseCoupang(d);
       if (items) return { items: tagSource(items, "coupang"), total: items.length, demo:false };
@@ -642,7 +642,7 @@ async function fetchCoupangStats(kws) {
   await Promise.all(kws.map(async (kw) => {
     let items = null;
     try {
-      const d = await api(`/coupang?keyword=${encodeURIComponent(kw)}&limit=40`);
+      const d = await api(`/coupang?keyword=${encodeURIComponent(kw)}&limit=10`);
       items = parseCoupang(d);
     } catch(e){}
     if (!items) items = demoCoupang(kw).items;
