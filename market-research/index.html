@@ -343,6 +343,7 @@ async function runSearch() {
     const [nv, cp] = await Promise.all([ fetchNaver(kw), fetchCoupang(kw) ]);
     state.raw = { naver: nv.items, coupang: cp.items };
     state._totalNaver = nv.total;
+    state.demo = { naver: nv.demo, coupang: cp.demo }; // 소스별 데모 여부
     render();
     loadTrend([kw]);
     loadDemo(kw);
@@ -351,24 +352,24 @@ async function runSearch() {
   }
 }
 
-// 네이버 검색 (source 태깅 + 데모 폴백)
+// 네이버 검색 (source 태깅 + 데모 폴백). demo:true면 실데이터 못 받아 데모로 표시 중
 async function fetchNaver(kw) {
   try {
     const d = await api(`/search?query=${encodeURIComponent(kw)}&display=40`);
-    if (d) return { items: tagSource(d.items||[], "naver"), total: d.total||null };
+    if (d) return { items: tagSource(d.items||[], "naver"), total: d.total||null, demo:false };
   } catch(e){}
   const demo = demoSearch(kw);
-  return { items: tagSource(demo.items, "naver"), total: demo.total };
+  return { items: tagSource(demo.items, "naver"), total: demo.total, demo:true };
 }
 // 쿠팡 파트너스 검색 (source 태깅 + 데모 폴백)
 async function fetchCoupang(kw) {
   try {
     const d = await api(`/coupang?keyword=${encodeURIComponent(kw)}&limit=40`);
     const items = parseCoupang(d);
-    if (items) return { items: tagSource(items, "coupang"), total: items.length };
+    if (items) return { items: tagSource(items, "coupang"), total: items.length, demo:false };
   } catch(e){}
   const demo = demoCoupang(kw);
-  return { items: tagSource(demo.items, "coupang"), total: demo.total };
+  return { items: tagSource(demo.items, "coupang"), total: demo.total, demo:true };
 }
 function tagSource(items, src){ (items||[]).forEach(i => i.source = src); return items||[]; }
 
@@ -406,14 +407,22 @@ function render() {
 // 데이터 소스 토글 (통합 / 네이버 / 쿠팡) — 개수 함께 표시
 function renderSourceToggle() {
   const raw = state.raw || { naver:[], coupang:[] };
+  const demo = state.demo || {};
   const nN = (raw.naver||[]).length, nC = (raw.coupang||[]).length;
-  const opts = [ ["all",`통합 ${nN+nC}`], ["naver",`네이버 ${nN}`], ["coupang",`쿠팡 ${nC}`] ];
+  const tag = (isDemo) => isDemo ? ` <span style="color:var(--warn)">·데모</span>` : "";
+  const opts = [
+    ["all",`통합 ${nN+nC}`, false],
+    ["naver",`네이버 ${nN}`, demo.naver],
+    ["coupang",`쿠팡 ${nC}`, demo.coupang],
+  ];
   const box = $("#srcToggle");
   box.className = "flex items-center gap-2 mb-4 text-xs flex-wrap";
+  const anyDemo = demo.naver || demo.coupang;
   box.innerHTML = `<span class="text-[var(--muted)] mr-1">데이터 소스</span>` +
-    opts.map(([v,label]) =>
-      `<button class="chip px-3 py-1 rounded-full ${state.source===v?'on':''}" data-src="${v}">${label}</button>`
-    ).join("");
+    opts.map(([v,label,isDemo]) =>
+      `<button class="chip px-3 py-1 rounded-full ${state.source===v?'on':''}" data-src="${v}">${label}${tag(isDemo)}</button>`
+    ).join("") +
+    (anyDemo ? `<span class="text-[11px] ml-1" style="color:var(--warn)">⚠ '데모' 표시는 가짜 샘플 데이터입니다 (API 미연동/오류). ⚙에서 프록시·키 확인</span>` : "");
   box.querySelectorAll("[data-src]").forEach(b =>
     b.onclick = () => { state.source = b.dataset.src; render(); });
 }
@@ -932,11 +941,12 @@ function datalabBody(kws) {
 }
 
 // ================= 데모 데이터 (프록시 미설정 시) =================
+// 브랜드/판매처는 특정 업종색 없는 일반 샘플명 (실데이터로 오해 방지)
 function demoSearch(kw) {
-  const malls = ["네이버","지위픽 공식몰","지펫온라인","펫프렌즈","어바웃펫","쿠팡"];
-  const brands = ["지위픽","질","아첨","웰츠","","츄이씬"];
+  const malls = ["네이버","종합몰","오픈마켓A","오픈마켓B","전문몰","직영몰"];
+  const brands = ["샘플브랜드A","샘플브랜드B","","샘플브랜드C","","샘플브랜드D"];
   const items = Array.from({length:32}, (_,i)=>({
-    title:`${kw} ${["오리지널","프리미엄","에어드라이","소프트"][i%4]} ${(i%3+1)*454}g`,
+    title:`[데모] ${kw} 샘플상품 ${i+1}`,
     link:"#", brand:brands[i%brands.length], mallName:malls[i%malls.length],
     lprice: 30000 + Math.round(Math.random()*90000/100)*100,
     productType: i%3===0 ? "1":"2",
@@ -948,7 +958,7 @@ function demoCoupang(kw) {
   const items = Array.from({length:24}, (_,i)=>{
     const rocket = i%3!==0;
     return {
-      title:`${kw} ${["","대용량 ","공식 ","베스트 "][i%4]}${(i%3+1)*400}g`,
+      title:`[데모] ${kw} 샘플상품 ${i+1}`,
       link:"#", image:"", brand:"", mallName: rocket?"쿠팡(로켓)":"쿠팡",
       lprice: 25000 + Math.round(Math.random()*80000/100)*100,
       productType:"2", isRocket: rocket, category:"",
