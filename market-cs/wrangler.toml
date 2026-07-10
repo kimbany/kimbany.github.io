@@ -1,0 +1,31 @@
+# wrangler.toml — 마켓 문의(CS) 통합 수집·답변 Workers 설정
+#
+# 배포 전 준비:
+#   1) wrangler login
+#   2) 아래 시크릿을 코드가 아니라 wrangler secret 으로 등록 (하드코딩 금지)
+#        wrangler secret put COUPANG_ACCESS_KEY
+#        wrangler secret put COUPANG_SECRET_KEY
+#        wrangler secret put COUPANG_VENDOR_ID
+#        wrangler secret put NAVER_CLIENT_ID
+#        wrangler secret put NAVER_CLIENT_SECRET
+#        wrangler secret put ST11_API_KEY
+#        wrangler secret put LLM_API_KEY
+#        wrangler secret put FIREBASE_CONFIG        # Firestore 설정 JSON
+#
+# ⚠️ 미해결: 3사 모두 호출 IP 등록을 요구하는데 Workers 출구 IP는 유동적.
+#    폴링 배포 전 고정 IP 확보(고정 IP 프록시 등) 필요. (PROGRESS.md 참고)
+
+name = "market-cs-poller"
+main = "workers/poller.js"
+compatibility_date = "2026-01-01"
+
+# ── 폴링 Cron: 15분 간격 (CLAUDE.md 1-6) ──
+[triggers]
+crons = ["*/15 * * * *"]
+
+# ── 일반 변수(비밀 아님)만 여기. 시크릿은 wrangler secret 으로 ──
+[vars]
+# 대시보드 오리진 (CORS 허용). 배포 시 실제 값으로.
+ALLOWED_ORIGINS = "https://kimbany.github.io"
+# 쿠팡 게이트웨이 베이스 URL
+COUPANG_BASE = "https://api-gateway.coupang.com"
