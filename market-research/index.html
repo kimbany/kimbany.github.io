@@ -703,7 +703,7 @@ function parseKeywordTool(d, kws) {
   const volumes = {};
   list.forEach(k => { if (wanted.has(normKw(k.kw))) volumes[normKw(k.kw)] = k; });
   const related = list.filter(k => !wanted.has(normKw(k.kw)))
-    .sort((a,b)=> b.total - a.total).slice(0,15);
+    .sort((a,b)=> b.total - a.total).slice(0,50); // 연관키워드 상위 50개 표시
   return { volumes, related };
 }
 
@@ -1002,7 +1002,9 @@ function demoKeywords(kws) {
     volumes[normKw(k)] = { kw:k, pc, mo:total-pc, total, comp:comps[i%3] };
   });
   const base = kws[0] || "키워드";
-  const sfx = ["추천","가격","후기","브랜드","순위","선물세트","대용량","유기농"];
+  const sfx = ["추천","가격","후기","브랜드","순위","선물세트","대용량","유기농","1위","best",
+    "인기","할인","최저가","비교","정품","공식","묶음","세트","소량","프리미엄",
+    "국산","수입","신상","저렴한","가성비"];
   const related = sfx.map((s,i)=>{
     const total = 2000 + Math.round(Math.random()*33000);
     const pc = Math.round(total*0.25);
