@@ -71,7 +71,7 @@
   @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(47,47,47,.22)}100%{box-shadow:0 0 0 36px rgba(47,47,47,0)}}
   /* 세그먼트: 박스 없이 글씨만, 가운뎃점(・)으로 구분, 선택 시 주황 */
   .seg{display:flex;align-items:center;justify-content:center;background:transparent;padding:0;margin:var(--sp-4) 0}
-  .seg div{padding:var(--sp-2) var(--sp-1);font-size:17px;color:var(--dim);font-weight:500;position:relative}
+  .seg div{padding:var(--sp-2) var(--sp-1);font-size:20px;color:var(--dim);font-weight:500;position:relative}
   .seg div.on{color:var(--accent);font-weight:700}
   .seg div:not(:last-child)::after{content:'・';margin:0 var(--sp-2);color:var(--dim);opacity:.45;font-weight:400}
   /* chat */
@@ -773,9 +773,9 @@ function renderMatch(){
         </div>
         <p class="dim center" style="margin:var(--sp-2) 0 0">${mode==='similar'?'관심사가 비슷한 사람과 우선 매칭돼요':'관심사가 다른 사람과 우선 매칭돼요'}</p>
         <div class="hr"></div>
-        <div style="font-size:13px;text-align:left">
-          <b>기준별 자동 매칭</b>
-          <div class="dim" style="margin-top:var(--sp-1)">완벽 매칭이 없으면 자동으로 폭을 넓혀요.</div>
+        <div style="font-size:13px;text-align:center">
+          <b style="font-size:14px">기준별 자동 매칭</b>
+          <div class="dim" style="margin-top:var(--sp-2)">완벽 매칭이 없으면 자동으로 폭을 넓혀요.</div>
           <div class="dim" style="margin-top:var(--sp-2)"><b style="color:var(--text)">기준1</b> 완벽 매칭 · <b style="color:var(--text)">기준2</b> 근접 · <b style="color:var(--text)">기준3</b> 폭넓게</div>
         </div>
         <button class="btn" style="margin-top:var(--sp-6)" onclick="startMatch()">매칭하기</button>
