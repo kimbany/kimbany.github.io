@@ -42,6 +42,7 @@
     font-weight:700;font-size:16px;text-align:center;margin-top:var(--sp-3)}
   .btn.sec{background:var(--surface2);color:var(--text)}
   .btn.ghost{background:transparent;border:1px solid var(--border);color:var(--dim)}
+  .btn-text{display:block;width:100%;padding:6px 0;background:transparent;border:0;color:var(--text);font-family:inherit;font-size:20px;font-weight:600;text-align:center}
   .btn.bad{background:var(--bad)}
   .btn:disabled{opacity:.4}
   .topbar{display:flex;align-items:center;gap:10px;padding:14px 16px;padding-top:max(14px,env(safe-area-inset-top));
@@ -831,9 +832,9 @@ function renderMatch(){
           <div class="${mode==='different'?'on':''}" onclick="mode='different';renderMatch()">관심사 불일치</div>
         </div>
         <div class="hr"></div>
-        <div style="text-align:center"><b style="font-size:15px">기준별 자동 매칭</b> ${infoBtn('tier')}</div>
-        <button class="btn" style="margin-top:var(--sp-6)" onclick="startMatch()">매칭하기</button>
-        <p class="dim center" style="font-size:12px;margin-top:var(--sp-3)">무료 회원은 동시에 최대 2명까지 · 현재 진행중 <b style="color:${(store.active||[]).length>=2?'var(--bad)':'var(--text)'}">${(store.active||[]).length}/2</b></p>
+        <div style="text-align:center"><span class="dim">기준별 자동 매칭</span> ${infoBtn('tier')}</div>
+        <button class="btn-text" style="margin-top:var(--sp-6)" onclick="startMatch()">매칭하기</button>
+        <p class="dim" style="font-size:12px;margin-top:var(--sp-3);text-align:center;white-space:nowrap">무료 회원은 동시에 최대 2명까지 · 현재 진행중 <b style="color:${(store.active||[]).length>=2?'var(--bad)':'var(--text)'}">${(store.active||[]).length}/2</b></p>
       </div>
     </div>`;
 }
