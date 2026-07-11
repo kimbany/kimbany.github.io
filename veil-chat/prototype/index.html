@@ -503,6 +503,15 @@ function ic(name,sz){ sz=sz||20; return '<svg width="'+sz+'" height="'+sz+'" vie
 // 인라인 작은 아이콘(텍스트 옆)
 const CLK='<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>';
 const MUTE='<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><path d="M18 8a6 6 0 0 0-9.3-5"/><path d="M6 8c0 7-3 9-3 9h13"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/><line x1="3" y1="3" x2="21" y2="21"/></svg>';
+/* ---------- 시스템 메시지 아이콘 (말풍선 안 안내) ---------- */
+const SI='width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"';
+const CHK='<svg '+SI+'><circle cx="12" cy="12" r="9"/><path d="M8.5 12.5l2.5 2.5 4.5-5"/></svg>';       /* 매칭 성사 */
+const TGT='<svg '+SI+'><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.3" fill="currentColor" stroke="none"/></svg>'; /* 기준 매칭 */
+const USR2='<svg '+SI+'><circle cx="9" cy="8" r="3"/><path d="M3.5 19c0-3 2.5-4.6 5.5-4.6s5.5 1.6 5.5 4.6"/><path d="M16 5.5a3 3 0 0 1 0 5.6"/><path d="M20.5 19c0-2.2-1.2-3.6-3.1-4.2"/></svg>'; /* 친구 성사 */
+const HG='<svg '+SI+'><path d="M6 3h12"/><path d="M6 21h12"/><path d="M8 3c0 4 8 5 8 9s-8 5-8 9"/><path d="M16 3c0 4-8 5-8 9s8 5 8 9"/></svg>'; /* 만료/자동종료 */
+const SYSIC={'🎉':CHK,'🎯':TGT,'🤝':USR2,'⌛':HG,'⏳':CLK,'♾️':'','♾':''};
+function escHtml(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+function sysHTML(x){ for(const e in SYSIC){ if(x.indexOf(e)===0){ const rest=x.slice(e.length).replace(/^\s+/,''); return (SYSIC[e]?SYSIC[e]+' ':'')+escHtml(rest); } } return escHtml(x); }
 /* ---------- 설명 정보 팝업 (i 아이콘) ---------- */
 const INFO={
   cond:{title:'매칭 조건', body:'<b>관심사 일치</b> · 관심사가 비슷한 사람과 우선 매칭돼요<br><br><b>관심사 불일치</b> · 관심사가 다른 사람과 우선 매칭돼요'},
@@ -721,11 +730,11 @@ function befriend(){
   store.active=(store.active||[]).filter(a=>!(a.id===curPeer.id||a.name===curPeer.name)); saveStore();
   curPeer.friend=true;
   msgs.push({t:'sys',x:'🤝 친구가 됐어요! 이제 무제한으로 대화할 수 있어요.'}); saveChats();
-  clearInterval(clockT); updateChatChrome(); renderMsgs(); toast('친구가 됐어요 🎉');
+  clearInterval(clockT); updateChatChrome(); renderMsgs(); toast('친구가 됐어요');
 }
 function renderMsgs(){
   const c=document.getElementById('msgs');c.innerHTML='';
-  msgs.forEach(m=>{const d=document.createElement('div');d.className='b '+m.t;d.textContent=m.x;c.appendChild(d)});
+  msgs.forEach(m=>{const d=document.createElement('div');d.className='b '+m.t;if(m.t==='sys'){d.innerHTML=sysHTML(m.x);}else{d.textContent=m.x;}c.appendChild(d)});
   c.scrollTop=c.scrollHeight;
 }
 const REPLIES=['오 정말요? 저도 그래요 ㅎㅎ','그거 완전 공감돼요','오늘 하루는 어땠어요?','대화 잘 통하네요 :)','그 얘기 더 듣고 싶어요!'];
@@ -768,7 +777,7 @@ function autoEndChat(){
 }
 function showExtend(){
   const exp=curExp(), dl=document.getElementById('extDeadline');
-  if(dl) dl.textContent = chatPhase(exp)==='B' ? ('⌛ '+remainStr(exp+GRACE_MS)+' 안에 선택하지 않으면 자동 종료돼요.') : '미선택 시 12시간 뒤 자동 종료됩니다.';
+  if(dl) dl.innerHTML = chatPhase(exp)==='B' ? (HG+' '+escHtml(remainStr(exp+GRACE_MS)+' 안에 선택하지 않으면 자동 종료돼요.')) : '미선택 시 12시간 뒤 자동 종료됩니다.';
   open('sheetExtend');
 }
 function demoExpire(){ const it=store.active.find(a=>a.id===curPeer.id||a.name===curPeer.name); const t=Date.now()-1000; if(it){it.expiresAt=t;saveStore();} curPeer.expiresAt=t; curPeer._promptShown=false; startClock(); }
@@ -779,7 +788,7 @@ function extend(){extLeft--;document.getElementById('extLeft').textContent=extLe
   curPeer._promptShown=false;
   msgs.push({t:'sys',x:'⏳ 24시간이 연장됐어요. ('+(3-extLeft)+'/3회)'});saveChats();renderMsgs();
   startClock(); updateChatChrome();
-  toast(extLeft>0?'24시간 연장됐어요':'3회 연장 완료! 이제 친구 신청을 할 수 있어요 🤝')}
+  toast(extLeft>0?'24시간 연장됐어요':'3회 연장 완료! 이제 친구 신청을 할 수 있어요')}
 function leaveChat(msg){clearInterval(clockT);seedEnded();tab('chats');go('main');toast(msg||'채팅을 종료했어요')}
 function submitEval(){
   const noRematch=(document.querySelector('#s-eval input[type=checkbox]')||{}).checked;
@@ -895,7 +904,7 @@ function applyProfile(pr){
   const st=document.getElementById('status'); if(st&&pr.status)st.value=pr.status;
   const bg=document.getElementById('bigav'); if(bg){bg.textContent=pr.avatar||'🦊'; if(pr.avatarBg)bg.style.background=pr.avatarBg;}
 }
-function completeOnboarding(){ try{localStorage.removeItem(SESSION_KEY);}catch(e){} if(!profile.uid)profile.uid=genUid(); saveProfile(); seed(); go('main'); tab('match'); toast('프로필이 저장됐어요 🎉'); }
+function completeOnboarding(){ try{localStorage.removeItem(SESSION_KEY);}catch(e){} if(!profile.uid)profile.uid=genUid(); saveProfile(); seed(); go('main'); tab('match'); toast('프로필이 저장됐어요'); }
 function loginDemo(){ try{localStorage.removeItem(SESSION_KEY);}catch(e){} const pr=loadProfile(); if(pr){ applyProfile(pr); } else { if(!profile.uid)profile.uid=genUid(); saveProfile(); } seed(); go('main'); tab('match'); toast('로그인됐어요'); }
 const SESSION_KEY='veil_loggedout';
 // 로그아웃: 데이터는 유지, 로그인 화면으로 (다시 로그인하면 복원)
