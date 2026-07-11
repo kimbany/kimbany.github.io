@@ -52,7 +52,7 @@
   .chip{display:inline-flex;align-items:center;padding:9px 14px;border-radius:999px;background:transparent;border:1px solid var(--border);color:var(--text);font-size:14px;margin:5px 5px 0 0;user-select:none}
   .chip.on{background:transparent;border-color:var(--accent);color:var(--accent);font-weight:700}
   .field{width:100%;padding:14px;border-radius:12px;background:var(--surface);border:1px solid var(--border);color:var(--text);margin-top:8px}
-  .label{font-size:13px;color:var(--dim);margin:var(--sp-4) 0 var(--sp-1);font-weight:600}
+  .label{font-size:13px;color:var(--text);margin:var(--sp-4) 0 var(--sp-1);font-weight:600}
   .card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-2);padding:var(--sp-4);margin-top:var(--sp-3)}
   .hr{width:44px;height:1px;background:var(--border);margin:var(--sp-4) auto}
   .row{display:flex;align-items:center;gap:12px}
@@ -62,7 +62,7 @@
   .badge.warn{background:rgba(251,189,35,.15);color:var(--warn)}
   /* tabs */
   .tabbar{display:flex;background:var(--surface);border-top:1px solid var(--border);padding-bottom:env(safe-area-inset-bottom)}
-  .tab{flex:1;padding:11px 0;text-align:center;color:var(--dim);font-size:11px}
+  .tab{flex:1;padding:11px 0;text-align:center;color:var(--text);font-size:11px}
   .tab .ic{display:block;margin-bottom:3px;line-height:0}
   .tab.on{color:var(--accent)} 
   /* matching */
@@ -71,7 +71,7 @@
   @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(47,47,47,.22)}100%{box-shadow:0 0 0 36px rgba(47,47,47,0)}}
   /* 세그먼트: 박스 없이 글씨만, 가운뎃점(・)으로 구분, 선택 시 주황 */
   .seg{display:flex;align-items:center;justify-content:center;background:transparent;padding:0;margin:var(--sp-4) 0}
-  .seg div{padding:var(--sp-2) var(--sp-1);font-size:20px;color:var(--dim);font-weight:500;position:relative}
+  .seg div{padding:var(--sp-2) var(--sp-1);font-size:20px;color:var(--text);font-weight:500;position:relative}
   .seg div.on{color:var(--accent);font-weight:700}
   .seg div:not(:last-child)::after{content:'・';margin:0 var(--sp-2);color:var(--dim);opacity:.45;font-weight:400}
   /* chat */
