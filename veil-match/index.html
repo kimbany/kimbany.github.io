@@ -825,14 +825,14 @@ function renderMatch(){
     <div class="pad center" style="height:100%;justify-content:flex-start;padding-top:15vh">
       <div class="av" style="width:84px;height:84px;border-radius:50%;background:var(--text);color:#fff;margin-bottom:8px"><svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M16 3h5v5"/><path d="M4 20 21 3"/><path d="M21 16v5h-5"/><path d="m15 15 6 6"/><path d="m4 4 5 5"/></svg></div>
       <h2>새로운 사람과 대화해요</h2>
-      <div style="width:100%;margin-top:var(--sp-6)">
+      <div style="width:100%;margin-top:48px">
         <div class="seg" style="margin-bottom:var(--sp-1)">
           <div class="${mode==='similar'?'on':''}" onclick="mode='similar';renderMatch()">관심사 일치</div>
           <div class="${mode==='different'?'on':''}" onclick="mode='different';renderMatch()">관심사 불일치</div>
         </div>
         <p class="dim" style="text-align:center;margin:var(--sp-1) 0 0">매칭 조건을 선택하세요 ${infoBtn('cond')}</p>
-        <div class="hr"></div>
-        <button class="btn-text" style="margin-top:var(--sp-4)" onclick="startMatch()">매칭하기 <span style="font-size:13px;font-weight:600;vertical-align:2px;color:${(store.active||[]).length>=2?'var(--bad)':'var(--dim)'}">${(store.active||[]).length}/2</span></button>
+        <div class="hr" style="margin:var(--sp-6) auto"></div>
+        <button class="btn-text" style="margin-top:var(--sp-6)" onclick="startMatch()">매칭하기 <span style="font-size:13px;font-weight:600;vertical-align:2px;color:${(store.active||[]).length>=2?'var(--bad)':'var(--dim)'}">${(store.active||[]).length}/2</span></button>
         <p class="dim" style="text-align:center;margin:var(--sp-1) 0 0">기준별 자동 매칭 ${infoBtn('tier')}</p>
       </div>
     </div>`;
