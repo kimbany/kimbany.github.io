@@ -61,10 +61,10 @@
   .badge.live{background:var(--surface2);color:var(--text)}
   .badge.warn{background:rgba(251,189,35,.15);color:var(--warn)}
   /* tabs */
-  .tabbar{display:flex;align-items:center;justify-content:center;background:var(--surface);border-top:1px solid var(--border);padding:13px 0 calc(13px + env(safe-area-inset-bottom))}
-  .tab{padding:0 2px;color:var(--text);font-size:15px;font-weight:500;position:relative}
+  .tabbar{display:flex;align-items:center;justify-content:space-between;background:var(--surface);border-top:1px solid var(--border);padding:13px var(--sp-5) calc(13px + env(safe-area-inset-bottom))}
+  .tab{color:var(--text);font-size:15px;font-weight:500}
   .tab.on{color:var(--accent);font-weight:700}
-  .tab:not(:last-child)::after{content:'·';margin:0 14px;color:var(--dim);opacity:.45;font-weight:400} 
+  .tab-sep{color:var(--dim);opacity:.45;font-size:15px} 
   /* matching */
   .pulse{width:150px;height:150px;border-radius:50%;background:var(--text);display:flex;align-items:center;justify-content:center;
     font-size:60px;font-weight:800;color:#fff;box-shadow:0 0 0 0 rgba(47,47,47,.22);animation:pulse 1.1s infinite}
@@ -225,7 +225,9 @@
     <div id="page-settings" class="grow" style="display:none"></div>
     <div class="tabbar">
       <div class="tab on" id="t-match" onclick="tab('match')">매칭</div>
+      <span class="tab-sep">·</span>
       <div class="tab" id="t-chats" onclick="tab('chats')">대화</div>
+      <span class="tab-sep">·</span>
       <div class="tab" id="t-settings" onclick="tab('settings')">설정</div>
     </div>
   </section>
