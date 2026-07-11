@@ -246,10 +246,10 @@
       <div style="flex:1"><div class="ttl" id="chatName">달빛토끼</div></div>
       <button class="iconbtn" onclick="open('sheetMenu')">⋯</button>
     </div>
-    <div id="timerbar" class="timerbar">⏳ 남은 시간 <span id="clock">23:59:48</span></div>
+    <div id="timerbar" class="timerbar"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg> 남은 시간 <span id="clock">23:59:48</span></div>
     <div id="friendBar" style="display:none;padding:8px;text-align:center;background:rgba(54,211,153,.12)">
       <span class="dim" style="font-size:12px;color:var(--good)">3회 연장 완료! </span>
-      <button class="btn" style="width:auto;padding:7px 18px;margin:0;display:inline-block;font-size:14px" onclick="requestFriend()">🤝 친구 신청</button>
+      <button class="btn" style="width:auto;padding:7px 18px;margin:0;display:inline-block;font-size:14px" onclick="requestFriend()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:4px"><circle cx="9" cy="8" r="3.3"/><path d="M2.5 20c0-3.4 3-5.3 6.5-5.3s6.5 1.9 6.5 5.3"/><path d="M16.5 5.4a3.3 3.3 0 0 1 0 6.4"/><path d="M21.5 20c0-2.5-1.4-4.2-3.6-4.9"/></svg>친구 신청</button>
     </div>
     <div id="msgs" class="msgs"></div>
     <div class="composer">
@@ -461,7 +461,7 @@ function renderFriendsMgr(){
     box.innerHTML = fs.length ? fs.map(f=>`
       <div class="list-item" onclick="curPeer=${JSON.stringify(f).replace(/"/g,'&quot;')};openChat(false)">
         <div class="av" style="background:${f.c};font-size:22px">${f.av}</div>
-        <div style="flex:1"><b>${f.name}</b><div class="dim" style="font-size:12px">${f.id} · ♾️ 무제한</div></div>
+        <div style="flex:1"><b>${f.name}</b><div class="dim" style="font-size:12px">${f.id} · 무제한</div></div>
         <span class="badge live">친구</span></div>`).join('')
       : '<div class="center dim" style="padding:50px 20px">아직 친구가 없어요.<br>3회 연장 후 친구 신청으로 친구를 만들 수 있어요.</div>';
   } else {
@@ -500,6 +500,9 @@ const ICONS={
   info:'<circle cx="12" cy="12" r="9"/><line x1="12" y1="11" x2="12" y2="16"/><circle cx="12" cy="7.6" r="0.9" fill="currentColor" stroke="none"/>'
 };
 function ic(name,sz){ sz=sz||20; return '<svg width="'+sz+'" height="'+sz+'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">'+(ICONS[name]||'')+'</svg>'; }
+// 인라인 작은 아이콘(텍스트 옆)
+const CLK='<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>';
+const MUTE='<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><path d="M18 8a6 6 0 0 0-9.3-5"/><path d="M6 8c0 7-3 9-3 9h13"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/><line x1="3" y1="3" x2="21" y2="21"/></svg>';
 /* ---------- 설명 정보 팝업 (i 아이콘) ---------- */
 const INFO={
   cond:{title:'매칭 조건', body:'<b>관심사 일치</b> · 관심사가 비슷한 사람과 우선 매칭돼요<br><br><b>관심사 불일치</b> · 관심사가 다른 사람과 우선 매칭돼요'},
@@ -708,8 +711,8 @@ function openChat(fresh){
 function updateChatChrome(){
   const isFriend=(store.friends||[]).some(f=>f.id===curPeer.id);
   const tb=document.getElementById('timerbar'), fb=document.getElementById('friendBar');
-  if(isFriend){ tb.innerHTML='♾️ 친구 · 무제한 대화'; fb.style.display='none'; }
-  else { tb.innerHTML='⏳ 남은 시간 <span id="clock"></span>'; fb.style.display=(extLeft<=0)?'block':'none'; }
+  if(isFriend){ tb.innerHTML='친구 · 무제한 대화'; fb.style.display='none'; }
+  else { tb.innerHTML=CLK+' 남은 시간 <span id="clock"></span>'; fb.style.display=(extLeft<=0)?'block':'none'; }
 }
 function requestFriend(){ document.getElementById('friendBar').innerHTML='<span class="dim" style="font-size:13px;color:var(--good)">친구 신청을 보냈어요… 상대 수락 대기 중</span>'; setTimeout(befriend,1300); }
 function befriend(){
@@ -740,15 +743,15 @@ function remainStr(exp){ let s=Math.max(0,Math.floor((exp-Date.now())/1000)); co
 function curExp(){ const it=store.active.find(a=>a.id===curPeer.id||a.name===curPeer.name); return (it&&it.expiresAt)||curPeer.expiresAt||(Date.now()+24*3600*1000); }
 // A=대화중, B=만료(연장/종료 결정 대기), C=결정시간 지남→자동종료
 function chatPhase(exp){ const now=Date.now(); if(!exp)return 'A'; if(now<exp)return 'A'; if(now<exp+GRACE_MS)return 'B'; return 'C'; }
-function badgeText(exp){ const ph=chatPhase(exp); if(ph==='A')return '⏳ '+remainStr(exp); if(ph==='B')return '⌛ 연장대기 '+remainStr(exp+GRACE_MS); return '⏳ 만료'; }
+function badgeText(exp){ const ph=chatPhase(exp); if(ph==='A')return CLK+' '+remainStr(exp); if(ph==='B')return CLK+' 연장대기 '+remainStr(exp+GRACE_MS); return CLK+' 만료'; }
 function startClock(){
   clearInterval(clockT);
   const tb=document.getElementById('timerbar'); let ph0=null;
   const upd=()=>{
     const exp=curExp(), ph=chatPhase(exp);
     if(ph!==ph0){ ph0=ph;
-      if(ph==='A'){ tb.classList.remove('warn'); tb.innerHTML='⏳ 남은 시간 <span id="clock"></span>'; }
-      else if(ph==='B'){ tb.classList.add('warn'); tb.innerHTML='⌛ 만료 · 연장/종료 결정 <span id="clock"></span> 남음';
+      if(ph==='A'){ tb.classList.remove('warn'); tb.innerHTML=CLK+' 남은 시간 <span id="clock"></span>'; }
+      else if(ph==='B'){ tb.classList.add('warn'); tb.innerHTML=CLK+' 만료 · 연장/종료 결정 <span id="clock"></span> 남음';
         if(!curPeer._promptShown){ curPeer._promptShown=true; showExtend(); } }
     }
     const el=document.getElementById('clock');
@@ -834,7 +837,7 @@ function renderChats(){
     <div class="list-item" onclick="curPeer=${JSON.stringify(p).replace(/"/g,'&quot;')};${seg==='ended'?'':'openChat(false)'}">
       <div class="av" style="background:${p.c};font-size:22px">${p.av}</div>
       <div style="flex:1;min-width:0">
-        <div class="row" style="gap:6px"><b>${p.name}</b>${seg!=='ended'&&!notifyOn(p.name)?'<span style="opacity:.6">🔕</span>':''}${seg==='active'?'<span class="badge '+(chatPhase(p.expiresAt)==='B'?'warn':'live')+' exp-badge" data-exp="'+(p.expiresAt||0)+'">'+badgeText(p.expiresAt)+'</span>':''}${seg==='ended'?'<span class="badge">종료</span>':''}</div>
+        <div class="row" style="gap:6px"><b>${p.name}</b>${seg!=='ended'&&!notifyOn(p.name)?'<span style="opacity:.55;color:var(--dim)">'+MUTE+'</span>':''}${seg==='active'?'<span class="badge '+(chatPhase(p.expiresAt)==='B'?'warn':'live')+' exp-badge" data-exp="'+(p.expiresAt||0)+'">'+badgeText(p.expiresAt)+'</span>':''}${seg==='ended'?'<span class="badge">종료</span>':''}</div>
         <div class="dim" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${seg==='ended'||loadNotif().listPreview?(p.last||''):'· · · 미리보기 꺼짐'}</div>
       </div>
       ${seg==='ended'?`<button class="iconbtn" onclick="event.stopPropagation();store.ended.splice(${idx},1);renderChats();toast('기록을 삭제했어요')"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16"/><path d="M9 7V5h6v2"/><path d="M6 7l1 13h10l1-13"/></svg></button>`:`<span class="dim">${p.time||''}</span>`}
@@ -967,7 +970,7 @@ function sweepExpired(){
 }
 setInterval(()=>{
   sweepExpired();
-  document.querySelectorAll('.exp-badge').forEach(b=>{ const e=+b.dataset.exp; if(!e)return; b.textContent=badgeText(e); });
+  document.querySelectorAll('.exp-badge').forEach(b=>{ const e=+b.dataset.exp; if(!e)return; b.innerHTML=badgeText(e); });
 }, 1000);
 </script>
 </body>
