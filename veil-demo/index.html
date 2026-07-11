@@ -101,6 +101,11 @@
   .list-item{display:flex;align-items:center;gap:12px;padding:13px 16px;border-bottom:1px solid var(--border)}
   .menu-ic{display:inline-flex;align-items:center;justify-content:center;width:22px;color:var(--text);flex:0 0 auto}
   .opt-ic{display:inline-flex;align-items:center;justify-content:center;width:22px;vertical-align:-5px;margin-right:8px}
+  .info-btn{display:inline-flex;align-items:center;vertical-align:-3px;color:var(--dim);cursor:pointer;margin-left:5px}
+  .info-btn:active{color:var(--accent)}
+  .ovl-c{position:absolute;inset:0;background:rgba(0,0,0,.45);display:none;align-items:center;justify-content:center;z-index:70;padding:24px}
+  .ovl-c.on{display:flex;animation:fade .18s}
+  .popcard{background:var(--surface);border-radius:var(--r-3);padding:var(--sp-5);max-width:320px;width:100%;box-shadow:0 12px 40px rgba(0,0,0,.22)}
   .switch{width:48px;height:28px;border-radius:999px;background:var(--surface2);border:1px solid var(--border);position:relative;transition:.2s;flex:0 0 auto}
   .switch::after{content:'';position:absolute;top:2px;left:2px;width:22px;height:22px;border-radius:50%;background:#fff;transition:.2s}
   .switch.on{background:var(--accent);border-color:transparent}
@@ -398,6 +403,15 @@
     <div class="pad"><button class="btn bad" onclick="blockPeer(curPeer,'report');leaveChat('신고가 접수되었어요. 상대를 차단했습니다.')">신고 후 나가기</button></div>
   </section>
 
+  <!-- ===== 정보 팝업 ===== -->
+  <div id="infoPop" class="ovl-c" onclick="closeInfo(event)">
+    <div class="popcard">
+      <b id="infoTitle" style="font-size:16px"></b>
+      <div id="infoBody" class="dim" style="margin-top:var(--sp-3);line-height:1.7"></div>
+      <button class="btn" style="margin-top:var(--sp-4)" onclick="closeInfo()">확인</button>
+    </div>
+  </div>
+
   <div id="toast" class="toast"></div>
 </div>
 
@@ -482,9 +496,18 @@ const ICONS={
   refresh:'<path d="M4 12a8 8 0 0 1 13.7-5.7L20 8"/><polyline points="20 3 20 8 15 8"/><path d="M20 12a8 8 0 0 1-13.7 5.7L4 16"/><polyline points="4 21 4 16 9 16"/>',
   exit:'<path d="M9 4H5v16h4"/><polyline points="15 8 19 12 15 16"/><line x1="19" y1="12" x2="9" y2="12"/>',
   flag:'<path d="M5 21V4"/><path d="M5 4h11l-2 4 2 4H5"/>',
-  send:'<path d="M22 2 11 13"/><path d="M22 2l-7 20-4-9-9-4 20-7z"/>'
+  send:'<path d="M22 2 11 13"/><path d="M22 2l-7 20-4-9-9-4 20-7z"/>',
+  info:'<circle cx="12" cy="12" r="9"/><line x1="12" y1="11" x2="12" y2="16"/><circle cx="12" cy="7.6" r="0.9" fill="currentColor" stroke="none"/>'
 };
 function ic(name,sz){ sz=sz||20; return '<svg width="'+sz+'" height="'+sz+'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">'+(ICONS[name]||'')+'</svg>'; }
+/* ---------- 설명 정보 팝업 (i 아이콘) ---------- */
+const INFO={
+  cond:{title:'매칭 조건', body:'<b>관심사 일치</b> · 관심사가 비슷한 사람과 우선 매칭돼요<br><br><b>관심사 불일치</b> · 관심사가 다른 사람과 우선 매칭돼요'},
+  tier:{title:'기준별 자동 매칭', body:'완벽 매칭이 없으면 자동으로 매칭 폭을 넓혀요.<br><br><b>기준1</b> 완벽 매칭<br><b>기준2</b> 근접 매칭<br><b>기준3</b> 폭넓게 매칭'}
+};
+function infoBtn(key){ return '<span class="info-btn" onclick="event.stopPropagation();infoPop(\''+key+'\')">'+ic('info',16)+'</span>'; }
+function infoPop(key){ const d=INFO[key]; if(!d)return; document.getElementById('infoTitle').textContent=d.title; document.getElementById('infoBody').innerHTML=d.body; document.getElementById('infoPop').classList.add('on'); }
+function closeInfo(e){ if(e&&!e.target.classList.contains('ovl-c'))return; document.getElementById('infoPop').classList.remove('on'); }
 
 /* ---------- 가입/온보딩 ---------- */
 function checkAge(){
@@ -784,19 +807,14 @@ function renderMatch(){
     <div class="pad center" style="height:100%">
       <div class="av" style="width:84px;height:84px;border-radius:50%;background:var(--text);color:#fff;margin-bottom:8px"><svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M16 3h5v5"/><path d="M4 20 21 3"/><path d="M21 16v5h-5"/><path d="m15 15 6 6"/><path d="m4 4 5 5"/></svg></div>
       <h2>새로운 사람과 대화해요</h2>
-      <p class="dim">매칭 조건을 선택하세요</p>
+      <p class="dim">매칭 조건을 선택하세요 ${infoBtn('cond')}</p>
       <div style="width:100%">
         <div class="seg">
           <div class="${mode==='similar'?'on':''}" onclick="mode='similar';renderMatch()">관심사 일치</div>
           <div class="${mode==='different'?'on':''}" onclick="mode='different';renderMatch()">관심사 불일치</div>
         </div>
-        <p class="dim center" style="margin:var(--sp-2) 0 0">${mode==='similar'?'관심사가 비슷한 사람과 우선 매칭돼요':'관심사가 다른 사람과 우선 매칭돼요'}</p>
         <div class="hr"></div>
-        <div style="font-size:13px;text-align:center">
-          <b style="font-size:14px">기준별 자동 매칭</b>
-          <div class="dim" style="margin-top:var(--sp-2)">완벽 매칭이 없으면 자동으로 폭을 넓혀요.</div>
-          <div class="dim" style="margin-top:var(--sp-2)"><b style="color:var(--text)">기준1</b> 완벽 매칭 · <b style="color:var(--text)">기준2</b> 근접 · <b style="color:var(--text)">기준3</b> 폭넓게</div>
-        </div>
+        <div style="text-align:center"><b style="font-size:15px">기준별 자동 매칭</b> ${infoBtn('tier')}</div>
         <button class="btn" style="margin-top:var(--sp-6)" onclick="startMatch()">매칭하기</button>
         <p class="dim center" style="font-size:12px;margin-top:var(--sp-3)">무료 회원은 동시에 최대 2명까지 · 현재 진행중 <b style="color:${(store.active||[]).length>=2?'var(--bad)':'var(--text)'}">${(store.active||[]).length}/2</b></p>
       </div>
