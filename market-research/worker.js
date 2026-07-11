@@ -75,8 +75,9 @@ export default {
 async function proxySearch(url, env) {
   const query = url.searchParams.get("query") || "";
   const display = url.searchParams.get("display") || "40";
+  const start = url.searchParams.get("start") || "1"; // 페이지네이션(순위확인용, 최대 1000)
   const sort = url.searchParams.get("sort") || "sim"; // sim | date | asc | dsc
-  const target = `${NAVER}/search/shop.json?query=${encodeURIComponent(query)}&display=${display}&sort=${sort}`;
+  const target = `${NAVER}/search/shop.json?query=${encodeURIComponent(query)}&display=${display}&start=${start}&sort=${sort}`;
   const res = await fetch(target, { headers: naverHeaders(env) });
   return { status: res.status, body: await res.json() };
 }

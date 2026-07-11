@@ -77,6 +77,7 @@
   <button data-tab="products" class="tab px-3 py-2 text-sm border-b-2 border-transparent text-[var(--muted)]">상품·가격</button>
   <button data-tab="trend" class="tab px-3 py-2 text-sm border-b-2 border-transparent text-[var(--muted)]">키워드 트렌드</button>
   <button data-tab="demo" class="tab px-3 py-2 text-sm border-b-2 border-transparent text-[var(--muted)]">연령·성별·기기</button>
+  <button data-tab="rank" class="tab px-3 py-2 text-sm border-b-2 border-transparent text-[var(--muted)]">순위 확인</button>
 </nav>
 
 <main class="max-w-6xl mx-auto px-4 py-5">
@@ -206,6 +207,27 @@
     </div>
   </section>
 
+  <!-- ===== 순위 확인 탭 ===== -->
+  <section id="tab-rank" class="hidden fade">
+    <div class="panel rounded-xl p-4 space-y-3">
+      <div class="text-[13px] font-semibold text-[var(--muted)]">내 상품 노출순위 확인</div>
+      <p class="text-[11px] text-[var(--muted)]">
+        검색 키워드와 내 상품 링크를 넣으면, 그 키워드로 검색했을 때 몇 번째로 노출되는지 찾아줍니다.
+        (네이버 스마트스토어: 최대 1000위 / 쿠팡: 최대 10위)
+      </p>
+      <input id="rankKw" placeholder="검색 키워드 (예: 강아지 사료)"
+             class="w-full rounded-lg px-3 py-2 text-sm" />
+      <input id="rankLink" placeholder="내 상품 링크 (스마트스토어 또는 쿠팡 URL 붙여넣기)"
+             class="w-full rounded-lg px-3 py-2 text-sm" />
+      <button id="rankGo" class="rounded-lg px-4 py-2 text-sm font-semibold"
+              style="background:var(--accent);color:#06231a">순위 확인</button>
+      <div id="rankResult" class="text-sm"></div>
+      <p class="text-[11px] text-[var(--muted)] leading-relaxed">
+        ※ 네이버는 관련도(sim)순, 쿠팡은 파트너스 API 순서 기준입니다. 실제 웹사이트의 광고 포함 랭킹과는 다를 수 있어요.
+      </p>
+    </div>
+  </section>
+
 </main>
 
 <footer class="max-w-6xl mx-auto px-4 py-6 text-[11px] text-[var(--muted)]">
@@ -318,7 +340,7 @@ document.querySelectorAll(".tab").forEach(t => t.onclick = () => {
 // 현재 활성 탭(.tab.on) 영역을 보이게 하고 나머지는 숨김
 function showTab(tab) {
   const active = tab || document.querySelector(".tab.on")?.dataset.tab || "overview";
-  ["overview","products","trend","demo"].forEach(id =>
+  ["overview","products","trend","demo","rank"].forEach(id =>
     $("#tab-"+id).classList.toggle("hidden", id !== active));
 }
 
@@ -343,6 +365,8 @@ async function runSearch() {
     const [nv, cp] = await Promise.all([ fetchNaver(kw), fetchCoupang(kw) ]);
     state.raw = { naver: nv.items, coupang: cp.items };
     state._totalNaver = nv.total;
+    state.demo = { naver: nv.demo, coupang: cp.demo }; // 소스별 데모 여부
+    state.demoReason = { naver: nv.reason, coupang: cp.reason }; // 데모로 빠진 이유(진단용)
     render();
     loadTrend([kw]);
     loadDemo(kw);
@@ -351,26 +375,35 @@ async function runSearch() {
   }
 }
 
-// 네이버 검색 (source 태깅 + 데모 폴백)
+// 네이버 검색 (source 태깅 + 데모 폴백). demo:true면 실데이터 못 받아 데모로 표시 중
 async function fetchNaver(kw) {
+  let reason = "프록시 미설정";
   try {
     const d = await api(`/search?query=${encodeURIComponent(kw)}&display=40`);
-    if (d) return { items: tagSource(d.items||[], "naver"), total: d.total||null };
-  } catch(e){}
+    if (d) return { items: tagSource(d.items||[], "naver"), total: d.total||null, demo:false };
+  } catch(e){ reason = e.message || "요청실패"; }
   const demo = demoSearch(kw);
-  return { items: tagSource(demo.items, "naver"), total: demo.total };
+  return { items: tagSource(demo.items, "naver"), total: demo.total, demo:true, reason };
 }
 // 쿠팡 파트너스 검색 (source 태깅 + 데모 폴백)
 async function fetchCoupang(kw) {
+  let reason = "프록시 미설정";
   try {
-    const d = await api(`/coupang?keyword=${encodeURIComponent(kw)}&limit=40`);
-    const items = parseCoupang(d);
-    if (items) return { items: tagSource(items, "coupang"), total: items.length };
-  } catch(e){}
+    const d = await api(`/coupang?keyword=${encodeURIComponent(kw)}&limit=10`);
+    if (d) {
+      const items = parseCoupang(d);
+      if (items) return { items: tagSource(items, "coupang"), total: items.length, demo:false };
+      reason = "응답형식오류(data.productData 없음)";
+    }
+  } catch(e){ reason = e.message || "요청실패"; }
   const demo = demoCoupang(kw);
-  return { items: tagSource(demo.items, "coupang"), total: demo.total };
+  return { items: tagSource(demo.items, "coupang"), total: demo.total, demo:true, reason };
 }
-function tagSource(items, src){ (items||[]).forEach(i => i.source = src); return items||[]; }
+// source 태깅 + 노출순위(rank) 부여. 이미 rank 있으면(쿠팡) 유지, 없으면 응답 순서로 매김(네이버=관련도순)
+function tagSource(items, src){
+  (items||[]).forEach((i,idx) => { i.source = src; if (i.rank==null) i.rank = idx+1; });
+  return items||[];
+}
 
 // 쿠팡 파트너스 응답 → 공통 item 구조로 변환
 function parseCoupang(d) {
@@ -380,6 +413,7 @@ function parseCoupang(d) {
     title: p.productName, link: p.productUrl, image: p.productImage,
     brand: "", mallName: p.isRocket ? "쿠팡(로켓)" : "쿠팡",
     lprice: p.productPrice, productType: "2", isRocket: !!p.isRocket,
+    isFreeShipping: !!p.isFreeShipping, rank: p.rank, productId: p.productId, // 무료배송·순위·상품ID
     category: p.categoryName || "",
   }));
 }
@@ -406,14 +440,30 @@ function render() {
 // 데이터 소스 토글 (통합 / 네이버 / 쿠팡) — 개수 함께 표시
 function renderSourceToggle() {
   const raw = state.raw || { naver:[], coupang:[] };
+  const demo = state.demo || {};
   const nN = (raw.naver||[]).length, nC = (raw.coupang||[]).length;
-  const opts = [ ["all",`통합 ${nN+nC}`], ["naver",`네이버 ${nN}`], ["coupang",`쿠팡 ${nC}`] ];
+  const tag = (isDemo) => isDemo ? ` <span style="color:var(--warn)">·데모</span>` : "";
+  const opts = [
+    ["all",`통합 ${nN+nC}`, false],
+    ["naver",`네이버 ${nN}`, demo.naver],
+    ["coupang",`쿠팡 ${nC}`, demo.coupang],
+  ];
   const box = $("#srcToggle");
-  box.className = "flex items-center gap-2 mb-4 text-xs flex-wrap";
-  box.innerHTML = `<span class="text-[var(--muted)] mr-1">데이터 소스</span>` +
-    opts.map(([v,label]) =>
-      `<button class="chip px-3 py-1 rounded-full ${state.source===v?'on':''}" data-src="${v}">${label}</button>`
-    ).join("");
+  box.className = "flex flex-col gap-1 mb-4 text-xs";
+  const anyDemo = demo.naver || demo.coupang;
+  const reason = state.demoReason || {};
+  // 데모로 빠진 소스별 이유 표시 (진단용)
+  const reasonLines = [];
+  if (demo.naver) reasonLines.push(`네이버 데모 사유: ${reason.naver||"?"}`);
+  if (demo.coupang) reasonLines.push(`쿠팡 데모 사유: ${reason.coupang||"?"}`);
+  box.innerHTML =
+    `<div class="flex items-center gap-2 flex-wrap">
+      <span class="text-[var(--muted)] mr-1">데이터 소스</span>` +
+      opts.map(([v,label,isDemo]) =>
+        `<button class="chip px-3 py-1 rounded-full ${state.source===v?'on':''}" data-src="${v}">${label}${tag(isDemo)}</button>`
+      ).join("") +
+    `</div>` +
+    (anyDemo ? `<div class="text-[11px]" style="color:var(--warn)">⚠ ${reasonLines.join(" · ")} — ⚙ 프록시·키 확인</div>` : "");
   box.querySelectorAll("[data-src]").forEach(b =>
     b.onclick = () => { state.source = b.dataset.src; render(); });
 }
@@ -496,16 +546,26 @@ function renderProducts() {
     <tr class="border-t" style="border-color:var(--line)">
       <td class="px-3 py-2 text-right mono text-[var(--muted)]">${idx+1}</td>
       <td class="px-3 py-2">${srcBadge(i.source)}</td>
-      <td class="px-3 py-2 max-w-[280px]">
-        <a href="${i.link}" target="_blank" class="hover:text-[var(--accent)] line-clamp-1">${stripTag(i.title)}</a>
+      <td class="px-3 py-2 max-w-[300px]">
+        <div class="flex items-center gap-2">
+          ${i.image ? `<img src="${i.image}" alt="" class="w-9 h-9 rounded object-cover shrink-0" style="background:var(--panel2)" loading="lazy" onerror="this.style.display='none'">` : ""}
+          <div class="min-w-0">
+            <a href="${i.link}" target="_blank" class="hover:text-[var(--accent)] line-clamp-1">${stripTag(i.title)}</a>
+            ${i.rank ? `<div class="text-[10px] text-[var(--muted)]">${i.source==="coupang"?"쿠팡":"네이버"} 노출순 ${i.rank}위</div>` : ""}
+          </div>
+        </div>
       </td>
       <td class="px-3 py-2 text-[var(--muted)] text-xs">${i.brand||"—"}</td>
       <td class="px-3 py-2 text-xs">${i.mallName}</td>
       <td class="px-3 py-2 text-right mono font-semibold">₩${fmt(i.lprice)}</td>
       <td class="px-3 py-2">
+        <div class="flex flex-wrap gap-1">
         ${i.source==="coupang"
-          ? (i.isRocket ? `<span class="text-[10px] px-1.5 py-0.5 rounded" style="background:var(--panel2);color:var(--accent2)">로켓</span>` : `<span class="text-[var(--muted)]">—</span>`)
+          ? ((i.isRocket ? `<span class="text-[10px] px-1.5 py-0.5 rounded" style="background:var(--panel2);color:var(--accent2)">로켓</span>` : "")
+             + (i.isFreeShipping ? `<span class="text-[10px] px-1.5 py-0.5 rounded" style="background:var(--panel2);color:var(--accent)">무료배송</span>` : "")
+             + (!i.isRocket && !i.isFreeShipping ? `<span class="text-[var(--muted)]">—</span>` : ""))
           : `<span class="text-[10px] px-1.5 py-0.5 rounded" style="background:var(--panel2);color:${i.productType==='1'?'var(--accent)':'var(--muted)'}">${i.productType==='1'?'가격비교':'단독'}</span>`}
+        </div>
       </td>
     </tr>`).join("");
 
@@ -619,7 +679,7 @@ async function fetchCoupangStats(kws) {
   await Promise.all(kws.map(async (kw) => {
     let items = null;
     try {
-      const d = await api(`/coupang?keyword=${encodeURIComponent(kw)}&limit=40`);
+      const d = await api(`/coupang?keyword=${encodeURIComponent(kw)}&limit=10`);
       items = parseCoupang(d);
     } catch(e){}
     if (!items) items = demoCoupang(kw).items;
@@ -680,7 +740,7 @@ function parseKeywordTool(d, kws) {
   const volumes = {};
   list.forEach(k => { if (wanted.has(normKw(k.kw))) volumes[normKw(k.kw)] = k; });
   const related = list.filter(k => !wanted.has(normKw(k.kw)))
-    .sort((a,b)=> b.total - a.total).slice(0,15);
+    .sort((a,b)=> b.total - a.total).slice(0,50); // 연관키워드 상위 50개 표시
   return { volumes, related };
 }
 
@@ -932,11 +992,12 @@ function datalabBody(kws) {
 }
 
 // ================= 데모 데이터 (프록시 미설정 시) =================
+// 브랜드/판매처는 특정 업종색 없는 일반 샘플명 (실데이터로 오해 방지)
 function demoSearch(kw) {
-  const malls = ["네이버","지위픽 공식몰","지펫온라인","펫프렌즈","어바웃펫","쿠팡"];
-  const brands = ["지위픽","질","아첨","웰츠","","츄이씬"];
+  const malls = ["네이버","종합몰","오픈마켓A","오픈마켓B","전문몰","직영몰"];
+  const brands = ["샘플브랜드A","샘플브랜드B","","샘플브랜드C","","샘플브랜드D"];
   const items = Array.from({length:32}, (_,i)=>({
-    title:`${kw} ${["오리지널","프리미엄","에어드라이","소프트"][i%4]} ${(i%3+1)*454}g`,
+    title:`[데모] ${kw} 샘플상품 ${i+1}`,
     link:"#", brand:brands[i%brands.length], mallName:malls[i%malls.length],
     lprice: 30000 + Math.round(Math.random()*90000/100)*100,
     productType: i%3===0 ? "1":"2",
@@ -948,10 +1009,10 @@ function demoCoupang(kw) {
   const items = Array.from({length:24}, (_,i)=>{
     const rocket = i%3!==0;
     return {
-      title:`${kw} ${["","대용량 ","공식 ","베스트 "][i%4]}${(i%3+1)*400}g`,
+      title:`[데모] ${kw} 샘플상품 ${i+1}`,
       link:"#", image:"", brand:"", mallName: rocket?"쿠팡(로켓)":"쿠팡",
       lprice: 25000 + Math.round(Math.random()*80000/100)*100,
-      productType:"2", isRocket: rocket, category:"",
+      productType:"2", isRocket: rocket, isFreeShipping: i%2===0, rank: i+1, category:"",
     };
   });
   return { total:24, items };
@@ -978,7 +1039,9 @@ function demoKeywords(kws) {
     volumes[normKw(k)] = { kw:k, pc, mo:total-pc, total, comp:comps[i%3] };
   });
   const base = kws[0] || "키워드";
-  const sfx = ["추천","가격","후기","브랜드","순위","선물세트","대용량","유기농"];
+  const sfx = ["추천","가격","후기","브랜드","순위","선물세트","대용량","유기농","1위","best",
+    "인기","할인","최저가","비교","정품","공식","묶음","세트","소량","프리미엄",
+    "국산","수입","신상","저렴한","가성비"];
   const related = sfx.map((s,i)=>{
     const total = 2000 + Math.round(Math.random()*33000);
     const pc = Math.round(total*0.25);
@@ -986,6 +1049,82 @@ function demoKeywords(kws) {
   }).sort((a,b)=> b.total - a.total);
   return { volumes, related };
 }
+
+// ================= 순위 확인 =================
+// 링크에서 6자리 이상 숫자(상품ID 후보) 추출
+function extractIds(url){ return (String(url).match(/\d{6,}/g) || []); }
+// 검색결과 1건이 내 링크(userIds)와 같은 상품인지: productId 또는 링크 속 ID 매칭
+function matchItem(item, userIds){
+  const cand = [String(item.productId||""), ...extractIds(item.link||"")];
+  return cand.some(c => c && userIds.includes(c));
+}
+// 네이버: 100개씩 최대 1000위까지 검색하며 매칭 (워커 start 미지원이면 중복감지로 중단)
+async function findNaverRank(kw, userIds){
+  let prevFirst = null, scanned = 0;
+  for (let start=1; start<=1000; start+=100){
+    let d;
+    try { d = await api(`/search?query=${encodeURIComponent(kw)}&display=100&start=${start}`); }
+    catch(e){ return { error: e.message||"요청실패" }; }
+    if (!d) return { error: "프록시 미설정" };
+    const items = d.items || [];
+    if (!items.length) break;
+    // 워커가 start를 무시하면 첫 상품이 매 페이지 동일 → 중단(상위 100만 검색됨)
+    const firstId = String((items[0]||{}).productId||"");
+    if (start>1 && firstId && firstId===prevFirst) return { rank:null, scanned, capped:true };
+    prevFirst = firstId;
+    for (let j=0;j<items.length;j++){
+      if (matchItem(items[j], userIds)) return { rank:start+j, item:items[j], scanned:start+j };
+    }
+    scanned = start + items.length - 1;
+    if (items.length < 100) break;
+  }
+  return { rank:null, scanned };
+}
+// 쿠팡: 상위 10개만
+async function findCoupangRank(kw, userIds){
+  let d;
+  try { d = await api(`/coupang?keyword=${encodeURIComponent(kw)}&limit=10`); }
+  catch(e){ return { error: e.message||"요청실패" }; }
+  if (!d) return { error: "프록시 미설정" };
+  const items = parseCoupang(d) || [];
+  for (let j=0;j<items.length;j++){
+    if (matchItem(items[j], userIds)) return { rank:items[j].rank||j+1, item:items[j], scanned:items.length };
+  }
+  return { rank:null, scanned:items.length };
+}
+async function checkRank(){
+  const kw = $("#rankKw").value.trim();
+  const link = $("#rankLink").value.trim();
+  const box = $("#rankResult");
+  if (!kw || !link){ box.innerHTML = `<span style="color:var(--warn)">키워드와 링크를 모두 입력하세요.</span>`; return; }
+  const src = /coupang\.com|link\.coupang/i.test(link) ? "coupang" : "naver";
+  const userIds = extractIds(link);
+  if (!userIds.length){ box.innerHTML = `<span style="color:var(--warn)">링크에서 상품 ID를 찾지 못했어요. 상품 상세페이지 URL을 붙여주세요.</span>`; return; }
+  box.innerHTML = `<span class="text-[var(--muted)]">🔎 ${src==="coupang"?"쿠팡":"네이버"}에서 '${kw}' 검색 중…</span>`;
+  const r = src==="coupang" ? await findCoupangRank(kw, userIds) : await findNaverRank(kw, userIds);
+  const srcName = src==="coupang" ? "쿠팡" : "네이버";
+  if (r.error){ box.innerHTML = `<span style="color:var(--warn)">확인 실패: ${r.error} (⚙ 프록시·키 확인)</span>`; return; }
+  if (r.rank){
+    box.innerHTML =
+      `<div class="panel rounded-lg p-3 mt-1" style="border-color:var(--accent)">
+        <div class="text-lg font-bold" style="color:var(--accent)">${srcName} 노출순위 ${r.rank}위 🎯</div>
+        <div class="text-xs text-[var(--muted)] mt-1 line-clamp-1">${stripTag((r.item&&r.item.title)||"")}</div>
+      </div>`;
+  } else {
+    const limitTxt = src==="coupang" ? "상위 10위" : (r.capped ? "상위 100위" : "상위 1000위");
+    box.innerHTML =
+      `<div class="panel rounded-lg p-3 mt-1">
+        <div class="font-semibold" style="color:var(--accent2)">${limitTxt} 안에서 못 찾았어요</div>
+        <div class="text-xs text-[var(--muted)] mt-1">
+          ${src==="coupang" ? "쿠팡 API는 10개까지만 조회돼요." :
+            (r.capped ? "워커가 구버전이라 상위 100위까지만 검색됐어요. worker.js를 최신으로 재배포하면 1000위까지 확인됩니다."
+                      : "이 키워드 상위 노출권에는 없네요.")}
+        </div>
+      </div>`;
+  }
+}
+$("#rankGo").onclick = checkRank;
+$("#rankLink").addEventListener("keydown", e => { if(e.key==="Enter") checkRank(); });
 
 // ================= 이벤트 =================
 $("#go").onclick = runSearch;
