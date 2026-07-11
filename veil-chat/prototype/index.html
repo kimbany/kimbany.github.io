@@ -774,7 +774,7 @@ function renderMatch(){
           <div class="dim" style="margin-top:4px">완벽 매칭이 없으면 자동으로 폭을 넓혀요.</div>
           <div style="margin-top:6px"><span class="badge live">기준1</span> 완벽 매칭 · <span class="badge">기준2</span> 근접 · <span class="badge">기준3</span> 폭넓게</div>
         </div>
-        <div class="card dim center" style="font-size:13px">무료 회원은 동시에 최대 2명까지 매칭할 수 있어요<br>(현재 진행중 <b style="color:${(store.active||[]).length>=2?'var(--bad)':'var(--text)'}">${(store.active||[]).length}/2</b>)</div>
+        <div class="card dim" style="font-size:13px;text-align:center">무료 회원은 동시에 최대 2명까지 매칭할 수 있어요<br>현재 진행중 <b style="color:${(store.active||[]).length>=2?'var(--bad)':'var(--text)'}">${(store.active||[]).length}/2</b></div>
         <button class="btn" onclick="startMatch()">매칭하기</button>
       </div>
     </div>`;
