@@ -100,9 +100,10 @@
   .opt{padding:15px 4px;background:transparent;border-top:1px solid var(--border);margin:0;font-size:16px}
   .opt.bad{color:var(--bad)}
   .eval-q{font-size:20px;font-weight:700;color:var(--text);margin:var(--sp-6) 0 var(--sp-2)}
-  .eval-scale{margin:var(--sp-2) 0 0;justify-content:center}
-  .eval-scale div{font-size:14px;padding:var(--sp-1) 0;white-space:nowrap}
-  .eval-scale div:not(:last-child)::after{margin:0 var(--sp-1)}
+  .eval-scale{flex-direction:column;align-items:flex-start;margin:var(--sp-2) 0 0}
+  .eval-scale div{font-size:16px;padding:6px 0;white-space:nowrap;color:var(--text)}
+  .eval-scale div::before{content:'·\00a0';color:var(--dim)}
+  .eval-scale div:not(:last-child)::after{content:none}
   .scale{display:flex;justify-content:space-between;margin-top:8px}
   .scale b{flex:1;text-align:center;padding:10px 0;margin:0 3px;background:transparent;color:var(--dim);font-size:13px;font-weight:500}
   .scale b.on{background:transparent;color:var(--text);font-weight:700;text-decoration:underline;text-underline-offset:4px;text-decoration-thickness:2px}
