@@ -157,7 +157,21 @@
       <p id="intCount" class="dim body" style="margin-top:var(--s2)">한 개 이상 골라주세요.</p>
       <div id="intWrap" class="wrap" style="margin-top:var(--s6)"></div>
     </div>
-    <div class="pad"><button id="intDone" class="cta" disabled onclick="finishOnboarding()">시작하기</button></div>
+    <div class="pad"><button id="intDone" class="cta" disabled onclick="openAbout()">다음</button></div>
+  </section>
+
+  <!-- 온보딩 3: 나에 대해 (선택) -->
+  <section id="s-about" class="screen">
+    <div class="top"><button class="back" onclick="go('s-interest')">‹</button></div>
+    <div class="grow pad">
+      <h1 class="h-page">나를 조금 더 알려주세요</h1>
+      <p class="dim body" style="margin-top:var(--s2)">선택 사항이에요. 언제든 바꿀 수 있어요.</p>
+      <div class="mlabel" style="margin-top:var(--s6)">MBTI</div>
+      <div id="obMbti" class="wrap" style="margin-top:var(--s3)"></div>
+      <div class="mlabel" style="margin-top:var(--s6)">채팅 유형</div>
+      <div id="obType" class="wrap" style="margin-top:var(--s3)"></div>
+    </div>
+    <div class="pad"><button class="cta" onclick="finishOnboarding()">시작하기</button></div>
   </section>
 
   <!-- 메인 -->
@@ -231,6 +245,8 @@
 const KEY_P='veil2_profile', KEY_C='veil2_chats', KEY_B='veil2_blocks';
 const DAY=24*60*60*1000;
 const INTERESTS=['음악','영화','독서','여행','운동','요리','게임','사진','글쓰기','커피','반려동물','밤산책'];
+const MBTIS=['ISTJ','ISFJ','INFJ','INTJ','ISTP','ISFP','INFP','INTP','ESTP','ESFP','ENFP','ENTP','ESTJ','ESFJ','ENFJ','ENTJ','모름'];
+const CHATTYPES=['가벼운 수다','깊은 대화','고민 상담','취미 이야기','아무거나'];
 const NAMES=['조용한새벽','파란노을','밤의고래','느린산책','작은위로','서늘한바람','종이비행기','고요한밤','흐린오후','민트별','창밖의비','잔잔한호수'];
 const GREET=['안녕하세요, 반가워요.','안녕하세요! 오늘 하루 어땠어요?','반가워요 :) 무슨 얘기 나눠볼까요?','안녕하세요. 잘 지내셨어요?'];
 const REPLY=['오 저도 그래요.','그 얘기 더 듣고 싶어요.','완전 공감돼요 :)','오늘따라 대화가 잘 통하네요.','그렇군요, 재밌네요.','저는 조금 다르게 생각해요, 왜냐면요…','좋은 하루 보내고 있어요?'];
@@ -238,7 +254,7 @@ const REPLY=['오 저도 그래요.','그 얘기 더 듣고 싶어요.','완전 
 let profile=load(KEY_P);            // {nick, interests[], noti:{msg,preview}}
 let chats=load(KEY_C)||[];          // [{id,nick,interest,msgs,exp,friend,ended,ts}]
 let blocks=load(KEY_B)||[];         // [nick]
-let draftInterests=new Set();
+let draftInterests=new Set(), draftMbti='', draftType='';
 let cur=null;                       // 현재 열린 chat
 let ticker=null, matchTimer=null;
 if(profile&&!profile.noti)profile.noti={msg:true,preview:true};
@@ -261,7 +277,7 @@ function tab(name){
 function toast(t){const e=document.getElementById('toast');e.textContent=t;e.classList.add('on');clearTimeout(e._t);e._t=setTimeout(()=>e.classList.remove('on'),1900)}
 
 /* ---------- 온보딩 ---------- */
-function startOnboarding(){document.getElementById('nickInput').value='';checkNick();go('s-nick');setTimeout(()=>document.getElementById('nickInput').focus(),300)}
+function startOnboarding(){draftInterests=new Set();draftMbti='';draftType='';buildInterests();updateIntState();document.getElementById('nickInput').value='';checkNick();go('s-nick');setTimeout(()=>document.getElementById('nickInput').focus(),300)}
 function checkNick(){
   const v=document.getElementById('nickInput').value.trim();
   const ok=v.length>=2;
@@ -282,8 +298,15 @@ function updateIntState(){
   document.getElementById('intDone').disabled=n<1;
   document.getElementById('intCount').textContent=n<1?'한 개 이상 골라주세요.':n+'개 선택했어요.';
 }
+function openAbout(){buildAbout();go('s-about')}
+function buildAbout(){
+  const mw=document.getElementById('obMbti');mw.innerHTML='';
+  MBTIS.forEach(x=>{const b=document.createElement('button');b.className='pick'+(draftMbti===x?' on':'');b.textContent=x;b.onclick=()=>{draftMbti=draftMbti===x?'':x;buildAbout()};mw.appendChild(b)});
+  const tw=document.getElementById('obType');tw.innerHTML='';
+  CHATTYPES.forEach(x=>{const b=document.createElement('button');b.className='pick'+(draftType===x?' on':'');b.textContent=x;b.onclick=()=>{draftType=draftType===x?'':x;buildAbout()};tw.appendChild(b)});
+}
 function finishOnboarding(){
-  profile={nick:document.getElementById('nickInput').value.trim(),interests:[...draftInterests],noti:{msg:true,preview:true}};
+  profile={nick:document.getElementById('nickInput').value.trim(),interests:[...draftInterests],mbti:draftMbti,chatType:draftType,noti:{msg:true,preview:true}};
   save();go('s-main');tab('match');
 }
 
@@ -375,9 +398,17 @@ function subMe(){
     <div class="mlabel" style="margin-top:var(--s4)">닉네임</div>
     <input class="field" maxlength="12" value="${esc(profile.nick)}" oninput="saveNick(this.value)">
     <div class="mlabel" style="margin-top:var(--s6)">관심사</div>
-    <div id="subInt" class="wrap" style="margin-top:var(--s3)"></div>`;
+    <div id="subInt" class="wrap" style="margin-top:var(--s3)"></div>
+    <div class="mlabel" style="margin-top:var(--s6)">MBTI</div>
+    <div id="subMbti" class="wrap" style="margin-top:var(--s3)"></div>
+    <div class="mlabel" style="margin-top:var(--s6)">채팅 유형</div>
+    <div id="subType" class="wrap" style="margin-top:var(--s3)"></div>`;
   const w=document.getElementById('subInt');
   INTERESTS.forEach(x=>{const on=profile.interests.includes(x);const b=document.createElement('button');b.className='pick'+(on?' on':'');b.textContent=x;b.onclick=()=>{toggleInt(x);subMe()};w.appendChild(b)});
+  const mw=document.getElementById('subMbti');
+  MBTIS.forEach(x=>{const b=document.createElement('button');b.className='pick'+(profile.mbti===x?' on':'');b.textContent=x;b.onclick=()=>{profile.mbti=profile.mbti===x?'':x;save();subMe()};mw.appendChild(b)});
+  const tw=document.getElementById('subType');
+  CHATTYPES.forEach(x=>{const b=document.createElement('button');b.className='pick'+(profile.chatType===x?' on':'');b.textContent=x;b.onclick=()=>{profile.chatType=profile.chatType===x?'':x;save();subMe()};tw.appendChild(b)});
 }
 function saveNick(v){v=v.trim();if(v.length>=2){profile.nick=v;save()}}
 function toggleInt(x){
