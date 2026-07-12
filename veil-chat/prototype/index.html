@@ -99,6 +99,10 @@
   @keyframes up{from{transform:translateY(100%)}to{transform:none}}
   .opt{padding:15px 4px;background:transparent;border-top:1px solid var(--border);margin:0;font-size:16px}
   .opt.bad{color:var(--bad)}
+  .eval-q{font-size:20px;font-weight:700;color:var(--text);margin:var(--sp-6) 0 var(--sp-2)}
+  .eval-scale{margin:var(--sp-2) 0 0;justify-content:center}
+  .eval-scale div{font-size:14px;padding:var(--sp-1) 0;white-space:nowrap}
+  .eval-scale div:not(:last-child)::after{margin:0 var(--sp-1)}
   .scale{display:flex;justify-content:space-between;margin-top:8px}
   .scale b{flex:1;text-align:center;padding:10px 0;margin:0 3px;background:transparent;color:var(--dim);font-size:13px;font-weight:500}
   .scale b.on{background:transparent;color:var(--text);font-weight:700;text-decoration:underline;text-underline-offset:4px;text-decoration-thickness:2px}
@@ -330,13 +334,17 @@
     <div class="topbar"><span class="ttl">상대 평가</span></div>
     <div class="grow pad">
       <p class="dim">솔직한 평가는 건강한 커뮤니티를 만들어요.</p>
-      <div class="label">대화가 즐거웠나요?</div>
-      <div class="scale" data-q="fun"></div>
-      <div class="label">예의가 있었나요?</div>
-      <div class="scale" data-q="manner"></div>
-      <div class="label">다시 대화하고 싶나요?</div>
+      <div class="eval-q">대화가 즐거웠나요?</div>
+      <div class="seg eval-scale" data-q="fun">
+        <div onclick="scalePick(this,'fun')">매우 그렇다</div><div onclick="scalePick(this,'fun')">그렇다</div><div onclick="scalePick(this,'fun')">보통</div><div onclick="scalePick(this,'fun')">아니다</div><div onclick="scalePick(this,'fun')">매우 아니다</div>
+      </div>
+      <div class="eval-q">예의가 있었나요?</div>
+      <div class="seg eval-scale" data-q="manner">
+        <div onclick="scalePick(this,'manner')">매우 그렇다</div><div onclick="scalePick(this,'manner')">그렇다</div><div onclick="scalePick(this,'manner')">보통</div><div onclick="scalePick(this,'manner')">아니다</div><div onclick="scalePick(this,'manner')">매우 아니다</div>
+      </div>
+      <div class="eval-q">다시 대화하고 싶나요?</div>
       <div class="seg" id="again"><div onclick="segPick(this)">예</div><div onclick="segPick(this)">아니오</div></div>
-      <div class="label">추가 의견 (최대 500자)</div>
+      <div class="eval-q">추가 의견 (최대 500자)</div>
       <textarea class="field" rows="3" maxlength="500" placeholder="선택 입력"></textarea>
       <label class="card row" style="cursor:pointer" onclick="this.querySelector('input').checked=!this.querySelector('input').checked">
         <input type="checkbox" style="width:20px;height:20px"><div>다시 만나고 싶지 않음 <div class="dim">자동 차단 · 재매칭 금지</div></div>
@@ -563,9 +571,6 @@ function buildOnboarding(){
   const r=document.getElementById('reasons');r.innerHTML='';
   REASONS.forEach(x=>{const b=document.createElement('button');b.className='chip';b.textContent=x;
     b.onclick=()=>{r.querySelectorAll('.chip').forEach(c=>c.classList.remove('on'));b.classList.add('on')};r.appendChild(b)});
-  document.querySelectorAll('.scale').forEach(s=>{const q=s.dataset.q;
-    ['매우 그렇다','그렇다','보통','아니다','매우'].forEach((t,idx)=>{const b=document.createElement('b');b.textContent=t;
-      b.onclick=()=>{s.querySelectorAll('b').forEach(x=>x.classList.remove('on'));b.classList.add('on');picked[q]=idx+1};s.appendChild(b)})});
   // 추가 프로필 항목
   chipGroup('c-gender',GENDERS,'gender');
   chipGroup('c-mbti',MBTIS,'mbti');
@@ -577,6 +582,7 @@ function buildOnboarding(){
   chipGroup('c-pets',PETS,'pets',true);
 }
 function segPick(el){el.parentNode.querySelectorAll('div').forEach(d=>d.classList.remove('on'));el.classList.add('on')}
+function scalePick(el,q){const p=el.parentNode;p.querySelectorAll(':scope>div').forEach(d=>d.classList.remove('on'));el.classList.add('on');picked[q]=[...p.children].indexOf(el)+1}
 // 칩 선택 그룹 (multi=true면 다중 선택)
 function chipGroup(id,opts,key,multi){
   const box=document.getElementById(id); if(!box)return; box.innerHTML='';
