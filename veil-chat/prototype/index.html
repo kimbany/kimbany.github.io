@@ -100,6 +100,13 @@
   .opt{padding:15px 4px;background:transparent;border-top:1px solid var(--border);margin:0;font-size:16px}
   .opt.bad{color:var(--bad)}
   .eval-q{font-size:20px;font-weight:700;color:var(--text);margin:var(--sp-6) 0 var(--sp-2)}
+  /* 설문 5점 척도: 선 위의 원, 선택 시 채워짐 */
+  .dots{display:flex;align-items:center;justify-content:space-between;position:relative;margin:var(--sp-4) 6px var(--sp-2)}
+  .dots::before{content:'';position:absolute;left:12px;right:12px;top:50%;transform:translateY(-50%);height:1.5px;background:var(--border);z-index:0}
+  .dot{width:24px;height:24px;border-radius:50%;border:1.5px solid var(--dim);background:var(--bg);position:relative;z-index:1;display:flex;align-items:center;justify-content:center}
+  .dot.on{border-color:var(--text);background:var(--text)}
+  .dot.on::after{content:'';width:8px;height:8px;border-radius:50%;background:var(--bg)}
+  .dots-ends{display:flex;justify-content:space-between;font-size:13px;color:var(--dim);margin:0 2px}
   .eval-scale{flex-direction:column;align-items:flex-start;margin:var(--sp-2) 0 0}
   .eval-scale div{font-size:16px;padding:6px 0;white-space:nowrap;color:var(--text)}
   .eval-scale div::before{content:'·\00a0';color:var(--dim)}
@@ -336,13 +343,15 @@
     <div class="grow pad">
       <p class="dim">솔직한 평가는 건강한 커뮤니티를 만들어요.</p>
       <div class="eval-q">대화가 즐거웠나요?</div>
-      <div class="seg eval-scale" data-q="fun">
-        <div onclick="scalePick(this,'fun')">매우 그렇다</div><div onclick="scalePick(this,'fun')">그렇다</div><div onclick="scalePick(this,'fun')">보통</div><div onclick="scalePick(this,'fun')">아니다</div><div onclick="scalePick(this,'fun')">매우 아니다</div>
+      <div class="dots" data-q="fun">
+        <div class="dot" onclick="dotPick(this,'fun')"></div><div class="dot" onclick="dotPick(this,'fun')"></div><div class="dot" onclick="dotPick(this,'fun')"></div><div class="dot" onclick="dotPick(this,'fun')"></div><div class="dot" onclick="dotPick(this,'fun')"></div>
       </div>
+      <div class="dots-ends"><span>매우 그렇다</span><span>매우 아니다</span></div>
       <div class="eval-q">예의가 있었나요?</div>
-      <div class="seg eval-scale" data-q="manner">
-        <div onclick="scalePick(this,'manner')">매우 그렇다</div><div onclick="scalePick(this,'manner')">그렇다</div><div onclick="scalePick(this,'manner')">보통</div><div onclick="scalePick(this,'manner')">아니다</div><div onclick="scalePick(this,'manner')">매우 아니다</div>
+      <div class="dots" data-q="manner">
+        <div class="dot" onclick="dotPick(this,'manner')"></div><div class="dot" onclick="dotPick(this,'manner')"></div><div class="dot" onclick="dotPick(this,'manner')"></div><div class="dot" onclick="dotPick(this,'manner')"></div><div class="dot" onclick="dotPick(this,'manner')"></div>
       </div>
+      <div class="dots-ends"><span>매우 그렇다</span><span>매우 아니다</span></div>
       <div class="eval-q">다시 대화하고 싶나요?</div>
       <div class="seg eval-scale" id="again"><div onclick="segPick(this)">예</div><div onclick="segPick(this)">아니오</div></div>
       <div class="eval-q">추가 의견 (최대 500자)</div>
@@ -584,6 +593,7 @@ function buildOnboarding(){
 }
 function segPick(el){el.parentNode.querySelectorAll('div').forEach(d=>d.classList.remove('on'));el.classList.add('on')}
 function scalePick(el,q){const p=el.parentNode;p.querySelectorAll(':scope>div').forEach(d=>d.classList.remove('on'));el.classList.add('on');picked[q]=[...p.children].indexOf(el)+1}
+function dotPick(el,q){const p=el.parentNode;const dots=[...p.querySelectorAll('.dot')];dots.forEach(d=>d.classList.remove('on'));el.classList.add('on');picked[q]=dots.indexOf(el)+1}
 // 칩 선택 그룹 (multi=true면 다중 선택)
 function chipGroup(id,opts,key,multi){
   const box=document.getElementById(id); if(!box)return; box.innerHTML='';
