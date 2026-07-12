@@ -81,6 +81,14 @@
   .row .nm{font-size:17px;font-weight:700}
   .row .meta{font-size:13px;color:var(--dim);margin-top:2px}
 
+  /* 설정 메뉴 행 */
+  .mrow{display:flex;align-items:center;width:100%;text-align:left;padding:18px 0;border-top:1px solid var(--line);font-size:17px;color:var(--ink)}
+  .mrow:last-of-type{border-bottom:1px solid var(--line)}
+  .mrow .arr{margin-left:auto;color:var(--dim);font-size:18px}
+  .mrow.danger{color:var(--danger)}
+  .mgroup{margin-top:var(--s6)}
+  .mlabel{font-size:13px;color:var(--dim);font-weight:600;margin-bottom:2px}
+
   /* 채팅 */
   .timer{text-align:center;padding:10px;font-size:13px;color:var(--dim);border-bottom:1px solid var(--line)}
   .msgs{flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:var(--s2);padding:var(--s4) var(--s5)}
@@ -194,6 +202,12 @@
     </div>
   </section>
 
+  <!-- 설정 하위 화면 -->
+  <section id="s-sub" class="screen">
+    <div class="top"><button class="back" onclick="tab('set');go('s-main')">‹</button><div class="t" id="subTitle"></div></div>
+    <div class="grow pad" id="subBody" style="padding-top:0"></div>
+  </section>
+
   <!-- 관리 시트 -->
   <div id="sheet" class="ovl" onclick="if(event.target===this)closeMenu()">
     <div class="sheet">
@@ -203,6 +217,7 @@
         <button class="opt" id="optExtend" onclick="extendChat()">시간 연장하기 <span class="dim">· 24시간 더</span></button>
         <button class="opt" id="optFriend" onclick="befriend()">친구 추가 <span class="dim">· 시간제한 없이 대화</span></button>
         <button class="opt danger" onclick="leaveChat()">대화 나가기</button>
+        <button class="opt danger" onclick="blockAndLeave()">차단하고 나가기 <span class="dim">· 다시 매칭 안 됨</span></button>
       </div>
       <button class="cta sub" style="margin-top:var(--s2)" onclick="closeMenu()">닫기</button>
     </div>
@@ -213,21 +228,23 @@
 
 <script>
 /* ---------- 상태 ---------- */
-const KEY_P='veil2_profile', KEY_C='veil2_chats';
+const KEY_P='veil2_profile', KEY_C='veil2_chats', KEY_B='veil2_blocks';
 const DAY=24*60*60*1000;
 const INTERESTS=['음악','영화','독서','여행','운동','요리','게임','사진','글쓰기','커피','반려동물','밤산책'];
 const NAMES=['조용한새벽','파란노을','밤의고래','느린산책','작은위로','서늘한바람','종이비행기','고요한밤','흐린오후','민트별','창밖의비','잔잔한호수'];
 const GREET=['안녕하세요, 반가워요.','안녕하세요! 오늘 하루 어땠어요?','반가워요 :) 무슨 얘기 나눠볼까요?','안녕하세요. 잘 지내셨어요?'];
 const REPLY=['오 저도 그래요.','그 얘기 더 듣고 싶어요.','완전 공감돼요 :)','오늘따라 대화가 잘 통하네요.','그렇군요, 재밌네요.','저는 조금 다르게 생각해요, 왜냐면요…','좋은 하루 보내고 있어요?'];
 
-let profile=load(KEY_P);            // {nick, interests[]}
+let profile=load(KEY_P);            // {nick, interests[], noti:{msg,preview}}
 let chats=load(KEY_C)||[];          // [{id,nick,interest,msgs,exp,friend,ended,ts}]
+let blocks=load(KEY_B)||[];         // [nick]
 let draftInterests=new Set();
 let cur=null;                       // 현재 열린 chat
 let ticker=null, matchTimer=null;
+if(profile&&!profile.noti)profile.noti={msg:true,preview:true};
 
 function load(k){try{return JSON.parse(localStorage.getItem(k))}catch(e){return null}}
-function save(){try{localStorage.setItem(KEY_P,JSON.stringify(profile));localStorage.setItem(KEY_C,JSON.stringify(chats))}catch(e){}}
+function save(){try{localStorage.setItem(KEY_P,JSON.stringify(profile));localStorage.setItem(KEY_C,JSON.stringify(chats));localStorage.setItem(KEY_B,JSON.stringify(blocks))}catch(e){}}
 function uid(){return 'c'+(chats.reduce((m,c)=>Math.max(m,+c.id.slice(1)||0),0)+1)}
 
 /* ---------- 화면 전환 ---------- */
@@ -266,7 +283,7 @@ function updateIntState(){
   document.getElementById('intCount').textContent=n<1?'한 개 이상 골라주세요.':n+'개 선택했어요.';
 }
 function finishOnboarding(){
-  profile={nick:document.getElementById('nickInput').value.trim(),interests:[...draftInterests]};
+  profile={nick:document.getElementById('nickInput').value.trim(),interests:[...draftInterests],noti:{msg:true,preview:true}};
   save();go('s-main');tab('match');
 }
 
@@ -287,7 +304,8 @@ function renderMatch(){
 function startMatch(){go('s-matching');matchTimer=setTimeout(doMatch,1800)}
 function cancelMatch(){clearTimeout(matchTimer);go('s-main')}
 function doMatch(){
-  const nick=NAMES[Math.floor(Math.random()*NAMES.length)];
+  const pool=NAMES.filter(n=>!blocks.includes(n));
+  const nick=(pool.length?pool:NAMES)[Math.floor(Math.random()*(pool.length?pool.length:NAMES.length))];
   const shared=profile.interests[Math.floor(Math.random()*profile.interests.length)]||INTERESTS[0];
   const chat={id:uid(),nick,interest:shared,exp:Date.now()+DAY,friend:false,ended:false,ts:Date.now(),
     msgs:[{s:'sys',t:`매칭됐어요 · 관심사 ‘${shared}’가 통해요`},
@@ -321,27 +339,45 @@ function statusLabel(c){
   return remain(c.exp);
 }
 
-/* ---------- 설정 탭 ---------- */
+/* ---------- 설정 탭 (메뉴) ---------- */
 function renderSet(){
-  const el=document.getElementById('pg-set');
-  el.innerHTML=`
+  const friends=chats.filter(c=>c.friend&&!c.ended).length;
+  document.getElementById('pg-set').innerHTML=`
     <div class="top"><div class="t">설정</div></div>
     <div class="grow pad" style="padding-top:0">
-      <div class="h-q" style="margin-top:var(--s4)">닉네임</div>
-      <input class="field" maxlength="12" value="${esc(profile.nick)}" oninput="saveNick(this.value)">
-      <div class="h-q" style="margin-top:var(--s6)">관심사</div>
-      <div id="setInt" class="wrap" style="margin-top:var(--s3)"></div>
-      <div style="margin-top:var(--s8)">
-        <button class="cta sub" style="text-align:left;padding-left:0" onclick="logout()">로그아웃</button>
-        <button class="cta danger" style="text-align:left;padding-left:0" onclick="wipe()">계정 삭제</button>
+      <div class="mgroup" style="margin-top:var(--s2)">
+        <button class="mrow" onclick="openSub('me')">내 정보<span class="dim" style="margin-left:8px">${esc(profile.nick)}</span><span class="arr">›</span></button>
+        <button class="mrow" onclick="openSub('noti')">알림<span class="dim" style="margin-left:8px">${profile.noti.msg?'켜짐':'꺼짐'}</span><span class="arr">›</span></button>
+        <button class="mrow" onclick="openSub('friends')">친구 목록<span class="dim" style="margin-left:8px">${friends}</span><span class="arr">›</span></button>
+        <button class="mrow" onclick="openSub('blocks')">차단 목록<span class="dim" style="margin-left:8px">${blocks.length}</span><span class="arr">›</span></button>
+        <button class="mrow" onclick="openSub('terms')">이용약관 · 개인정보<span class="arr">›</span></button>
       </div>
+      <div class="mgroup">
+        <button class="mrow" onclick="logout()">로그아웃</button>
+        <button class="mrow danger" onclick="wipe()">계정 삭제<span class="dim" style="margin-left:8px">· 모든 정보 삭제</span></button>
+      </div>
+      <p class="dim tiny" style="text-align:center;margin-top:var(--s6)">Veil · 프로토타입</p>
     </div>`;
-  const w=document.getElementById('setInt');
-  INTERESTS.forEach(x=>{
-    const on=profile.interests.includes(x);
-    const b=document.createElement('button');b.className='pick'+(on?' on':'');b.textContent=x;
-    b.onclick=()=>{toggleInt(x);renderSet()};w.appendChild(b);
-  });
+}
+function logout(){go('s-intro')}
+function wipe(){if(confirm('닉네임·대화가 모두 삭제되고 되돌릴 수 없어요. 삭제할까요?')){[KEY_P,KEY_C,KEY_B].forEach(k=>localStorage.removeItem(k));profile=null;chats=[];blocks=[];go('s-intro')}}
+
+/* ---------- 설정 하위 화면 ---------- */
+function openSub(key){
+  const T={me:'내 정보',noti:'알림',friends:'친구 목록',blocks:'차단 목록',terms:'이용약관 · 개인정보'}[key];
+  document.getElementById('subTitle').textContent=T;
+  ({me:subMe,noti:subNoti,friends:subFriends,blocks:subBlocks,terms:subTerms})[key]();
+  go('s-sub');
+}
+function subMe(){
+  const el=document.getElementById('subBody');
+  el.innerHTML=`
+    <div class="mlabel" style="margin-top:var(--s4)">닉네임</div>
+    <input class="field" maxlength="12" value="${esc(profile.nick)}" oninput="saveNick(this.value)">
+    <div class="mlabel" style="margin-top:var(--s6)">관심사</div>
+    <div id="subInt" class="wrap" style="margin-top:var(--s3)"></div>`;
+  const w=document.getElementById('subInt');
+  INTERESTS.forEach(x=>{const on=profile.interests.includes(x);const b=document.createElement('button');b.className='pick'+(on?' on':'');b.textContent=x;b.onclick=()=>{toggleInt(x);subMe()};w.appendChild(b)});
 }
 function saveNick(v){v=v.trim();if(v.length>=2){profile.nick=v;save()}}
 function toggleInt(x){
@@ -350,8 +386,40 @@ function toggleInt(x){
   else profile.interests.push(x);
   save();
 }
-function logout(){go('s-intro')}
-function wipe(){if(confirm('닉네임·대화가 모두 삭제되고 되돌릴 수 없어요. 삭제할까요?')){localStorage.removeItem(KEY_P);localStorage.removeItem(KEY_C);profile=null;chats=[];go('s-intro')}}
+function subNoti(){
+  document.getElementById('subBody').innerHTML=`
+    <div class="mgroup" style="margin-top:var(--s2)">
+      <button class="mrow" onclick="toggleNoti('msg')">새 메시지 알림<span class="arr" style="color:var(--ink);font-weight:700">${profile.noti.msg?'켜짐':'꺼짐'}</span></button>
+      <button class="mrow" onclick="toggleNoti('preview')">알림 미리보기<span class="dim arr">${profile.noti.msg?'':'· 알림 꺼짐 '}</span><span style="color:var(--ink);font-weight:700;margin-left:8px">${profile.noti.msg&&profile.noti.preview?'켜짐':'꺼짐'}</span></button>
+    </div>
+    <p class="dim small" style="margin-top:var(--s4)">미리보기를 끄면 알림에 상대 이름만 표시되고 내용은 가려져요.</p>`;
+}
+function toggleNoti(k){
+  if(k==='preview'&&!profile.noti.msg)return toast('먼저 새 메시지 알림을 켜주세요');
+  profile.noti[k]=!profile.noti[k];save();subNoti();
+}
+function subFriends(){
+  const fs=chats.filter(c=>c.friend&&!c.ended);
+  let h='';
+  if(fs.length===0)h=`<div class="center" style="min-height:50vh"><p class="dim body">아직 친구가 없어요.<br>대화 중 ‘친구 추가’로 만들 수 있어요.</p></div>`;
+  else h=fs.map(c=>`<button class="row" onclick="openChatById('${c.id}')"><div style="flex:1"><div class="nm">${esc(c.nick)}</div><div class="meta">친구 · 무제한</div></div><div class="meta">›</div></button>`).join('');
+  document.getElementById('subBody').innerHTML=`<div style="margin-top:var(--s3)">${h}</div>`;
+}
+function subBlocks(){
+  let h='';
+  if(blocks.length===0)h=`<div class="center" style="min-height:50vh"><p class="dim body">차단한 사용자가 없어요.</p></div>`;
+  else h=blocks.map((n,i)=>`<div class="row"><div class="nm" style="flex:1">${esc(n)}</div><button class="link" onclick="unblock(${i})">차단 해제</button></div>`).join('');
+  document.getElementById('subBody').innerHTML=`<div style="margin-top:var(--s3)">${h}</div>`;
+}
+function unblock(i){blocks.splice(i,1);save();subBlocks();toast('차단을 해제했어요')}
+function subTerms(){
+  document.getElementById('subBody').innerHTML=`
+    <div class="body" style="margin-top:var(--s4);color:var(--dim)">
+      <p><b style="color:var(--ink)">이용약관</b><br>Veil은 익명 텍스트 대화 서비스입니다. 사진·연락처 등 개인 식별 정보를 요구하지 않으며, 타인을 존중하는 대화를 원칙으로 합니다.</p>
+      <p style="margin-top:var(--s4)"><b style="color:var(--ink)">개인정보 처리방침</b><br>닉네임·관심사·대화 내용은 이 기기에만 저장되며(프로토타입) 외부로 전송되지 않습니다. 계정 삭제 시 모두 지워집니다.</p>
+      <p class="tiny" style="margin-top:var(--s5)">본 화면은 프로토타입 예시 문구입니다.</p>
+    </div>`;
+}
 
 /* ---------- 채팅방 ---------- */
 function openChatById(id){const c=chats.find(x=>x.id===id);if(c)openChat(c)}
@@ -402,6 +470,7 @@ function closeMenu(){document.getElementById('sheet').classList.remove('on')}
 function extendChat(){cur.exp=Math.max(Date.now(),cur.exp)+DAY;cur.msgs.push({s:'sys',t:'24시간이 연장됐어요'});save();renderMsgs();updateTimer();closeMenu();toast('24시간 연장됐어요')}
 function befriend(){cur.friend=true;cur.exp=null;cur.msgs.push({s:'sys',t:'친구가 됐어요 · 이제 시간제한 없이 대화해요'});save();renderMsgs();updateTimer();closeMenu();toast('친구가 됐어요')}
 function leaveChat(){closeMenu();if(confirm(cur.nick+'님과의 대화를 나갈까요?')){endChat(false);tab('list');go('s-main')}}
+function blockAndLeave(){closeMenu();if(confirm(cur.nick+'님을 차단할까요? 다시 매칭되지 않아요.')){if(!blocks.includes(cur.nick))blocks.push(cur.nick);endChat(false);tab('list');go('s-main');toast('차단했어요')}}
 function endChat(auto){
   cur.ended=true;cur.friend=false;
   cur.msgs.push({s:'sys',t:auto?'시간이 다 되어 대화가 종료됐어요':'대화를 나갔어요'});
