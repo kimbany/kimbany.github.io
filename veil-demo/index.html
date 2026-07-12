@@ -3,441 +3,208 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
-<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-<meta http-equiv="Pragma" content="no-cache">
-<meta http-equiv="Expires" content="0">
-<title>Veil — 익명 친구 매칭 (프로토타입)</title>
+<title>Veil</title>
 <style>
   :root{
-    --bg:#FBF9F2; --surface:#FFFFFF; --surface2:#F3F0E7; --text:#2F2F2F;
-    --dim:#9A9488; --border:#EAE5D8; --accent:#F28C28; --accent2:#E67912;
-    --good:#6FAF5A; --warn:#D98B2B; --bad:#D64545; --me:#2F2F2F; --you:#FFFFFF;
-    --grad:linear-gradient(135deg,#F5A24A,#F28C28);
-    /* 간격 기준 (4px 스케일) */
-    --sp-1:4px; --sp-2:8px; --sp-3:12px; --sp-4:16px; --sp-5:20px; --sp-6:24px; --sp-8:32px;
-    --r-1:10px; --r-2:14px; --r-3:18px;
+    --bg:#FAF8F2; --ink:#26251F; --dim:#9C968A; --line:#E8E3D6; --danger:#BF4A31;
+    --s1:4px; --s2:8px; --s3:12px; --s4:16px; --s5:24px; --s6:32px; --s7:48px; --s8:64px;
   }
-  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-  html,body{height:100%;margin:0}
-  body{font-family:-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Malgun Gothic","Noto Sans KR",sans-serif;
-    background:#EFEBDF;color:var(--text);display:flex;align-items:center;justify-content:center}
-  #app{position:relative;width:100%;max-width:440px;height:100dvh;max-height:920px;background:var(--bg);
-    overflow:hidden;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,.6)}
-  button{font-family:inherit;cursor:pointer;border:none;color:inherit}
-  input,textarea{font-family:inherit;font-size:16px}
-  /* 아이콘·텍스트 위 글자(I-beam) 커서 방지 */
-  #app{user-select:none;-webkit-user-select:none;cursor:default}
-  input,textarea{user-select:text;-webkit-user-select:text;cursor:text}
-  .tab,.seg div,.list-item,.opt,.chip,.iconbtn,.send,.btn{cursor:pointer}
-  .screen{position:absolute;inset:0;flex-direction:column;background:var(--bg);animation:fade .25s}
-  .screen:not(.active){display:none!important}
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;margin:0;padding:0}
+  html,body{height:100%}
+  body{font-family:-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Noto Sans KR",sans-serif;
+    background:#EEE9DD;color:var(--ink);display:flex;align-items:center;justify-content:center;
+    -webkit-font-smoothing:antialiased}
+  #app{position:relative;width:100%;max-width:430px;height:100dvh;max-height:920px;background:var(--bg);
+    overflow:hidden;display:flex;flex-direction:column;box-shadow:0 24px 70px rgba(0,0,0,.5)}
+  button{font-family:inherit;color:inherit;background:none;border:0;cursor:pointer}
+  input,textarea{font-family:inherit;font-size:16px;color:inherit}
+  ::placeholder{color:var(--dim)}
+  #app{user-select:none;-webkit-user-select:none}
+  input,textarea{user-select:text;-webkit-user-select:text}
+
+  .screen{position:absolute;inset:0;display:none;flex-direction:column;background:var(--bg);animation:fade .28s ease}
   .screen.active{display:flex}
-  @keyframes fade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
-  .pad{padding:var(--sp-5)}
+  @keyframes fade{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+  @keyframes rise{from{transform:translateY(100%)}to{transform:none}}
+
+  .pad{padding:var(--s5)}
   .grow{flex:1;overflow-y:auto}
-  .center{display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center}
-  h1{font-size:28px;margin:0 0 6px} h2{font-size:22px;margin:0 0 4px}
-  .dim{color:var(--dim);font-size:14px;line-height:1.55}
-  /* 버튼: 박스 없이 글씨만 (텍스트 우선) */
-  .btn{display:block;width:100%;padding:15px;background:transparent;border:0;color:var(--text);
-    font-family:inherit;font-weight:700;font-size:18px;text-align:center;margin-top:var(--sp-2)}
-  .btn.sec,.btn.ghost{color:var(--dim);font-weight:500;background:transparent;border:0}
-  .btn-text{display:block;width:100%;padding:6px 0;background:transparent;border:0;color:var(--text);font-family:inherit;font-size:24px;font-weight:600;text-align:center}
-  .btn.bad{color:var(--bad);background:transparent}
-  .btn:disabled{opacity:.3}
-  .sheet .btn{border-top:1px solid var(--border);margin:0}
-  .topbar{display:flex;align-items:center;gap:10px;padding:14px 16px;padding-top:max(14px,env(safe-area-inset-top));
-    background:var(--bg)}
-  .topbar .ttl{font-weight:700;font-size:18px}
-  .iconbtn{width:34px;height:34px;background:transparent;display:flex;align-items:center;justify-content:center;font-size:22px;color:var(--text)}
-  .logo{width:76px;height:76px;border-radius:50%;background:var(--text);display:flex;align-items:center;justify-content:center;font-size:0;margin-bottom:20px}
-  /* 칩(관심사·아바타 등): 박스 없이 글씨만, 선택 시 밑줄 */
-  .chip{display:inline-flex;align-items:center;padding:8px 10px;border-radius:0;background:transparent;border:0;color:var(--dim);font-size:16px;margin:4px 8px 4px 0;user-select:none}
-  .chip.on{color:var(--text);font-weight:700;text-decoration:underline;text-underline-offset:5px;text-decoration-thickness:2px}
-  .field{width:100%;padding:12px 2px;border-radius:0;background:transparent;border:0;border-bottom:1.5px solid var(--border);color:var(--text);margin-top:8px}
-  .field:focus{outline:0;border-bottom-color:var(--text)}
-  .label{font-size:13px;color:var(--text);margin:var(--sp-4) 0 var(--sp-1);font-weight:600}
-  .card{background:transparent;border:0;border-radius:0;padding:var(--sp-3) 0;margin-top:var(--sp-2)}
-  .hr{width:44px;height:1px;background:var(--text);margin:var(--sp-4) auto}
-  .row{display:flex;align-items:center;gap:12px}
-  .av{width:46px;height:46px;border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:24px;flex:0 0 auto}
-  .badge{font-size:12px;padding:0;background:transparent;color:var(--dim)}
-  .badge.live{color:var(--dim)}
-  .badge.warn{color:var(--warn)}
-  /* tabs */
-  .tabbar{display:flex;justify-content:center;background:var(--surface);border-top:1px solid var(--border);padding:13px 0 calc(13px + env(safe-area-inset-bottom))}
-  .tabrow{display:flex;align-items:center;justify-content:space-between;width:250px;max-width:calc(100% - 40px)}
-  .tab{color:var(--dim);font-size:20px;font-weight:500}
-  .tab.on{color:var(--text);font-weight:700;text-decoration:underline;text-underline-offset:6px;text-decoration-thickness:2px}
-  .tab-sep{color:var(--dim);font-size:20px}
-  /* matching */
-  .pulse{width:150px;height:150px;border-radius:50%;background:var(--text);display:flex;align-items:center;justify-content:center;
-    font-size:60px;font-weight:800;color:#fff;box-shadow:0 0 0 0 rgba(47,47,47,.22);animation:pulse 1.1s infinite}
-  @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(47,47,47,.22)}100%{box-shadow:0 0 0 36px rgba(47,47,47,0)}}
-  /* 세그먼트: 박스 없이 글씨만, 가운뎃점(・)으로 구분, 선택 시 주황 */
-  .seg{display:flex;align-items:center;justify-content:center;background:transparent;padding:0;margin:var(--sp-4) 0}
-  .seg div{padding:var(--sp-2) 0;font-size:20px;color:var(--text);font-weight:500;position:relative}
-  .seg div.on{color:var(--text);font-weight:700;text-decoration:underline;text-underline-offset:6px;text-decoration-thickness:2px}
-  .seg div:not(:last-child)::after{content:'・';display:inline-block;margin:0 var(--sp-2);color:var(--dim);font-weight:400;text-decoration:none}
-  .seg-lg div{font-size:24px}
-  /* chat */
-  .msgs{flex:1;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:8px}
-  .b{max-width:75%;padding:10px 13px;border-radius:16px;font-size:15px;line-height:1.4;word-break:break-word}
-  .b.me{align-self:flex-end;background:var(--me);color:#fff;border-bottom-right-radius:5px}
-  .b.you{align-self:flex-start;background:var(--you);border:1px solid var(--border);border-bottom-left-radius:5px}
-  .b.sys{align-self:center;background:transparent;color:var(--dim);font-size:12px;text-align:center;max-width:90%}
-  .composer{display:flex;gap:8px;align-items:center;padding:10px 14px;border-top:1px solid var(--border);background:var(--bg)}
-  .composer input{flex:1;padding:10px 2px;border-radius:0;background:transparent;border:0;border-bottom:1.5px solid var(--border);color:var(--text)}
-  .composer input:focus{outline:0;border-bottom-color:var(--text)}
-  .send{width:44px;height:44px;border-radius:50%;background:transparent;font-size:18px;color:var(--text);flex:0 0 auto;display:flex;align-items:center;justify-content:center}
-  .timerbar{display:flex;align-items:center;justify-content:center;gap:6px;padding:8px;background:transparent;border-bottom:1px solid var(--border);color:var(--dim);font-size:13px;font-weight:600}
-  .timerbar.warn{color:var(--warn)}
-  /* modal */
-  .ovl{position:absolute;inset:0;background:rgba(0,0,0,.6);display:none;align-items:flex-end;z-index:50}
+  .col{display:flex;flex-direction:column}
+  .center{display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;flex:1}
+  .dim{color:var(--dim)}
+  .sp{flex:1}
+
+  /* 타이포 */
+  .wordmark{font-size:38px;font-weight:800;letter-spacing:.06em}
+  .h-hero{font-size:26px;font-weight:800;line-height:1.35}
+  .h-page{font-size:24px;font-weight:800}
+  .h-q{font-size:20px;font-weight:700}
+  .body{font-size:16px;line-height:1.6}
+  .small{font-size:14px}
+  .tiny{font-size:12px}
+
+  /* 버튼 = 글씨만 */
+  .cta{display:block;width:100%;text-align:center;font-size:19px;font-weight:700;padding:16px 0;color:var(--ink)}
+  .cta:disabled{color:var(--dim);opacity:.5}
+  .cta.sub{font-weight:500;color:var(--dim);font-size:16px}
+  .cta.danger{color:var(--danger)}
+  .link{color:var(--dim);font-size:15px;font-weight:500}
+
+  /* 선택형 텍스트(관심사·옵션): 선택 시 밑줄 */
+  .pick{color:var(--dim);font-size:17px;font-weight:500;padding:6px 0;background:none}
+  .pick.on{color:var(--ink);font-weight:700;text-decoration:underline;text-underline-offset:5px;text-decoration-thickness:2px}
+  .wrap{display:flex;flex-wrap:wrap;gap:var(--s2) var(--s5)}
+
+  /* 입력 = 밑줄 필드 */
+  .field{width:100%;padding:12px 2px;background:none;border:0;border-bottom:1.5px solid var(--line);font-size:20px}
+  .field:focus{outline:0;border-bottom-color:var(--ink)}
+  .note{margin-top:var(--s2);font-size:13px}
+
+  /* 상단바 */
+  .top{display:flex;align-items:center;gap:var(--s3);padding:var(--s4) var(--s5);padding-top:max(var(--s4),env(safe-area-inset-top))}
+  .top .back{font-size:26px;line-height:1;color:var(--ink);margin-left:-4px}
+  .top .t{font-size:18px;font-weight:700}
+  .top .act{font-size:15px;color:var(--dim);font-weight:600}
+
+  /* 하단 내비 = 글씨 */
+  .nav{display:flex;justify-content:center;padding:var(--s4) 0 calc(var(--s4) + env(safe-area-inset-bottom))}
+  .navrow{display:flex;align-items:center;justify-content:space-between;width:240px;max-width:calc(100% - 48px)}
+  .nav a{color:var(--dim);font-size:17px;font-weight:500}
+  .nav a.on{color:var(--ink);font-weight:700;text-decoration:underline;text-underline-offset:6px;text-decoration-thickness:2px}
+  .nav .dot{color:var(--dim)}
+  .page{flex:1;overflow-y:auto;display:none;flex-direction:column}
+  .page.on{display:flex}
+
+  /* 목록 행 */
+  .row{display:flex;align-items:center;gap:var(--s3);padding:var(--s4) 0;border-top:1px solid var(--line);text-align:left;width:100%}
+  .row:last-child{border-bottom:1px solid var(--line)}
+  .row .nm{font-size:17px;font-weight:700}
+  .row .meta{font-size:13px;color:var(--dim);margin-top:2px}
+
+  /* 채팅 */
+  .timer{text-align:center;padding:10px;font-size:13px;color:var(--dim);border-bottom:1px solid var(--line)}
+  .msgs{flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:var(--s2);padding:var(--s4) var(--s5)}
+  .msg{max-width:78%;padding:10px 14px;border-radius:16px;font-size:16px;line-height:1.45;word-break:break-word}
+  .msg.them{align-self:flex-start;border:1px solid var(--line);border-bottom-left-radius:5px}
+  .msg.me{align-self:flex-end;background:var(--ink);color:var(--bg);border-bottom-right-radius:5px}
+  .msg.sys{align-self:center;max-width:92%;text-align:center;color:var(--dim);font-size:13px;padding:4px}
+  .composer{display:flex;align-items:center;gap:var(--s3);padding:var(--s3) var(--s5) calc(var(--s3) + env(safe-area-inset-bottom));border-top:1px solid var(--line)}
+  .composer input{flex:1;padding:10px 2px;background:none;border:0;border-bottom:1.5px solid var(--line)}
+  .composer input:focus{outline:0;border-bottom-color:var(--ink)}
+  .composer .send{font-size:16px;font-weight:700;color:var(--ink);white-space:nowrap}
+  .composer .send:disabled{color:var(--dim)}
+
+  /* 시트 */
+  .ovl{position:absolute;inset:0;background:rgba(20,18,12,.5);display:none;align-items:flex-end;z-index:40}
   .ovl.on{display:flex;animation:fade .2s}
-  .sheet{width:100%;background:var(--surface);border-radius:22px 22px 0 0;padding:22px;animation:up .25s}
-  @keyframes up{from{transform:translateY(100%)}to{transform:none}}
-  .opt{padding:15px 4px;background:transparent;border-top:1px solid var(--border);margin:0;font-size:16px}
-  .opt.bad{color:var(--bad)}
-  .eval-q{font-size:20px;font-weight:700;color:var(--text);margin:var(--sp-6) 0 var(--sp-2)}
-  /* 설문 5점 척도: 선 위의 원, 선택 시 채워짐 */
-  .dots{display:flex;align-items:center;justify-content:space-between;position:relative;margin:var(--sp-4) 6px var(--sp-2)}
-  .dots::before{content:'';position:absolute;left:12px;right:12px;top:50%;transform:translateY(-50%);height:1.5px;background:var(--border);z-index:0}
-  .dot{width:24px;height:24px;border-radius:50%;border:1.5px solid var(--dim);background:var(--bg);position:relative;z-index:1;display:flex;align-items:center;justify-content:center}
-  .dot.on{border-color:var(--text);background:var(--text)}
-  .dot.on::after{content:'';width:8px;height:8px;border-radius:50%;background:var(--bg)}
-  .dots-ends{display:flex;justify-content:space-between;font-size:13px;color:var(--dim);margin:0 2px}
-  .eval-scale{flex-direction:column;align-items:flex-start;margin:var(--sp-2) 0 0}
-  .eval-scale div{font-size:16px;padding:6px 0;white-space:nowrap;color:var(--text)}
-  .eval-scale div::before{content:'·\00a0';color:var(--dim)}
-  .eval-scale div:not(:last-child)::after{content:none}
-  .scale{display:flex;justify-content:space-between;margin-top:8px}
-  .scale b{flex:1;text-align:center;padding:10px 0;margin:0 3px;background:transparent;color:var(--dim);font-size:13px;font-weight:500}
-  .scale b.on{background:transparent;color:var(--text);font-weight:700;text-decoration:underline;text-underline-offset:4px;text-decoration-thickness:2px}
-  .toast{position:absolute;left:50%;bottom:90px;transform:translateX(-50%);background:#000;color:#fff;padding:10px 18px;
-    border-radius:999px;font-size:13px;opacity:0;transition:.3s;z-index:99;white-space:nowrap}
-  .toast.on{opacity:.94}
-  .list-item{display:flex;align-items:center;gap:12px;padding:13px 16px;border-bottom:1px solid var(--border)}
-  .menu-ic{display:inline-flex;align-items:center;justify-content:center;width:22px;color:var(--text);flex:0 0 auto}
-  .opt-ic{display:inline-flex;align-items:center;justify-content:center;width:22px;vertical-align:-5px;margin-right:8px}
-  .info-btn{display:inline-flex;align-items:center;vertical-align:-3px;color:var(--text);cursor:pointer;margin-left:5px}
-  .info-btn:active{color:var(--accent)}
-  .ovl-c{position:absolute;inset:0;background:rgba(0,0,0,.45);display:none;align-items:center;justify-content:center;z-index:70;padding:24px}
-  .ovl-c.on{display:flex;animation:fade .18s}
-  .popcard{background:var(--surface);border-radius:var(--r-3);padding:var(--sp-5);max-width:320px;width:100%;box-shadow:0 12px 40px rgba(0,0,0,.22)}
-  .switch{width:48px;height:28px;border-radius:999px;background:var(--surface2);border:1px solid var(--border);position:relative;transition:.2s;flex:0 0 auto}
-  .switch::after{content:'';position:absolute;top:2px;left:2px;width:22px;height:22px;border-radius:50%;background:#fff;transition:.2s}
-  .switch.on{background:var(--text);border-color:transparent}
-  .switch.on::after{left:calc(100% - 24px)}
-  .demo-note{position:absolute;top:max(8px,env(safe-area-inset-top));right:10px;z-index:60;background:rgba(0,0,0,.5);
-    color:#fff;font-size:10px;padding:4px 9px;border-radius:999px;backdrop-filter:blur(4px)}
+  .sheet{width:100%;background:var(--bg);border-radius:22px 22px 0 0;padding:var(--s5) var(--s5) calc(var(--s5) + env(safe-area-inset-bottom));animation:rise .26s ease}
+  .sheet h3{font-size:20px;font-weight:800;margin-bottom:var(--s2)}
+  .sheet .opt{display:block;width:100%;text-align:left;padding:16px 0;font-size:17px;border-top:1px solid var(--line)}
+  .sheet .opt.danger{color:var(--danger)}
+
+  /* 매칭 애니메이션 */
+  .pulse{width:14px;height:14px;border-radius:50%;background:var(--ink);animation:pulse 1s infinite ease-in-out}
+  @keyframes pulse{0%,100%{transform:scale(.6);opacity:.3}50%{transform:scale(1);opacity:1}}
+
+  /* 토스트 */
+  .toast{position:absolute;left:50%;bottom:110px;transform:translateX(-50%);background:var(--ink);color:var(--bg);
+    padding:11px 20px;border-radius:999px;font-size:14px;opacity:0;transition:.3s;z-index:90;white-space:nowrap;pointer-events:none}
+  .toast.on{opacity:.96}
 </style>
 </head>
 <body>
 <div id="app">
-  <div class="demo-note">PROTOTYPE</div>
 
-  <!-- ===== 시작 ===== -->
-  <section id="s-start" class="screen active center pad">
-    <div class="logo"></div>
-    <h1>Veil</h1>
-    <p class="dim" style="max-width:280px">사진도, 외모도 아닌<br><b style="color:var(--text)">오직 대화</b>로 만나는 익명 친구 매칭</p>
-    <div style="width:100%;margin-top:30px">
-      <button class="btn" onclick="go('s-birth')">시작하기</button>
-      <button class="btn ghost" onclick="go('s-login')">이미 계정이 있어요</button>
-    </div>
-  </section>
-
-  <!-- ===== 로그인 ===== -->
-  <section id="s-login" class="screen">
-    <div class="topbar"><button class="iconbtn" onclick="go('s-start')">‹</button><span class="ttl">로그인</span></div>
-    <div class="grow pad">
-      <input class="field" placeholder="이메일">
-      <input class="field" type="password" placeholder="비밀번호">
-      <button class="btn" onclick="loginDemo()">이메일로 로그인</button>
-      <button class="btn sec" onclick="loginDemo()">🟦 Google로 계속</button>
-      <button class="btn sec" onclick="loginDemo()"> Apple로 계속</button>
-      <p class="dim center" style="margin-top:18px">비밀번호를 잊으셨나요?</p>
-    </div>
-  </section>
-
-  <!-- ===== 생년월일 (14세 검증) ===== -->
-  <section id="s-birth" class="screen">
-    <div class="topbar"><button class="iconbtn" onclick="go('s-start')">‹</button><span class="ttl">회원가입</span></div>
-    <div class="grow pad">
-      <h2>생년월일을 알려주세요</h2>
-      <p class="dim">만 14세 이상만 가입할 수 있어요.</p>
-      <input id="birth" class="field" type="date" max="2012-06-17">
-      <p id="ageMsg" class="dim" style="color:var(--bad);min-height:18px"></p>
-    </div>
-    <div class="pad"><button class="btn" onclick="checkAge()">다음</button></div>
-  </section>
-
-  <!-- ===== 온보딩: 닉네임 ===== -->
-  <section id="s-nick" class="screen">
-    <div class="topbar"><button class="iconbtn" onclick="go('s-birth')">‹</button><span class="ttl">프로필 만들기 (1/5)</span></div>
-    <div class="grow pad">
-      <div class="label">닉네임</div>
-      <input id="nick" class="field" placeholder="2~10자 · 중복/욕설 불가" oninput="nickCheck()" value="달빛여우">
-      <p id="nickMsg" class="dim" style="min-height:18px"></p>
-      <div class="label">상태메시지</div>
-      <input id="status" class="field" placeholder="자유롭게 적어보세요" value="조용한 밤 대화 좋아해요">
-    </div>
-    <div class="pad"><button class="btn" onclick="go('s-avatar')">다음</button></div>
-  </section>
-
-  <!-- ===== 온보딩: 아바타 ===== -->
-  <section id="s-avatar" class="screen">
-    <div class="topbar"><button class="iconbtn" onclick="go('s-nick')">‹</button><span class="ttl">프로필 만들기 (2/5)</span></div>
-    <div class="grow pad center">
-      <p class="dim">실제 사진은 사용할 수 없어요.<br>아바타와 배경색으로 나를 표현하세요.</p>
-      <div id="bigav" class="av" style="width:120px;height:120px;border-radius:36px;font-size:64px;background:#F28C28;margin:18px 0">🦊</div>
-      <div id="avatars" style="text-align:center"></div>
-      <div class="label" style="align-self:flex-start">배경 색상</div>
-      <div id="colors" style="align-self:flex-start"></div>
-    </div>
-    <div class="pad"><button class="btn" onclick="go('s-basic')">다음</button></div>
-  </section>
-
-  <!-- ===== 온보딩: 나에 대해 (성별/MBTI/연락스타일) ===== -->
-  <section id="s-basic" class="screen">
-    <div class="topbar"><button class="iconbtn" onclick="go('s-avatar')">‹</button><span class="ttl">프로필 만들기 (3/5)</span></div>
-    <div class="grow pad">
-      <h2>나에 대해 알려주세요</h2>
-      <p class="dim">비슷하거나 다른 성향의 사람을 매칭할 때 참고돼요.</p>
-      <div class="label">성별</div><div id="c-gender"></div>
-      <div class="label">MBTI</div><div id="c-mbti"></div>
-      <div class="label">연락 스타일 1 <span class="dim" style="font-weight:400">· 답장 속도</span></div><div id="c-contact1"></div>
-      <div class="label">연락 스타일 2 <span class="dim" style="font-weight:400">· 읽음 습관</span></div><div id="c-contact2"></div>
-    </div>
-    <div class="pad"><button class="btn" onclick="go('s-lifestyle')">다음</button></div>
-  </section>
-
-  <!-- ===== 온보딩: 평소 습관 & 반려동물 ===== -->
-  <section id="s-lifestyle" class="screen">
-    <div class="topbar"><button class="iconbtn" onclick="go('s-basic')">‹</button><span class="ttl">프로필 만들기 (4/5)</span></div>
-    <div class="grow pad">
-      <h2>평소 습관 & 반려동물</h2>
-      <div class="label">술</div><div id="c-drink"></div>
-      <div class="label">담배</div><div id="c-smoke"></div>
-      <div class="label">운동</div><div id="c-exercise"></div>
-      <div class="label">반려동물 <span class="dim" style="font-weight:400">· 여러 개 선택 가능</span></div><div id="c-pets"></div>
-    </div>
-    <div class="pad"><button class="btn" onclick="go('s-interest')">다음</button></div>
-  </section>
-
-  <!-- ===== 온보딩: 관심사 ===== -->
-  <section id="s-interest" class="screen">
-    <div class="topbar"><button class="iconbtn" onclick="go('s-lifestyle')">‹</button><span class="ttl">프로필 만들기 (5/5)</span></div>
-    <div class="grow pad">
-      <h2>관심사를 골라주세요</h2>
-      <p class="dim"><span id="icount">0</span>개 선택 · 최소 3개</p>
-      <div id="interests" style="margin-top:8px"></div>
-    </div>
-    <div class="pad"><button id="iBtn" class="btn" disabled onclick="completeOnboarding()">완료</button></div>
-  </section>
-
-  <!-- ===== 메인 ===== -->
-  <section id="main" class="screen">
-    <div id="page-match" class="grow"></div>
-    <div id="page-chats" class="grow" style="display:none"></div>
-    <div id="page-settings" class="grow" style="display:none"></div>
-    <div class="tabbar">
-      <div class="tabrow">
-        <div class="tab on" id="t-match" onclick="tab('match')">매칭</div>
-        <span class="tab-sep">·</span>
-        <div class="tab" id="t-chats" onclick="tab('chats')">대화</div>
-        <span class="tab-sep">·</span>
-        <div class="tab" id="t-settings" onclick="tab('settings')">설정</div>
-      </div>
-    </div>
-  </section>
-
-  <!-- ===== 매칭 중 ===== -->
-  <section id="s-matching" class="screen center pad">
-    <div id="mPulse" class="pulse">5</div>
-    <h2 id="mTitle" style="margin-top:26px">잠시 후 매칭을 시작해요</h2>
-    <p class="dim" id="mSub">마음이 바뀌면 취소할 수 있어요</p>
-    <button class="btn ghost" style="width:auto;padding:12px 28px;margin-top:26px" onclick="cancelMatch()">취소</button>
-  </section>
-
-  <!-- ===== 채팅방 ===== -->
-  <section id="s-chat" class="screen">
-    <div class="topbar">
-      <button class="iconbtn" onclick="tab('chats');go('main')">‹</button>
-      <div id="chatAv" class="av" style="width:34px;height:34px;border-radius:10px;font-size:18px">🐰</div>
-      <div style="flex:1"><div class="ttl" id="chatName">달빛토끼</div></div>
-      <button class="iconbtn" onclick="open('sheetMenu')">⋯</button>
-    </div>
-    <div id="timerbar" class="timerbar"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg> 남은 시간 <span id="clock">23:59:48</span></div>
-    <div id="friendBar" style="display:none;padding:8px;text-align:center;background:rgba(54,211,153,.12)">
-      <span class="dim" style="font-size:12px;color:var(--good)">3회 연장 완료! </span>
-      <button class="btn" style="width:auto;padding:7px 18px;margin:0;display:inline-block;font-size:14px" onclick="requestFriend()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:4px"><circle cx="9" cy="8" r="3.3"/><path d="M2.5 20c0-3.4 3-5.3 6.5-5.3s6.5 1.9 6.5 5.3"/><path d="M16.5 5.4a3.3 3.3 0 0 1 0 6.4"/><path d="M21.5 20c0-2.5-1.4-4.2-3.6-4.9"/></svg>친구 신청</button>
-    </div>
-    <div id="msgs" class="msgs"></div>
-    <div class="composer">
-      <input id="msgInput" placeholder="메시지 입력…" onkeydown="if(event.key==='Enter'&&!event.isComposing&&event.keyCode!==229)sendMsg()">
-      <button class="send" onclick="sendMsg()"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2 11 13"/><path d="M22 2l-7 20-4-9-9-4 20-7z"/></svg></button>
-    </div>
-  </section>
-
-  <!-- ===== 시트: 채팅 메뉴 ===== -->
-  <div id="sheetMenu" class="ovl" onclick="closeOvl(event)">
-    <div class="sheet">
-      <h2>채팅방</h2>
-      <div class="opt" onclick="closeAll();showExtend()"><span class="opt-ic"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></span>연장/종료 선택</div>
-      <div class="opt" onclick="openRoomNotif()"><span class="opt-ic"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg></span>알림 · 미리보기 설정</div>
-      <div class="opt" onclick="closeAll();demoExpire()"><span class="opt-ic"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12a8 8 0 0 1 13.7-5.7L20 8"/><polyline points="20 3 20 8 15 8"/><path d="M20 12a8 8 0 0 1-13.7 5.7L4 16"/><polyline points="4 21 4 16 9 16"/></svg></span>지금 만료시키기 (테스트)</div>
-      <div class="opt bad" onclick="closeAll();open('sheetLeave')"><span class="opt-ic"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M9 4H5v16h4"/><polyline points="15 8 19 12 15 16"/><line x1="19" y1="12" x2="9" y2="12"/></svg></span>나가기</div>
-      <button class="btn ghost" style="margin-top:14px" onclick="closeAll()">닫기</button>
-    </div>
-  </div>
-
-  <!-- ===== 시트: 채팅방 알림 설정 ===== -->
-  <div id="sheetRoomNotif" class="ovl" onclick="closeOvl(event)">
-    <div class="sheet">
-      <h2>이 대화방 알림</h2>
-      <div id="roomnotif-rows"></div>
-      <button class="btn ghost" style="margin-top:12px" onclick="closeAll()">닫기</button>
-    </div>
-  </div>
-
-  <!-- ===== 시트: 나가기 ===== -->
-  <div id="sheetLeave" class="ovl" onclick="closeOvl(event)">
-    <div class="sheet">
-      <h2>채팅방을 나갈까요?</h2>
-      <div class="opt bad" onclick="closeAll();go('s-report')"><span class="opt-ic"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M5 21V4"/><path d="M5 4h11l-2 4 2 4H5"/></svg></span>신고 후 나가기</div>
-      <div class="opt" onclick="closeAll();leaveChat()">그냥 나가기 <span class="dim">· 패널티가 부여될 수 있어요</span></div>
-      <button class="btn ghost" style="margin-top:8px" onclick="closeAll()">취소</button>
-    </div>
-  </div>
-
-  <!-- ===== 시트: 매칭 불가 (무료 2명 제한) ===== -->
-  <div id="sheetLimit" class="ovl" onclick="closeOvl(event)">
-    <div class="sheet">
-      <h2>매칭할 수 없어요</h2>
-      <p class="dim">무료 회원은 동시에 <b style="color:var(--text)">최대 2명</b>까지 대화할 수 있어요. 진행중인 대화를 종료하거나 프리미엄으로 업그레이드해보세요.</p>
-      <div class="card" style="border-color:var(--accent)">
-        <b><span class="opt-ic" style="color:var(--accent)"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l2.6 5.5 6 .8-4.4 4.2 1.1 6L12 16.9 6.7 19.5l1.1-6L3.4 9.3l6-.8L12 3z"/></svg></span>프리미엄</b>
-        <div class="dim" style="font-size:13px;margin-top:4px">동시 매칭 무제한 · 우선 매칭 · 광고 제거</div>
-      </div>
-      <button class="btn" onclick="closeAll();toast('프리미엄 결제 (프로토타입)')">프리미엄 보기</button>
-      <button class="btn ghost" onclick="closeAll()">닫기</button>
-    </div>
-  </div>
-
-  <!-- ===== 시트: 연장/종료 ===== -->
-  <div id="sheetExtend" class="ovl">
-    <div class="sheet">
-      <h2>24시간이 끝났어요</h2>
-      <p class="dim">대화를 이어가려면 양쪽 모두 연장을 선택해야 해요. (<span id="extLeft">3</span>회 남음)</p>
-      <p id="extDeadline" class="dim" style="color:var(--warn);font-size:13px">미선택 시 12시간 뒤 자동 종료됩니다.</p>
-      <button class="btn" onclick="closeAll();extend()">연장하기</button>
-      <button class="btn sec" onclick="closeAll();go('s-eval')">종료하기</button>
-    </div>
-  </div>
-
-  <!-- ===== 평가 ===== -->
-  <section id="s-eval" class="screen">
-    <div class="topbar"><span class="ttl">상대 평가</span></div>
-    <div class="grow pad">
-      <p class="dim">솔직한 평가는 건강한 커뮤니티를 만들어요.</p>
-      <div class="eval-q">대화가 즐거웠나요?</div>
-      <div class="dots" data-q="fun">
-        <div class="dot" onclick="dotPick(this,'fun')"></div><div class="dot" onclick="dotPick(this,'fun')"></div><div class="dot" onclick="dotPick(this,'fun')"></div><div class="dot" onclick="dotPick(this,'fun')"></div><div class="dot" onclick="dotPick(this,'fun')"></div>
-      </div>
-      <div class="dots-ends"><span>매우 그렇다</span><span>매우 아니다</span></div>
-      <div class="eval-q">예의가 있었나요?</div>
-      <div class="dots" data-q="manner">
-        <div class="dot" onclick="dotPick(this,'manner')"></div><div class="dot" onclick="dotPick(this,'manner')"></div><div class="dot" onclick="dotPick(this,'manner')"></div><div class="dot" onclick="dotPick(this,'manner')"></div><div class="dot" onclick="dotPick(this,'manner')"></div>
-      </div>
-      <div class="dots-ends"><span>매우 그렇다</span><span>매우 아니다</span></div>
-      <div class="eval-q">다시 대화하고 싶나요?</div>
-      <div class="seg eval-scale" id="again"><div onclick="segPick(this)">예</div><div onclick="segPick(this)">아니오</div></div>
-      <div class="eval-q">추가 의견 (최대 500자)</div>
-      <textarea class="field" rows="3" maxlength="500" placeholder="선택 입력"></textarea>
-      <label class="card row" style="cursor:pointer" onclick="this.querySelector('input').checked=!this.querySelector('input').checked">
-        <input type="checkbox" style="width:20px;height:20px"><div>다시 만나고 싶지 않음 <div class="dim">자동 차단 · 재매칭 금지</div></div>
-      </label>
-    </div>
-    <div class="pad"><button class="btn" onclick="submitEval()">제출</button></div>
-  </section>
-
-  <!-- ===== 프로필 수정 ===== -->
-  <section id="s-edit" class="screen">
-    <div class="topbar"><button class="iconbtn" onclick="tab('settings');go('main')">‹</button><span class="ttl">프로필 수정</span></div>
-    <div class="grow pad">
-      <div id="edit-lock" class="card" style="display:none;border-color:var(--warn);color:var(--warn);font-size:13px;text-align:center"></div>
-      <div class="center">
-        <div id="edit-bigav" class="av" style="width:100px;height:100px;border-radius:30px;font-size:54px;background:#F28C28;margin:4px 0 10px">🦊</div>
-      </div>
-      <div class="label">아바타</div><div id="edit-avatars" style="text-align:center"></div>
-      <div class="label">배경 색상</div><div id="edit-colors"></div>
-      <div class="label">닉네임</div>
-      <input id="edit-nick" class="field" placeholder="2~10자" oninput="editNickCheck()">
-      <p id="edit-nickMsg" class="dim" style="min-height:18px"></p>
-      <div class="label">상태메시지</div>
-      <input id="edit-status" class="field" placeholder="자유롭게 적어보세요">
-      <div class="label">성별 <span class="dim" style="font-weight:400">· 🔒 변경 불가</span></div><div id="edit-gender"></div>
-      <div class="label">MBTI</div><div id="edit-mbti"></div>
-      <div class="label">연락 스타일 1 <span class="dim" style="font-weight:400">· 답장 속도</span></div><div id="edit-contact1"></div>
-      <div class="label">연락 스타일 2 <span class="dim" style="font-weight:400">· 읽음 습관</span></div><div id="edit-contact2"></div>
-      <div class="label">술</div><div id="edit-drink"></div>
-      <div class="label">담배</div><div id="edit-smoke"></div>
-      <div class="label">운동</div><div id="edit-exercise"></div>
-      <div class="label">반려동물 <span class="dim" style="font-weight:400">· 다중 선택</span></div><div id="edit-pets"></div>
-      <div class="label">관심사 <span class="dim" style="font-weight:400">· 최소 3개</span></div><div id="edit-interests"></div>
+  <!-- 인트로 -->
+  <section id="s-intro" class="screen">
+    <div class="center pad">
+      <div class="wordmark">Veil</div>
+      <p class="body dim" style="margin-top:var(--s4);max-width:260px">
+        사진도, 나이도, 목소리도 없이<br><b style="color:var(--ink)">오직 글로만</b> 만나는 익명 대화
+      </p>
     </div>
     <div class="pad">
-      <p class="dim" style="text-align:center;font-size:12px;color:var(--warn);margin:0 0 4px">⚠️ 저장하면 프로필(닉네임·관심사 등)은 7일 후에 다시 변경할 수 있어요. 신중하게 확인해주세요.</p>
-      <button id="editSaveBtn" class="btn" onclick="saveEdit()">저장</button>
+      <button class="cta" onclick="startOnboarding()">시작하기</button>
     </div>
   </section>
 
-  <!-- ===== 알림 설정 (전역) ===== -->
-  <section id="s-notif" class="screen">
-    <div class="topbar"><button class="iconbtn" onclick="tab('settings');go('main')">‹</button><span class="ttl">알림 설정</span></div>
+  <!-- 온보딩 1: 닉네임 -->
+  <section id="s-nick" class="screen">
+    <div class="top"><button class="back" onclick="go('s-intro')">‹</button></div>
     <div class="grow pad">
-      <div id="notif-rows"></div>
-      <p class="dim" style="font-size:12px;margin-top:14px">전체 알림을 끄면 채팅 알림·미리보기도 함께 꺼집니다. 각 채팅방에서 따로 끌 수도 있어요.</p>
+      <h1 class="h-page">어떻게 불러드릴까요?</h1>
+      <p class="dim body" style="margin-top:var(--s2)">언제든 바꿀 수 있어요.</p>
+      <input id="nickInput" class="field" style="margin-top:var(--s6)" maxlength="12" placeholder="닉네임" oninput="checkNick()">
+      <div id="nickNote" class="note dim">두 글자 이상 입력해주세요.</div>
+      <button class="link" style="margin-top:var(--s4)" onclick="randomNick()">랜덤으로 정하기</button>
     </div>
+    <div class="pad"><button id="nickNext" class="cta" disabled onclick="go('s-interest')">다음</button></div>
   </section>
 
-  <!-- ===== 친구 관리 ===== -->
-  <section id="s-friends" class="screen">
-    <div class="topbar"><button class="iconbtn" onclick="tab('settings');go('main')">‹</button><span class="ttl">친구 관리</span></div>
-    <div class="seg" style="margin:12px 14px 0">
-      <div id="fseg-friends" onclick="_fseg='friends';renderFriendsMgr()">친구 목록</div>
-      <div id="fseg-blocks" onclick="_fseg='blocks';renderFriendsMgr()">차단 목록</div>
-    </div>
-    <div id="friends-mgr" class="grow"></div>
-  </section>
-
-  <!-- ===== 신고 ===== -->
-  <section id="s-report" class="screen">
-    <div class="topbar"><button class="iconbtn" onclick="go('s-chat')">‹</button><span class="ttl">신고하기</span></div>
+  <!-- 온보딩 2: 관심사 -->
+  <section id="s-interest" class="screen">
+    <div class="top"><button class="back" onclick="go('s-nick')">‹</button></div>
     <div class="grow pad">
-      <div class="label">신고 사유</div>
-      <div id="reasons"></div>
-      <div class="label">추가 설명</div>
-      <textarea class="field" rows="3" placeholder="상황을 자세히 적어주세요"></textarea>
-      <div class="label">스크린샷 (최대 5장)</div>
-      <div class="row" style="flex-wrap:wrap">
-        <div class="av" style="background:var(--surface2);border:1px dashed var(--border);font-size:22px">＋</div>
-      </div>
-      <div class="card dim" style="font-size:13px;color:var(--warn)">
-        ⚠️ 허위 신고 또는 정당한 사유가 아닌 신고는 신고자에게 패널티가 부여될 수 있습니다.
-      </div>
+      <h1 class="h-page">무슨 얘기를 좋아하세요?</h1>
+      <p id="intCount" class="dim body" style="margin-top:var(--s2)">한 개 이상 골라주세요.</p>
+      <div id="intWrap" class="wrap" style="margin-top:var(--s6)"></div>
     </div>
-    <div class="pad"><button class="btn bad" onclick="blockPeer(curPeer,'report');leaveChat('신고가 접수되었어요. 상대를 차단했습니다.')">신고 후 나가기</button></div>
+    <div class="pad"><button id="intDone" class="cta" disabled onclick="finishOnboarding()">시작하기</button></div>
   </section>
 
-  <!-- ===== 정보 팝업 ===== -->
-  <div id="infoPop" class="ovl-c" onclick="closeInfo(event)">
-    <div class="popcard">
-      <b id="infoTitle" style="font-size:16px"></b>
-      <div id="infoBody" class="dim" style="margin-top:var(--sp-3);line-height:1.7"></div>
-      <button class="btn" style="margin-top:var(--sp-4)" onclick="closeInfo()">확인</button>
+  <!-- 메인 -->
+  <section id="s-main" class="screen">
+    <div id="pg-match" class="page on"></div>
+    <div id="pg-list" class="page"></div>
+    <div id="pg-set" class="page"></div>
+    <div class="nav">
+      <div class="navrow">
+        <a id="nv-match" onclick="tab('match')">매칭</a>
+        <span class="dot">·</span>
+        <a id="nv-list" onclick="tab('list')">대화</a>
+        <span class="dot">·</span>
+        <a id="nv-set" onclick="tab('set')">설정</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- 매칭 중 -->
+  <section id="s-matching" class="screen">
+    <div class="center">
+      <div class="pulse"></div>
+      <p class="body dim" style="margin-top:var(--s5)">대화 상대를 찾고 있어요…</p>
+    </div>
+    <div class="pad"><button class="cta sub" onclick="cancelMatch()">취소</button></div>
+  </section>
+
+  <!-- 채팅방 -->
+  <section id="s-chat" class="screen">
+    <div class="top">
+      <button class="back" onclick="tab('list');go('s-main')">‹</button>
+      <div class="t" id="chatNick">상대</div>
+      <div class="sp"></div>
+      <button class="act" onclick="openMenu()">관리</button>
+    </div>
+    <div class="timer" id="chatTimer"></div>
+    <div class="msgs" id="chatMsgs"></div>
+    <div class="composer">
+      <input id="chatInput" placeholder="메시지 입력" autocomplete="off"
+        onkeydown="onKey(event)" oninput="toggleSend()">
+      <button class="send" id="sendBtn" disabled onclick="sendMsg()">전송</button>
+    </div>
+  </section>
+
+  <!-- 관리 시트 -->
+  <div id="sheet" class="ovl" onclick="if(event.target===this)closeMenu()">
+    <div class="sheet">
+      <h3 id="sheetName">상대</h3>
+      <p class="dim small" id="sheetSub"></p>
+      <div style="margin-top:var(--s4)">
+        <button class="opt" id="optExtend" onclick="extendChat()">시간 연장하기 <span class="dim">· 24시간 더</span></button>
+        <button class="opt" id="optFriend" onclick="befriend()">친구 추가 <span class="dim">· 시간제한 없이 대화</span></button>
+        <button class="opt danger" onclick="leaveChat()">대화 나가기</button>
+      </div>
+      <button class="cta sub" style="margin-top:var(--s2)" onclick="closeMenu()">닫기</button>
     </div>
   </div>
 
@@ -445,569 +212,211 @@
 </div>
 
 <script>
-/* ---------- 데이터 ---------- */
-const AV=['🦊','🐰','🐼','🐯','🐸','🦉','🐙','🦄','🐧','🐨'];
-const COLORS=['#F28C28','#b06cff','#ff6c9d','#ff9f6c','#36d399','#3ba9ff','#fbbd23','#8a8f9c'];
-const INTERESTS=['게임','영화','음악','여행','운동','독서','반려동물','요리','IT','투자','자동차','애니메이션','패션','사진','기타'];
-const REASONS=['욕설','성희롱','광고','사기','혐오 발언','스팸','기타'];
-const GENDERS=['남성','여성','비공개'];
-const MBTIS=['INTJ','INTP','ENTJ','ENTP','INFJ','INFP','ENFJ','ENFP','ISTJ','ISFJ','ESTJ','ESFJ','ISTP','ISFP','ESTP','ESFP','모름'];
-const CONTACT1=['답이 빠른 편','답이 느린 편'];
-const CONTACT2=['읽씹 스타일','안읽씹 스타일'];
-const DRINKS=['안 마셔요','가끔','자주'];
-const SMOKES=['비흡연','가끔','흡연'];
-const EXERCISES=['거의 안 함','가끔','주 3회 이상'];
-const PETS=['강아지','고양이','파충류','양서류','새','물고기','없음','기타'];
-const PEERS=[
-  {id:'VEIL-100201',name:'달빛토끼',av:'🐰',c:'#ff6c9d',tags:'게임 · 음악'},
-  {id:'VEIL-100202',name:'구름고래',av:'🐙',c:'#3ba9ff',tags:'여행 · 사진'},
-  {id:'VEIL-100203',name:'새벽올빼미',av:'🦉',c:'#fbbd23',tags:'독서 · IT'}
-];
-const TIER_INFO={
-  1:{label:'기준 1 · 완벽 매칭', desc:'관심사·성향이 거의 일치'},
-  2:{label:'기준 2 · 근접 매칭', desc:'관심사가 다수 겹침'},
-  3:{label:'기준 3 · 폭넓은 매칭', desc:'일부만 겹치는 상대'}
-};
-const profile={uid:'',gender:'',mbti:'',contact1:'',contact2:'',drink:'',smoke:'',exercise:'',pets:new Set()};
-function genUid(){ return 'VEIL-'+String(Math.floor(Math.random()*900000)+100000); }
-/* ---------- 차단 (고유 ID 기준 · 닉네임 바꿔도 유지) ---------- */
-const BLOCK_KEY='veil_blocks_v1';
-function loadBlocks(){ try{return JSON.parse(localStorage.getItem(BLOCK_KEY))||[];}catch(e){return [];} }
-function saveBlocks(a){ try{localStorage.setItem(BLOCK_KEY,JSON.stringify(a));}catch(e){} }
-function isBlocked(id){ return loadBlocks().some(b=>b.id===id); }
-function blockPeer(peer,reason){ if(!peer||!peer.id)return; const a=loadBlocks(); if(!a.some(b=>b.id===peer.id)){ a.unshift({id:peer.id,name:peer.name,av:peer.av,c:peer.c,reason:reason||'manual',at:Date.now()}); saveBlocks(a); } }
-function unblockPeer(id){ saveBlocks(loadBlocks().filter(b=>b.id!==id)); }
-function blockReasonLabel(r){ return {no_rematch:'재매칭 금지',report:'신고 차단',manual:'직접 차단'}[r]||'차단'; }
-/* ---------- 친구 관리 (친구 목록 / 차단 목록·해제) ---------- */
-let _fseg='friends';
-function openFriends(seg){ _fseg=seg||'friends'; renderFriendsMgr(); go('s-friends'); }
-function renderFriendsMgr(){
-  document.getElementById('fseg-friends').classList.toggle('on',_fseg==='friends');
-  document.getElementById('fseg-blocks').classList.toggle('on',_fseg==='blocks');
-  const box=document.getElementById('friends-mgr');
-  if(_fseg==='friends'){
-    const fs=(store&&store.friends)||[];
-    box.innerHTML = fs.length ? fs.map(f=>`
-      <div class="list-item" onclick="curPeer=${JSON.stringify(f).replace(/"/g,'&quot;')};openChat(false)">
-        <div class="av" style="background:${f.c};font-size:22px">${f.av}</div>
-        <div style="flex:1"><b>${f.name}</b><div class="dim" style="font-size:12px">${f.id} · 무제한</div></div>
-        <span class="badge live">친구</span></div>`).join('')
-      : '<div class="center dim" style="padding:50px 20px">아직 친구가 없어요.<br>3회 연장 후 친구 신청으로 친구를 만들 수 있어요.</div>';
-  } else {
-    const bs=loadBlocks();
-    box.innerHTML = bs.length ? bs.map(b=>`
-      <div class="list-item">
-        <div class="av" style="background:${b.c};font-size:22px">${b.av}</div>
-        <div style="flex:1;min-width:0"><b>${b.name}</b><div class="dim" style="font-size:12px">${b.id} · ${blockReasonLabel(b.reason)}</div></div>
-        <button class="btn sec" style="width:auto;padding:8px 14px;margin:0" onclick="unblockPeer('${b.id}');renderFriendsMgr();toast('차단을 해제했어요')">차단 해제</button></div>`).join('')
-      : '<div class="center dim" style="padding:50px 20px">차단한 사용자가 없어요.</div>';
-  }
-}
-let picked={fun:0,manner:0}, selInterests=new Set(), curPeer=PEERS[0], countdown=null, clockT=null, extLeft=3;
+/* ---------- 상태 ---------- */
+const KEY_P='veil2_profile', KEY_C='veil2_chats';
+const DAY=24*60*60*1000;
+const INTERESTS=['음악','영화','독서','여행','운동','요리','게임','사진','글쓰기','커피','반려동물','밤산책'];
+const NAMES=['조용한새벽','파란노을','밤의고래','느린산책','작은위로','서늘한바람','종이비행기','고요한밤','흐린오후','민트별','창밖의비','잔잔한호수'];
+const GREET=['안녕하세요, 반가워요.','안녕하세요! 오늘 하루 어땠어요?','반가워요 :) 무슨 얘기 나눠볼까요?','안녕하세요. 잘 지내셨어요?'];
+const REPLY=['오 저도 그래요.','그 얘기 더 듣고 싶어요.','완전 공감돼요 :)','오늘따라 대화가 잘 통하네요.','그렇군요, 재밌네요.','저는 조금 다르게 생각해요, 왜냐면요…','좋은 하루 보내고 있어요?'];
 
-/* ---------- 네비 ---------- */
+let profile=load(KEY_P);            // {nick, interests[]}
+let chats=load(KEY_C)||[];          // [{id,nick,interest,msgs,exp,friend,ended,ts}]
+let draftInterests=new Set();
+let cur=null;                       // 현재 열린 chat
+let ticker=null, matchTimer=null;
+
+function load(k){try{return JSON.parse(localStorage.getItem(k))}catch(e){return null}}
+function save(){try{localStorage.setItem(KEY_P,JSON.stringify(profile));localStorage.setItem(KEY_C,JSON.stringify(chats))}catch(e){}}
+function uid(){return 'c'+(chats.reduce((m,c)=>Math.max(m,+c.id.slice(1)||0),0)+1)}
+
+/* ---------- 화면 전환 ---------- */
 function go(id){document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));document.getElementById(id).classList.add('active')}
-function open(id){document.getElementById(id).classList.add('on')}
-function closeOvl(e){if(e.target.classList.contains('ovl'))e.target.classList.remove('on')}
-function closeAll(){document.querySelectorAll('.ovl').forEach(o=>o.classList.remove('on'))}
-function toast(t){const e=document.getElementById('toast');e.textContent=t;e.classList.add('on');clearTimeout(e._t);e._t=setTimeout(()=>e.classList.remove('on'),2200)}
-/* ---------- 단색 라인 아이콘 ---------- */
-const ICONS={
-  user:'<circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6.5 8-6.5s8 2.5 8 6.5"/>',
-  bell:'<path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/>',
-  users:'<circle cx="9" cy="8" r="3.3"/><path d="M2.5 20c0-3.4 3-5.3 6.5-5.3s6.5 1.9 6.5 5.3"/><path d="M16.5 5.4a3.3 3.3 0 0 1 0 6.4"/><path d="M21.5 20c0-2.5-1.4-4.2-3.6-4.9"/>',
-  ban:'<circle cx="12" cy="12" r="9"/><line x1="5.6" y1="5.6" x2="18.4" y2="18.4"/>',
-  star:'<path d="M12 3l2.6 5.5 6 .8-4.4 4.2 1.1 6L12 16.9 6.7 19.5l1.1-6L3.4 9.3l6-.8L12 3z"/>',
-  doc:'<path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4"/><line x1="9" y1="12" x2="15" y2="12"/><line x1="9" y1="16" x2="15" y2="16"/>',
-  logout:'<path d="M14 4h5v16h-5"/><polyline points="9 8 5 12 9 16"/><line x1="5" y1="12" x2="15" y2="12"/>',
-  trash:'<path d="M4 7h16"/><path d="M9 7V5h6v2"/><path d="M6 7l1 13h10l1-13"/>',
-  clock:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
-  refresh:'<path d="M4 12a8 8 0 0 1 13.7-5.7L20 8"/><polyline points="20 3 20 8 15 8"/><path d="M20 12a8 8 0 0 1-13.7 5.7L4 16"/><polyline points="4 21 4 16 9 16"/>',
-  exit:'<path d="M9 4H5v16h4"/><polyline points="15 8 19 12 15 16"/><line x1="19" y1="12" x2="9" y2="12"/>',
-  flag:'<path d="M5 21V4"/><path d="M5 4h11l-2 4 2 4H5"/>',
-  send:'<path d="M22 2 11 13"/><path d="M22 2l-7 20-4-9-9-4 20-7z"/>',
-  info:'<circle cx="12" cy="12" r="9"/><line x1="12" y1="11" x2="12" y2="16"/><circle cx="12" cy="7.6" r="0.9" fill="currentColor" stroke="none"/>'
-};
-function ic(name,sz){ sz=sz||20; return '<svg width="'+sz+'" height="'+sz+'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">'+(ICONS[name]||'')+'</svg>'; }
-// 인라인 작은 아이콘(텍스트 옆)
-const CLK='<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>';
-const MUTE='<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><path d="M18 8a6 6 0 0 0-9.3-5"/><path d="M6 8c0 7-3 9-3 9h13"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/><line x1="3" y1="3" x2="21" y2="21"/></svg>';
-/* ---------- 시스템 메시지 아이콘 (말풍선 안 안내) ---------- */
-const SI='width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"';
-const CHK='<svg '+SI+'><circle cx="12" cy="12" r="9"/><path d="M8.5 12.5l2.5 2.5 4.5-5"/></svg>';       /* 매칭 성사 */
-const TGT='<svg '+SI+'><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.3" fill="currentColor" stroke="none"/></svg>'; /* 기준 매칭 */
-const USR2='<svg '+SI+'><circle cx="9" cy="8" r="3"/><path d="M3.5 19c0-3 2.5-4.6 5.5-4.6s5.5 1.6 5.5 4.6"/><path d="M16 5.5a3 3 0 0 1 0 5.6"/><path d="M20.5 19c0-2.2-1.2-3.6-3.1-4.2"/></svg>'; /* 친구 성사 */
-const HG='<svg '+SI+'><path d="M6 3h12"/><path d="M6 21h12"/><path d="M8 3c0 4 8 5 8 9s-8 5-8 9"/><path d="M16 3c0 4-8 5-8 9s8 5 8 9"/></svg>'; /* 만료/자동종료 */
-const SYSIC={'🎉':CHK,'🎯':TGT,'🤝':USR2,'⌛':HG,'⏳':CLK,'♾️':'','♾':''};
-function escHtml(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
-function sysHTML(x){ for(const e in SYSIC){ if(x.indexOf(e)===0){ const rest=x.slice(e.length).replace(/^\s+/,''); return (SYSIC[e]?SYSIC[e]+' ':'')+escHtml(rest); } } return escHtml(x); }
-/* ---------- 설명 정보 팝업 (i 아이콘) ---------- */
-const INFO={
-  cond:{title:'매칭 조건', body:'<b>관심사 일치</b> · 관심사가 비슷한 사람과 우선 매칭돼요<br><br><b>관심사 불일치</b> · 관심사가 다른 사람과 우선 매칭돼요'},
-  tier:{title:'기준별 자동 매칭', body:'완벽 매칭이 없으면 자동으로 매칭 폭을 넓혀요.<br><br><b>기준1</b> 완벽 매칭<br><b>기준2</b> 근접 매칭<br><b>기준3</b> 폭넓게 매칭'}
-};
-function infoBtn(key){ return '<span class="info-btn" onclick="event.stopPropagation();infoPop(\''+key+'\')">'+ic('info',16)+'</span>'; }
-function infoPop(key){ const d=INFO[key]; if(!d)return; document.getElementById('infoTitle').textContent=d.title; document.getElementById('infoBody').innerHTML=d.body; document.getElementById('infoPop').classList.add('on'); }
-function closeInfo(e){ if(e&&!e.target.classList.contains('ovl-c'))return; document.getElementById('infoPop').classList.remove('on'); }
+function tab(name){
+  ['match','list','set'].forEach(n=>{
+    document.getElementById('pg-'+n).classList.toggle('on',n===name);
+    document.getElementById('nv-'+n).classList.toggle('on',n===name);
+  });
+  if(name==='match')renderMatch();
+  if(name==='list')renderList();
+  if(name==='set')renderSet();
+}
+function toast(t){const e=document.getElementById('toast');e.textContent=t;e.classList.add('on');clearTimeout(e._t);e._t=setTimeout(()=>e.classList.remove('on'),1900)}
 
-/* ---------- 가입/온보딩 ---------- */
-function checkAge(){
-  const v=document.getElementById('birth').value;const m=document.getElementById('ageMsg');
-  if(!v){m.textContent='생년월일을 입력해주세요';return}
-  const age=(Date.now()-new Date(v))/(365.25*24*3600*1000);
-  if(age<14){m.textContent='만 14세 미만은 가입할 수 없어요.';return}
-  m.textContent='';go('s-nick');
+/* ---------- 온보딩 ---------- */
+function startOnboarding(){document.getElementById('nickInput').value='';checkNick();go('s-nick');setTimeout(()=>document.getElementById('nickInput').focus(),300)}
+function checkNick(){
+  const v=document.getElementById('nickInput').value.trim();
+  const ok=v.length>=2;
+  document.getElementById('nickNext').disabled=!ok;
+  document.getElementById('nickNote').textContent=ok?'좋아요.':'두 글자 이상 입력해주세요.';
 }
-function nickCheck(){
-  const v=document.getElementById('nick').value, m=document.getElementById('nickMsg');
-  const bad=['바보','시발','광고'];
-  if(v.length<2){m.style.color='var(--bad)';m.textContent='2자 이상 입력해주세요';}
-  else if(bad.some(b=>v.includes(b))){m.style.color='var(--bad)';m.textContent='사용할 수 없는 단어가 포함돼 있어요';}
-  else if(v==='admin'){m.style.color='var(--bad)';m.textContent='이미 사용 중인 닉네임이에요';}
-  else{m.style.color='var(--good)';m.textContent='✓ 사용 가능한 닉네임이에요';}
-}
-function buildOnboarding(){
-  const a=document.getElementById('avatars');a.innerHTML='';
-  AV.forEach(x=>{const b=document.createElement('button');b.className='chip';b.style.fontSize='22px';b.textContent=x;
-    b.onclick=()=>{document.getElementById('bigav').textContent=x};a.appendChild(b)});
-  const c=document.getElementById('colors');c.innerHTML='';
-  COLORS.forEach(x=>{const b=document.createElement('button');b.className='chip';b.style.background=x;b.style.width='38px';b.style.height='38px';b.style.padding='0';
-    b.onclick=()=>{document.getElementById('bigav').style.background=x};c.appendChild(b)});
-  const i=document.getElementById('interests');i.innerHTML='';
-  INTERESTS.forEach(x=>{const b=document.createElement('button');b.className='chip';b.textContent=x;
-    b.onclick=()=>{b.classList.toggle('on');b.classList.contains('on')?selInterests.add(x):selInterests.delete(x);
-      document.getElementById('icount').textContent=selInterests.size;
-      document.getElementById('iBtn').disabled=selInterests.size<3};i.appendChild(b)});
-  const r=document.getElementById('reasons');r.innerHTML='';
-  REASONS.forEach(x=>{const b=document.createElement('button');b.className='chip';b.textContent=x;
-    b.onclick=()=>{r.querySelectorAll('.chip').forEach(c=>c.classList.remove('on'));b.classList.add('on')};r.appendChild(b)});
-  // 추가 프로필 항목
-  chipGroup('c-gender',GENDERS,'gender');
-  chipGroup('c-mbti',MBTIS,'mbti');
-  chipGroup('c-contact1',CONTACT1,'contact1');
-  chipGroup('c-contact2',CONTACT2,'contact2');
-  chipGroup('c-drink',DRINKS,'drink');
-  chipGroup('c-smoke',SMOKES,'smoke');
-  chipGroup('c-exercise',EXERCISES,'exercise');
-  chipGroup('c-pets',PETS,'pets',true);
-}
-function segPick(el){el.parentNode.querySelectorAll('div').forEach(d=>d.classList.remove('on'));el.classList.add('on')}
-function scalePick(el,q){const p=el.parentNode;p.querySelectorAll(':scope>div').forEach(d=>d.classList.remove('on'));el.classList.add('on');picked[q]=[...p.children].indexOf(el)+1}
-function dotPick(el,q){const p=el.parentNode;const dots=[...p.querySelectorAll('.dot')];dots.forEach(d=>d.classList.remove('on'));el.classList.add('on');picked[q]=dots.indexOf(el)+1}
-// 칩 선택 그룹 (multi=true면 다중 선택)
-function chipGroup(id,opts,key,multi){
-  const box=document.getElementById(id); if(!box)return; box.innerHTML='';
-  opts.forEach(o=>{const b=document.createElement('button');b.className='chip';b.textContent=o;
-    b.onclick=()=>{
-      if(multi){ b.classList.toggle('on'); b.classList.contains('on')?profile[key].add(o):profile[key].delete(o); }
-      else { box.querySelectorAll('.chip').forEach(c=>c.classList.remove('on')); b.classList.add('on'); profile[key]=o; }
-    };
-    box.appendChild(b);
+function randomNick(){const n=NAMES[Math.floor(Math.random()*NAMES.length)];document.getElementById('nickInput').value=n;checkNick()}
+function buildInterests(){
+  const w=document.getElementById('intWrap');w.innerHTML='';
+  INTERESTS.forEach(x=>{
+    const b=document.createElement('button');b.className='pick'+(draftInterests.has(x)?' on':'');b.textContent=x;
+    b.onclick=()=>{draftInterests.has(x)?draftInterests.delete(x):draftInterests.add(x);buildInterests();updateIntState()};
+    w.appendChild(b);
   });
 }
-
-/* ---------- 설정 > 프로필 수정 (모든 항목 · 성별 잠금 · 7일 재수정 제한) ---------- */
-let editData=null;
-const LOCK_KEY='veil_lock_until';
-const LOCK_MS=7*24*3600*1000;
-function editLockRemaining(){ const t=parseInt(localStorage.getItem(LOCK_KEY)||'0',10); return Math.max(0,t-Date.now()); }
-function editLocked(){ return editLockRemaining()>0; }
-function fmtRemain(ms){ const d=Math.floor(ms/86400000), h=Math.floor(ms%86400000/3600000); return (d>0?d+'일 ':'')+h+'시간'; }
-function editChips(id,opts,key,multi){
-  const box=document.getElementById(id); box.innerHTML='';
-  opts.forEach(o=>{ const on=multi?editData[key].has(o):editData[key]===o;
-    const b=document.createElement('button'); b.className='chip'+(on?' on':''); b.textContent=o;
-    b.onclick=()=>{ if(editLocked()){toast('7일간 변경할 수 없어요');return;}
-      if(multi){ b.classList.toggle('on'); b.classList.contains('on')?editData[key].add(o):editData[key].delete(o); if(key==='interests')editGate(); }
-      else { box.querySelectorAll('.chip').forEach(c=>c.classList.remove('on')); b.classList.add('on'); editData[key]=o; } };
-    box.appendChild(b); });
+function updateIntState(){
+  const n=draftInterests.size;
+  document.getElementById('intDone').disabled=n<1;
+  document.getElementById('intCount').textContent=n<1?'한 개 이상 골라주세요.':n+'개 선택했어요.';
 }
-function openEdit(){
-  const pr=loadProfile()||{};
-  editData={ nick:pr.nick||'', status:pr.status||'', avatar:pr.avatar||(document.getElementById('bigav')||{}).textContent||'🦊',
-    avatarBg:pr.avatarBg||'#F28C28', gender:pr.gender||profile.gender||'', mbti:pr.mbti||'', contact1:pr.contact1||'', contact2:pr.contact2||'',
-    drink:pr.drink||'', smoke:pr.smoke||'', exercise:pr.exercise||'',
-    pets:new Set(pr.pets||[...profile.pets]), interests:new Set(pr.interests&&pr.interests.length?pr.interests:[...selInterests]) };
-  const bg=document.getElementById('edit-bigav'); bg.textContent=editData.avatar; bg.style.background=editData.avatarBg;
-  document.getElementById('edit-nick').value=editData.nick;
-  document.getElementById('edit-status').value=editData.status;
-  document.getElementById('edit-nickMsg').textContent='';
-  const av=document.getElementById('edit-avatars'); av.innerHTML='';
-  AV.forEach(x=>{const b=document.createElement('button');b.className='chip';b.style.fontSize='22px';b.textContent=x;b.onclick=()=>{if(editLocked())return;editData.avatar=x;bg.textContent=x;};av.appendChild(b);});
-  const co=document.getElementById('edit-colors'); co.innerHTML='';
-  COLORS.forEach(x=>{const b=document.createElement('button');b.className='chip';b.style.background=x;b.style.width='38px';b.style.height='38px';b.style.padding='0';b.onclick=()=>{if(editLocked())return;editData.avatarBg=x;bg.style.background=x;};co.appendChild(b);});
-  // 성별: 읽기 전용(변경 불가)
-  const gb=document.getElementById('edit-gender'); gb.innerHTML='';
-  GENDERS.forEach(o=>{const b=document.createElement('button');b.className='chip'+(editData.gender===o?' on':'');b.style.opacity=editData.gender===o?'1':'.35';b.textContent=o;b.onclick=()=>toast('성별은 변경할 수 없어요 🔒');gb.appendChild(b);});
-  editChips('edit-mbti',MBTIS,'mbti'); editChips('edit-contact1',CONTACT1,'contact1'); editChips('edit-contact2',CONTACT2,'contact2');
-  editChips('edit-drink',DRINKS,'drink'); editChips('edit-smoke',SMOKES,'smoke'); editChips('edit-exercise',EXERCISES,'exercise');
-  editChips('edit-pets',PETS,'pets',true); editChips('edit-interests',INTERESTS,'interests',true);
-  applyEditLock();
-  go('s-edit');
-}
-function applyEditLock(){
-  const locked=editLocked(), ban=document.getElementById('edit-lock');
-  document.getElementById('edit-nick').disabled=locked;
-  document.getElementById('edit-status').disabled=locked;
-  if(locked){ ban.style.display='block'; ban.textContent='🔒 프로필은 마지막 수정 후 7일간 변경할 수 없어요 (약 '+fmtRemain(editLockRemaining())+' 남음)'; }
-  else{ ban.style.display='none'; }
-  editGate();
-}
-function editGate(){ const btn=document.getElementById('editSaveBtn'); if(!editData){btn.disabled=true;return;} btn.disabled = editLocked() || editData.interests.size<3; }
-function editNickCheck(){
-  const v=document.getElementById('edit-nick').value, m=document.getElementById('edit-nickMsg'), bad=['바보','시발','광고'];
-  if(v.length<2){m.style.color='var(--bad)';m.textContent='2자 이상 입력해주세요';}
-  else if(bad.some(b=>v.includes(b))){m.style.color='var(--bad)';m.textContent='사용할 수 없는 단어가 포함돼 있어요';}
-  else if(v==='admin'){m.style.color='var(--bad)';m.textContent='이미 사용 중인 닉네임이에요';}
-  else{m.style.color='var(--good)';m.textContent='✓ 사용 가능한 닉네임이에요';}
-}
-function saveEdit(){
-  if(editLocked()){ toast('아직 변경할 수 없어요 ('+fmtRemain(editLockRemaining())+' 남음)'); return; }
-  const nick=document.getElementById('edit-nick').value.trim();
-  if(nick.length<2||['바보','시발','광고'].some(b=>nick.includes(b))||nick==='admin'){ toast('닉네임을 확인해주세요'); return; }
-  if(editData.interests.size<3){ toast('관심사는 최소 3개예요'); return; }
-  editData.nick=nick; editData.status=document.getElementById('edit-status').value;
-  document.getElementById('nick').value=editData.nick;
-  document.getElementById('status').value=editData.status;
-  const big=document.getElementById('bigav'); if(big){big.textContent=editData.avatar; big.style.background=editData.avatarBg;}
-  selInterests=new Set(editData.interests);
-  Object.assign(profile,{gender:editData.gender,mbti:editData.mbti,contact1:editData.contact1,contact2:editData.contact2,
-    drink:editData.drink,smoke:editData.smoke,exercise:editData.exercise,pets:new Set(editData.pets)});
-  saveProfile();
-  localStorage.setItem(LOCK_KEY, String(Date.now()+LOCK_MS));   // 7일 잠금
-  toast('저장됐어요 ✓ 이제 7일간 변경할 수 없어요');
-  tab('settings'); go('main');
+function finishOnboarding(){
+  profile={nick:document.getElementById('nickInput').value.trim(),interests:[...draftInterests]};
+  save();go('s-main');tab('match');
 }
 
-/* ---------- 매칭 ---------- */
-let mode='similar';
-function isPremium(){ const pr=loadProfile(); return !!(pr&&pr.premium); }
-function startMatch(){
-  // 무료 회원: 동시 진행중 최대 2명
-  if(!isPremium() && (store.active||[]).length>=2){ open('sheetLimit'); return; }
-  go('s-matching');let n=5;extLeft=3;
-  const p=document.getElementById('mPulse');p.textContent=n;
-  document.getElementById('mTitle').textContent='잠시 후 매칭을 시작해요';
-  document.getElementById('mSub').textContent='마음이 바뀌면 취소할 수 있어요';
-  countdown=setInterval(()=>{n--;if(n>0){p.textContent=n}else{clearInterval(countdown);searching()}},1000);
+/* ---------- 매칭 탭 ---------- */
+function activeChats(){return chats.filter(c=>!c.ended)}
+function renderMatch(){
+  const n=activeChats().length;
+  document.getElementById('pg-match').innerHTML=`
+    <div class="center pad">
+      <h1 class="h-hero">새로운 사람과<br>대화해요</h1>
+      <p class="dim body" style="margin-top:var(--s4)">관심사가 통하는 익명의 누군가와<br>지금 연결돼요.</p>
+    </div>
+    <div class="pad">
+      <button class="cta" onclick="startMatch()">매칭 시작</button>
+      <p class="dim tiny" style="text-align:center;margin-top:var(--s2)">진행 중인 대화 ${n}개</p>
+    </div>`;
 }
-function searching(){
-  const p=document.getElementById('mPulse');
-  // 매칭될 기준 결정: 기준1(완벽) 우선, 없으면 2·3으로 자동 확장
-  const r=Math.random();
-  const matchedTier = r<0.4?1 : r<0.75?2 : 3;
-  let tier=1;
-  p.textContent='🔍';
-  function step(){
-    document.getElementById('mTitle').textContent=TIER_INFO[tier].label+' 탐색 중…';
-    document.getElementById('mSub').textContent = (tier<matchedTier)
-      ? '완벽 매칭이 없어 다음 기준으로 넓혀요…'
-      : TIER_INFO[tier].desc+' 상대를 찾았어요!';
-    if(tier<matchedTier){ tier++; setTimeout(step,1100); }
-    else { setTimeout(()=>{
-      // 매칭 제외: 차단(고유 ID)·이미 친구·이미 진행중인 상대 → 닉네임 바꿔도 차단 유지, 중복 매칭 방지
-      const pool=PEERS.filter(pe=>!isBlocked(pe.id)
-        && !(store.friends||[]).some(f=>f.id===pe.id)
-        && !(store.active||[]).some(a=>a.id===pe.id));
-      if(!pool.length){ clearInterval(countdown); go('main'); tab('match'); toast('지금은 매칭 가능한 새 상대가 없어요'); return; }
-      curPeer=Object.assign({},pool[Math.floor(Math.random()*pool.length)],{tier:matchedTier}); openChat(true);
-    },900); }
+function startMatch(){go('s-matching');matchTimer=setTimeout(doMatch,1800)}
+function cancelMatch(){clearTimeout(matchTimer);go('s-main')}
+function doMatch(){
+  const nick=NAMES[Math.floor(Math.random()*NAMES.length)];
+  const shared=profile.interests[Math.floor(Math.random()*profile.interests.length)]||INTERESTS[0];
+  const chat={id:uid(),nick,interest:shared,exp:Date.now()+DAY,friend:false,ended:false,ts:Date.now(),
+    msgs:[{s:'sys',t:`매칭됐어요 · 관심사 ‘${shared}’가 통해요`},
+          {s:'them',t:GREET[Math.floor(Math.random()*GREET.length)]}]};
+  chats.unshift(chat);save();openChat(chat)
+}
+
+/* ---------- 대화 목록 ---------- */
+function renderList(){
+  const el=document.getElementById('pg-list');
+  let h=`<div class="top"><div class="t">대화</div></div><div class="grow pad" style="padding-top:0">`;
+  if(chats.length===0){
+    h+=`<div class="center" style="min-height:60vh"><p class="dim body">아직 대화가 없어요.<br>매칭을 시작해보세요.</p></div>`;
+  }else{
+    chats.forEach((c,i)=>{
+      const last=[...c.msgs].reverse().find(m=>m.s!=='sys');
+      h+=`<button class="row" onclick="openChatById('${c.id}')">
+        <div style="flex:1;min-width:0">
+          <div class="nm">${esc(c.nick)}</div>
+          <div class="meta" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${last?esc(last.t):''}</div>
+        </div>
+        <div class="meta" style="text-align:right;white-space:nowrap">${statusLabel(c)}</div>
+      </button>`;
+    });
   }
-  setTimeout(step,700);
+  h+=`</div>`;el.innerHTML=h;
 }
-function cancelMatch(){clearInterval(countdown);go('main');tab('match');toast('매칭을 취소했어요')}
+function statusLabel(c){
+  if(c.ended)return '종료됨';
+  if(c.friend)return '친구 · 무제한';
+  return remain(c.exp);
+}
 
-/* ---------- 채팅 ---------- */
-/* ---------- 대화 저장/복원 (나갔다 와도, 새로고침해도 유지) ---------- */
-const CHAT_KEY='veil_chats_v1';
-let chatStore={};
-function loadChats(){ try{return JSON.parse(localStorage.getItem(CHAT_KEY))||{};}catch(e){return {};} }
-function saveChats(){ try{localStorage.setItem(CHAT_KEY,JSON.stringify(chatStore));}catch(e){} }
-chatStore=loadChats();
-let msgs=[];
-function openChat(fresh){
+/* ---------- 설정 탭 ---------- */
+function renderSet(){
+  const el=document.getElementById('pg-set');
+  el.innerHTML=`
+    <div class="top"><div class="t">설정</div></div>
+    <div class="grow pad" style="padding-top:0">
+      <div class="h-q" style="margin-top:var(--s4)">닉네임</div>
+      <input class="field" maxlength="12" value="${esc(profile.nick)}" oninput="saveNick(this.value)">
+      <div class="h-q" style="margin-top:var(--s6)">관심사</div>
+      <div id="setInt" class="wrap" style="margin-top:var(--s3)"></div>
+      <div style="margin-top:var(--s8)">
+        <button class="cta sub" style="text-align:left;padding-left:0" onclick="logout()">로그아웃</button>
+        <button class="cta danger" style="text-align:left;padding-left:0" onclick="wipe()">계정 삭제</button>
+      </div>
+    </div>`;
+  const w=document.getElementById('setInt');
+  INTERESTS.forEach(x=>{
+    const on=profile.interests.includes(x);
+    const b=document.createElement('button');b.className='pick'+(on?' on':'');b.textContent=x;
+    b.onclick=()=>{toggleInt(x);renderSet()};w.appendChild(b);
+  });
+}
+function saveNick(v){v=v.trim();if(v.length>=2){profile.nick=v;save()}}
+function toggleInt(x){
+  const i=profile.interests.indexOf(x);
+  if(i>=0){if(profile.interests.length>1)profile.interests.splice(i,1);else return toast('관심사는 최소 1개가 필요해요')}
+  else profile.interests.push(x);
+  save();
+}
+function logout(){go('s-intro')}
+function wipe(){if(confirm('닉네임·대화가 모두 삭제되고 되돌릴 수 없어요. 삭제할까요?')){localStorage.removeItem(KEY_P);localStorage.removeItem(KEY_C);profile=null;chats=[];go('s-intro')}}
+
+/* ---------- 채팅방 ---------- */
+function openChatById(id){const c=chats.find(x=>x.id===id);if(c)openChat(c)}
+function openChat(c){
+  cur=c;
+  document.getElementById('chatNick').textContent=c.nick;
+  document.getElementById('chatInput').value='';toggleSend();
+  renderMsgs();updateTimer();
+  clearInterval(ticker);ticker=setInterval(updateTimer,1000);
   go('s-chat');
-  document.getElementById('chatName').textContent=curPeer.name;
-  const a=document.getElementById('chatAv');a.textContent=curPeer.av;a.style.background=curPeer.c;
-  const key=curPeer.name;
-  if(fresh || !chatStore[key]){
-    const init=[{t:'sys',x:'🎉 매칭됐어요! 24시간 동안 대화할 수 있어요.'}];
-    if(curPeer.tier){const ti=TIER_INFO[curPeer.tier];init.push({t:'sys',x:'🎯 '+ti.label+' — '+ti.desc});}
-    init.push({t:'you',x:'안녕하세요! 반가워요 :)'},{t:'you',x:'프로필 보니까 관심사가 잘 맞을 것 같아요'});
-    chatStore[key]=init; saveChats();
-    if(fresh){ curPeer.expiresAt=curPeer.expiresAt||(Date.now()+24*3600*1000);
-      if(!store.active.find(a=>a.name===key)){ store.active.unshift({...curPeer,last:'새 대화가 시작됐어요',time:'방금',expiresAt:curPeer.expiresAt}); saveStore(); } }
-  }
-  msgs=chatStore[key];   // 참조: 이후 push가 저장소에 그대로 반영됨
-  const isFriend=(store.friends||[]).some(f=>f.id===curPeer.id);
-  curPeer.friend=isFriend;
-  updateChatChrome();
-  renderMsgs();
-  if(isFriend) clearInterval(clockT); else startClock();
-}
-function updateChatChrome(){
-  const isFriend=(store.friends||[]).some(f=>f.id===curPeer.id);
-  const tb=document.getElementById('timerbar'), fb=document.getElementById('friendBar');
-  if(isFriend){ tb.innerHTML='친구 · 무제한 대화'; fb.style.display='none'; }
-  else { tb.innerHTML=CLK+' 남은 시간 <span id="clock"></span>'; fb.style.display=(extLeft<=0)?'block':'none'; }
-}
-function requestFriend(){ document.getElementById('friendBar').innerHTML='<span class="dim" style="font-size:13px;color:var(--good)">친구 신청을 보냈어요… 상대 수락 대기 중</span>'; setTimeout(befriend,1300); }
-function befriend(){
-  store.friends=store.friends||[];
-  if(!store.friends.some(f=>f.id===curPeer.id)){ store.friends.unshift({...curPeer,last:'친구가 됐어요!',time:'방금',friend:true}); }
-  store.active=(store.active||[]).filter(a=>!(a.id===curPeer.id||a.name===curPeer.name)); saveStore();
-  curPeer.friend=true;
-  msgs.push({t:'sys',x:'🤝 친구가 됐어요! 이제 무제한으로 대화할 수 있어요.'}); saveChats();
-  clearInterval(clockT); updateChatChrome(); renderMsgs(); toast('친구가 됐어요');
+  const comp=document.querySelector('.composer');
+  comp.style.display=c.ended?'none':'flex';
 }
 function renderMsgs(){
-  const c=document.getElementById('msgs');c.innerHTML='';
-  msgs.forEach(m=>{const d=document.createElement('div');d.className='b '+m.t;if(m.t==='sys'){d.innerHTML=sysHTML(m.x);}else{d.textContent=m.x;}c.appendChild(d)});
-  c.scrollTop=c.scrollHeight;
+  const el=document.getElementById('chatMsgs');
+  el.innerHTML=cur.msgs.map(m=>`<div class="msg ${m.s}">${esc(m.t)}</div>`).join('');
+  el.scrollTop=el.scrollHeight;
 }
-const REPLIES=['오 정말요? 저도 그래요 ㅎㅎ','그거 완전 공감돼요','오늘 하루는 어땠어요?','대화 잘 통하네요 :)','그 얘기 더 듣고 싶어요!'];
+function updateTimer(){
+  const el=document.getElementById('chatTimer');
+  if(cur.friend){el.textContent='친구 · 시간제한 없음';return}
+  if(cur.ended){el.textContent='종료된 대화예요';return}
+  if(Date.now()>=cur.exp){endChat(true);return}
+  el.textContent='남은 시간 '+remain(cur.exp);
+}
+function remain(exp){
+  let s=Math.max(0,Math.floor((exp-Date.now())/1000));
+  const h=Math.floor(s/3600);s%=3600;const m=Math.floor(s/60);s%=60;
+  return String(h).padStart(2,'0')+':'+String(m).padStart(2,'0')+':'+String(s).padStart(2,'0');
+}
+function onKey(e){if(e.key==='Enter'&&!e.isComposing&&e.keyCode!==229){e.preventDefault();sendMsg()}}
+function toggleSend(){document.getElementById('sendBtn').disabled=!document.getElementById('chatInput').value.trim()}
 function sendMsg(){
-  const i=document.getElementById('msgInput');if(!i.value.trim())return;
-  msgs.push({t:'me',x:i.value.trim()});i.value='';saveChats();updateChatPreview();renderMsgs();
-  setTimeout(()=>{msgs.push({t:'you',x:REPLIES[Math.floor(Math.random()*REPLIES.length)]});saveChats();updateChatPreview();renderMsgs()},900);
-}
-function updateChatPreview(){
-  const arr=chatStore[curPeer.name]; if(!arr||!arr.length)return;
-  const it=store.active.find(a=>a.name===curPeer.name); if(it){it.last=arr[arr.length-1].x; it.time='방금'; saveStore();}
-}
-const GRACE_MS=12*3600*1000;   // 만료 후 연장/종료 결정 유효시간 (12시간)
-function remainStr(exp){ let s=Math.max(0,Math.floor((exp-Date.now())/1000)); const h=String(Math.floor(s/3600)).padStart(2,'0'),m=String(Math.floor(s%3600/60)).padStart(2,'0'),ss=String(s%60).padStart(2,'0'); return h+':'+m+':'+ss; }
-function curExp(){ const it=store.active.find(a=>a.id===curPeer.id||a.name===curPeer.name); return (it&&it.expiresAt)||curPeer.expiresAt||(Date.now()+24*3600*1000); }
-// A=대화중, B=만료(연장/종료 결정 대기), C=결정시간 지남→자동종료
-function chatPhase(exp){ const now=Date.now(); if(!exp)return 'A'; if(now<exp)return 'A'; if(now<exp+GRACE_MS)return 'B'; return 'C'; }
-function badgeText(exp){ const ph=chatPhase(exp); if(ph==='A')return CLK+' '+remainStr(exp); if(ph==='B')return CLK+' 연장대기 '+remainStr(exp+GRACE_MS); return CLK+' 만료'; }
-function startClock(){
-  clearInterval(clockT);
-  const tb=document.getElementById('timerbar'); let ph0=null;
-  const upd=()=>{
-    const exp=curExp(), ph=chatPhase(exp);
-    if(ph!==ph0){ ph0=ph;
-      if(ph==='A'){ tb.classList.remove('warn'); tb.innerHTML=CLK+' 남은 시간 <span id="clock"></span>'; }
-      else if(ph==='B'){ tb.classList.add('warn'); tb.innerHTML=CLK+' 만료 · 연장/종료 결정 <span id="clock"></span> 남음';
-        if(!curPeer._promptShown){ curPeer._promptShown=true; showExtend(); } }
-    }
-    const el=document.getElementById('clock');
-    if(ph==='A'){ if(el)el.textContent=remainStr(exp); }
-    else if(ph==='B'){ if(el)el.textContent=remainStr(exp+GRACE_MS); }
-    else { clearInterval(clockT); autoEndChat(); }
-  };
-  upd(); clockT=setInterval(upd,1000);
-}
-function autoEndChat(){
-  msgs.push({t:'sys',x:'⌛ 연장 결정 시간(12시간)이 지나 대화가 자동 종료됐어요.'}); saveChats();
-  seedEnded();
-  if(document.getElementById('s-chat').classList.contains('active')){ closeAll(); tab('chats'); go('main'); toast('연장 결정 시간이 지나 종료됐어요'); }
-}
-function showExtend(){
-  const exp=curExp(), dl=document.getElementById('extDeadline');
-  if(dl) dl.innerHTML = chatPhase(exp)==='B' ? (HG+' '+escHtml(remainStr(exp+GRACE_MS)+' 안에 선택하지 않으면 자동 종료돼요.')) : '미선택 시 12시간 뒤 자동 종료됩니다.';
-  open('sheetExtend');
-}
-function demoExpire(){ const it=store.active.find(a=>a.id===curPeer.id||a.name===curPeer.name); const t=Date.now()-1000; if(it){it.expiresAt=t;saveStore();} curPeer.expiresAt=t; curPeer._promptShown=false; startClock(); }
-function extend(){extLeft--;document.getElementById('extLeft').textContent=extLeft;
-  const it=store.active.find(a=>a.id===curPeer.id||a.name===curPeer.name);
-  const base=Math.max(Date.now(),(it&&it.expiresAt)||Date.now());
-  if(it){it.expiresAt=base+24*3600*1000; curPeer.expiresAt=it.expiresAt; saveStore();}
-  curPeer._promptShown=false;
-  msgs.push({t:'sys',x:'⏳ 24시간이 연장됐어요. ('+(3-extLeft)+'/3회)'});saveChats();renderMsgs();
-  startClock(); updateChatChrome();
-  toast(extLeft>0?'24시간 연장됐어요':'3회 연장 완료! 이제 친구 신청을 할 수 있어요')}
-function leaveChat(msg){clearInterval(clockT);seedEnded();tab('chats');go('main');toast(msg||'채팅을 종료했어요')}
-function submitEval(){
-  const noRematch=(document.querySelector('#s-eval input[type=checkbox]')||{}).checked;
-  if(noRematch) blockPeer(curPeer,'no_rematch');   // 고유 ID 기준 차단 + 재매칭 금지
-  clearInterval(clockT); seedEnded(); tab('chats'); go('main');
-  toast(noRematch?'평가 제출 · 상대를 차단했어요 (재매칭 금지)':'평가가 제출되었어요');
+  const i=document.getElementById('chatInput');const t=i.value.trim();if(!t||cur.ended)return;
+  cur.msgs.push({s:'me',t});i.value='';toggleSend();save();renderMsgs();
+  setTimeout(()=>{if(cur&&!cur.ended){cur.msgs.push({s:'them',t:REPLY[Math.floor(Math.random()*REPLY.length)]});save();renderMsgs()}},900);
 }
 
-/* ---------- 메인 탭 ---------- */
-let store={active:[],ended:[],friends:[]};
-const STORE_KEY='veil_store_v1';
-function saveStore(){ try{localStorage.setItem(STORE_KEY,JSON.stringify(store));}catch(e){} }
-function loadStore(){ try{return JSON.parse(localStorage.getItem(STORE_KEY));}catch(e){return null;} }
-function seed(){ buildOnboarding(); const s=loadStore();
-  if(s&&s.active){ store=s; let fix=false; store.active.forEach(a=>{ if(!a.expiresAt){ a.expiresAt=Date.now()+18*3600*1000; fix=true; } }); if(fix)saveStore(); }
-  else { store={active:[{...PEERS[1],last:'그 여행지 사진 진짜 멋지네요!',time:'18:24',expiresAt:Date.now()+(18*3600+20*60+11)*1000}],ended:[],friends:[]}; saveStore(); } }
-function seedEnded(){ if(!store.ended.find(e=>e.name===curPeer.name))store.ended.unshift({...curPeer,last:'대화 종료됨',time:'방금'});
-  store.active=store.active.filter(a=>a.name!==curPeer.name); saveStore(); }
-function tab(name){
-  ['match','chats','settings'].forEach(n=>{
-    document.getElementById('page-'+n).style.display=n===name?'':'none';
-    document.getElementById('t-'+n).classList.toggle('on',n===name);
-  });
-  if(name==='match')renderMatch();if(name==='chats')renderChats();if(name==='settings')renderSettings();
+/* ---------- 관리 시트 ---------- */
+function openMenu(){
+  document.getElementById('sheetName').textContent=cur.nick;
+  document.getElementById('sheetSub').textContent=cur.friend?'친구 · 시간제한 없이 대화 중':(cur.ended?'종료된 대화':'남은 시간 '+remain(cur.exp));
+  document.getElementById('optExtend').style.display=(cur.friend||cur.ended)?'none':'block';
+  document.getElementById('optFriend').style.display=(cur.friend||cur.ended)?'none':'block';
+  document.getElementById('sheet').classList.add('on');
 }
-function renderMatch(){
-  document.getElementById('page-match').innerHTML=`
-    <div class="pad center" style="height:100%;justify-content:flex-start;padding-top:15vh">
-      <div class="av" style="width:84px;height:84px;border-radius:50%;background:var(--text);color:#fff;margin-bottom:8px"><svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M16 3h5v5"/><path d="M4 20 21 3"/><path d="M21 16v5h-5"/><path d="m15 15 6 6"/><path d="m4 4 5 5"/></svg></div>
-      <h2 style="font-size:28px">새로운 사람과 대화해요</h2>
-      <div style="width:100%;margin-top:48px">
-        <div class="seg seg-lg" style="margin-bottom:var(--sp-1)">
-          <div class="${mode==='similar'?'on':''}" onclick="mode='similar';renderMatch()">관심사 일치</div>
-          <div class="${mode==='different'?'on':''}" onclick="mode='different';renderMatch()">관심사 불일치</div>
-        </div>
-        <p class="dim" style="text-align:center;margin:var(--sp-1) 0 0">매칭 조건을 선택하세요 ${infoBtn('cond')}</p>
-        <div class="hr" style="margin:var(--sp-8) auto"></div>
-        <button class="btn-text" style="margin-top:var(--sp-8)" onclick="startMatch()">매칭하기 <span style="font-size:13px;font-weight:600;vertical-align:2px;color:${(store.active||[]).length>=2?'var(--bad)':'var(--dim)'}">${(store.active||[]).length}/2</span></button>
-        <p class="dim" style="text-align:center;margin:var(--sp-1) 0 0">기준별 자동 매칭 ${infoBtn('tier')}</p>
-      </div>
-    </div>`;
+function closeMenu(){document.getElementById('sheet').classList.remove('on')}
+function extendChat(){cur.exp=Math.max(Date.now(),cur.exp)+DAY;cur.msgs.push({s:'sys',t:'24시간이 연장됐어요'});save();renderMsgs();updateTimer();closeMenu();toast('24시간 연장됐어요')}
+function befriend(){cur.friend=true;cur.exp=null;cur.msgs.push({s:'sys',t:'친구가 됐어요 · 이제 시간제한 없이 대화해요'});save();renderMsgs();updateTimer();closeMenu();toast('친구가 됐어요')}
+function leaveChat(){closeMenu();if(confirm(cur.nick+'님과의 대화를 나갈까요?')){endChat(false);tab('list');go('s-main')}}
+function endChat(auto){
+  cur.ended=true;cur.friend=false;
+  cur.msgs.push({s:'sys',t:auto?'시간이 다 되어 대화가 종료됐어요':'대화를 나갔어요'});
+  save();clearInterval(ticker);
+  if(document.getElementById('s-chat').classList.contains('active')){renderMsgs();updateTimer();document.querySelector('.composer').style.display='none'}
 }
-function renderChats(){
-  const seg=window._cseg||'active';
-  const items={active:store.active,friends:store.friends,ended:store.ended}[seg];
-  let html=`<div class="topbar"><span class="ttl">대화</span></div>
-    <div class="seg" style="margin:12px 14px 0">
-      <div class="${seg==='active'?'on':''}" onclick="_cseg='active';renderChats()">진행중 ${store.active.length}</div>
-      <div class="${seg==='friends'?'on':''}" onclick="_cseg='friends';renderChats()">친구 ${store.friends.length}</div>
-      <div class="${seg==='ended'?'on':''}" onclick="_cseg='ended';renderChats()">종료됨 ${store.ended.length}</div>
-    </div>`;
-  if(items.length===0){html+=`<div class="center dim" style="height:60%">아직 없어요</div>`;}
-  else items.forEach((p,idx)=>{html+=`
-    <div class="list-item" onclick="curPeer=${JSON.stringify(p).replace(/"/g,'&quot;')};${seg==='ended'?'':'openChat(false)'}">
-      <div class="av" style="background:${p.c};font-size:22px">${p.av}</div>
-      <div style="flex:1;min-width:0">
-        <div class="row" style="gap:6px"><b>${p.name}</b>${seg!=='ended'&&!notifyOn(p.name)?'<span style="opacity:.55;color:var(--dim)">'+MUTE+'</span>':''}${seg==='active'?'<span class="badge '+(chatPhase(p.expiresAt)==='B'?'warn':'live')+' exp-badge" data-exp="'+(p.expiresAt||0)+'">'+badgeText(p.expiresAt)+'</span>':''}${seg==='ended'?'<span class="badge">종료</span>':''}</div>
-        <div class="dim" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${seg==='ended'||loadNotif().listPreview?(p.last||''):'· · · 미리보기 꺼짐'}</div>
-      </div>
-      ${seg==='ended'?`<button class="iconbtn" onclick="event.stopPropagation();store.ended.splice(${idx},1);renderChats();toast('기록을 삭제했어요')"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16"/><path d="M9 7V5h6v2"/><path d="M6 7l1 13h10l1-13"/></svg></button>`:`<span class="dim">${p.time||''}</span>`}
-    </div>`});
-  document.getElementById('page-chats').innerHTML=html;
-}
-function renderSettings(){
-  const pr=loadProfile()||{};
-  const nick=pr.nick||'달빛여우', status=pr.status||'조용한 밤 대화 좋아해요', av=pr.avatar||'🦊', bg=pr.avatarBg||'#F28C28';
-  const info=[pr.gender,pr.mbti,pr.contact1].filter(Boolean).join(' · ')||'프로필 미설정';
-  document.getElementById('page-settings').innerHTML=`
-    <div class="topbar"><span class="ttl">설정</span></div>
-    <div class="pad">
-      <div class="card row">
-        <div class="av" style="background:${bg};font-size:30px;width:60px;height:60px;border-radius:18px">${av}</div>
-        <div><b style="font-size:18px">${nick}</b><div class="dim">${status}</div>
-        <div class="dim" style="font-size:12px;margin-top:2px">${info}</div>
-        <div class="dim" style="font-size:11px;margin-top:2px">ID ${pr.uid||profile.uid||'-'} <span style="opacity:.6">· 변경 불가</span></div>
-        <span class="badge" style="margin-top:4px;display:inline-block">패널티 0 / 5</span></div>
-      </div>
-      ${[{i:'user',t:'내 정보 (닉네임·관심사·아바타)',a:'openEdit()'},{i:'bell',t:'알림 설정',a:'openNotif()'},{i:'users',t:'친구 관리',a:'openFriends()'},{i:'ban',t:'차단 목록',a:"openFriends('blocks')"},{i:'star',t:'프리미엄 구독',a:"toast('프리미엄 구독 (프로토타입)')"},{i:'doc',t:'약관·개인정보',a:"toast('약관·개인정보 (프로토타입)')"}].map(m=>
-        `<div class="list-item" onclick="${m.a}"><span class="menu-ic">${ic(m.i)}</span>${m.t}<span style="margin-left:auto" class="dim">›</span></div>`).join('')}
-      <div class="list-item" onclick="if(confirm('로그아웃할까요?\n프로필·대화는 그대로 유지되고, 다시 로그인하면 복원됩니다.'))logout()"><span class="menu-ic">${ic('logout')}</span>로그아웃<span style="margin-left:auto" class="dim">›</span></div>
-      <div class="list-item" style="color:var(--bad)" onclick="if(confirm('회원 탈퇴하면 프로필·대화·친구·차단 등 모든 정보가 영구 삭제되며 되돌릴 수 없습니다.\n정말 탈퇴할까요?'))withdraw()"><span class="menu-ic" style="color:var(--bad)">${ic('trash')}</span>회원 탈퇴 <span class="dim" style="color:var(--bad);opacity:.7">· 모든 정보 삭제</span><span style="margin-left:auto" class="dim">›</span></div>
-    </div>`;
-}
-window._cseg='active';
-buildOnboarding();
 
-/* ---------- 프로필 저장/복원 (가입·온보딩 정보 유지) ---------- */
-const LS_KEY='veil_profile_v1';
-function saveProfile(){
-  try{
-    const bg=document.getElementById('bigav');
-    localStorage.setItem(LS_KEY, JSON.stringify({
-      uid:profile.uid||'',
-      nick:(document.getElementById('nick')||{}).value||'',
-      status:(document.getElementById('status')||{}).value||'',
-      avatar:bg?bg.textContent:'🦊',
-      avatarBg:bg&&bg.style?bg.style.background:'',
-      gender:profile.gender,mbti:profile.mbti,contact1:profile.contact1,contact2:profile.contact2,
-      drink:profile.drink,smoke:profile.smoke,exercise:profile.exercise,
-      pets:[...profile.pets],interests:[...selInterests]
-    }));
-  }catch(e){}
-}
-function loadProfile(){ try{const s=localStorage.getItem(LS_KEY);return s?JSON.parse(s):null;}catch(e){return null;} }
-function applyProfile(pr){
-  if(!pr)return;
-  profile.uid=pr.uid||profile.uid||genUid();
-  selInterests=new Set(pr.interests||[]);
-  Object.assign(profile,{gender:pr.gender||'',mbti:pr.mbti||'',contact1:pr.contact1||'',contact2:pr.contact2||'',
-    drink:pr.drink||'',smoke:pr.smoke||'',exercise:pr.exercise||'',pets:new Set(pr.pets||[])});
-  const n=document.getElementById('nick'); if(n&&pr.nick)n.value=pr.nick;
-  const st=document.getElementById('status'); if(st&&pr.status)st.value=pr.status;
-  const bg=document.getElementById('bigav'); if(bg){bg.textContent=pr.avatar||'🦊'; if(pr.avatarBg)bg.style.background=pr.avatarBg;}
-}
-function completeOnboarding(){ try{localStorage.removeItem(SESSION_KEY);}catch(e){} if(!profile.uid)profile.uid=genUid(); saveProfile(); seed(); go('main'); tab('match'); toast('프로필이 저장됐어요'); }
-function loginDemo(){ try{localStorage.removeItem(SESSION_KEY);}catch(e){} const pr=loadProfile(); if(pr){ applyProfile(pr); } else { if(!profile.uid)profile.uid=genUid(); saveProfile(); } seed(); go('main'); tab('match'); toast('로그인됐어요'); }
-const SESSION_KEY='veil_loggedout';
-// 로그아웃: 데이터는 유지, 로그인 화면으로 (다시 로그인하면 복원)
-function logout(){ try{localStorage.setItem(SESSION_KEY,'1');}catch(e){} location.reload(); }
-// 회원 탈퇴: 모든 정보 영구 삭제
-function withdraw(){ try{['veil_profile_v1','veil_chats_v1','veil_store_v1','veil_lock_until','veil_notif_v1','veil_roomnotif_v1','veil_blocks_v1',SESSION_KEY].forEach(k=>localStorage.removeItem(k));}catch(e){} location.reload(); }
+/* ---------- 유틸 ---------- */
+function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}
 
-/* ---------- 알림 설정 (전역 + 채팅방별) ---------- */
-const NOTIF_KEY='veil_notif_v1';
-function loadNotif(){ const d={all:true,chat:true,preview:true,listPreview:true}; try{return Object.assign(d,JSON.parse(localStorage.getItem(NOTIF_KEY))||{});}catch(e){return d;} }
-function saveNotif(n){ try{localStorage.setItem(NOTIF_KEY,JSON.stringify(n));}catch(e){} }
-function openNotif(){ renderNotif(); go('s-notif'); }
-function renderNotif(){
-  const n=loadNotif();
-  // 알림 예시 (알림 미리보기 on/off 차이를 보여줌)
-  const exOn=n.all&&n.chat;
-  const exText=!exOn?'🔕 알림이 꺼져 있어요':(n.preview?'<b>구름고래</b>  그 얘기 더 듣고 싶어요!':'<b>구름고래</b>님이 새 메시지를 보냈어요');
-  const example=`<div class="label">알림 예시 (미리보기 차이)</div>
-    <div class="card" style="display:flex;gap:10px;align-items:center">
-      <div class="av" style="background:#3ba9ff;font-size:20px;width:38px;height:38px;border-radius:11px">🐙</div>
-      <div style="color:var(--text);font-size:14px">${exText}</div></div>`;
-  const rows=[
-    {k:'all',t:'전체 알림',d:'모든 알림의 마스터 스위치'},
-    {k:'chat',t:'채팅 알림',d:'새 메시지가 오면 알림'},
-    {k:'preview',t:'알림 미리보기',d:'알림창에 메시지 내용 표시 (끄면 상대 이름만)'},
-    {k:'listPreview',t:'채팅 목록 미리보기',d:'대화 목록에 마지막 메시지 표시'}
-  ];
-  const toggles=rows.map(r=>{
-    const gated=(r.k==='chat'||r.k==='preview');   // 알림 관련만 마스터에 종속
-    const disabled=gated&&!n.all;
-    const on = r.k==='all'?n.all : gated?(n.all&&n[r.k]) : n[r.k];
-    return `<div class="card row" style="justify-content:space-between${disabled?';opacity:.45':''}">
-      <div><b>${r.t}</b><div class="dim" style="font-size:12px">${r.d}</div></div>
-      <div class="switch ${on?'on':''}" onclick="toggleNotif('${r.k}')"></div></div>`;
-  }).join('');
-  document.getElementById('notif-rows').innerHTML=example+toggles;
-}
-function toggleNotif(k){ const n=loadNotif(); if((k==='chat'||k==='preview')&&!n.all){toast('전체 알림이 꺼져 있어요');return;} n[k]=!n[k]; saveNotif(n); renderNotif(); if(document.getElementById('page-chats').style.display!=='none')renderChats(); }
-
-const ROOM_KEY='veil_roomnotif_v1';
-function loadRoomNotif(){ try{return JSON.parse(localStorage.getItem(ROOM_KEY))||{};}catch(e){return {};} }
-function saveRoomNotif(m){ try{localStorage.setItem(ROOM_KEY,JSON.stringify(m));}catch(e){} }
-function roomSettings(name){ return Object.assign({notify:true,preview:true},(loadRoomNotif()[name])||{}); }
-function openRoomNotif(){ renderRoomNotif(); closeAll(); open('sheetRoomNotif'); }
-function renderRoomNotif(){
-  const s=roomSettings(curPeer.name);
-  const rows=[{k:'notify',t:'이 방 알림',d:'끄면 이 대화만 음소거'},{k:'preview',t:'이 방 알림 미리보기',d:'이 방 알림창에 메시지 내용 표시'}];
-  document.getElementById('roomnotif-rows').innerHTML=rows.map(r=>`
-    <div class="card row" style="justify-content:space-between">
-      <div><b>${r.t}</b><div class="dim" style="font-size:12px">${r.d}</div></div>
-      <div class="switch ${s[r.k]?'on':''}" onclick="toggleRoomNotif('${r.k}')"></div></div>`).join('');
-}
-function toggleRoomNotif(k){ const m=loadRoomNotif(); const s=roomSettings(curPeer.name); s[k]=!s[k]; m[curPeer.name]=s; saveRoomNotif(m); renderRoomNotif(); if(document.getElementById('page-chats').style.display!=='none')renderChats(); }
-// 전역 + 방별 설정을 합쳐 실제 적용 여부 계산
-function previewOn(name){ const n=loadNotif(), r=roomSettings(name); return n.all&&n.preview&&r.preview; }
-function notifyOn(name){ const n=loadNotif(), r=roomSettings(name); return n.all&&n.chat&&r.notify; }
-
-/* 시작 시: 이미 가입/온보딩 했으면 메인으로, 아니면 시작화면 */
+/* ---------- 부팅 ---------- */
 (function boot(){
-  const pr=loadProfile(), loggedOut=localStorage.getItem(SESSION_KEY);
-  if(pr && !loggedOut){ applyProfile(pr); seed(); go('main'); tab('match'); }   // 로그인 유지
-  else { go('s-start'); }                                                        // 로그아웃 상태거나 신규
+  buildInterests();updateIntState();
+  if(profile&&profile.nick){go('s-main');tab('match')}else{go('s-intro')}
 })();
-// 대화 목록: 남은시간 뱃지 갱신 + 결정시간(12h) 지난 대화 자동 종료
-function sweepExpired(){
-  if(!store||!store.active)return; let changed=false;
-  store.active=store.active.filter(a=>{
-    if(chatPhase(a.expiresAt)==='C'){ store.ended=store.ended||[]; if(!store.ended.find(e=>e.id===a.id||e.name===a.name))store.ended.unshift({...a,last:'연장 미선택으로 자동 종료',time:'방금'}); changed=true; return false; }
-    return true;
-  });
-  if(changed){ saveStore(); if(document.getElementById('page-chats')&&document.getElementById('page-chats').style.display!=='none')renderChats(); }
-}
-setInterval(()=>{
-  sweepExpired();
-  document.querySelectorAll('.exp-badge').forEach(b=>{ const e=+b.dataset.exp; if(!e)return; b.innerHTML=badgeText(e); });
-}, 1000);
 </script>
 </body>
 </html>
