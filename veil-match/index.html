@@ -101,6 +101,11 @@
   .composer input:focus{outline:0;border-bottom-color:var(--ink)}
   .composer .send{font-size:16px;font-weight:700;color:var(--ink);white-space:nowrap}
   .composer .send:disabled{color:var(--dim)}
+  .decide{padding:var(--s4) var(--s5) calc(var(--s4) + env(safe-area-inset-bottom));border-top:1px solid var(--line);text-align:center}
+  .decide .dtxt{font-size:14px;margin-bottom:var(--s3)}
+  .decide .drow{display:flex;justify-content:center;gap:var(--s7)}
+  .decide .dbtn{font-size:18px;font-weight:700;padding:4px 0}
+  .decide .dbtn.no{color:var(--dim);font-weight:500}
 
   /* 시트 */
   .ovl{position:absolute;inset:0;background:rgba(20,18,12,.5);display:none;align-items:flex-end;z-index:40}
@@ -209,11 +214,12 @@
     </div>
     <div class="timer" id="chatTimer"></div>
     <div class="msgs" id="chatMsgs"></div>
-    <div class="composer">
+    <div class="composer" id="composer">
       <input id="chatInput" placeholder="메시지 입력" autocomplete="off"
         onkeydown="onKey(event)" oninput="toggleSend()">
       <button class="send" id="sendBtn" disabled onclick="sendMsg()">전송</button>
     </div>
+    <div class="decide" id="chatDecide" style="display:none"></div>
   </section>
 
   <!-- 설정 하위 화면 -->
@@ -228,7 +234,6 @@
       <h3 id="sheetName">상대</h3>
       <p class="dim small" id="sheetSub"></p>
       <div style="margin-top:var(--s4)">
-        <button class="opt" id="optExtend" onclick="extendChat()">시간 연장하기 <span class="dim">· 24시간 더</span></button>
         <button class="opt" id="optFriend" onclick="befriend()">친구 추가 <span class="dim">· 시간제한 없이 대화</span></button>
         <button class="opt danger" onclick="leaveChat()">대화 나가기</button>
         <button class="opt danger" onclick="blockAndLeave()">차단하고 나가기 <span class="dim">· 다시 매칭 안 됨</span></button>
@@ -243,7 +248,7 @@
 <script>
 /* ---------- 상태 ---------- */
 const KEY_P='veil2_profile', KEY_C='veil2_chats', KEY_B='veil2_blocks';
-const DAY=24*60*60*1000;
+const DAY=24*60*60*1000, GRACE=12*60*60*1000;
 const INTERESTS=['음악','영화','독서','여행','운동','요리','게임','사진','글쓰기','커피','반려동물','밤산책'];
 const MBTIS=['ISTJ','ISFJ','INFJ','INTJ','ISTP','ISFP','INFP','INTP','ESTP','ESFP','ENFP','ENTP','ESTJ','ESFJ','ENFJ','ENTJ','모름'];
 const CHATTYPES=['가벼운 수다','깊은 대화','고민 상담','취미 이야기','아무거나'];
@@ -357,8 +362,10 @@ function renderList(){
   h+=`</div>`;el.innerHTML=h;
 }
 function statusLabel(c){
-  if(c.ended)return '종료됨';
-  if(c.friend)return '친구 · 무제한';
+  const ph=phaseOf(c);
+  if(ph==='ended')return '종료됨';
+  if(ph==='friend')return '친구 · 무제한';
+  if(ph==='decide')return '연장 결정 중';
   return remain(c.exp);
 }
 
@@ -453,60 +460,109 @@ function subTerms(){
 }
 
 /* ---------- 채팅방 ---------- */
+function phaseOf(c){
+  if(c.ended)return 'ended';
+  if(c.friend)return 'friend';
+  if(c.exp&&Date.now()>=c.exp)return 'decide';   // 24시간 종료 → 연장 결정 단계
+  return 'active';
+}
 function openChatById(id){const c=chats.find(x=>x.id===id);if(c)openChat(c)}
 function openChat(c){
   cur=c;
   document.getElementById('chatNick').textContent=c.nick;
   document.getElementById('chatInput').value='';toggleSend();
-  renderMsgs();updateTimer();
-  clearInterval(ticker);ticker=setInterval(updateTimer,1000);
+  renderMsgs();refreshChat();
+  clearInterval(ticker);ticker=setInterval(refreshChat,1000);
   go('s-chat');
-  const comp=document.querySelector('.composer');
-  comp.style.display=c.ended?'none':'flex';
 }
 function renderMsgs(){
   const el=document.getElementById('chatMsgs');
   el.innerHTML=cur.msgs.map(m=>`<div class="msg ${m.s}">${esc(m.t)}</div>`).join('');
   el.scrollTop=el.scrollHeight;
 }
-function updateTimer(){
-  const el=document.getElementById('chatTimer');
-  if(cur.friend){el.textContent='친구 · 시간제한 없음';return}
-  if(cur.ended){el.textContent='종료된 대화예요';return}
-  if(Date.now()>=cur.exp){endChat(true);return}
-  el.textContent='남은 시간 '+remain(cur.exp);
-}
 function remain(exp){
   let s=Math.max(0,Math.floor((exp-Date.now())/1000));
   const h=Math.floor(s/3600);s%=3600;const m=Math.floor(s/60);s%=60;
   return String(h).padStart(2,'0')+':'+String(m).padStart(2,'0')+':'+String(s).padStart(2,'0');
 }
+function timerText(c){
+  const ph=phaseOf(c);
+  if(ph==='friend')return '친구 · 시간제한 없음';
+  if(ph==='ended')return '종료된 대화예요';
+  if(ph==='decide')return '24시간이 끝났어요 · 결정 '+remain(c.decideBy);
+  return '남은 시간 '+remain(c.exp);
+}
+/* 매초 호출: 상태 전이 + 화면 갱신 */
+function refreshChat(){
+  if(!cur)return;
+  const ph=phaseOf(cur);
+  if(ph==='decide'&&!cur.decidePhase){       // 결정 단계 최초 진입
+    cur.decidePhase=true;cur.decideBy=cur.exp+GRACE;
+    cur.msgs.push({s:'sys',t:'24시간이 끝났어요 · 이어가려면 두 분 모두 연장을 선택해야 해요'});
+    save();renderMsgs();
+  }
+  if(ph==='decide'&&cur.decideBy&&Date.now()>cur.decideBy){endChat('grace');return}
+  document.getElementById('chatTimer').textContent=timerText(cur);
+  const comp=document.getElementById('composer'), dec=document.getElementById('chatDecide');
+  if(ph==='decide'){comp.style.display='none';dec.style.display='block';renderDecide()}
+  else if(ph==='ended'){comp.style.display='none';dec.style.display='none'}
+  else{comp.style.display='flex';dec.style.display='none'}
+}
+function renderDecide(){
+  const dec=document.getElementById('chatDecide');
+  if(cur.myExtend==null){
+    dec.innerHTML=`<div class="dtxt">대화를 더 이어갈까요? <span class="dim">· 결정 ${remain(cur.decideBy)}</span></div>
+      <div class="drow"><button class="dbtn" onclick="chooseExtend(true)">연장하기</button><button class="dbtn no" onclick="chooseExtend(false)">종료하기</button></div>`;
+  }else if(cur.myExtend===true){
+    dec.innerHTML=`<div class="dtxt dim">연장을 신청했어요 · 상대의 응답을 기다리는 중…</div>`;
+  }
+}
+/* 연장 결정 — 양쪽 모두 동의해야 이어짐 */
+function chooseExtend(yes){
+  cur.myExtend=yes;save();
+  if(!yes){endChat('declineSelf');return}
+  renderDecide();
+  const id=cur.id;
+  setTimeout(()=>partnerDecision(id),1400+Math.random()*1600);
+}
+function partnerDecision(id){
+  const c=chats.find(x=>x.id===id);
+  if(!c||c.ended||phaseOf(c)!=='decide'||c.myExtend!==true)return;
+  if(Math.random()<0.6){                     // 상대도 동의
+    c.exp=Date.now()+DAY;c.decidePhase=false;c.decideBy=null;c.myExtend=null;c.ext=(c.ext||0)+1;
+    c.msgs.push({s:'sys',t:'두 분 모두 동의해 24시간이 연장됐어요'});save();
+    if(cur&&cur.id===c.id){renderMsgs();refreshChat();toast('연장됐어요')}
+  }else{                                       // 상대는 원하지 않음
+    c.ended=true;c.msgs.push({s:'sys',t:'상대가 연장을 원하지 않아 대화가 종료됐어요'});save();
+    if(cur&&cur.id===c.id){renderMsgs();refreshChat()}
+  }
+}
 function onKey(e){if(e.key==='Enter'&&!e.isComposing&&e.keyCode!==229){e.preventDefault();sendMsg()}}
 function toggleSend(){document.getElementById('sendBtn').disabled=!document.getElementById('chatInput').value.trim()}
 function sendMsg(){
-  const i=document.getElementById('chatInput');const t=i.value.trim();if(!t||cur.ended)return;
+  const ph=phaseOf(cur);if(ph!=='active'&&ph!=='friend')return;
+  const i=document.getElementById('chatInput');const t=i.value.trim();if(!t)return;
   cur.msgs.push({s:'me',t});i.value='';toggleSend();save();renderMsgs();
-  setTimeout(()=>{if(cur&&!cur.ended){cur.msgs.push({s:'them',t:REPLY[Math.floor(Math.random()*REPLY.length)]});save();renderMsgs()}},900);
+  setTimeout(()=>{const p=cur&&phaseOf(cur);if(p==='active'||p==='friend'){cur.msgs.push({s:'them',t:REPLY[Math.floor(Math.random()*REPLY.length)]});save();renderMsgs()}},900);
 }
 
 /* ---------- 관리 시트 ---------- */
 function openMenu(){
   document.getElementById('sheetName').textContent=cur.nick;
-  document.getElementById('sheetSub').textContent=cur.friend?'친구 · 시간제한 없이 대화 중':(cur.ended?'종료된 대화':'남은 시간 '+remain(cur.exp));
-  document.getElementById('optExtend').style.display=(cur.friend||cur.ended)?'none':'block';
-  document.getElementById('optFriend').style.display=(cur.friend||cur.ended)?'none':'block';
+  document.getElementById('sheetSub').textContent=timerText(cur);
+  document.getElementById('optFriend').style.display=(phaseOf(cur)==='active')?'block':'none';
   document.getElementById('sheet').classList.add('on');
 }
 function closeMenu(){document.getElementById('sheet').classList.remove('on')}
-function extendChat(){cur.exp=Math.max(Date.now(),cur.exp)+DAY;cur.msgs.push({s:'sys',t:'24시간이 연장됐어요'});save();renderMsgs();updateTimer();closeMenu();toast('24시간 연장됐어요')}
-function befriend(){cur.friend=true;cur.exp=null;cur.msgs.push({s:'sys',t:'친구가 됐어요 · 이제 시간제한 없이 대화해요'});save();renderMsgs();updateTimer();closeMenu();toast('친구가 됐어요')}
-function leaveChat(){closeMenu();if(confirm(cur.nick+'님과의 대화를 나갈까요?')){endChat(false);tab('list');go('s-main')}}
-function blockAndLeave(){closeMenu();if(confirm(cur.nick+'님을 차단할까요? 다시 매칭되지 않아요.')){if(!blocks.includes(cur.nick))blocks.push(cur.nick);endChat(false);tab('list');go('s-main');toast('차단했어요')}}
-function endChat(auto){
+function befriend(){cur.friend=true;cur.exp=null;cur.decidePhase=false;cur.myExtend=null;cur.msgs.push({s:'sys',t:'친구가 됐어요 · 이제 시간제한 없이 대화해요'});save();renderMsgs();refreshChat();closeMenu();toast('친구가 됐어요')}
+function leaveChat(){closeMenu();if(confirm(cur.nick+'님과의 대화를 나갈까요?')){endChat('leave');tab('list');go('s-main')}}
+function blockAndLeave(){closeMenu();if(confirm(cur.nick+'님을 차단할까요? 다시 매칭되지 않아요.')){if(!blocks.includes(cur.nick))blocks.push(cur.nick);endChat('leave');tab('list');go('s-main');toast('차단했어요')}}
+function endChat(reason){
   cur.ended=true;cur.friend=false;
-  cur.msgs.push({s:'sys',t:auto?'시간이 다 되어 대화가 종료됐어요':'대화를 나갔어요'});
+  const M={grace:'시간 내에 연장하지 않아 대화가 종료됐어요',declineSelf:'연장하지 않아 대화가 종료됐어요',leave:'대화를 나갔어요'};
+  cur.msgs.push({s:'sys',t:M[reason]||'대화가 종료됐어요'});
   save();clearInterval(ticker);
-  if(document.getElementById('s-chat').classList.contains('active')){renderMsgs();updateTimer();document.querySelector('.composer').style.display='none'}
+  if(document.getElementById('s-chat').classList.contains('active')){renderMsgs();refreshChat()}
 }
 
 /* ---------- 유틸 ---------- */
