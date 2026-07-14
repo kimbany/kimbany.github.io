@@ -421,7 +421,7 @@ function renderSet(){
         <button class="mrow" onclick="openSub('lock')">잠금<span class="dim" style="margin-left:8px">${profile.pin?'사용 중':'꺼짐'}</span><span class="arr">›</span></button>
         <button class="mrow" onclick="openSub('friends')">친구 목록<span class="dim" style="margin-left:8px">${friends}</span><span class="arr">›</span></button>
         <button class="mrow" onclick="openSub('blocks')">차단 목록<span class="dim" style="margin-left:8px">${blocks.length}</span><span class="arr">›</span></button>
-        <button class="mrow" onclick="openSub('terms')">이용약관 · 개인정보<span class="arr">›</span></button>
+        <button class="mrow" style="border-bottom:0" onclick="openSub('terms')">이용약관 · 개인정보<span class="arr">›</span></button>
       </div>
       <div class="mgroup">
         <button class="mrow" onclick="logout()">로그아웃</button>
