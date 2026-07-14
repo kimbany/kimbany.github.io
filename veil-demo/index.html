@@ -89,6 +89,12 @@
   .mgroup{margin-top:var(--s6)}
   .mlabel{font-size:13px;color:var(--dim);font-weight:600;margin-bottom:2px}
 
+  /* 밀어서 차단 */
+  .swipe{position:relative;overflow:hidden;border-top:1px solid var(--line)}
+  .swipe:last-child{border-bottom:1px solid var(--line)}
+  .swipe-act{position:absolute;top:0;right:0;bottom:0;width:92px;background:var(--danger);color:#fff;font-size:15px;font-weight:700;border:0;z-index:2;transform:translateX(100%);transition:transform .2s}
+  .swipe-body{position:relative;z-index:1;display:flex;align-items:center;gap:var(--s3);padding:var(--s4) 0;background:var(--bg);touch-action:pan-y}
+
   /* 채팅 */
   .timer{text-align:center;padding:10px;font-size:13px;color:var(--dim);border-bottom:1px solid var(--line)}
   .msgs{flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:var(--s2);padding:var(--s4) var(--s5)}
@@ -438,10 +444,42 @@ function toggleNoti(k){
 }
 function subFriends(){
   const fs=chats.filter(c=>c.friend&&!c.ended);
-  let h='';
-  if(fs.length===0)h=`<div class="center" style="min-height:50vh"><p class="dim body">아직 친구가 없어요.<br>대화 중 ‘친구 추가’로 만들 수 있어요.</p></div>`;
-  else h=fs.map(c=>`<button class="row" onclick="openChatById('${c.id}')"><div style="flex:1"><div class="nm">${esc(c.nick)}</div><div class="meta">친구 · 무제한</div></div><div class="meta">›</div></button>`).join('');
-  document.getElementById('subBody').innerHTML=`<div style="margin-top:var(--s3)">${h}</div>`;
+  const body=document.getElementById('subBody');
+  if(fs.length===0){body.innerHTML=`<div class="center" style="min-height:50vh"><p class="dim body">아직 친구가 없어요.<br>대화 중 ‘친구 추가’로 만들 수 있어요.</p></div>`;return}
+  body.innerHTML=`<p class="dim tiny" style="margin:var(--s3) 0 var(--s2)">이름을 왼쪽으로 밀면 차단할 수 있어요.</p>`+
+    fs.map(c=>`<div class="swipe" data-id="${c.id}">
+      <button class="swipe-act" onclick="askBlock('${c.id}')">차단</button>
+      <div class="swipe-body"><div style="flex:1"><div class="nm">${esc(c.nick)}</div><div class="meta">친구 · 무제한</div></div><div class="meta">›</div></div>
+    </div>`).join('');
+  body.querySelectorAll('.swipe').forEach(attachSwipe);
+}
+function attachSwipe(el){
+  const act=el.querySelector('.swipe-act'), body=el.querySelector('.swipe-body'), W=92;
+  let x0=0,y0=0,base=0,dx=0,drag=false,decided=false,horiz=false,moved=false;
+  const set=a=>{a=Math.max(0,Math.min(W,a));act.style.transform='translateX('+(W-a)+'px)'};
+  body.addEventListener('pointerdown',e=>{drag=true;decided=false;horiz=false;moved=false;x0=e.clientX;y0=e.clientY;base=el._open?W:0;act.style.transition='none';try{body.setPointerCapture(e.pointerId)}catch(_){}});
+  body.addEventListener('pointermove',e=>{
+    if(!drag)return;dx=e.clientX-x0;const dy=e.clientY-y0;
+    if(!decided){if(Math.abs(dx)>6||Math.abs(dy)>6){decided=true;horiz=Math.abs(dx)>Math.abs(dy);moved=true}else return}
+    if(!horiz)return;e.preventDefault();set(base-dx);   // 왼쪽으로 밀수록(dx<0) 버튼이 드러남
+  });
+  const end=()=>{if(!drag)return;drag=false;act.style.transition='';
+    if(horiz){el._open=(base-dx)>W/2;set(el._open?W:0)}else set(el._open?W:0)};
+  body.addEventListener('pointerup',end);
+  body.addEventListener('pointercancel',end);
+  body.addEventListener('click',e=>{
+    if(moved){e.preventDefault();e.stopPropagation();return}
+    if(el._open){e.preventDefault();el._open=false;act.style.transition='';set(0);return}
+    openChatById(el.dataset.id);
+  });
+}
+function askBlock(id){
+  const c=chats.find(x=>x.id===id);if(!c)return;
+  if(confirm(c.nick+'님을 차단하시겠습니까?\n친구가 해제되고 대화가 종료돼요.')){
+    if(!blocks.includes(c.nick))blocks.push(c.nick);
+    c.friend=false;c.ended=true;c.msgs.push({s:'sys',t:'상대를 차단했어요'});
+    save();subFriends();toast('차단했어요');
+  }
 }
 function subBlocks(){
   let h='';
