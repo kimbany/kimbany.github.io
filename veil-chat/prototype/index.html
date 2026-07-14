@@ -147,7 +147,7 @@
     <div class="grow pad">
       <h1 class="h-page">어떻게 불러드릴까요?</h1>
       <p class="dim body" style="margin-top:var(--s2)">언제든 바꿀 수 있어요.</p>
-      <input id="nickInput" class="field" style="margin-top:var(--s6)" maxlength="12" placeholder="닉네임" oninput="checkNick()">
+      <input id="nickInput" class="field" style="margin-top:var(--s6)" maxlength="20" placeholder="닉네임" oninput="checkNick()">
       <div id="nickNote" class="note dim">두 글자 이상 입력해주세요.</div>
       <button class="link" style="margin-top:var(--s4)" onclick="randomNick()">랜덤으로 정하기</button>
     </div>
@@ -252,7 +252,9 @@ const DAY=24*60*60*1000, GRACE=12*60*60*1000;
 const INTERESTS=['음악','영화','독서','여행','운동','요리','게임','사진','글쓰기','커피','반려동물','밤산책'];
 const MBTIS=['ISTJ','ISFJ','INFJ','INTJ','ISTP','ISFP','INFP','INTP','ESTP','ESFP','ENFP','ENTP','ESTJ','ESFJ','ENFJ','ENTJ','모름'];
 const CHATTYPES=['가벼운 수다','깊은 대화','고민 상담','취미 이야기','아무거나'];
-const NAMES=['조용한새벽','파란노을','밤의고래','느린산책','작은위로','서늘한바람','종이비행기','고요한밤','흐린오후','민트별','창밖의비','잔잔한호수'];
+const ADJ=['어수선한','분주한','경건한','쾌활한','활기찬','고요한','평온한','차분한','생동감 있는','역동적인','활발한','침착한','긴장감 있는','여유로운','북적이는','부산한','소란스러운','시끌벅적한','조용한','적막한','화기애애한','따뜻한','포근한','아늑한','산뜻한','상쾌한','신선한','밝은','경쾌한','유쾌한','즐거운','들뜬','설레는','흥겨운','열정적인','열렬한','치열한','격렬한','진지한','엄숙한','묵직한','신비로운','몽환적인','낭만적인','감성적인','웅장한','장엄한','웅성웅성한','분산된','질서정연한','미니멀한','클래식한','빈티지한','모던한','레트로한','세련된','고급스러운','자연스러운','드라마틱한','영화 같은','미래적인','동화 같은','환상적인','따사로운','청량한','음산한','을씨년스러운','황홀한','에너지가 넘치는','긴박한','여유가 흐르는','생기가 넘치는','활력이 넘치는','편안한','안정감 있는','반짝이는','빛나는','은은한','선명한','맑은','투명한','부드러운','단단한','유연한','묵묵한','든든한','씩씩한','당당한','자신감 있는','용감한','대담한','호기심 많은','엉뚱한','재치 있는','영리한','지혜로운','순수한','순박한','친근한','다정한','온화한','부지런한','성실한','꼼꼼한','자유로운','유유한','느긋한','반듯한','정갈한','말끔한','싱그러운','향기로운','달콤한','싱싱한','폭신한','포슬포슬한','촉촉한','반들반들한','반짝반짝한','출렁이는','흩날리는','피어나는','자라나는','스며드는','물드는'];
+const NOUN=['책','의자','탁자','창문','문','시계','거울','화분','꽃','나무','돌','구름','별','달','태양','촛불','전구','랜턴','우산','모자','안경','신발','가방','열쇠','병','컵','접시','포크','숟가락','베개','담요','카메라','노트북','스마트폰','이어폰','스피커','피아노','기타','바이올린','풍선','연','종이비행기','퍼즐','블록','액자','편지','지도','나침반','망원경','돋보기','연필','볼펜','지우개','자','공책','노트','달력','캘린더','엽서','봉투','스티커','북마크','책갈피','돋보기안경','물병','텀블러','주전자','찻잔','머그컵','냄비','프라이팬','쟁반','바구니','상자','리본','단추','실타래','바늘','쿠션','소파','커튼','카펫','액자걸이','선반','책장','사다리','자전거','스케이트보드','킥보드','드론','망치','붓','물감','팔레트','이젤','화병','종','오르골','모래시계','체스말'];
+function randomNickStr(){return ADJ[Math.floor(Math.random()*ADJ.length)]+' '+NOUN[Math.floor(Math.random()*NOUN.length)]}
 const GREET=['안녕하세요, 반가워요.','안녕하세요! 오늘 하루 어땠어요?','반가워요 :) 무슨 얘기 나눠볼까요?','안녕하세요. 잘 지내셨어요?'];
 const REPLY=['오 저도 그래요.','그 얘기 더 듣고 싶어요.','완전 공감돼요 :)','오늘따라 대화가 잘 통하네요.','그렇군요, 재밌네요.','저는 조금 다르게 생각해요, 왜냐면요…','좋은 하루 보내고 있어요?'];
 
@@ -290,7 +292,7 @@ function checkNick(){
   document.getElementById('nickNext').disabled=!ok;
   document.getElementById('nickNote').textContent=ok?'좋아요.':'두 글자 이상 입력해주세요.';
 }
-function randomNick(){const n=NAMES[Math.floor(Math.random()*NAMES.length)];document.getElementById('nickInput').value=n;checkNick()}
+function randomNick(){document.getElementById('nickInput').value=randomNickStr();checkNick()}
 function buildInterests(){
   const w=document.getElementById('intWrap');w.innerHTML='';
   INTERESTS.forEach(x=>{
@@ -341,8 +343,7 @@ function addPenalty(){
 }
 function cancelMatch(){clearTimeout(matchTimer);go('s-main')}
 function doMatch(){
-  const pool=NAMES.filter(n=>!blocks.includes(n));
-  const nick=(pool.length?pool:NAMES)[Math.floor(Math.random()*(pool.length?pool.length:NAMES.length))];
+  let nick=randomNickStr(),t=0;while(blocks.includes(nick)&&t++<12)nick=randomNickStr();
   const shared=profile.interests[Math.floor(Math.random()*profile.interests.length)]||INTERESTS[0];
   const chat={id:uid(),nick,interest:shared,exp:Date.now()+DAY,friend:false,ended:false,ts:Date.now(),
     msgs:[{s:'sys',t:`매칭됐어요 · 관심사 ‘${shared}’가 통해요`},
@@ -418,7 +419,8 @@ function subMe(){
   const el=document.getElementById('subBody');
   el.innerHTML=`
     <div class="mlabel" style="margin-top:var(--s4)">닉네임</div>
-    <input class="field" maxlength="12" value="${esc(profile.nick)}" oninput="saveNick(this.value)">
+    <input id="setNick" class="field" maxlength="20" value="${esc(profile.nick)}" oninput="saveNick(this.value)">
+    <button class="link" style="margin-top:var(--s3)" onclick="randomSetNick()">랜덤 만들기</button>
     <div class="mlabel" style="margin-top:var(--s6)">관심사</div>
     <div id="subInt" class="wrap" style="margin-top:var(--s3)"></div>
     <div class="mlabel" style="margin-top:var(--s6)">MBTI</div>
@@ -433,6 +435,7 @@ function subMe(){
   CHATTYPES.forEach(x=>{const b=document.createElement('button');b.className='pick'+(profile.chatType===x?' on':'');b.textContent=x;b.onclick=()=>{profile.chatType=profile.chatType===x?'':x;save();subMe()};tw.appendChild(b)});
 }
 function saveNick(v){v=v.trim();if(v.length>=2){profile.nick=v;save()}}
+function randomSetNick(){const n=randomNickStr();const el=document.getElementById('setNick');if(el)el.value=n;profile.nick=n;save();toast('닉네임: '+n)}
 function toggleInt(x){
   const i=profile.interests.indexOf(x);
   if(i>=0){if(profile.interests.length>1)profile.interests.splice(i,1);else return toast('관심사는 최소 1개가 필요해요')}
