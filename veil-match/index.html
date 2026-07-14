@@ -261,7 +261,7 @@ const REPLY=['오 저도 그래요.','그 얘기 더 듣고 싶어요.','완전 
 let profile=load(KEY_P);            // {nick, interests[], noti:{msg,preview}}
 let chats=load(KEY_C)||[];          // [{id,nick,interest,msgs,exp,friend,ended,ts}]
 let blocks=load(KEY_B)||[];         // [nick]
-let draftInterests=new Set(), draftMbti='', draftType='';
+let draftInterests=new Set(), draftMbti='', draftType='', editDraft=null;
 let cur=null;                       // 현재 열린 chat
 let ticker=null, matchTimer=null;
 if(profile&&!profile.noti)profile.noti={msg:true,preview:true};
@@ -412,35 +412,43 @@ function wipe(){if(confirm('닉네임·대화가 모두 삭제되고 되돌릴 �
 function openSub(key){
   const T={me:'내 정보',noti:'알림',friends:'친구 목록',blocks:'차단 목록',terms:'이용약관 · 개인정보'}[key];
   document.getElementById('subTitle').textContent=T;
+  if(key==='me')editDraft={nick:profile.nick,interests:[...profile.interests],mbti:profile.mbti||'',chatType:profile.chatType||''};
   ({me:subMe,noti:subNoti,friends:subFriends,blocks:subBlocks,terms:subTerms})[key]();
   go('s-sub');
 }
+function editLocked(){return profile.editLockUntil&&Date.now()<profile.editLockUntil}
+function daysLeft(ts){const ms=ts-Date.now();return ms>=DAY?Math.ceil(ms/DAY)+'일':Math.max(1,Math.ceil(ms/3600000))+'시간'}
 function subMe(){
-  const el=document.getElementById('subBody');
+  const locked=editLocked(), el=document.getElementById('subBody');
   el.innerHTML=`
     <div class="mlabel" style="margin-top:var(--s4)">닉네임</div>
-    <input id="setNick" class="field" maxlength="20" value="${esc(profile.nick)}" oninput="saveNick(this.value)">
-    <button class="link" style="margin-top:var(--s3)" onclick="randomSetNick()">랜덤 만들기</button>
+    <input id="setNick" class="field" maxlength="20" value="${esc(editDraft.nick)}" ${locked?'readonly':''} oninput="editDraft.nick=this.value">
+    ${locked?'':`<button class="link" style="margin-top:var(--s3)" onclick="randomSetNick()">랜덤 만들기</button>`}
     <div class="mlabel" style="margin-top:var(--s6)">관심사</div>
     <div id="subInt" class="wrap" style="margin-top:var(--s3)"></div>
     <div class="mlabel" style="margin-top:var(--s6)">MBTI</div>
     <div id="subMbti" class="wrap" style="margin-top:var(--s3)"></div>
     <div class="mlabel" style="margin-top:var(--s6)">채팅 유형</div>
-    <div id="subType" class="wrap" style="margin-top:var(--s3)"></div>`;
-  const w=document.getElementById('subInt');
-  INTERESTS.forEach(x=>{const on=profile.interests.includes(x);const b=document.createElement('button');b.className='pick'+(on?' on':'');b.textContent=x;b.onclick=()=>{toggleInt(x);subMe()};w.appendChild(b)});
-  const mw=document.getElementById('subMbti');
-  MBTIS.forEach(x=>{const b=document.createElement('button');b.className='pick'+(profile.mbti===x?' on':'');b.textContent=x;b.onclick=()=>{profile.mbti=profile.mbti===x?'':x;save();subMe()};mw.appendChild(b)});
-  const tw=document.getElementById('subType');
-  CHATTYPES.forEach(x=>{const b=document.createElement('button');b.className='pick'+(profile.chatType===x?' on':'');b.textContent=x;b.onclick=()=>{profile.chatType=profile.chatType===x?'':x;save();subMe()};tw.appendChild(b)});
+    <div id="subType" class="wrap" style="margin-top:var(--s3)"></div>
+    ${locked
+      ? `<p class="dim small" style="margin-top:var(--s6)">프로필은 마지막 수정 후 7일간 변경할 수 없어요.<br>약 ${daysLeft(profile.editLockUntil)} 뒤에 다시 바꿀 수 있어요.</p>`
+      : `<p class="dim small" style="margin-top:var(--s6)">저장하면 프로필(닉네임·관심사·MBTI·채팅 유형)은 <b style="color:var(--ink)">7일 후에</b> 다시 변경할 수 있어요. 신중하게 확인해주세요.</p>
+         <button class="cta" style="margin-top:var(--s3)" onclick="saveMe()">저장하기</button>`}`;
+  const chip=(host,items,sel,on,pick)=>{const w=document.getElementById(host);items.forEach(x=>{const b=document.createElement('button');b.className='pick'+(sel(x)?' on':'');b.textContent=x;if(locked)b.style.opacity='.55';else b.onclick=on(x);w.appendChild(b)})};
+  chip('subInt',INTERESTS,x=>editDraft.interests.includes(x),x=>()=>{toggleDraftInt(x);subMe()});
+  chip('subMbti',MBTIS,x=>editDraft.mbti===x,x=>()=>{editDraft.mbti=editDraft.mbti===x?'':x;subMe()});
+  chip('subType',CHATTYPES,x=>editDraft.chatType===x,x=>()=>{editDraft.chatType=editDraft.chatType===x?'':x;subMe()});
 }
-function saveNick(v){v=v.trim();if(v.length>=2){profile.nick=v;save()}}
-function randomSetNick(){const n=randomNickStr();const el=document.getElementById('setNick');if(el)el.value=n;profile.nick=n;save();toast('닉네임: '+n)}
-function toggleInt(x){
-  const i=profile.interests.indexOf(x);
-  if(i>=0){if(profile.interests.length>1)profile.interests.splice(i,1);else return toast('관심사는 최소 1개가 필요해요')}
-  else profile.interests.push(x);
-  save();
+function toggleDraftInt(x){const i=editDraft.interests.indexOf(x);if(i>=0){if(editDraft.interests.length>1)editDraft.interests.splice(i,1);else toast('관심사는 최소 1개가 필요해요')}else editDraft.interests.push(x)}
+function randomSetNick(){editDraft.nick=randomNickStr();const el=document.getElementById('setNick');if(el)el.value=editDraft.nick;toast('닉네임: '+editDraft.nick)}
+function saveMe(){
+  const nick=(editDraft.nick||'').trim();
+  if(nick.length<2)return toast('닉네임은 두 글자 이상이어야 해요');
+  if(editDraft.interests.length<1)return toast('관심사를 하나 이상 선택해주세요');
+  if(!confirm('저장하면 7일 동안 프로필을 변경할 수 없어요.\n저장할까요?'))return;
+  profile.nick=nick;profile.interests=[...editDraft.interests];profile.mbti=editDraft.mbti;profile.chatType=editDraft.chatType;
+  profile.editLockUntil=Date.now()+7*DAY;save();
+  toast('저장했어요');tab('set');go('s-main');
 }
 function subNoti(){
   document.getElementById('subBody').innerHTML=`
