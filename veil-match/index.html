@@ -386,7 +386,7 @@ function renderSet(){
   document.getElementById('pg-set').innerHTML=`
     <div class="top"><div class="t">설정</div></div>
     <div class="grow pad" style="padding-top:0">
-      <div style="padding:var(--s5) 0 var(--s4);border-bottom:1px solid var(--line)">
+      <div style="padding:var(--s5) 0 var(--s4)">
         <div class="mlabel">패널티</div>
         <div style="font-size:24px;font-weight:800;margin-top:2px">${pen}<span class="dim" style="font-size:16px;font-weight:500"> / 3</span></div>
         ${locked?`<div class="small" style="color:var(--danger);margin-top:6px">매칭 제한 중 · 남은 시간 ${remain(profile.matchLock)}</div>`:`<div class="dim small" style="margin-top:6px">대화를 그냥 나가면 1점 · 3점이면 24시간 매칭이 제한돼요</div>`}
