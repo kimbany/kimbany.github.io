@@ -550,11 +550,29 @@ function sendMsg(){
 function openMenu(){
   document.getElementById('sheetName').textContent=cur.nick;
   document.getElementById('sheetSub').textContent=timerText(cur);
-  document.getElementById('optFriend').style.display=(phaseOf(cur)==='active')?'block':'none';
+  document.getElementById('optFriend').style.display=(phaseOf(cur)==='active'&&!cur.friendReq)?'block':'none';
   document.getElementById('sheet').classList.add('on');
 }
 function closeMenu(){document.getElementById('sheet').classList.remove('on')}
-function befriend(){cur.friend=true;cur.exp=null;cur.decidePhase=false;cur.myExtend=null;cur.msgs.push({s:'sys',t:'친구가 됐어요 · 이제 시간제한 없이 대화해요'});save();renderMsgs();refreshChat();closeMenu();toast('친구가 됐어요')}
+/* 친구 추가 — 양쪽 모두 동의해야 성립 (신청 → 상대 수락) */
+function befriend(){
+  cur.friendReq=true;cur.msgs.push({s:'sys',t:'친구 신청을 보냈어요 · 상대의 수락을 기다려요'});
+  save();renderMsgs();closeMenu();toast('친구 신청을 보냈어요');
+  const id=cur.id;setTimeout(()=>friendDecision(id),1400+Math.random()*1600);
+}
+function friendDecision(id){
+  const c=chats.find(x=>x.id===id);
+  if(!c||c.ended||c.friend||!c.friendReq)return;
+  c.friendReq=false;
+  if(Math.random()<0.6){                     // 상대도 수락
+    c.friend=true;c.exp=null;c.decidePhase=false;c.myExtend=null;
+    c.msgs.push({s:'sys',t:'친구가 됐어요 · 이제 시간제한 없이 대화해요'});
+  }else{                                       // 상대가 거절 → 대화는 그대로 이어짐
+    c.msgs.push({s:'sys',t:'상대가 친구 신청을 받지 않았어요'});
+  }
+  save();
+  if(cur&&cur.id===c.id){renderMsgs();refreshChat();if(c.friend)toast('친구가 됐어요')}
+}
 function leaveChat(){closeMenu();if(confirm(cur.nick+'님과의 대화를 나갈까요?')){endChat('leave');tab('list');go('s-main')}}
 function blockAndLeave(){closeMenu();if(confirm(cur.nick+'님을 차단할까요? 다시 매칭되지 않아요.')){if(!blocks.includes(cur.nick))blocks.push(cur.nick);endChat('leave');tab('list');go('s-main');toast('차단했어요')}}
 function endChat(reason){
