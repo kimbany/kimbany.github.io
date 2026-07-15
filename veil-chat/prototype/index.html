@@ -643,7 +643,7 @@ function chooseExtend(yes){
 function partnerDecision(id){
   const c=chats.find(x=>x.id===id);
   if(!c||c.ended||phaseOf(c)!=='decide'||c.myExtend!==true)return;
-  if(Math.random()<0.6){                     // 상대도 동의
+  if(true){                                  // AI 목업: 상대(AI)는 항상 연장에 동의
     c.exp=Date.now()+DAY;c.decidePhase=false;c.decideBy=null;c.myExtend=null;c.ext=(c.ext||0)+1;
     c.msgs.push({s:'sys',t:'두 분 모두 동의해 24시간이 연장됐어요'});save();
     if(cur&&cur.id===c.id){renderMsgs();refreshChat();toast('연장됐어요')}
@@ -679,7 +679,7 @@ function friendDecision(id){
   const c=chats.find(x=>x.id===id);
   if(!c||c.ended||c.friend||!c.friendReq)return;
   c.friendReq=false;
-  if(Math.random()<0.6){                     // 상대도 수락
+  if(true){                                  // AI 목업: 상대(AI)는 항상 친구 신청을 수락
     c.friend=true;c.exp=null;c.decidePhase=false;c.myExtend=null;
     c.msgs.push({s:'sys',t:'친구가 됐어요 · 이제 시간제한 없이 대화해요'});
   }else{                                       // 상대가 거절 → 대화는 그대로 이어짐
