@@ -457,6 +457,13 @@ function pinKey(n){
 }
 function pinError(msg){pinCtx.digits='';document.getElementById('pinErr').textContent=msg;renderPin()}
 function pinCancel(){if(pinCtx&&pinCtx.allowCancel){tab('set');go('s-main')}}
+/* PIN 화면에서 키보드 숫자 입력 지원 */
+document.addEventListener('keydown',e=>{
+  if(!pinCtx||!document.getElementById('s-pin').classList.contains('active'))return;
+  if(/^[0-9]$/.test(e.key)){e.preventDefault();pinKey(e.key)}
+  else if(e.key==='Backspace'){e.preventDefault();pinKey('⌫')}
+  else if(e.key==='Escape'&&pinCtx.allowCancel){e.preventDefault();pinCancel()}
+});
 function lockApp(){openPin({title:'앱 잠금',sub:'PIN 4자리를 입력하세요',allowCancel:false,onDone:v=>{if(v===profile.pin){go('s-main');tab('match')}else pinError('PIN이 일치하지 않아요')}})}
 function lockNow(){lockApp()}
 function startSetPin(){openPin({title:'PIN 설정',sub:'새 PIN 4자리를 입력하세요',allowCancel:true,onDone:first=>{
