@@ -643,7 +643,7 @@ function chooseExtend(yes){
 function partnerDecision(id){
   const c=chats.find(x=>x.id===id);
   if(!c||c.ended||phaseOf(c)!=='decide'||c.myExtend!==true)return;
-  if(true){                                  // AI 목업: 상대(AI)는 항상 연장에 동의
+  if(Math.random()<0.4){                     // AI 목업: 상대가 40% 동의 / 60% 거절
     c.exp=Date.now()+DAY;c.decidePhase=false;c.decideBy=null;c.myExtend=null;c.ext=(c.ext||0)+1;
     c.msgs.push({s:'sys',t:'두 분 모두 동의해 24시간이 연장됐어요'});save();
     if(cur&&cur.id===c.id){renderMsgs();refreshChat();toast('연장됐어요')}
