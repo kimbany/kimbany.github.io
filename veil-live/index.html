@@ -54,11 +54,16 @@
   .send{width:44px;height:44px;border-radius:50%;background:var(--text);font-size:18px;color:#fff;flex:0 0 auto;cursor:pointer}
   .demo-note{position:absolute;top:max(8px,env(safe-area-inset-top));right:10px;z-index:60;background:rgba(242,140,40,.18);color:var(--accent);font-size:10px;padding:4px 9px;border-radius:999px}
   .statusbar{padding:8px;text-align:center;font-size:12px;color:var(--dim);background:var(--surface)}
+  #liveBanner{position:absolute;top:0;left:0;right:0;z-index:70;padding:8px 12px;font-size:12px;font-weight:700;text-align:center;display:none;white-space:pre-line}
+  #liveBanner.show{display:block}
+  #liveBanner.ok{background:#e6f4e6;color:#2f7d33}
+  #liveBanner.bad{background:#fbe4df;color:var(--bad)}
 </style>
 </head>
 <body>
 <div id="app">
-  <div class="demo-note">● LIVE v2</div>
+  <div class="demo-note">● LIVE v3</div>
+  <div id="liveBanner"></div>
 
   <!-- 로딩 -->
   <section id="s-loading" class="screen active center pad">
@@ -166,13 +171,21 @@ function buildPickers(){
     buildPickers();
     const savedNick=localStorage.getItem('veil_live_nick'); if(savedNick)document.getElementById('liveNick').value=savedNick;
     go('s-start');
+    // 서버 연결·권한 자가진단 (읽기 테스트)
+    db.ref(ROOT+'/queue').once('value')
+      .then(()=>banner('서버 연결 정상 · 매칭 가능','ok'))
+      .catch(e=>banner('서버 권한 오류('+e.code+')\nFirebase 콘솔에서 DB 규칙(veil_live)을 게시하세요.','bad'));
     db.ref(ROOT+'/queue').on('value',
       s=>{ const n=s.numChildren(); const e1=document.getElementById('onlineN'),e2=document.getElementById('onlineN2'); if(e1)e1.textContent=n; if(e2)e2.textContent=n; },
-      err=>liveDbg('⚠ 대기열 읽기 거부: '+err.code+'\nFirebase DB 규칙(veil_live)을 게시해야 해요.'));
-    db.ref('.info/connected').on('value', s=>{ if(s.val())liveDbg(''); });
+      err=>{ liveDbg('⚠ 대기열 읽기 거부: '+err.code); banner('서버 권한 오류('+err.code+')\nDB 규칙(veil_live)을 게시하세요.','bad'); });
   });
 })();
+function banner(t,kind){const e=document.getElementById('liveBanner');if(!e)return;e.textContent=(kind==='ok'?'✅ ':'❌ ')+t;e.className='show '+kind;}
 function liveDbg(t){const e=document.getElementById('liveDebug');if(e)e.textContent=t;if(t)console.log('[veil-live]',t)}
+// 뒤로가기/화면복원(bfcache)으로 멈춘 화면이 되살아나면 강제 새로고침
+window.addEventListener('pageshow', e=>{ if(e.persisted) location.reload(); });
+// 로그인이 6초 안에 안 되면 안내
+setTimeout(()=>{ if(!myUid){ const l=document.getElementById('s-loading'); if(l&&l.classList.contains('active')) l.innerHTML='<div class="pad center" style="flex:1"><p class="dim">로그인이 지연되고 있어요.<br>Firebase 콘솔에서 <b>익명 로그인(Anonymous)</b>이 켜져 있는지 확인하고<br>새로고침 해주세요.</p></div>'; } }, 6000);
 
 function enterLive(){
   me.nick=(document.getElementById('liveNick').value||'').trim()||'익명';
