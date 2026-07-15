@@ -62,7 +62,7 @@
 </head>
 <body>
 <div id="app">
-  <div class="demo-note">● LIVE v3</div>
+  <div class="demo-note">● LIVE v4</div>
   <div id="liveBanner"></div>
 
   <!-- 로딩 -->
@@ -183,7 +183,9 @@ function buildPickers(){
 function banner(t,kind){const e=document.getElementById('liveBanner');if(!e)return;e.textContent=(kind==='ok'?'✅ ':'❌ ')+t;e.className='show '+kind;}
 function liveDbg(t){const e=document.getElementById('liveDebug');if(e)e.textContent=t;if(t)console.log('[veil-live]',t)}
 // 뒤로가기/화면복원(bfcache)으로 멈춘 화면이 되살아나면 강제 새로고침
-window.addEventListener('pageshow', e=>{ if(e.persisted) location.reload(); });
+window.addEventListener('pageshow', e=>{ try{ const nav=(performance.getEntriesByType('navigation')||[])[0]; if(e.persisted || (nav&&nav.type==='back_forward')) location.reload(); }catch(_){ if(e.persisted) location.reload(); } });
+// 페이지가 다시 보일 때(탭 복귀) 로그인 안 된 상태로 매칭/채팅 화면이 떠 있으면 초기화
+document.addEventListener('visibilitychange', ()=>{ if(!document.hidden && !myUid){ const s=document.querySelector('.screen.active'); if(s && s.id!=='s-loading' && s.id!=='s-start') location.reload(); } });
 // 로그인이 6초 안에 안 되면 안내
 setTimeout(()=>{ if(!myUid){ const l=document.getElementById('s-loading'); if(l&&l.classList.contains('active')) l.innerHTML='<div class="pad center" style="flex:1"><p class="dim">로그인이 지연되고 있어요.<br>Firebase 콘솔에서 <b>익명 로그인(Anonymous)</b>이 켜져 있는지 확인하고<br>새로고침 해주세요.</p></div>'; } }, 6000);
 
