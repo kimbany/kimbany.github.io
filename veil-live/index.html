@@ -58,7 +58,7 @@
 </head>
 <body>
 <div id="app">
-  <div class="demo-note">● LIVE</div>
+  <div class="demo-note">● LIVE v2</div>
 
   <!-- 로딩 -->
   <section id="s-loading" class="screen active center pad">
@@ -103,6 +103,7 @@
     <h2 style="margin-top:24px">상대를 찾는 중…</h2>
     <p class="dim">대기중인 다른 사용자와 매칭되면 바로 연결돼요.</p>
     <p class="dim">현재 대기 <b style="color:var(--good)"><span id="onlineN2">0</span></b>명</p>
+    <p id="liveDebug" style="font-size:12px;white-space:pre-line;max-width:300px;margin-top:6px"></p>
     <button class="btn ghost" style="width:auto;padding:12px 28px;margin-top:20px" onclick="cancelWait()">취소</button>
   </section>
 
@@ -165,9 +166,13 @@ function buildPickers(){
     buildPickers();
     const savedNick=localStorage.getItem('veil_live_nick'); if(savedNick)document.getElementById('liveNick').value=savedNick;
     go('s-start');
-    db.ref(ROOT+'/queue').on('value', s=>{ const n=s.numChildren(); const e1=document.getElementById('onlineN'),e2=document.getElementById('onlineN2'); if(e1)e1.textContent=n; if(e2)e2.textContent=n; });
+    db.ref(ROOT+'/queue').on('value',
+      s=>{ const n=s.numChildren(); const e1=document.getElementById('onlineN'),e2=document.getElementById('onlineN2'); if(e1)e1.textContent=n; if(e2)e2.textContent=n; },
+      err=>liveDbg('⚠ 대기열 읽기 거부: '+err.code+'\nFirebase DB 규칙(veil_live)을 게시해야 해요.'));
+    db.ref('.info/connected').on('value', s=>{ if(s.val())liveDbg(''); });
   });
 })();
+function liveDbg(t){const e=document.getElementById('liveDebug');if(e)e.textContent=t;if(t)console.log('[veil-live]',t)}
 
 function enterLive(){
   me.nick=(document.getElementById('liveNick').value||'').trim()||'익명';
@@ -181,7 +186,10 @@ function startMatch(){
   matched=false;
   go('s-wait');
   const q=db.ref(ROOT+'/queue/'+myUid);
-  q.set({uid:myUid, nick:me.nick, avatar:me.avatar, bg:me.bg, ts:TS});
+  liveDbg('대기열 등록 중…');
+  q.set({uid:myUid, nick:me.nick, avatar:me.avatar, bg:me.bg, ts:TS})
+    .then(()=>liveDbg('대기열 등록 완료 · 상대를 기다리는 중'))
+    .catch(e=>liveDbg('⚠ 대기열 등록 실패: '+(e.code||e.message)+'\nFirebase DB 규칙(veil_live)을 게시하세요.'));
   q.onDisconnect().remove();
   // 내가 다른 사람에게 claim 당하면 세션 시작
   db.ref(ROOT+'/queue/'+myUid+'/session').on('value', s=>{ const v=s.val(); if(v&&v.sid&&!matched) startSession(v.sid, v.by); });
