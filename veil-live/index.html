@@ -97,7 +97,9 @@ const firebaseConfig={
   appId:"1:761584144328:web:0c7561589f812ad845bafd"
 };
 const ROOT='veil_live';
-let db=null, auth=null, TS=null, myUid=null;
+let db=null, auth=null, TS=null, ready=false;
+// 같은 브라우저의 두 탭도 서로 매칭되도록: 인증 uid가 아니라 '탭마다 고유 ID'를 신원으로 사용
+let mid=sessionStorage.getItem('veil_cid'); if(!mid){ mid='c'+Math.random().toString(36).slice(2,10)+Date.now().toString(36); sessionStorage.setItem('veil_cid',mid); }
 let state='idle';           // idle | waiting | chatting
 let nick='', curSid=null, partnerUid=null, matched=false;
 
@@ -114,7 +116,7 @@ function setState(s){
   $('cancelBtn').classList.toggle('hidden', s!=='waiting');
 }
 
-function onNick(){ $('matchBtn').disabled = !$('nick').value.trim() || !myUid; }
+function onNick(){ $('matchBtn').disabled = !$('nick').value.trim() || !ready; }
 
 /* ---------- Firebase ---------- */
 (function init(){
@@ -123,8 +125,8 @@ function onNick(){ $('matchBtn').disabled = !$('nick').value.trim() || !myUid; }
   auth=firebase.auth(); db=firebase.database(); TS=firebase.database.ServerValue.TIMESTAMP;
   auth.signInAnonymously().catch(e=>banner('로그인 실패('+e.code+') · Firebase에서 익명 로그인을 켜주세요','bad'));
   auth.onAuthStateChanged(u=>{
-    if(!u||myUid) return;
-    myUid=u.uid;
+    if(!u||ready) return;
+    ready=true;
     const saved=localStorage.getItem('veil_live_nick'); if(saved)$('nick').value=saved;
     onNick();
     setState('idle');                         // 언제나 로비(대기 전)에서 시작
@@ -140,15 +142,15 @@ function onNick(){ $('matchBtn').disabled = !$('nick').value.trim() || !myUid; }
 
 /* ---------- 매칭 ---------- */
 function onMatch(){
-  if(!myUid) return;
+  if(!mid) return;
   nick=$('nick').value.trim()||'익명';
   localStorage.setItem('veil_live_nick',nick);
   matched=false;
   setState('waiting');
-  const q=db.ref(ROOT+'/queue/'+myUid);
-  q.set({uid:myUid, nick:nick, ts:TS}).catch(e=>banner('대기열 등록 실패('+e.code+') · 규칙 게시 필요','bad'));
+  const q=db.ref(ROOT+'/queue/'+mid);
+  q.set({uid:mid, nick:nick, ts:TS}).catch(e=>banner('대기열 등록 실패('+e.code+') · 규칙 게시 필요','bad'));
   q.onDisconnect().remove();
-  db.ref(ROOT+'/queue/'+myUid+'/session').on('value', s=>{ const v=s.val(); if(v&&v.sid&&!matched) startSession(v.sid, v.by); });
+  db.ref(ROOT+'/queue/'+mid+'/session').on('value', s=>{ const v=s.val(); if(v&&v.sid&&!matched) startSession(v.sid, v.by); });
   db.ref(ROOT+'/queue').on('value', tryMatch);
   tryMatch();
 }
@@ -157,31 +159,31 @@ function tryMatch(){
   db.ref(ROOT+'/queue').once('value').then(snap=>{
     if(matched) return;
     const cands=[];
-    snap.forEach(c=>{ const v=c.val(); if(v&&v.uid&&v.uid!==myUid&&!v.session&&v.uid<myUid) cands.push(v); });
+    snap.forEach(c=>{ const v=c.val(); if(v&&v.uid&&v.uid!==mid&&!v.session&&v.uid<mid) cands.push(v); });
     if(!cands.length) return;
     cands.sort((a,b)=>(a.ts||0)-(b.ts||0));
     const cand=cands[0];
     const sid=db.ref(ROOT+'/sessions').push().key;
-    db.ref(ROOT+'/queue/'+cand.uid+'/session').transaction(cur=> cur===null ? {sid:sid, by:myUid} : undefined)
+    db.ref(ROOT+'/queue/'+cand.uid+'/session').transaction(cur=> cur===null ? {sid:sid, by:mid} : undefined)
       .then(res=>{
         if(matched) return;
         const val=res.snapshot.val();
-        if(res.committed && val && val.sid===sid && val.by===myUid){
+        if(res.committed && val && val.sid===sid && val.by===mid){
           db.ref(ROOT+'/sessions/'+sid).set({
-            members:{[myUid]:true,[cand.uid]:true},
-            profiles:{[myUid]:{nick:nick},[cand.uid]:{nick:cand.nick}},
+            members:{[mid]:true,[cand.uid]:true},
+            profiles:{[mid]:{nick:nick},[cand.uid]:{nick:cand.nick}},
             createdAt:TS
-          }).then(()=>{ db.ref(ROOT+'/queue/'+myUid+'/session').set({sid:sid, by:cand.uid}); startSession(sid, cand.uid); });
+          }).then(()=>{ db.ref(ROOT+'/queue/'+mid+'/session').set({sid:sid, by:cand.uid}); startSession(sid, cand.uid); });
         }
       }).catch(()=>{});
   });
 }
 function detachQueue(){
-  if(!db||!myUid) return;
+  if(!db||!mid) return;
   db.ref(ROOT+'/queue').off('value', tryMatch);
-  db.ref(ROOT+'/queue/'+myUid+'/session').off();
-  db.ref(ROOT+'/queue/'+myUid).onDisconnect().cancel();
-  db.ref(ROOT+'/queue/'+myUid).remove();
+  db.ref(ROOT+'/queue/'+mid+'/session').off();
+  db.ref(ROOT+'/queue/'+mid).onDisconnect().cancel();
+  db.ref(ROOT+'/queue/'+mid).remove();
 }
 function cancelMatch(){ detachQueue(); matched=false; setState('idle'); }
 
@@ -197,17 +199,17 @@ function startSession(sid, puid){
   setState('chatting');
   $('msgInput').value=''; onType();
 }
-function addMsg(m){ if(!m)return; const c=$('msgs'); const d=document.createElement('div'); d.className='msg '+(m.from===myUid?'me':'them'); d.textContent=m.text; c.appendChild(d); c.scrollTop=c.scrollHeight; }
+function addMsg(m){ if(!m)return; const c=$('msgs'); const d=document.createElement('div'); d.className='msg '+(m.from===mid?'me':'them'); d.textContent=m.text; c.appendChild(d); c.scrollTop=c.scrollHeight; }
 function addSys(t){ const c=$('msgs'); const d=document.createElement('div'); d.className='msg sys'; d.textContent=t; c.appendChild(d); c.scrollTop=c.scrollHeight; }
 function onKey(e){ if(e.key==='Enter'&&!e.isComposing&&e.keyCode!==229){ e.preventDefault(); send(); } }
 function onType(){ $('sendBtn').disabled=!$('msgInput').value.trim(); }
 function send(){
   const i=$('msgInput'); const t=(i.value||'').trim(); if(!t||!curSid) return;
-  db.ref(ROOT+'/sessions/'+curSid+'/messages').push({from:myUid, text:t, ts:TS});
+  db.ref(ROOT+'/sessions/'+curSid+'/messages').push({from:mid, text:t, ts:TS});
   i.value=''; onType();
 }
 function leaveChat(){
-  if(curSid&&myUid){ db.ref(ROOT+'/sessions/'+curSid+'/left/'+myUid).set(true); db.ref(ROOT+'/sessions/'+curSid+'/messages').off(); }
+  if(curSid&&mid){ db.ref(ROOT+'/sessions/'+curSid+'/left/'+mid).set(true); db.ref(ROOT+'/sessions/'+curSid+'/messages').off(); }
   curSid=null; partnerUid=null; matched=false;
   setState('idle');
 }
