@@ -378,22 +378,40 @@ function doMatch(){
 /* ---------- 대화 목록 ---------- */
 function renderList(){
   const el=document.getElementById('pg-list');
+  const endedN=chats.filter(c=>phaseOf(c)==='ended').length;
   let h=`<div class="top"><div class="t">대화</div></div><div class="grow pad" style="padding-top:0">`;
   if(chats.length===0){
     h+=`<div class="center" style="min-height:60vh"><p class="dim body">아직 대화가 없어요.<br>매칭을 시작해보세요.</p></div>`;
   }else{
-    chats.forEach((c,i)=>{
+    if(endedN>=2) h+=`<div style="text-align:right;padding:10px 0 0"><button class="link" onclick="clearEnded()">종료된 대화 ${endedN}개 모두 삭제</button></div>`;
+    chats.forEach((c)=>{
       const last=[...c.msgs].reverse().find(m=>m.s!=='sys');
-      h+=`<button class="row" onclick="openChatById('${c.id}')">
-        <div style="flex:1;min-width:0">
+      const ended=phaseOf(c)==='ended';
+      h+=`<div class="row">
+        <button style="flex:1;min-width:0;text-align:left;background:none;padding:0" onclick="openChatById('${c.id}')">
           <div class="nm">${esc(c.nick)}</div>
           <div class="meta" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${last?esc(last.t):''}</div>
+        </button>
+        <div style="flex:0 0 auto;margin-left:12px;display:flex;flex-direction:column;align-items:flex-end;gap:4px;white-space:nowrap">
+          <span class="meta">${statusLabel(c)}</span>
+          ${ended?`<button class="link" onclick="delChat('${c.id}')">삭제</button>`:''}
         </div>
-        <div class="meta" style="text-align:right;white-space:nowrap">${statusLabel(c)}</div>
-      </button>`;
+      </div>`;
     });
   }
   h+=`</div>`;el.innerHTML=h;
+}
+function delChat(id){
+  const c=chats.find(x=>x.id===id); if(!c)return;
+  if(confirm((c.nick||'상대')+'님과의 종료된 대화를 삭제할까요?\n대화 내용이 사라져요.')){
+    chats=chats.filter(x=>x.id!==id); save(); renderList(); toast('대화를 삭제했어요');
+  }
+}
+function clearEnded(){
+  const n=chats.filter(c=>phaseOf(c)==='ended').length; if(!n)return;
+  if(confirm('종료된 대화 '+n+'개를 모두 삭제할까요?\n대화 내용이 사라져요.')){
+    chats=chats.filter(c=>phaseOf(c)!=='ended'); save(); renderList(); toast('종료된 대화를 정리했어요');
+  }
 }
 function statusLabel(c){
   const ph=phaseOf(c);
