@@ -272,7 +272,8 @@
 
 <script>
 /* ---------- 상태 ---------- */
-const KEY_P='veil2_profile', KEY_C='veil2_chats', KEY_B='veil2_blocks';
+const KEY_P='veil2_profile', KEY_C='veil2_chats', KEY_B='veil2_blocks', KEY_R='veil2_recent';
+const RECOOL=7*24*60*60*1000;   // 종료 후 재매칭 쿨다운 (7일)
 const DAY=24*60*60*1000, GRACE=12*60*60*1000;
 const INTERESTS=['음악','영화','독서','여행','운동','요리','게임','사진','글쓰기','커피','반려동물','밤산책'];
 const MBTIS=['ISTJ','ISFJ','INFJ','INTJ','ISTP','ISFP','INFP','INTP','ESTP','ESFP','ENFP','ENTP','ESTJ','ESFJ','ENFJ','ENTJ','모름'];
@@ -286,6 +287,7 @@ const REPLY=['오 저도 그래요.','그 얘기 더 듣고 싶어요.','완전 
 let profile=load(KEY_P);            // {nick, interests[], noti:{msg,preview}}
 let chats=load(KEY_C)||[];          // [{id,nick,interest,msgs,exp,friend,ended,ts}]
 let blocks=load(KEY_B)||[];         // [nick]
+let recent=load(KEY_R)||{};         // {nick: 재매칭 가능해지는 시각} — 종료 후 쿨다운
 let draftInterests=new Set(), draftMbti='', draftType='', editDraft=null, pinCtx=null;
 let cur=null;                       // 현재 열린 chat
 let ticker=null, matchTimer=null;
@@ -293,7 +295,8 @@ if(profile&&!profile.noti)profile.noti={msg:true,preview:true};
 if(profile&&profile.penalty==null)profile.penalty=0;
 
 function load(k){try{return JSON.parse(localStorage.getItem(k))}catch(e){return null}}
-function save(){try{localStorage.setItem(KEY_P,JSON.stringify(profile));localStorage.setItem(KEY_C,JSON.stringify(chats));localStorage.setItem(KEY_B,JSON.stringify(blocks))}catch(e){}}
+function save(){try{localStorage.setItem(KEY_P,JSON.stringify(profile));localStorage.setItem(KEY_C,JSON.stringify(chats));localStorage.setItem(KEY_B,JSON.stringify(blocks));localStorage.setItem(KEY_R,JSON.stringify(recent))}catch(e){}}
+function inCooldown(nick){ return recent[nick] && recent[nick]>Date.now(); }
 function uid(){return 'c'+(chats.reduce((m,c)=>Math.max(m,+c.id.slice(1)||0),0)+1)}
 
 /* ---------- 화면 전환 ---------- */
@@ -368,7 +371,8 @@ function addPenalty(){
 }
 function cancelMatch(){clearTimeout(matchTimer);go('s-main')}
 function doMatch(){
-  let nick=randomNickStr(),t=0;while(blocks.includes(nick)&&t++<12)nick=randomNickStr();
+  // 차단 + 종료 쿨다운(7일) 중인 상대는 제외
+  let nick=randomNickStr(),t=0;while((blocks.includes(nick)||inCooldown(nick))&&t++<20)nick=randomNickStr();
   const shared=profile.interests[Math.floor(Math.random()*profile.interests.length)]||INTERESTS[0];
   const chat={id:uid(),nick,interest:shared,exp:Date.now()+DAY,friend:false,ended:false,ts:Date.now(),
     msgs:[{s:'sys',t:`매칭됐어요 · 관심사 ‘${shared}’가 통해요`},
@@ -726,6 +730,7 @@ function endChat(reason){
   cur.ended=true;cur.friend=false;
   const M={grace:'시간 내에 연장하지 않아 대화가 종료됐어요',declineSelf:'연장하지 않아 대화가 종료됐어요',leave:'대화를 나갔어요'};
   cur.msgs.push({s:'sys',t:M[reason]||'대화가 종료됐어요'});
+  if(cur.nick)recent[cur.nick]=Date.now()+RECOOL;   // 종료 후 쿨다운 (차단 아니어도 당분간 재매칭 제외)
   save();clearInterval(ticker);
   if(document.getElementById('s-chat').classList.contains('active')){renderMsgs();refreshChat()}
 }
