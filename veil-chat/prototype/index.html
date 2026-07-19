@@ -259,8 +259,9 @@
       <p class="dim small" id="sheetSub"></p>
       <div style="margin-top:var(--s4)">
         <button class="opt" id="optFriend" onclick="befriend()">친구 추가 <span class="dim">· 시간제한 없이 대화</span></button>
-        <button class="opt danger" onclick="leaveChat()">대화 나가기</button>
-        <button class="opt danger" onclick="blockAndLeave()">차단하고 나가기 <span class="dim">· 다시 매칭 안 됨</span></button>
+        <button class="opt danger" id="optLeave" onclick="leaveChat()">대화 나가기</button>
+        <button class="opt danger" id="optBlock" onclick="blockAndLeave()">차단하고 나가기 <span class="dim">· 다시 매칭 안 됨</span></button>
+        <button class="opt danger" id="optDelete" onclick="delCurChat()">대화 삭제 <span class="dim">· 목록에서 제거</span></button>
       </div>
       <button class="cta sub" style="margin-top:var(--s2)" onclick="closeMenu()">닫기</button>
     </div>
@@ -387,15 +388,12 @@ function renderList(){
     chats.forEach((c)=>{
       const last=[...c.msgs].reverse().find(m=>m.s!=='sys');
       const ended=phaseOf(c)==='ended';
-      h+=`<div class="row">
+      h+=`<div class="row"${ended?` oncontextmenu="ctxDelete(event,'${c.id}')"`:''}>
         <button style="flex:1;min-width:0;text-align:left;background:none;padding:0" onclick="openChatById('${c.id}')">
           <div class="nm">${esc(c.nick)}</div>
           <div class="meta" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${last?esc(last.t):''}</div>
         </button>
-        <div style="flex:0 0 auto;margin-left:12px;display:flex;flex-direction:column;align-items:flex-end;gap:4px;white-space:nowrap">
-          <span class="meta">${statusLabel(c)}</span>
-          ${ended?`<button class="link" onclick="delChat('${c.id}')">삭제</button>`:''}
-        </div>
+        <span class="meta" style="flex:0 0 auto;margin-left:12px;white-space:nowrap">${statusLabel(c)}</span>
       </div>`;
     });
   }
@@ -407,6 +405,7 @@ function delChat(id){
     chats=chats.filter(x=>x.id!==id); save(); renderList(); toast('대화를 삭제했어요');
   }
 }
+function ctxDelete(e,id){ e.preventDefault(); delChat(id); }
 function clearEnded(){
   const n=chats.filter(c=>phaseOf(c)==='ended').length; if(!n)return;
   if(confirm('종료된 대화 '+n+'개를 모두 삭제할까요?\n대화 내용이 사라져요.')){
@@ -688,10 +687,20 @@ function sendMsg(){
 
 /* ---------- 관리 시트 ---------- */
 function openMenu(){
+  const ended=phaseOf(cur)==='ended';
   document.getElementById('sheetName').textContent=cur.nick;
   document.getElementById('sheetSub').textContent=timerText(cur);
   document.getElementById('optFriend').style.display=(phaseOf(cur)==='active'&&!cur.friendReq&&(cur.ext||0)>=3)?'block':'none';
+  document.getElementById('optLeave').style.display=ended?'none':'block';
+  document.getElementById('optBlock').style.display=ended?'none':'block';
+  document.getElementById('optDelete').style.display=ended?'block':'none';
   document.getElementById('sheet').classList.add('on');
+}
+function delCurChat(){
+  closeMenu();
+  if(confirm('이 대화를 삭제할까요?\n대화 내용이 사라져요.')){
+    const id=cur.id; chats=chats.filter(x=>x.id!==id); save(); clearInterval(ticker); cur=null; tab('list'); go('s-main');
+  }
 }
 function closeMenu(){document.getElementById('sheet').classList.remove('on')}
 /* 친구 추가 — 양쪽 모두 동의해야 성립 (신청 → 상대 수락) */
