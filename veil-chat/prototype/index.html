@@ -375,7 +375,7 @@ function doMatch(){
   let nick=randomNickStr(),t=0;while((blocks.includes(nick)||inCooldown(nick))&&t++<20)nick=randomNickStr();
   const shared=profile.interests[Math.floor(Math.random()*profile.interests.length)]||INTERESTS[0];
   const chat={id:uid(),nick,interest:shared,exp:Date.now()+DAY,friend:false,ended:false,ts:Date.now(),
-    msgs:[{s:'sys',t:`매칭됐어요 · 관심사 ‘${shared}’가 통해요`},
+    msgs:[{s:'sys',t:`매칭됐어요 · 관심사 ‘${shared}’${iga(shared)} 통해요`},
           {s:'them',t:GREET[Math.floor(Math.random()*GREET.length)]}]};
   chats.unshift(chat);save();openChat(chat)
 }
@@ -737,6 +737,8 @@ function endChat(reason){
 
 /* ---------- 유틸 ---------- */
 function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}
+/* 받침 유무에 따라 주격조사 이/가 선택 (음악→이, 영화→가) */
+function iga(w){ if(!w)return '가'; const c=String(w).charCodeAt(String(w).length-1); if(c<0xAC00||c>0xD7A3)return '가'; return ((c-0xAC00)%28)?'이':'가'; }
 
 /* ---------- 부팅 ---------- */
 (function boot(){
