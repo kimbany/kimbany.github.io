@@ -379,12 +379,10 @@ function doMatch(){
 /* ---------- 대화 목록 ---------- */
 function renderList(){
   const el=document.getElementById('pg-list');
-  const endedN=chats.filter(c=>phaseOf(c)==='ended').length;
   let h=`<div class="top"><div class="t">대화</div></div><div class="grow pad" style="padding-top:0">`;
   if(chats.length===0){
     h+=`<div class="center" style="min-height:60vh"><p class="dim body">아직 대화가 없어요.<br>매칭을 시작해보세요.</p></div>`;
   }else{
-    if(endedN>=2) h+=`<div style="text-align:right;padding:10px 0 0"><button class="link" onclick="clearEnded()">종료된 대화 ${endedN}개 모두 삭제</button></div>`;
     chats.forEach((c)=>{
       const last=[...c.msgs].reverse().find(m=>m.s!=='sys');
       const ended=phaseOf(c)==='ended';
