@@ -258,6 +258,20 @@
     </div>
   </section>
 
+  <!-- 신고하기 -->
+  <section id="s-report" class="screen">
+    <div class="top"><button class="back" onclick="closeReport()">‹</button><div class="t">신고하기</div></div>
+    <div class="grow pad" style="padding-top:0">
+      <p class="dim small" style="margin-top:var(--s3)">협박·성희롱·사기 등 <b style="color:var(--ink)">심각한 위반</b>만 신고해주세요. 단순히 대화가 안 맞으면 ‘대화 나가기’를 이용해주세요.</p>
+      <div class="mlabel" style="margin-top:var(--s5)">신고 사유</div>
+      <div id="reportReasons" class="wrap" style="margin-top:var(--s2)"></div>
+      <div class="mlabel" style="margin-top:var(--s5)">추가 설명 (선택)</div>
+      <textarea id="reportNote" class="field" rows="3" maxlength="500" placeholder="상황을 간단히 적어주세요" style="resize:none"></textarea>
+      <p class="dim small" style="margin-top:var(--s4)">신고하면 상대는 <b style="color:var(--ink)">자동 차단</b>돼요. 한 건의 신고로 즉시 제재되지 않고, 반복적인 패턴이 확인될 때만 조치됩니다. 허위 신고는 신고자에게 불이익이 될 수 있어요.</p>
+    </div>
+    <div class="pad"><button class="cta danger" id="reportSubmit" disabled onclick="submitReport()">신고하고 차단하기</button></div>
+  </section>
+
   <!-- 관리 시트 -->
   <div id="sheet" class="ovl" onclick="if(event.target===this)closeMenu()">
     <div class="sheet">
@@ -267,6 +281,7 @@
         <button class="opt" id="optFriend" onclick="befriend()">친구 추가 <span class="dim">· 시간제한 없이 대화</span></button>
         <button class="opt danger" id="optLeave" onclick="leaveChat()">대화 나가기</button>
         <button class="opt danger" id="optBlock" onclick="blockAndLeave()">차단하고 나가기 <span class="dim">· 다시 매칭 안 됨</span></button>
+        <button class="opt danger" id="optReport" onclick="closeMenu();openReport()">신고하기 <span class="dim">· 심각한 위반</span></button>
         <button class="opt danger" id="optDelete" onclick="delCurChat()">대화 삭제 <span class="dim">· 목록에서 제거</span></button>
       </div>
       <button class="cta sub" style="margin-top:var(--s2)" onclick="closeMenu()">닫기</button>
@@ -278,7 +293,8 @@
 
 <script>
 /* ---------- 상태 ---------- */
-const KEY_P='veil2_profile', KEY_C='veil2_chats', KEY_B='veil2_blocks', KEY_R='veil2_recent';
+const KEY_P='veil2_profile', KEY_C='veil2_chats', KEY_B='veil2_blocks', KEY_R='veil2_recent', KEY_RP='veil2_reports';
+const REPORT_REASONS=['성희롱·성적 발언','협박·위협','사기·금전 요구','개인정보 요구','미성년자 대상 부적절','불법 행위','기타'];
 const RECOOL=7*24*60*60*1000;   // 종료 후 재매칭 쿨다운 (7일)
 const DAY=24*60*60*1000, GRACE=12*60*60*1000, HALF=12*60*60*1000;   // HALF: 남은 12시간 시점에 두번째 주제
 /* 관심사: 그룹(포괄) → 세부 태그. 온보딩/프로필은 세부 태그를 고름(최소 3 · 최대 8) */
@@ -354,6 +370,8 @@ let profile=load(KEY_P);            // {nick, interests[], noti:{msg,preview}}
 let chats=load(KEY_C)||[];          // [{id,nick,interest,msgs,exp,friend,ended,ts}]
 let blocks=load(KEY_B)||[];         // [nick]
 let recent=load(KEY_R)||{};         // {nick: 재매칭 가능해지는 시각} — 종료 후 쿨다운
+let reports=load(KEY_RP)||[];       // [{nick,reason,note,ts}] — 신고 기록(패턴 분석용)
+let reportReason='';
 let draftInterests=new Set(), draftMbti='', draftType='', editDraft=null, pinCtx=null;
 let cur=null;                       // 현재 열린 chat
 let ticker=null, matchTimer=null;
@@ -361,7 +379,7 @@ if(profile&&!profile.noti)profile.noti={msg:true,preview:true};
 if(profile&&profile.penalty==null)profile.penalty=0;
 
 function load(k){try{return JSON.parse(localStorage.getItem(k))}catch(e){return null}}
-function save(){try{localStorage.setItem(KEY_P,JSON.stringify(profile));localStorage.setItem(KEY_C,JSON.stringify(chats));localStorage.setItem(KEY_B,JSON.stringify(blocks));localStorage.setItem(KEY_R,JSON.stringify(recent))}catch(e){}}
+function save(){try{localStorage.setItem(KEY_P,JSON.stringify(profile));localStorage.setItem(KEY_C,JSON.stringify(chats));localStorage.setItem(KEY_B,JSON.stringify(blocks));localStorage.setItem(KEY_R,JSON.stringify(recent));localStorage.setItem(KEY_RP,JSON.stringify(reports))}catch(e){}}
 function inCooldown(nick){ return recent[nick] && recent[nick]>Date.now(); }
 function uid(){return 'c'+(chats.reduce((m,c)=>Math.max(m,+c.id.slice(1)||0),0)+1)}
 
@@ -786,6 +804,7 @@ function openMenu(){
   document.getElementById('optFriend').style.display=(phaseOf(cur)==='active'&&!cur.friendReq&&(cur.ext||0)>=3)?'block':'none';
   document.getElementById('optLeave').style.display=ended?'none':'block';
   document.getElementById('optBlock').style.display=ended?'none':'block';
+  document.getElementById('optReport').style.display=ended?'none':'block';
   document.getElementById('optDelete').style.display=ended?'block':'none';
   document.getElementById('sheet').classList.add('on');
 }
@@ -817,9 +836,29 @@ function friendDecision(id){
 }
 function leaveChat(){closeMenu();if(confirm('그냥 나가면 패널티 1점이 부여돼요.\n패널티가 3점이 되면 24시간 동안 매칭할 수 없어요.\n나가시겠어요?')){addPenalty();endChat('leave');tab('list');go('s-main')}}
 function blockAndLeave(){closeMenu();if(confirm(cur.nick+'님을 차단할까요? 다시 매칭되지 않아요.')){if(!blocks.includes(cur.nick))blocks.push(cur.nick);endChat('leave');tab('list');go('s-main');toast('차단했어요')}}
+/* ---------- 신고 ---------- */
+function openReport(){
+  reportReason='';document.getElementById('reportNote').value='';
+  document.getElementById('reportSubmit').disabled=true;
+  buildReportReasons();go('s-report');
+}
+function buildReportReasons(){
+  const w=document.getElementById('reportReasons');w.innerHTML='';
+  REPORT_REASONS.forEach(x=>{const b=document.createElement('button');b.className='pick'+(reportReason===x?' on':'');b.textContent=x;
+    b.onclick=()=>{reportReason=x;buildReportReasons();document.getElementById('reportSubmit').disabled=false};w.appendChild(b)});
+}
+function closeReport(){ go('s-chat'); }
+function submitReport(){
+  if(!reportReason||!cur)return;
+  const note=(document.getElementById('reportNote').value||'').trim();
+  reports.push({nick:cur.nick,reason:reportReason,note,ts:Date.now()});   // 서버 패턴 분석용 기록(단건 즉시 제재 없음)
+  if(cur.nick&&!blocks.includes(cur.nick))blocks.push(cur.nick);
+  endChat('report');
+  tab('list');go('s-main');toast('신고가 접수됐어요 · 상대를 차단했어요');
+}
 function endChat(reason){
   cur.ended=true;cur.friend=false;
-  const M={grace:'시간 내에 연장하지 않아 대화가 종료됐어요',declineSelf:'연장하지 않아 대화가 종료됐어요',leave:'대화를 나갔어요'};
+  const M={grace:'시간 내에 연장하지 않아 대화가 종료됐어요',declineSelf:'연장하지 않아 대화가 종료됐어요',leave:'대화를 나갔어요',report:'신고 후 대화를 종료하고 상대를 차단했어요'};
   cur.msgs.push({s:'sys',t:M[reason]||'대화가 종료됐어요'});
   if(cur.nick)recent[cur.nick]=Date.now()+RECOOL;   // 종료 후 쿨다운 (차단 아니어도 당분간 재매칭 제외)
   save();clearInterval(ticker);
