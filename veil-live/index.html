@@ -1,0 +1,218 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<title>Veil LIVE — 실제 익명 매칭</title>
+<style>
+  :root{ --bg:#FAF8F2; --ink:#26251F; --dim:#9C968A; --line:#E8E3D6; --danger:#BF4A31; --good:#2f7d33; }
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+  html,body{height:100%}
+  body{font-family:-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Noto Sans KR",sans-serif;background:#EEE9DD;color:var(--ink);display:flex;align-items:center;justify-content:center;-webkit-font-smoothing:antialiased}
+  #app{position:relative;width:100%;max-width:430px;height:100dvh;max-height:920px;background:var(--bg);overflow:hidden;display:flex;flex-direction:column;box-shadow:0 24px 70px rgba(0,0,0,.5)}
+  button{font-family:inherit;color:inherit;background:none;border:0;cursor:pointer}
+  input{font-family:inherit;font-size:16px;color:inherit}
+  ::placeholder{color:var(--dim)}
+  #banner{padding:9px 12px;font-size:12px;font-weight:700;text-align:center;white-space:pre-line;background:#efeada;color:var(--dim)}
+  #banner.ok{background:#e6f4e6;color:var(--good)} #banner.bad{background:#fbe4df;color:var(--danger)}
+  .wrap{flex:1;display:flex;flex-direction:column;padding:24px;overflow-y:auto}
+  .center{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center}
+  h1{font-size:34px;font-weight:800;letter-spacing:.04em}
+  .tag{color:var(--dim);font-size:14px;line-height:1.6;margin-top:10px}
+  .dim{color:var(--dim)} .small{font-size:13px}
+  .field{width:100%;padding:12px 2px;background:none;border:0;border-bottom:1.5px solid var(--line);font-size:20px;text-align:center}
+  .field:focus{outline:0;border-bottom-color:var(--ink)}
+  .cta{display:block;width:100%;text-align:center;font-size:19px;font-weight:700;padding:16px 0;color:var(--ink)}
+  .cta:disabled{color:var(--dim);opacity:.5}
+  .cta.sub{font-weight:500;color:var(--dim);font-size:16px}
+  .pulse{width:12px;height:12px;border-radius:50%;background:var(--ink);animation:pulse 1s infinite ease-in-out}
+  @keyframes pulse{0%,100%{transform:scale(.6);opacity:.3}50%{transform:scale(1);opacity:1}}
+  .top{display:flex;align-items:center;gap:12px;padding:14px 18px;border-bottom:1px solid var(--line)}
+  .top .back{font-size:24px;line-height:1}
+  .top .t{font-size:17px;font-weight:700}
+  .top .st{margin-left:auto;font-size:12px;color:var(--good)}
+  .msgs{flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:8px;padding:16px 18px}
+  .msg{max-width:78%;padding:10px 14px;border-radius:16px;font-size:16px;line-height:1.45;word-break:break-word}
+  .msg.them{align-self:flex-start;border:1px solid var(--line);border-bottom-left-radius:5px}
+  .msg.me{align-self:flex-end;background:var(--ink);color:var(--bg);border-bottom-right-radius:5px}
+  .msg.sys{align-self:center;max-width:92%;text-align:center;color:var(--dim);font-size:13px;padding:4px}
+  .composer{display:flex;align-items:center;gap:10px;padding:10px 16px calc(10px + env(safe-area-inset-bottom));border-top:1px solid var(--line)}
+  .composer input{flex:1;padding:10px 2px;background:none;border:0;border-bottom:1.5px solid var(--line)}
+  .composer input:focus{outline:0;border-bottom-color:var(--ink)}
+  .composer .send{font-size:16px;font-weight:700;white-space:nowrap}
+  .composer .send:disabled{color:var(--dim)}
+  .hidden{display:none!important}
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="banner">연결 중…</div>
+
+  <!-- 매칭 전/대기 (하나의 화면, 상태만 바뀜) -->
+  <div id="lobby" class="wrap">
+    <div class="center">
+      <div id="idleView">
+        <h1>Veil <span style="color:var(--good);font-size:15px;font-weight:700">LIVE</span></h1>
+        <p class="tag">실제 사람과 익명으로 매칭·대화해요.<br><b style="color:var(--ink)">두 사람이 각자 열고 매칭 시작</b>을 누르면 연결됩니다.</p>
+        <input id="nick" class="field" style="margin-top:36px" maxlength="16" placeholder="닉네임" oninput="onNick()">
+        <p class="small dim" style="margin-top:20px">현재 접속 <b id="cntIdle" style="color:var(--ink)">0</b>명 대기 중</p>
+      </div>
+      <div id="waitView" class="hidden">
+        <div class="pulse" style="margin:0 auto"></div>
+        <h1 style="font-size:22px;margin-top:24px">상대를 찾는 중…</h1>
+        <p class="tag">대기 중인 다른 사람과 연결되면 바로 시작돼요.</p>
+        <p class="small dim" style="margin-top:16px">현재 대기 <b id="cntWait" style="color:var(--ink)">0</b>명</p>
+      </div>
+    </div>
+    <button id="matchBtn" class="cta" disabled onclick="onMatch()">매칭 시작</button>
+    <button id="cancelBtn" class="cta sub hidden" onclick="cancelMatch()">취소</button>
+  </div>
+
+  <!-- 채팅 -->
+  <div id="chat" class="wrap hidden" style="padding:0">
+    <div class="top">
+      <button class="back" onclick="leaveChat()">‹</button>
+      <div class="t" id="peerName">상대</div>
+      <div class="st" id="peerSt">● 실시간</div>
+    </div>
+    <div class="msgs" id="msgs"></div>
+    <div class="composer">
+      <input id="msgInput" placeholder="메시지 입력" autocomplete="off" onkeydown="onKey(event)" oninput="onType()">
+      <button class="send" id="sendBtn" disabled onclick="send()">전송</button>
+    </div>
+  </div>
+</div>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+<script>
+const firebaseConfig={
+  apiKey:"AIzaSyD8ZzWrBImCmuNGaJmSIAGbnOzKH9HkK5w",
+  authDomain:"veil-chat-aad21.firebaseapp.com",
+  databaseURL:"https://veil-chat-aad21-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId:"veil-chat-aad21",
+  storageBucket:"veil-chat-aad21.firebasestorage.app",
+  messagingSenderId:"761584144328",
+  appId:"1:761584144328:web:0c7561589f812ad845bafd"
+};
+const ROOT='veil_live';
+let db=null, auth=null, TS=null, ready=false;
+// 같은 브라우저의 두 탭도 서로 매칭되도록: 인증 uid가 아니라 '탭마다 고유 ID'를 신원으로 사용
+let mid=sessionStorage.getItem('veil_cid'); if(!mid){ mid='c'+Math.random().toString(36).slice(2,10)+Date.now().toString(36); sessionStorage.setItem('veil_cid',mid); }
+let state='idle';           // idle | waiting | chatting
+let nick='', curSid=null, partnerUid=null, matched=false;
+
+function $(id){return document.getElementById(id)}
+function banner(t,kind){const e=$('banner');e.textContent=(kind==='ok'?'✅ ':kind==='bad'?'❌ ':'')+t;e.className=kind||''}
+
+function setState(s){
+  state=s;
+  $('lobby').classList.toggle('hidden', s==='chatting');
+  $('chat').classList.toggle('hidden', s!=='chatting');
+  $('idleView').classList.toggle('hidden', s!=='idle');
+  $('waitView').classList.toggle('hidden', s!=='waiting');
+  $('matchBtn').classList.toggle('hidden', s!=='idle');
+  $('cancelBtn').classList.toggle('hidden', s!=='waiting');
+}
+
+function onNick(){ $('matchBtn').disabled = !$('nick').value.trim() || !ready; }
+
+/* ---------- Firebase ---------- */
+(function init(){
+  if(typeof firebase==='undefined'){ banner('네트워크 오류 · 새로고침 해주세요','bad'); return; }
+  firebase.initializeApp(firebaseConfig);
+  auth=firebase.auth(); db=firebase.database(); TS=firebase.database.ServerValue.TIMESTAMP;
+  auth.signInAnonymously().catch(e=>banner('로그인 실패('+e.code+') · Firebase에서 익명 로그인을 켜주세요','bad'));
+  auth.onAuthStateChanged(u=>{
+    if(!u||ready) return;
+    ready=true;
+    const saved=localStorage.getItem('veil_live_nick'); if(saved)$('nick').value=saved;
+    onNick();
+    setState('idle');                         // 언제나 로비(대기 전)에서 시작
+    // 서버 자가진단 + 접속 인원
+    db.ref(ROOT+'/queue').once('value')
+      .then(()=>banner('서버 연결 정상 · 매칭 가능','ok'))
+      .catch(e=>banner('서버 권한 오류('+e.code+') · DB 규칙(veil_live) 게시 필요','bad'));
+    db.ref(ROOT+'/queue').on('value',
+      s=>{ const n=s.numChildren(); $('cntIdle').textContent=n; $('cntWait').textContent=n; },
+      e=>banner('서버 권한 오류('+e.code+') · DB 규칙(veil_live) 게시 필요','bad'));
+  });
+})();
+
+/* ---------- 매칭 ---------- */
+function onMatch(){
+  if(!mid) return;
+  nick=$('nick').value.trim()||'익명';
+  localStorage.setItem('veil_live_nick',nick);
+  matched=false;
+  setState('waiting');
+  const q=db.ref(ROOT+'/queue/'+mid);
+  q.set({uid:mid, nick:nick, ts:TS}).catch(e=>banner('대기열 등록 실패('+e.code+') · 규칙 게시 필요','bad'));
+  q.onDisconnect().remove();
+  db.ref(ROOT+'/queue/'+mid+'/session').on('value', s=>{ const v=s.val(); if(v&&v.sid&&!matched) startSession(v.sid, v.by); });
+  db.ref(ROOT+'/queue').on('value', tryMatch);
+  tryMatch();
+}
+function tryMatch(){
+  if(matched) return;
+  db.ref(ROOT+'/queue').once('value').then(snap=>{
+    if(matched) return;
+    const cands=[];
+    snap.forEach(c=>{ const v=c.val(); if(v&&v.uid&&v.uid!==mid&&!v.session&&v.uid<mid) cands.push(v); });
+    if(!cands.length) return;
+    cands.sort((a,b)=>(a.ts||0)-(b.ts||0));
+    const cand=cands[0];
+    const sid=db.ref(ROOT+'/sessions').push().key;
+    db.ref(ROOT+'/queue/'+cand.uid+'/session').transaction(cur=> cur===null ? {sid:sid, by:mid} : undefined)
+      .then(res=>{
+        if(matched) return;
+        const val=res.snapshot.val();
+        if(res.committed && val && val.sid===sid && val.by===mid){
+          db.ref(ROOT+'/sessions/'+sid).set({
+            members:{[mid]:true,[cand.uid]:true},
+            profiles:{[mid]:{nick:nick},[cand.uid]:{nick:cand.nick}},
+            createdAt:TS
+          }).then(()=>{ db.ref(ROOT+'/queue/'+mid+'/session').set({sid:sid, by:cand.uid}); startSession(sid, cand.uid); });
+        }
+      }).catch(()=>{});
+  });
+}
+function detachQueue(){
+  if(!db||!mid) return;
+  db.ref(ROOT+'/queue').off('value', tryMatch);
+  db.ref(ROOT+'/queue/'+mid+'/session').off();
+  db.ref(ROOT+'/queue/'+mid).onDisconnect().cancel();
+  db.ref(ROOT+'/queue/'+mid).remove();
+}
+function cancelMatch(){ detachQueue(); matched=false; setState('idle'); }
+
+/* ---------- 세션/채팅 ---------- */
+function startSession(sid, puid){
+  if(matched) return; matched=true; curSid=sid; partnerUid=puid;
+  detachQueue();
+  $('msgs').innerHTML=''; $('peerSt').textContent='● 실시간';
+  db.ref(ROOT+'/sessions/'+sid+'/profiles/'+puid).on('value', s=>{ const v=s.val(); if(v)$('peerName').textContent=v.nick||'상대'; });
+  db.ref(ROOT+'/sessions/'+sid+'/messages').on('child_added', s=>addMsg(s.val()));
+  db.ref(ROOT+'/sessions/'+sid+'/left').on('value', s=>{ const v=s.val()||{}; if(v[puid]){ $('peerSt').textContent='상대 나감'; addSys('상대가 대화를 나갔어요.'); } });
+  addSys('매칭됐어요 · 실시간으로 대화해보세요.');
+  setState('chatting');
+  $('msgInput').value=''; onType();
+}
+function addMsg(m){ if(!m)return; const c=$('msgs'); const d=document.createElement('div'); d.className='msg '+(m.from===mid?'me':'them'); d.textContent=m.text; c.appendChild(d); c.scrollTop=c.scrollHeight; }
+function addSys(t){ const c=$('msgs'); const d=document.createElement('div'); d.className='msg sys'; d.textContent=t; c.appendChild(d); c.scrollTop=c.scrollHeight; }
+function onKey(e){ if(e.key==='Enter'&&!e.isComposing&&e.keyCode!==229){ e.preventDefault(); send(); } }
+function onType(){ $('sendBtn').disabled=!$('msgInput').value.trim(); }
+function send(){
+  const i=$('msgInput'); const t=(i.value||'').trim(); if(!t||!curSid) return;
+  db.ref(ROOT+'/sessions/'+curSid+'/messages').push({from:mid, text:t, ts:TS});
+  i.value=''; onType();
+}
+function leaveChat(){
+  if(curSid&&mid){ db.ref(ROOT+'/sessions/'+curSid+'/left/'+mid).set(true); db.ref(ROOT+'/sessions/'+curSid+'/messages').off(); }
+  curSid=null; partnerUid=null; matched=false;
+  setState('idle');
+}
+</script>
+</body>
+</html>

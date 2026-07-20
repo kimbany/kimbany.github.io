@@ -3,547 +3,748 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
-<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-<meta http-equiv="Pragma" content="no-cache">
-<meta http-equiv="Expires" content="0">
-<title>Veil — 익명 친구 매칭 (프로토타입)</title>
+<title>Veil</title>
 <style>
   :root{
-    --bg:#0f1020; --surface:#1a1c2e; --surface2:#23263c; --text:#eceeffe; --text:#ecedf5;
-    --dim:#9aa0bd; --border:#2c2f48; --accent:#7c6cff; --accent2:#b06cff;
-    --good:#36d399; --warn:#fbbd23; --bad:#ff5c6c; --me:#7c6cff; --you:#23263c;
-    --grad:linear-gradient(135deg,#7c6cff,#b06cff);
+    --bg:#FAF8F2; --ink:#26251F; --dim:#9C968A; --line:#E8E3D6; --danger:#BF4A31;
+    --s1:4px; --s2:8px; --s3:12px; --s4:16px; --s5:24px; --s6:32px; --s7:48px; --s8:64px;
   }
-  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-  html,body{height:100%;margin:0}
-  body{font-family:-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Malgun Gothic","Noto Sans KR",sans-serif;
-    background:#06070f;color:var(--text);display:flex;align-items:center;justify-content:center}
-  #app{position:relative;width:100%;max-width:440px;height:100dvh;max-height:920px;background:var(--bg);
-    overflow:hidden;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,.6)}
-  button{font-family:inherit;cursor:pointer;border:none;color:inherit}
-  input,textarea{font-family:inherit;font-size:16px}
-  .screen{position:absolute;inset:0;flex-direction:column;background:var(--bg);animation:fade .25s}
-  .screen:not(.active){display:none!important}
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;margin:0;padding:0}
+  html,body{height:100%}
+  body{font-family:-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Noto Sans KR",sans-serif;
+    background:#EEE9DD;color:var(--ink);display:flex;align-items:center;justify-content:center;
+    -webkit-font-smoothing:antialiased}
+  #app{position:relative;width:100%;max-width:430px;height:100dvh;max-height:920px;background:var(--bg);
+    overflow:hidden;display:flex;flex-direction:column;box-shadow:0 24px 70px rgba(0,0,0,.5)}
+  button{font-family:inherit;color:inherit;background:none;border:0;cursor:pointer}
+  input,textarea{font-family:inherit;font-size:16px;color:inherit}
+  ::placeholder{color:var(--dim)}
+  #app{user-select:none;-webkit-user-select:none}
+  input,textarea{user-select:text;-webkit-user-select:text}
+
+  .screen{position:absolute;inset:0;display:none;flex-direction:column;background:var(--bg);animation:fade .28s ease}
   .screen.active{display:flex}
-  @keyframes fade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
-  .pad{padding:20px}
+  @keyframes fade{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+  @keyframes rise{from{transform:translateY(100%)}to{transform:none}}
+
+  .pad{padding:var(--s5)}
   .grow{flex:1;overflow-y:auto}
-  .center{display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center}
-  h1{font-size:26px;margin:0 0 6px} h2{font-size:20px;margin:0 0 4px}
-  .dim{color:var(--dim);font-size:14px;line-height:1.55}
-  .btn{display:block;width:100%;padding:15px;border-radius:14px;background:var(--grad);color:#fff;
-    font-weight:700;font-size:16px;text-align:center;margin-top:10px}
-  .btn.sec{background:var(--surface2);color:var(--text)}
-  .btn.ghost{background:transparent;border:1px solid var(--border);color:var(--dim)}
-  .btn.bad{background:var(--bad)}
-  .btn:disabled{opacity:.4}
-  .topbar{display:flex;align-items:center;gap:10px;padding:14px 16px;padding-top:max(14px,env(safe-area-inset-top));
-    background:var(--surface);border-bottom:1px solid var(--border)}
-  .topbar .ttl{font-weight:700;font-size:17px}
-  .iconbtn{width:34px;height:34px;border-radius:10px;background:var(--surface2);display:flex;align-items:center;justify-content:center;font-size:16px}
-  .logo{width:84px;height:84px;border-radius:26px;background:var(--grad);display:flex;align-items:center;justify-content:center;
-    font-size:42px;margin-bottom:18px;box-shadow:0 10px 30px rgba(124,108,255,.45)}
-  .chip{display:inline-flex;align-items:center;padding:9px 14px;border-radius:999px;background:var(--surface2);
-    border:1px solid var(--border);font-size:14px;margin:5px 5px 0 0;user-select:none}
-  .chip.on{background:var(--grad);border-color:transparent;color:#fff;font-weight:600}
-  .field{width:100%;padding:14px;border-radius:12px;background:var(--surface);border:1px solid var(--border);color:var(--text);margin-top:8px}
-  .label{font-size:13px;color:var(--dim);margin:16px 0 2px;font-weight:600}
-  .card{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:16px;margin-top:12px}
-  .row{display:flex;align-items:center;gap:12px}
-  .av{width:46px;height:46px;border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:24px;flex:0 0 auto}
-  .badge{font-size:11px;padding:3px 8px;border-radius:999px;background:var(--surface2);color:var(--dim)}
-  .badge.live{background:rgba(54,211,153,.15);color:var(--good)}
-  .badge.warn{background:rgba(251,189,35,.15);color:var(--warn)}
-  /* tabs */
-  .tabbar{display:flex;background:var(--surface);border-top:1px solid var(--border);padding-bottom:env(safe-area-inset-bottom)}
-  .tab{flex:1;padding:11px 0;text-align:center;color:var(--dim);font-size:11px}
-  .tab .ic{font-size:20px;display:block;margin-bottom:2px;filter:grayscale(1);opacity:.7}
-  .tab.on{color:var(--accent)} .tab.on .ic{filter:none;opacity:1}
-  /* matching */
-  .pulse{width:160px;height:160px;border-radius:50%;background:var(--grad);display:flex;align-items:center;justify-content:center;
-    font-size:60px;font-weight:800;color:#fff;box-shadow:0 0 0 0 rgba(124,108,255,.5);animation:pulse 1s infinite}
-  @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(124,108,255,.5)}100%{box-shadow:0 0 0 40px rgba(124,108,255,0)}}
-  .seg{display:flex;background:var(--surface2);border-radius:12px;padding:4px;margin:14px 0}
-  .seg div{flex:1;text-align:center;padding:9px;border-radius:9px;font-size:14px;color:var(--dim)}
-  .seg div.on{background:var(--accent);color:#fff;font-weight:600}
-  /* chat */
-  .msgs{flex:1;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:8px}
-  .b{max-width:75%;padding:10px 13px;border-radius:16px;font-size:15px;line-height:1.4;word-break:break-word}
-  .b.me{align-self:flex-end;background:var(--me);color:#fff;border-bottom-right-radius:5px}
-  .b.you{align-self:flex-start;background:var(--you);border-bottom-left-radius:5px}
-  .b.sys{align-self:center;background:transparent;color:var(--dim);font-size:12px;text-align:center;max-width:90%}
-  .composer{display:flex;gap:8px;padding:10px;border-top:1px solid var(--border);background:var(--surface)}
-  .composer input{flex:1;padding:12px;border-radius:22px;background:var(--bg);border:1px solid var(--border);color:var(--text)}
-  .send{width:44px;height:44px;border-radius:50%;background:var(--grad);font-size:18px;color:#fff;flex:0 0 auto}
-  .timerbar{display:flex;align-items:center;justify-content:center;gap:6px;padding:7px;background:rgba(124,108,255,.12);
-    color:var(--accent);font-size:13px;font-weight:600}
-  .timerbar.warn{background:rgba(251,189,35,.14);color:var(--warn)}
-  /* modal */
-  .ovl{position:absolute;inset:0;background:rgba(0,0,0,.6);display:none;align-items:flex-end;z-index:50}
+  .col{display:flex;flex-direction:column}
+  .center{display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;flex:1}
+  .dim{color:var(--dim)}
+  .sp{flex:1}
+
+  /* 타이포 */
+  .wordmark{font-size:38px;font-weight:800;letter-spacing:.06em}
+  .h-hero{font-size:26px;font-weight:800;line-height:1.35}
+  .h-page{font-size:24px;font-weight:800}
+  .h-q{font-size:20px;font-weight:700}
+  .body{font-size:16px;line-height:1.6}
+  .small{font-size:14px}
+  .tiny{font-size:12px}
+
+  /* 버튼 = 글씨만 */
+  .cta{display:block;width:100%;text-align:center;font-size:19px;font-weight:700;padding:16px 0;color:var(--ink)}
+  .cta:disabled{color:var(--dim);opacity:.5}
+  .cta.sub{font-weight:500;color:var(--dim);font-size:16px}
+  .cta.danger{color:var(--danger)}
+  .link{color:var(--dim);font-size:15px;font-weight:500}
+
+  /* 선택형 텍스트(관심사·옵션): 선택 시 밑줄 */
+  .pick{color:var(--dim);font-size:17px;font-weight:500;padding:6px 0;background:none}
+  .pick.on{color:var(--ink);font-weight:700;text-decoration:underline;text-underline-offset:5px;text-decoration-thickness:2px}
+  .wrap{display:flex;flex-wrap:wrap;gap:var(--s2) var(--s5)}
+
+  /* 입력 = 밑줄 필드 */
+  .field{width:100%;padding:12px 2px;background:none;border:0;border-bottom:1.5px solid var(--line);font-size:20px}
+  .field:focus{outline:0;border-bottom-color:var(--ink)}
+  .note{margin-top:var(--s2);font-size:13px}
+
+  /* 상단바 */
+  .top{display:flex;align-items:center;gap:var(--s3);padding:var(--s4) var(--s5);padding-top:max(var(--s4),env(safe-area-inset-top))}
+  .top .back{font-size:26px;line-height:1;color:var(--ink);margin-left:-4px}
+  .top .t{font-size:18px;font-weight:700}
+  .top .act{font-size:15px;color:var(--dim);font-weight:600}
+
+  /* 하단 내비 = 글씨 */
+  .nav{display:flex;justify-content:center;padding:var(--s4) 0 calc(var(--s4) + env(safe-area-inset-bottom))}
+  .navrow{display:flex;align-items:center;justify-content:space-between;width:240px;max-width:calc(100% - 48px)}
+  .nav a{color:var(--dim);font-size:17px;font-weight:500}
+  .nav a.on{color:var(--ink);font-weight:700;text-decoration:underline;text-underline-offset:6px;text-decoration-thickness:2px}
+  .nav .dot{color:var(--dim)}
+  .page{flex:1;overflow-y:auto;display:none;flex-direction:column}
+  .page.on{display:flex}
+
+  /* 목록 행 */
+  .row{display:flex;align-items:center;gap:var(--s3);padding:var(--s4) 0;border-top:1px solid var(--line);text-align:left;width:100%}
+  .row:last-child{border-bottom:1px solid var(--line)}
+  .row .nm{font-size:17px;font-weight:700}
+  .row .meta{font-size:13px;color:var(--dim);margin-top:2px}
+
+  /* 설정 메뉴 행 */
+  .mrow{display:flex;align-items:center;width:100%;text-align:left;padding:18px 0;border-top:1px solid var(--line);font-size:17px;color:var(--ink)}
+  .mrow:last-of-type{border-bottom:1px solid var(--line)}
+  .mrow .arr{margin-left:auto;color:var(--dim);font-size:18px}
+  .mrow.danger{color:var(--danger)}
+  .mgroup{margin-top:var(--s6)}
+  .mlabel{font-size:13px;color:var(--dim);font-weight:600;margin-bottom:2px}
+
+  /* 채팅 */
+  .timer{text-align:center;padding:10px;font-size:13px;color:var(--dim);border-bottom:1px solid var(--line)}
+  .msgs{flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:var(--s2);padding:var(--s4) var(--s5)}
+  .msg{max-width:78%;padding:10px 14px;border-radius:16px;font-size:16px;line-height:1.45;word-break:break-word}
+  .msg.them{align-self:flex-start;border:1px solid var(--line);border-bottom-left-radius:5px}
+  .msg.me{align-self:flex-end;background:var(--ink);color:var(--bg);border-bottom-right-radius:5px}
+  .msg.sys{align-self:center;max-width:92%;text-align:center;color:var(--dim);font-size:13px;padding:4px}
+  .composer{display:flex;align-items:center;gap:var(--s3);padding:var(--s3) var(--s5) calc(var(--s3) + env(safe-area-inset-bottom));border-top:1px solid var(--line)}
+  .composer input{flex:1;padding:10px 2px;background:none;border:0;border-bottom:1.5px solid var(--line)}
+  .composer input:focus{outline:0;border-bottom-color:var(--ink)}
+  .composer .send{font-size:16px;font-weight:700;color:var(--ink);white-space:nowrap}
+  .composer .send:disabled{color:var(--dim)}
+  .decide{padding:var(--s4) var(--s5) calc(var(--s4) + env(safe-area-inset-bottom));border-top:1px solid var(--line);text-align:center}
+  .decide .dtxt{font-size:14px;margin-bottom:var(--s3)}
+  .decide .drow{display:flex;justify-content:center;gap:var(--s7)}
+  .decide .dbtn{font-size:18px;font-weight:700;padding:4px 0}
+  .decide .dbtn.no{color:var(--dim);font-weight:500}
+
+  /* 시트 */
+  .ovl{position:absolute;inset:0;background:rgba(20,18,12,.5);display:none;align-items:flex-end;z-index:40}
   .ovl.on{display:flex;animation:fade .2s}
-  .sheet{width:100%;background:var(--surface);border-radius:22px 22px 0 0;padding:22px;animation:up .25s}
-  @keyframes up{from{transform:translateY(100%)}to{transform:none}}
-  .opt{padding:14px;border-radius:12px;background:var(--surface2);margin-top:8px;font-size:15px}
-  .opt.bad{color:var(--bad)}
-  .scale{display:flex;justify-content:space-between;margin-top:8px}
-  .scale b{flex:1;text-align:center;padding:10px 0;margin:0 3px;border-radius:10px;background:var(--surface2);font-size:13px;font-weight:500}
-  .scale b.on{background:var(--grad);color:#fff;font-weight:700}
-  .toast{position:absolute;left:50%;bottom:90px;transform:translateX(-50%);background:#000;color:#fff;padding:10px 18px;
-    border-radius:999px;font-size:13px;opacity:0;transition:.3s;z-index:99;white-space:nowrap}
-  .toast.on{opacity:.94}
-  .list-item{display:flex;align-items:center;gap:12px;padding:13px 16px;border-bottom:1px solid var(--border)}
-  .demo-note{position:absolute;top:max(8px,env(safe-area-inset-top));right:10px;z-index:60;background:rgba(0,0,0,.5);
-    color:#fff;font-size:10px;padding:4px 9px;border-radius:999px;backdrop-filter:blur(4px)}
+  .sheet{width:100%;background:var(--bg);border-radius:22px 22px 0 0;padding:var(--s5) var(--s5) calc(var(--s5) + env(safe-area-inset-bottom));animation:rise .26s ease}
+  .sheet h3{font-size:20px;font-weight:800;margin-bottom:var(--s2)}
+  .sheet .opt{display:block;width:100%;text-align:left;padding:16px 0;font-size:17px;border-top:1px solid var(--line)}
+  .sheet .opt.danger{color:var(--danger)}
+
+  /* 매칭 애니메이션 */
+  .pulse{width:14px;height:14px;border-radius:50%;background:var(--ink);animation:pulse 1s infinite ease-in-out}
+  @keyframes pulse{0%,100%{transform:scale(.6);opacity:.3}50%{transform:scale(1);opacity:1}}
+
+  /* PIN 잠금 */
+  .pin{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:var(--s5)}
+  .pin h2{font-size:22px;font-weight:800}
+  .pin .psub{color:var(--dim);font-size:14px;margin-top:var(--s2);text-align:center}
+  .pin .dots{display:flex;gap:20px;margin:var(--s6) 0 var(--s2)}
+  .pin .pdot{width:14px;height:14px;border-radius:50%;border:1.5px solid var(--ink)}
+  .pin .pdot.on{background:var(--ink)}
+  .pin .perr{color:var(--danger);font-size:14px;height:20px;margin-bottom:var(--s2)}
+  .keypad{display:grid;grid-template-columns:repeat(3,68px);gap:16px}
+  .keypad button{font-size:26px;font-weight:600;padding:12px 0;color:var(--ink);background:none;border-radius:12px}
+  .keypad button:active{background:var(--line)}
+  .keypad .empty{visibility:hidden}
+  /* 토스트 */
+  .toast{position:absolute;left:50%;bottom:110px;transform:translateX(-50%);background:var(--ink);color:var(--bg);
+    padding:11px 20px;border-radius:999px;font-size:14px;opacity:0;transition:.3s;z-index:90;white-space:nowrap;pointer-events:none}
+  .toast.on{opacity:.96}
 </style>
 </head>
 <body>
 <div id="app">
-  <div class="demo-note">PROTOTYPE</div>
 
-  <!-- ===== 시작 ===== -->
-  <section id="s-start" class="screen active center pad">
-    <div class="logo">🎭</div>
-    <h1>Veil</h1>
-    <p class="dim" style="max-width:280px">사진도, 외모도 아닌<br><b style="color:var(--text)">오직 대화</b>로 만나는 익명 친구 매칭</p>
-    <div style="width:100%;margin-top:30px">
-      <button class="btn" onclick="go('s-birth')">시작하기</button>
-      <button class="btn ghost" onclick="go('s-login')">이미 계정이 있어요</button>
+  <!-- 인트로 -->
+  <section id="s-intro" class="screen">
+    <div class="center pad">
+      <div class="wordmark">Veil</div>
+      <p class="body dim" style="margin-top:var(--s4);max-width:260px">
+        사진도, 나이도, 목소리도 없이<br><b style="color:var(--ink)">오직 글로만</b> 만나는 익명 대화
+      </p>
+    </div>
+    <div class="pad">
+      <button class="cta" onclick="startOnboarding()">시작하기</button>
     </div>
   </section>
 
-  <!-- ===== 로그인 ===== -->
-  <section id="s-login" class="screen">
-    <div class="topbar"><button class="iconbtn" onclick="go('s-start')">‹</button><span class="ttl">로그인</span></div>
-    <div class="grow pad">
-      <input class="field" placeholder="이메일">
-      <input class="field" type="password" placeholder="비밀번호">
-      <button class="btn" onclick="seed();go('main');tab('match')">이메일로 로그인</button>
-      <button class="btn sec" onclick="seed();go('main');tab('match')">🟦 Google로 계속</button>
-      <button class="btn sec" onclick="seed();go('main');tab('match')"> Apple로 계속</button>
-      <p class="dim center" style="margin-top:18px">비밀번호를 잊으셨나요?</p>
-    </div>
-  </section>
-
-  <!-- ===== 생년월일 (14세 검증) ===== -->
-  <section id="s-birth" class="screen">
-    <div class="topbar"><button class="iconbtn" onclick="go('s-start')">‹</button><span class="ttl">회원가입</span></div>
-    <div class="grow pad">
-      <h2>생년월일을 알려주세요</h2>
-      <p class="dim">만 14세 이상만 가입할 수 있어요.</p>
-      <input id="birth" class="field" type="date" max="2012-06-17">
-      <p id="ageMsg" class="dim" style="color:var(--bad);min-height:18px"></p>
-    </div>
-    <div class="pad"><button class="btn" onclick="checkAge()">다음</button></div>
-  </section>
-
-  <!-- ===== 온보딩: 닉네임 ===== -->
+  <!-- 온보딩 1: 닉네임 -->
   <section id="s-nick" class="screen">
-    <div class="topbar"><span class="ttl">프로필 만들기 (1/5)</span></div>
+    <div class="top"><button class="back" onclick="go('s-intro')">‹</button></div>
     <div class="grow pad">
-      <div class="label">닉네임</div>
-      <input id="nick" class="field" placeholder="2~10자 · 중복/욕설 불가" oninput="nickCheck()" value="달빛여우">
-      <p id="nickMsg" class="dim" style="min-height:18px"></p>
-      <div class="label">상태메시지</div>
-      <input id="status" class="field" placeholder="자유롭게 적어보세요" value="조용한 밤 대화 좋아해요">
+      <h1 class="h-page">어떻게 불러드릴까요?</h1>
+      <p class="dim body" style="margin-top:var(--s2)">언제든 바꿀 수 있어요.</p>
+      <input id="nickInput" class="field" style="margin-top:var(--s6)" maxlength="20" placeholder="닉네임" oninput="checkNick()">
+      <div id="nickNote" class="note dim">두 글자 이상 입력해주세요.</div>
+      <button class="link" style="margin-top:var(--s4)" onclick="randomNick()">랜덤으로 정하기</button>
     </div>
-    <div class="pad"><button class="btn" onclick="go('s-avatar')">다음</button></div>
+    <div class="pad"><button id="nickNext" class="cta" disabled onclick="go('s-interest')">다음</button></div>
   </section>
 
-  <!-- ===== 온보딩: 아바타 ===== -->
-  <section id="s-avatar" class="screen">
-    <div class="topbar"><button class="iconbtn" onclick="go('s-nick')">‹</button><span class="ttl">프로필 만들기 (2/5)</span></div>
-    <div class="grow pad center">
-      <p class="dim">실제 사진은 사용할 수 없어요.<br>아바타와 배경색으로 나를 표현하세요.</p>
-      <div id="bigav" class="av" style="width:120px;height:120px;border-radius:36px;font-size:64px;background:#7c6cff;margin:18px 0">🦊</div>
-      <div id="avatars" style="text-align:center"></div>
-      <div class="label" style="align-self:flex-start">배경 색상</div>
-      <div id="colors" style="align-self:flex-start"></div>
-    </div>
-    <div class="pad"><button class="btn" onclick="go('s-basic')">다음</button></div>
-  </section>
-
-  <!-- ===== 온보딩: 나에 대해 (성별/MBTI/연락스타일) ===== -->
-  <section id="s-basic" class="screen">
-    <div class="topbar"><button class="iconbtn" onclick="go('s-avatar')">‹</button><span class="ttl">프로필 만들기 (3/5)</span></div>
-    <div class="grow pad">
-      <h2>나에 대해 알려주세요</h2>
-      <p class="dim">비슷하거나 다른 성향의 사람을 매칭할 때 참고돼요.</p>
-      <div class="label">성별</div><div id="c-gender"></div>
-      <div class="label">MBTI</div><div id="c-mbti"></div>
-      <div class="label">연락 스타일</div><div id="c-contact"></div>
-    </div>
-    <div class="pad"><button class="btn" onclick="go('s-lifestyle')">다음</button></div>
-  </section>
-
-  <!-- ===== 온보딩: 평소 습관 & 반려동물 ===== -->
-  <section id="s-lifestyle" class="screen">
-    <div class="topbar"><button class="iconbtn" onclick="go('s-basic')">‹</button><span class="ttl">프로필 만들기 (4/5)</span></div>
-    <div class="grow pad">
-      <h2>평소 습관 & 반려동물</h2>
-      <div class="label">술</div><div id="c-drink"></div>
-      <div class="label">담배</div><div id="c-smoke"></div>
-      <div class="label">운동</div><div id="c-exercise"></div>
-      <div class="label">반려동물 <span class="dim" style="font-weight:400">· 여러 개 선택 가능</span></div><div id="c-pets"></div>
-    </div>
-    <div class="pad"><button class="btn" onclick="go('s-interest')">다음</button></div>
-  </section>
-
-  <!-- ===== 온보딩: 관심사 ===== -->
+  <!-- 온보딩 2: 관심사 -->
   <section id="s-interest" class="screen">
-    <div class="topbar"><button class="iconbtn" onclick="go('s-lifestyle')">‹</button><span class="ttl">프로필 만들기 (5/5)</span></div>
+    <div class="top"><button class="back" onclick="go('s-nick')">‹</button></div>
     <div class="grow pad">
-      <h2>관심사를 골라주세요</h2>
-      <p class="dim"><span id="icount">0</span>개 선택 · 최소 3개</p>
-      <div id="interests" style="margin-top:8px"></div>
+      <h1 class="h-page">무슨 얘기를 좋아하세요?</h1>
+      <p id="intCount" class="dim body" style="margin-top:var(--s2)">한 개 이상 골라주세요.</p>
+      <div id="intWrap" class="wrap" style="margin-top:var(--s6)"></div>
     </div>
-    <div class="pad"><button id="iBtn" class="btn" disabled onclick="seed();go('main');tab('match');toast('환영해요! 매칭을 시작해보세요 🎉')">완료</button></div>
+    <div class="pad"><button id="intDone" class="cta" disabled onclick="openAbout()">다음</button></div>
   </section>
 
-  <!-- ===== 메인 ===== -->
-  <section id="main" class="screen">
-    <div id="page-match" class="grow"></div>
-    <div id="page-chats" class="grow" style="display:none"></div>
-    <div id="page-settings" class="grow" style="display:none"></div>
-    <div class="tabbar">
-      <div class="tab on" id="t-match" onclick="tab('match')"><span class="ic">🔀</span>매칭</div>
-      <div class="tab" id="t-chats" onclick="tab('chats')"><span class="ic">💬</span>대화</div>
-      <div class="tab" id="t-settings" onclick="tab('settings')"><span class="ic">⚙️</span>설정</div>
+  <!-- 온보딩 3: 나에 대해 (선택) -->
+  <section id="s-about" class="screen">
+    <div class="top"><button class="back" onclick="go('s-interest')">‹</button></div>
+    <div class="grow pad">
+      <h1 class="h-page">나를 조금 더 알려주세요</h1>
+      <p class="dim body" style="margin-top:var(--s2)">선택 사항이에요. 언제든 바꿀 수 있어요.</p>
+      <div class="mlabel" style="margin-top:var(--s6)">MBTI</div>
+      <div id="obMbti" class="wrap" style="margin-top:var(--s3)"></div>
+      <div class="mlabel" style="margin-top:var(--s6)">채팅 유형</div>
+      <div id="obType" class="wrap" style="margin-top:var(--s3)"></div>
+    </div>
+    <div class="pad"><button class="cta" onclick="finishOnboarding()">시작하기</button></div>
+  </section>
+
+  <!-- 메인 -->
+  <section id="s-main" class="screen">
+    <div id="pg-match" class="page on"></div>
+    <div id="pg-list" class="page"></div>
+    <div id="pg-set" class="page"></div>
+    <div class="nav">
+      <div class="navrow">
+        <a id="nv-match" onclick="tab('match')">매칭</a>
+        <span class="dot">·</span>
+        <a id="nv-list" onclick="tab('list')">대화</a>
+        <span class="dot">·</span>
+        <a id="nv-set" onclick="tab('set')">설정</a>
+      </div>
     </div>
   </section>
 
-  <!-- ===== 매칭 중 ===== -->
-  <section id="s-matching" class="screen center pad">
-    <div id="mPulse" class="pulse">5</div>
-    <h2 id="mTitle" style="margin-top:26px">잠시 후 매칭을 시작해요</h2>
-    <p class="dim" id="mSub">마음이 바뀌면 취소할 수 있어요</p>
-    <button class="btn ghost" style="width:auto;padding:12px 28px;margin-top:26px" onclick="cancelMatch()">취소</button>
+  <!-- 매칭 중 -->
+  <section id="s-matching" class="screen">
+    <div class="center">
+      <div class="pulse"></div>
+      <p class="body dim" style="margin-top:var(--s5)">대화 상대를 찾고 있어요…</p>
+    </div>
+    <div class="pad"><button class="cta sub" onclick="cancelMatch()">취소</button></div>
   </section>
 
-  <!-- ===== 채팅방 ===== -->
+  <!-- 채팅방 -->
   <section id="s-chat" class="screen">
-    <div class="topbar">
-      <button class="iconbtn" onclick="tab('chats');go('main')">‹</button>
-      <div id="chatAv" class="av" style="width:34px;height:34px;border-radius:10px;font-size:18px">🐰</div>
-      <div style="flex:1"><div class="ttl" id="chatName">달빛토끼</div></div>
-      <button class="iconbtn" onclick="open('sheetMenu')">⋯</button>
+    <div class="top">
+      <button class="back" onclick="tab('list');go('s-main')">‹</button>
+      <div class="t" id="chatNick">상대</div>
+      <div class="sp"></div>
+      <button class="act" onclick="openMenu()">관리</button>
     </div>
-    <div id="timerbar" class="timerbar">⏳ 남은 시간 <span id="clock">23:59:48</span></div>
-    <div id="msgs" class="msgs"></div>
-    <div class="composer">
-      <input id="msgInput" placeholder="메시지 입력…" onkeydown="if(event.key==='Enter')sendMsg()">
-      <button class="send" onclick="sendMsg()">➤</button>
+    <div class="timer" id="chatTimer"></div>
+    <div class="msgs" id="chatMsgs"></div>
+    <div class="composer" id="composer">
+      <input id="chatInput" placeholder="메시지 입력" autocomplete="off"
+        onkeydown="onKey(event)" oninput="toggleSend()">
+      <button class="send" id="sendBtn" disabled onclick="sendMsg()">전송</button>
+    </div>
+    <div class="decide" id="chatDecide" style="display:none"></div>
+  </section>
+
+  <!-- 설정 하위 화면 -->
+  <section id="s-sub" class="screen">
+    <div class="top"><button class="back" onclick="tab('set');go('s-main')">‹</button><div class="t" id="subTitle"></div></div>
+    <div class="grow pad" id="subBody" style="padding-top:0"></div>
+  </section>
+
+  <!-- PIN 잠금 화면 -->
+  <section id="s-pin" class="screen">
+    <div class="top"><button class="back" id="pinBack" onclick="pinCancel()">‹</button></div>
+    <div class="pin">
+      <h2 id="pinTitle">잠금</h2>
+      <div class="psub" id="pinSub"></div>
+      <div class="dots" id="pinDots"></div>
+      <div class="perr" id="pinErr"></div>
+      <div class="keypad" id="keypad"></div>
     </div>
   </section>
 
-  <!-- ===== 시트: 채팅 메뉴 ===== -->
-  <div id="sheetMenu" class="ovl" onclick="closeOvl(event)">
+  <!-- 관리 시트 -->
+  <div id="sheet" class="ovl" onclick="if(event.target===this)closeMenu()">
     <div class="sheet">
-      <h2>채팅방</h2>
-      <div class="opt" onclick="closeAll();open('sheetExtend')">⏳ 연장/종료 미리보기</div>
-      <div class="opt" onclick="closeAll();toast('🔔 알림 설정 (프로토타입)')">🔔 알림 · 미리보기 설정</div>
-      <div class="opt bad" onclick="closeAll();open('sheetLeave')">🚪 나가기</div>
-      <button class="btn ghost" style="margin-top:14px" onclick="closeAll()">닫기</button>
-    </div>
-  </div>
-
-  <!-- ===== 시트: 나가기 ===== -->
-  <div id="sheetLeave" class="ovl" onclick="closeOvl(event)">
-    <div class="sheet">
-      <h2>채팅방을 나갈까요?</h2>
-      <div class="opt bad" onclick="closeAll();go('s-report')">🚩 신고 후 나가기</div>
-      <div class="opt" onclick="closeAll();leaveChat()">그냥 나가기 <span class="dim">· 패널티가 부여될 수 있어요</span></div>
-      <button class="btn ghost" style="margin-top:8px" onclick="closeAll()">취소</button>
-    </div>
-  </div>
-
-  <!-- ===== 시트: 연장/종료 ===== -->
-  <div id="sheetExtend" class="ovl">
-    <div class="sheet">
-      <h2>24시간이 끝났어요</h2>
-      <p class="dim">대화를 이어가려면 양쪽 모두 연장을 선택해야 해요. (<span id="extLeft">3</span>회 남음)</p>
-      <button class="btn" onclick="closeAll();extend()">연장하기</button>
-      <button class="btn sec" onclick="closeAll();go('s-eval')">종료하기</button>
-    </div>
-  </div>
-
-  <!-- ===== 평가 ===== -->
-  <section id="s-eval" class="screen">
-    <div class="topbar"><span class="ttl">상대 평가</span></div>
-    <div class="grow pad">
-      <p class="dim">솔직한 평가는 건강한 커뮤니티를 만들어요.</p>
-      <div class="label">대화가 즐거웠나요?</div>
-      <div class="scale" data-q="fun"></div>
-      <div class="label">예의가 있었나요?</div>
-      <div class="scale" data-q="manner"></div>
-      <div class="label">다시 대화하고 싶나요?</div>
-      <div class="seg" id="again"><div onclick="segPick(this)">예</div><div onclick="segPick(this)">아니오</div></div>
-      <div class="label">추가 의견 (최대 500자)</div>
-      <textarea class="field" rows="3" maxlength="500" placeholder="선택 입력"></textarea>
-      <label class="card row" style="cursor:pointer" onclick="this.querySelector('input').checked=!this.querySelector('input').checked">
-        <input type="checkbox" style="width:20px;height:20px"><div>다시 만나고 싶지 않음 <div class="dim">자동 차단 · 재매칭 금지</div></div>
-      </label>
-    </div>
-    <div class="pad"><button class="btn" onclick="seedEnded();tab('chats');go('main');toast('평가가 제출되었어요')">제출</button></div>
-  </section>
-
-  <!-- ===== 신고 ===== -->
-  <section id="s-report" class="screen">
-    <div class="topbar"><button class="iconbtn" onclick="go('s-chat')">‹</button><span class="ttl">신고하기</span></div>
-    <div class="grow pad">
-      <div class="label">신고 사유</div>
-      <div id="reasons"></div>
-      <div class="label">추가 설명</div>
-      <textarea class="field" rows="3" placeholder="상황을 자세히 적어주세요"></textarea>
-      <div class="label">스크린샷 (최대 5장)</div>
-      <div class="row" style="flex-wrap:wrap">
-        <div class="av" style="background:var(--surface2);border:1px dashed var(--border);font-size:22px">＋</div>
+      <h3 id="sheetName">상대</h3>
+      <p class="dim small" id="sheetSub"></p>
+      <div style="margin-top:var(--s4)">
+        <button class="opt" id="optFriend" onclick="befriend()">친구 추가 <span class="dim">· 시간제한 없이 대화</span></button>
+        <button class="opt danger" id="optLeave" onclick="leaveChat()">대화 나가기</button>
+        <button class="opt danger" id="optBlock" onclick="blockAndLeave()">차단하고 나가기 <span class="dim">· 다시 매칭 안 됨</span></button>
+        <button class="opt danger" id="optDelete" onclick="delCurChat()">대화 삭제 <span class="dim">· 목록에서 제거</span></button>
       </div>
-      <div class="card dim" style="font-size:13px;color:var(--warn)">
-        ⚠️ 허위 신고 또는 정당한 사유가 아닌 신고는 신고자에게 패널티가 부여될 수 있습니다.
-      </div>
+      <button class="cta sub" style="margin-top:var(--s2)" onclick="closeMenu()">닫기</button>
     </div>
-    <div class="pad"><button class="btn bad" onclick="leaveChat('신고가 접수되었어요. 상대를 차단했습니다.')">신고 후 나가기</button></div>
-  </section>
+  </div>
 
   <div id="toast" class="toast"></div>
 </div>
 
 <script>
-/* ---------- 데이터 ---------- */
-const AV=['🦊','🐰','🐼','🐯','🐸','🦉','🐙','🦄','🐧','🐨'];
-const COLORS=['#7c6cff','#b06cff','#ff6c9d','#ff9f6c','#36d399','#3ba9ff','#fbbd23','#8a8f9c'];
-const INTERESTS=['게임','영화','음악','여행','운동','독서','반려동물','요리','IT','투자','자동차','애니메이션','패션','사진','기타'];
-const REASONS=['욕설','성희롱','광고','사기','혐오 발언','스팸','기타'];
-const GENDERS=['남성','여성','기타','비공개'];
-const MBTIS=['INTJ','INTP','ENTJ','ENTP','INFJ','INFP','ENFJ','ENFP','ISTJ','ISFJ','ESTJ','ESFJ','ISTP','ISFP','ESTP','ESFP','모름'];
-const CONTACTS=['답이 빠른 편','답이 느린 편','읽씹 스타일','안읽씹 스타일'];
-const DRINKS=['안 마셔요','가끔','자주'];
-const SMOKES=['비흡연','가끔','흡연'];
-const EXERCISES=['거의 안 함','가끔','주 3회 이상'];
-const PETS=['강아지','고양이','파충류','양서류','새','물고기','없음','기타'];
-const PEERS=[
-  {name:'달빛토끼',av:'🐰',c:'#ff6c9d',tags:'게임 · 음악'},
-  {name:'구름고래',av:'🐙',c:'#3ba9ff',tags:'여행 · 사진'},
-  {name:'새벽올빼미',av:'🦉',c:'#fbbd23',tags:'독서 · IT'}
-];
-const TIER_INFO={
-  1:{label:'기준 1 · 완벽 매칭', desc:'관심사·성향이 거의 일치'},
-  2:{label:'기준 2 · 근접 매칭', desc:'관심사가 다수 겹침'},
-  3:{label:'기준 3 · 폭넓은 매칭', desc:'일부만 겹치는 상대'}
-};
-const profile={gender:'',mbti:'',contact:'',drink:'',smoke:'',exercise:'',pets:new Set()};
-let picked={fun:0,manner:0}, selInterests=new Set(), curPeer=PEERS[0], countdown=null, clockT=null, extLeft=3;
+/* ---------- 상태 ---------- */
+const KEY_P='veil2_profile', KEY_C='veil2_chats', KEY_B='veil2_blocks', KEY_R='veil2_recent';
+const RECOOL=7*24*60*60*1000;   // 종료 후 재매칭 쿨다운 (7일)
+const DAY=24*60*60*1000, GRACE=12*60*60*1000;
+const INTERESTS=['음악','영화','독서','여행','운동','요리','게임','사진','글쓰기','커피','반려동물','밤산책'];
+const MBTIS=['ISTJ','ISFJ','INFJ','INTJ','ISTP','ISFP','INFP','INTP','ESTP','ESFP','ENFP','ENTP','ESTJ','ESFJ','ENFJ','ENTJ','모름'];
+const CHATTYPES=['가벼운 수다','깊은 대화','고민 상담','취미 이야기','아무거나'];
+const ADJ=['어수선한','분주한','경건한','쾌활한','활기찬','고요한','평온한','차분한','생동감 있는','역동적인','활발한','침착한','긴장감 있는','여유로운','북적이는','부산한','소란스러운','시끌벅적한','조용한','적막한','화기애애한','따뜻한','포근한','아늑한','산뜻한','상쾌한','신선한','밝은','경쾌한','유쾌한','즐거운','들뜬','설레는','흥겨운','열정적인','열렬한','치열한','격렬한','진지한','엄숙한','묵직한','신비로운','몽환적인','낭만적인','감성적인','웅장한','장엄한','웅성웅성한','분산된','질서정연한','미니멀한','클래식한','빈티지한','모던한','레트로한','세련된','고급스러운','자연스러운','드라마틱한','영화 같은','미래적인','동화 같은','환상적인','따사로운','청량한','음산한','을씨년스러운','황홀한','에너지가 넘치는','긴박한','여유가 흐르는','생기가 넘치는','활력이 넘치는','편안한','안정감 있는','반짝이는','빛나는','은은한','선명한','맑은','투명한','부드러운','단단한','유연한','묵묵한','든든한','씩씩한','당당한','자신감 있는','용감한','대담한','호기심 많은','엉뚱한','재치 있는','영리한','지혜로운','순수한','순박한','친근한','다정한','온화한','부지런한','성실한','꼼꼼한','자유로운','유유한','느긋한','반듯한','정갈한','말끔한','싱그러운','향기로운','달콤한','싱싱한','폭신한','포슬포슬한','촉촉한','반들반들한','반짝반짝한','출렁이는','흩날리는','피어나는','자라나는','스며드는','물드는'];
+const NOUN=['책','의자','탁자','창문','문','시계','거울','화분','꽃','나무','돌','구름','별','달','태양','촛불','전구','랜턴','우산','모자','안경','신발','가방','열쇠','병','컵','접시','포크','숟가락','베개','담요','카메라','노트북','스마트폰','이어폰','스피커','피아노','기타','바이올린','풍선','연','종이비행기','퍼즐','블록','액자','편지','지도','나침반','망원경','돋보기','연필','볼펜','지우개','자','공책','노트','달력','캘린더','엽서','봉투','스티커','북마크','책갈피','돋보기안경','물병','텀블러','주전자','찻잔','머그컵','냄비','프라이팬','쟁반','바구니','상자','리본','단추','실타래','바늘','쿠션','소파','커튼','카펫','액자걸이','선반','책장','사다리','자전거','스케이트보드','킥보드','드론','망치','붓','물감','팔레트','이젤','화병','종','오르골','모래시계','체스말'];
+function randomNickStr(){return ADJ[Math.floor(Math.random()*ADJ.length)]+' '+NOUN[Math.floor(Math.random()*NOUN.length)]}
+const GREET=['안녕하세요, 반가워요.','안녕하세요! 오늘 하루 어땠어요?','반가워요 :) 무슨 얘기 나눠볼까요?','안녕하세요. 잘 지내셨어요?'];
+const REPLY=['오 저도 그래요.','그 얘기 더 듣고 싶어요.','완전 공감돼요 :)','오늘따라 대화가 잘 통하네요.','그렇군요, 재밌네요.','저는 조금 다르게 생각해요, 왜냐면요…','좋은 하루 보내고 있어요?'];
 
-/* ---------- 네비 ---------- */
+let profile=load(KEY_P);            // {nick, interests[], noti:{msg,preview}}
+let chats=load(KEY_C)||[];          // [{id,nick,interest,msgs,exp,friend,ended,ts}]
+let blocks=load(KEY_B)||[];         // [nick]
+let recent=load(KEY_R)||{};         // {nick: 재매칭 가능해지는 시각} — 종료 후 쿨다운
+let draftInterests=new Set(), draftMbti='', draftType='', editDraft=null, pinCtx=null;
+let cur=null;                       // 현재 열린 chat
+let ticker=null, matchTimer=null;
+if(profile&&!profile.noti)profile.noti={msg:true,preview:true};
+if(profile&&profile.penalty==null)profile.penalty=0;
+
+function load(k){try{return JSON.parse(localStorage.getItem(k))}catch(e){return null}}
+function save(){try{localStorage.setItem(KEY_P,JSON.stringify(profile));localStorage.setItem(KEY_C,JSON.stringify(chats));localStorage.setItem(KEY_B,JSON.stringify(blocks));localStorage.setItem(KEY_R,JSON.stringify(recent))}catch(e){}}
+function inCooldown(nick){ return recent[nick] && recent[nick]>Date.now(); }
+function uid(){return 'c'+(chats.reduce((m,c)=>Math.max(m,+c.id.slice(1)||0),0)+1)}
+
+/* ---------- 화면 전환 ---------- */
 function go(id){document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));document.getElementById(id).classList.add('active')}
-function open(id){document.getElementById(id).classList.add('on')}
-function closeOvl(e){if(e.target.classList.contains('ovl'))e.target.classList.remove('on')}
-function closeAll(){document.querySelectorAll('.ovl').forEach(o=>o.classList.remove('on'))}
-function toast(t){const e=document.getElementById('toast');e.textContent=t;e.classList.add('on');clearTimeout(e._t);e._t=setTimeout(()=>e.classList.remove('on'),2200)}
+function tab(name){
+  ['match','list','set'].forEach(n=>{
+    document.getElementById('pg-'+n).classList.toggle('on',n===name);
+    document.getElementById('nv-'+n).classList.toggle('on',n===name);
+  });
+  if(name==='match')renderMatch();
+  if(name==='list')renderList();
+  if(name==='set')renderSet();
+}
+function toast(t){const e=document.getElementById('toast');e.textContent=t;e.classList.add('on');clearTimeout(e._t);e._t=setTimeout(()=>e.classList.remove('on'),1900)}
 
-/* ---------- 가입/온보딩 ---------- */
-function checkAge(){
-  const v=document.getElementById('birth').value;const m=document.getElementById('ageMsg');
-  if(!v){m.textContent='생년월일을 입력해주세요';return}
-  const age=(Date.now()-new Date(v))/(365.25*24*3600*1000);
-  if(age<14){m.textContent='만 14세 미만은 가입할 수 없어요.';return}
-  m.textContent='';go('s-nick');
+/* ---------- 온보딩 ---------- */
+function startOnboarding(){draftInterests=new Set();draftMbti='';draftType='';buildInterests();updateIntState();document.getElementById('nickInput').value='';checkNick();go('s-nick');setTimeout(()=>document.getElementById('nickInput').focus(),300)}
+function checkNick(){
+  const v=document.getElementById('nickInput').value.trim();
+  const ok=v.length>=2;
+  document.getElementById('nickNext').disabled=!ok;
+  document.getElementById('nickNote').textContent=ok?'좋아요.':'두 글자 이상 입력해주세요.';
 }
-function nickCheck(){
-  const v=document.getElementById('nick').value, m=document.getElementById('nickMsg');
-  const bad=['바보','시발','광고'];
-  if(v.length<2){m.style.color='var(--bad)';m.textContent='2자 이상 입력해주세요';}
-  else if(bad.some(b=>v.includes(b))){m.style.color='var(--bad)';m.textContent='사용할 수 없는 단어가 포함돼 있어요';}
-  else if(v==='admin'){m.style.color='var(--bad)';m.textContent='이미 사용 중인 닉네임이에요';}
-  else{m.style.color='var(--good)';m.textContent='✓ 사용 가능한 닉네임이에요';}
-}
-function buildOnboarding(){
-  const a=document.getElementById('avatars');a.innerHTML='';
-  AV.forEach(x=>{const b=document.createElement('button');b.className='chip';b.style.fontSize='22px';b.textContent=x;
-    b.onclick=()=>{document.getElementById('bigav').textContent=x};a.appendChild(b)});
-  const c=document.getElementById('colors');c.innerHTML='';
-  COLORS.forEach(x=>{const b=document.createElement('button');b.className='chip';b.style.background=x;b.style.width='38px';b.style.height='38px';b.style.padding='0';
-    b.onclick=()=>{document.getElementById('bigav').style.background=x};c.appendChild(b)});
-  const i=document.getElementById('interests');i.innerHTML='';
-  INTERESTS.forEach(x=>{const b=document.createElement('button');b.className='chip';b.textContent=x;
-    b.onclick=()=>{b.classList.toggle('on');b.classList.contains('on')?selInterests.add(x):selInterests.delete(x);
-      document.getElementById('icount').textContent=selInterests.size;
-      document.getElementById('iBtn').disabled=selInterests.size<3};i.appendChild(b)});
-  const r=document.getElementById('reasons');r.innerHTML='';
-  REASONS.forEach(x=>{const b=document.createElement('button');b.className='chip';b.textContent=x;
-    b.onclick=()=>{r.querySelectorAll('.chip').forEach(c=>c.classList.remove('on'));b.classList.add('on')};r.appendChild(b)});
-  document.querySelectorAll('.scale').forEach(s=>{const q=s.dataset.q;
-    ['매우 그렇다','그렇다','보통','아니다','매우'].forEach((t,idx)=>{const b=document.createElement('b');b.textContent=t;
-      b.onclick=()=>{s.querySelectorAll('b').forEach(x=>x.classList.remove('on'));b.classList.add('on');picked[q]=idx+1};s.appendChild(b)})});
-  // 추가 프로필 항목
-  chipGroup('c-gender',GENDERS,'gender');
-  chipGroup('c-mbti',MBTIS,'mbti');
-  chipGroup('c-contact',CONTACTS,'contact');
-  chipGroup('c-drink',DRINKS,'drink');
-  chipGroup('c-smoke',SMOKES,'smoke');
-  chipGroup('c-exercise',EXERCISES,'exercise');
-  chipGroup('c-pets',PETS,'pets',true);
-}
-function segPick(el){el.parentNode.querySelectorAll('div').forEach(d=>d.classList.remove('on'));el.classList.add('on')}
-// 칩 선택 그룹 (multi=true면 다중 선택)
-function chipGroup(id,opts,key,multi){
-  const box=document.getElementById(id); if(!box)return; box.innerHTML='';
-  opts.forEach(o=>{const b=document.createElement('button');b.className='chip';b.textContent=o;
-    b.onclick=()=>{
-      if(multi){ b.classList.toggle('on'); b.classList.contains('on')?profile[key].add(o):profile[key].delete(o); }
-      else { box.querySelectorAll('.chip').forEach(c=>c.classList.remove('on')); b.classList.add('on'); profile[key]=o; }
-    };
-    box.appendChild(b);
+function randomNick(){document.getElementById('nickInput').value=randomNickStr();checkNick()}
+function buildInterests(){
+  const w=document.getElementById('intWrap');w.innerHTML='';
+  INTERESTS.forEach(x=>{
+    const b=document.createElement('button');b.className='pick'+(draftInterests.has(x)?' on':'');b.textContent=x;
+    b.onclick=()=>{draftInterests.has(x)?draftInterests.delete(x):draftInterests.add(x);buildInterests();updateIntState()};
+    w.appendChild(b);
   });
 }
+function updateIntState(){
+  const n=draftInterests.size;
+  document.getElementById('intDone').disabled=n<1;
+  document.getElementById('intCount').textContent=n<1?'한 개 이상 골라주세요.':n+'개 선택했어요.';
+}
+function openAbout(){buildAbout();go('s-about')}
+function buildAbout(){
+  const mw=document.getElementById('obMbti');mw.innerHTML='';
+  MBTIS.forEach(x=>{const b=document.createElement('button');b.className='pick'+(draftMbti===x?' on':'');b.textContent=x;b.onclick=()=>{draftMbti=draftMbti===x?'':x;buildAbout()};mw.appendChild(b)});
+  const tw=document.getElementById('obType');tw.innerHTML='';
+  CHATTYPES.forEach(x=>{const b=document.createElement('button');b.className='pick'+(draftType===x?' on':'');b.textContent=x;b.onclick=()=>{draftType=draftType===x?'':x;buildAbout()};tw.appendChild(b)});
+}
+function finishOnboarding(){
+  profile={nick:document.getElementById('nickInput').value.trim(),interests:[...draftInterests],mbti:draftMbti,chatType:draftType,noti:{msg:true,preview:true},penalty:0,matchLock:0};
+  save();go('s-main');tab('match');
+}
 
-/* ---------- 매칭 ---------- */
-let mode='similar';
+/* ---------- 매칭 탭 ---------- */
+function activeChats(){return chats.filter(c=>!c.ended)}
+function renderMatch(){
+  const n=activeChats().length;
+  document.getElementById('pg-match').innerHTML=`
+    <div class="center pad">
+      <h1 class="h-hero">새로운 사람과<br>대화해요</h1>
+      <p class="dim body" style="margin-top:var(--s4)">관심사가 통하는 익명의 누군가와<br>지금 연결돼요.</p>
+    </div>
+    <div class="pad">
+      <button class="cta" onclick="startMatch()">매칭 시작</button>
+      <p class="dim tiny" style="text-align:center;margin-top:var(--s2)">진행 중인 대화 ${n}개</p>
+    </div>`;
+}
 function startMatch(){
-  go('s-matching');let n=5;extLeft=3;
-  const p=document.getElementById('mPulse');p.textContent=n;
-  document.getElementById('mTitle').textContent='잠시 후 매칭을 시작해요';
-  document.getElementById('mSub').textContent='마음이 바뀌면 취소할 수 있어요';
-  countdown=setInterval(()=>{n--;if(n>0){p.textContent=n}else{clearInterval(countdown);searching()}},1000);
+  if(profile.matchLock&&Date.now()<profile.matchLock){toast('패널티로 매칭이 제한됐어요 · 남은 '+remain(profile.matchLock));return}
+  go('s-matching');matchTimer=setTimeout(doMatch,1800);
 }
-function searching(){
-  const p=document.getElementById('mPulse');
-  // 매칭될 기준 결정: 기준1(완벽) 우선, 없으면 2·3으로 자동 확장
-  const r=Math.random();
-  const matchedTier = r<0.4?1 : r<0.75?2 : 3;
-  let tier=1;
-  p.textContent='🔍';
-  function step(){
-    document.getElementById('mTitle').textContent=TIER_INFO[tier].label+' 탐색 중…';
-    document.getElementById('mSub').textContent = (tier<matchedTier)
-      ? '완벽 매칭이 없어 다음 기준으로 넓혀요…'
-      : TIER_INFO[tier].desc+' 상대를 찾았어요!';
-    if(tier<matchedTier){ tier++; setTimeout(step,1100); }
-    else { setTimeout(()=>{ curPeer=Object.assign({},PEERS[Math.floor(Math.random()*PEERS.length)],{tier:matchedTier}); openChat(true); },900); }
-  }
-  setTimeout(step,700);
+function addPenalty(){
+  profile.penalty=(profile.penalty||0)+1;
+  if(profile.penalty>=3){profile.penalty=0;profile.matchLock=Date.now()+DAY;save();toast('패널티 3점 · 24시간 매칭 제한')}
+  else{save();toast('패널티 '+profile.penalty+'점이 부여됐어요')}
 }
-function cancelMatch(){clearInterval(countdown);go('main');tab('match');toast('매칭을 취소했어요')}
+function cancelMatch(){clearTimeout(matchTimer);go('s-main')}
+function doMatch(){
+  // 차단 + 종료 쿨다운(7일) 중인 상대는 제외
+  let nick=randomNickStr(),t=0;while((blocks.includes(nick)||inCooldown(nick))&&t++<20)nick=randomNickStr();
+  const shared=profile.interests[Math.floor(Math.random()*profile.interests.length)]||INTERESTS[0];
+  const chat={id:uid(),nick,interest:shared,exp:Date.now()+DAY,friend:false,ended:false,ts:Date.now(),
+    msgs:[{s:'sys',t:`매칭됐어요 · 관심사 ‘${shared}’${iga(shared)} 통해요`},
+          {s:'them',t:GREET[Math.floor(Math.random()*GREET.length)]}]};
+  chats.unshift(chat);save();openChat(chat)
+}
 
-/* ---------- 채팅 ---------- */
-let msgs=[];
-function openChat(fresh){
-  go('s-chat');
-  document.getElementById('chatName').textContent=curPeer.name;
-  const a=document.getElementById('chatAv');a.textContent=curPeer.av;a.style.background=curPeer.c;
-  if(fresh){
-    msgs=[{t:'sys',x:'🎉 매칭됐어요! 24시간 동안 대화할 수 있어요.'}];
-    if(curPeer.tier){const ti=TIER_INFO[curPeer.tier];msgs.push({t:'sys',x:'🎯 '+ti.label+' — '+ti.desc});}
-    msgs.push({t:'you',x:'안녕하세요! 반가워요 :)'},{t:'you',x:'프로필 보니까 관심사가 잘 맞을 것 같아요'});
+/* ---------- 대화 목록 ---------- */
+function renderList(){
+  const el=document.getElementById('pg-list');
+  let h=`<div class="top"><div class="t">대화</div></div><div class="grow pad" style="padding-top:0">`;
+  if(chats.length===0){
+    h+=`<div class="center" style="min-height:60vh"><p class="dim body">아직 대화가 없어요.<br>매칭을 시작해보세요.</p></div>`;
+  }else{
+    chats.forEach((c)=>{
+      const last=[...c.msgs].reverse().find(m=>m.s!=='sys');
+      const ended=phaseOf(c)==='ended';
+      h+=`<div class="row"${ended?` oncontextmenu="ctxDelete(event,'${c.id}')"`:''}>
+        <button style="flex:1;min-width:0;text-align:left;background:none;padding:0" onclick="openChatById('${c.id}')">
+          <div class="nm">${esc(c.nick)}</div>
+          <div class="meta" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${last?esc(last.t):''}</div>
+        </button>
+        <span class="meta" style="flex:0 0 auto;margin-left:12px;white-space:nowrap">${statusLabel(c)}</span>
+      </div>`;
+    });
   }
-  renderMsgs();startClock();
+  h+=`</div>`;el.innerHTML=h;
+}
+function delChat(id){
+  const c=chats.find(x=>x.id===id); if(!c)return;
+  if(confirm((c.nick||'상대')+'님과의 종료된 대화를 삭제할까요?\n대화 내용이 사라져요.')){
+    chats=chats.filter(x=>x.id!==id); save(); renderList(); toast('대화를 삭제했어요');
+  }
+}
+function ctxDelete(e,id){ e.preventDefault(); delChat(id); }
+function clearEnded(){
+  const n=chats.filter(c=>phaseOf(c)==='ended').length; if(!n)return;
+  if(confirm('종료된 대화 '+n+'개를 모두 삭제할까요?\n대화 내용이 사라져요.')){
+    chats=chats.filter(c=>phaseOf(c)!=='ended'); save(); renderList(); toast('종료된 대화를 정리했어요');
+  }
+}
+function statusLabel(c){
+  const ph=phaseOf(c);
+  if(ph==='ended')return '종료됨';
+  if(ph==='friend')return '친구 · 무제한';
+  if(ph==='decide')return '연장 결정 중';
+  return remain(c.exp);
+}
+
+/* ---------- 설정 탭 (메뉴) ---------- */
+function renderSet(){
+  const friends=chats.filter(c=>c.friend&&!c.ended).length;
+  const pen=profile.penalty||0, locked=profile.matchLock&&Date.now()<profile.matchLock;
+  document.getElementById('pg-set').innerHTML=`
+    <div class="top"><div class="t">설정</div></div>
+    <div class="grow pad" style="padding-top:0">
+      <div style="padding:var(--s5) 0 var(--s4)">
+        <div class="mlabel">패널티</div>
+        <div style="font-size:24px;font-weight:800;margin-top:2px">${pen}<span class="dim" style="font-size:16px;font-weight:500"> / 3</span></div>
+        ${locked?`<div class="small" style="color:var(--danger);margin-top:6px">매칭 제한 중 · 남은 시간 ${remain(profile.matchLock)}</div>`:`<div class="dim small" style="margin-top:6px">대화를 그냥 나가면 1점 · 3점이면 24시간 매칭이 제한돼요</div>`}
+      </div>
+      <div class="mgroup" style="margin-top:var(--s4)">
+        <button class="mrow" onclick="openSub('me')">내 정보<span class="dim" style="margin-left:8px">${esc(profile.nick)}</span><span class="arr">›</span></button>
+        <button class="mrow" onclick="openSub('noti')">알림<span class="dim" style="margin-left:8px">${profile.noti.msg?'켜짐':'꺼짐'}</span><span class="arr">›</span></button>
+        <button class="mrow" onclick="openSub('lock')">잠금<span class="dim" style="margin-left:8px">${profile.pin?'사용 중':'꺼짐'}</span><span class="arr">›</span></button>
+        <button class="mrow" onclick="openSub('friends')">친구 목록<span class="dim" style="margin-left:8px">${friends}</span><span class="arr">›</span></button>
+        <button class="mrow" onclick="openSub('blocks')">차단 목록<span class="dim" style="margin-left:8px">${blocks.length}</span><span class="arr">›</span></button>
+        <button class="mrow" style="border-bottom:0" onclick="openSub('terms')">이용약관 · 개인정보<span class="arr">›</span></button>
+      </div>
+      <div class="mgroup">
+        <button class="mrow" onclick="logout()">로그아웃</button>
+        <button class="mrow danger" onclick="wipe()">계정 삭제<span class="dim" style="margin-left:8px">· 모든 정보 삭제</span></button>
+      </div>
+      <p class="dim tiny" style="text-align:center;margin-top:var(--s6)">Veil · 프로토타입</p>
+    </div>`;
+}
+function logout(){go('s-intro')}
+function wipe(){
+  if(profile.pin){openPin({title:'계정 삭제',sub:'PIN을 입력하면 모든 정보가 삭제돼요',allowCancel:true,onDone:v=>{if(v!==profile.pin)return pinError('PIN이 일치하지 않아요');doWipe()}});}
+  else{if(confirm('닉네임·대화가 모두 삭제되고 되돌릴 수 없어요. 삭제할까요?'))doWipe()}
+}
+function doWipe(){[KEY_P,KEY_C,KEY_B].forEach(k=>localStorage.removeItem(k));profile=null;chats=[];blocks=[];go('s-intro')}
+
+/* ---------- PIN 잠금 ---------- */
+function openPin(o){
+  pinCtx=Object.assign({digits:''},o);
+  document.getElementById('pinTitle').textContent=o.title;
+  document.getElementById('pinSub').textContent=o.sub||'';
+  document.getElementById('pinErr').textContent='';
+  document.getElementById('pinBack').style.visibility=o.allowCancel?'visible':'hidden';
+  document.getElementById('keypad').innerHTML=['1','2','3','4','5','6','7','8','9','','0','⌫']
+    .map(n=>n===''?'<button class="empty"></button>':`<button onclick="pinKey('${n}')">${n}</button>`).join('');
+  renderPin();go('s-pin');
+}
+function renderPin(){const d=pinCtx.digits.length;document.getElementById('pinDots').innerHTML=[0,1,2,3].map(i=>`<div class="pdot${i<d?' on':''}"></div>`).join('')}
+function pinKey(n){
+  if(n==='⌫'){pinCtx.digits=pinCtx.digits.slice(0,-1);document.getElementById('pinErr').textContent='';renderPin();return}
+  if(pinCtx.digits.length>=4)return;
+  pinCtx.digits+=n;document.getElementById('pinErr').textContent='';renderPin();
+  if(pinCtx.digits.length===4){const v=pinCtx.digits;setTimeout(()=>pinCtx.onDone(v),130)}
+}
+function pinError(msg){pinCtx.digits='';document.getElementById('pinErr').textContent=msg;renderPin()}
+function pinCancel(){if(pinCtx&&pinCtx.allowCancel){tab('set');go('s-main')}}
+/* PIN 화면에서 키보드 숫자 입력 지원 */
+document.addEventListener('keydown',e=>{
+  if(!pinCtx||!document.getElementById('s-pin').classList.contains('active'))return;
+  if(/^[0-9]$/.test(e.key)){e.preventDefault();pinKey(e.key)}
+  else if(e.key==='Backspace'){e.preventDefault();pinKey('⌫')}
+  else if(e.key==='Escape'&&pinCtx.allowCancel){e.preventDefault();pinCancel()}
+});
+function lockApp(){openPin({title:'앱 잠금',sub:'PIN 4자리를 입력하세요',allowCancel:false,onDone:v=>{if(v===profile.pin){go('s-main');tab('match')}else pinError('PIN이 일치하지 않아요')}})}
+function lockNow(){lockApp()}
+function startSetPin(){openPin({title:'PIN 설정',sub:'새 PIN 4자리를 입력하세요',allowCancel:true,onDone:first=>{
+  openPin({title:'PIN 확인',sub:'다시 한 번 입력하세요',allowCancel:true,onDone:second=>{
+    if(second===first){profile.pin=first;save();toast('앱 잠금을 설정했어요');tab('set');go('s-main')}else pinError('PIN이 일치하지 않아요');
+  }});
+}})}
+function startChangePin(){openPin({title:'현재 PIN',sub:'현재 PIN을 입력하세요',allowCancel:true,onDone:v=>{if(v!==profile.pin)return pinError('PIN이 일치하지 않아요');startSetPin()}})}
+function disablePin(){openPin({title:'잠금 해제',sub:'현재 PIN을 입력하세요',allowCancel:true,onDone:v=>{if(v!==profile.pin)return pinError('PIN이 일치하지 않아요');profile.pin=null;save();toast('앱 잠금을 해제했어요');tab('set');go('s-main')}})}
+function subLock(){
+  const on=!!profile.pin;
+  document.getElementById('subBody').innerHTML=`
+    <div style="margin-top:var(--s5)">
+      <div class="h-q">${on?'앱 잠금 사용 중':'앱 잠금 꺼짐'}</div>
+      <p class="dim small" style="margin-top:var(--s2)">${on?'앱을 열 때 PIN 4자리를 입력해야 해요.':'PIN 4자리로 이 앱을 잠글 수 있어요.'}</p>
+      <div class="mgroup" style="margin-top:var(--s5)">
+        ${on?`<button class="mrow" onclick="lockNow()">지금 잠그기</button>
+          <button class="mrow" onclick="startChangePin()">PIN 변경</button>
+          <button class="mrow danger" onclick="disablePin()">잠금 해제</button>`
+        :`<button class="mrow" onclick="startSetPin()">잠금 설정 · PIN 만들기</button>`}
+      </div>
+    </div>`;
+}
+
+/* ---------- 설정 하위 화면 ---------- */
+function openSub(key){
+  const T={me:'내 정보',noti:'알림',lock:'잠금',friends:'친구 목록',blocks:'차단 목록',terms:'이용약관 · 개인정보'}[key];
+  document.getElementById('subTitle').textContent=T;
+  if(key==='me')editDraft={nick:profile.nick,interests:[...profile.interests],mbti:profile.mbti||'',chatType:profile.chatType||''};
+  ({me:subMe,noti:subNoti,lock:subLock,friends:subFriends,blocks:subBlocks,terms:subTerms})[key]();
+  go('s-sub');
+}
+function editLocked(){return profile.editLockUntil&&Date.now()<profile.editLockUntil}
+function daysLeft(ts){const ms=ts-Date.now();return ms>=DAY?Math.ceil(ms/DAY)+'일':Math.max(1,Math.ceil(ms/3600000))+'시간'}
+function subMe(){
+  const locked=editLocked(), el=document.getElementById('subBody');
+  el.innerHTML=`
+    <div class="mlabel" style="margin-top:var(--s4)">닉네임</div>
+    <input id="setNick" class="field" maxlength="20" value="${esc(editDraft.nick)}" ${locked?'readonly':''} oninput="editDraft.nick=this.value">
+    ${locked?'':`<button class="link" style="margin-top:var(--s3)" onclick="randomSetNick()">랜덤 만들기</button>`}
+    <div class="mlabel" style="margin-top:var(--s6)">관심사</div>
+    <div id="subInt" class="wrap" style="margin-top:var(--s3)"></div>
+    <div class="mlabel" style="margin-top:var(--s6)">MBTI</div>
+    <div id="subMbti" class="wrap" style="margin-top:var(--s3)"></div>
+    <div class="mlabel" style="margin-top:var(--s6)">채팅 유형</div>
+    <div id="subType" class="wrap" style="margin-top:var(--s3)"></div>
+    ${locked
+      ? `<p class="dim small" style="margin-top:var(--s6)">프로필은 마지막 수정 후 7일간 변경할 수 없어요.<br>약 ${daysLeft(profile.editLockUntil)} 뒤에 다시 바꿀 수 있어요.</p>`
+      : `<p class="dim small" style="margin-top:var(--s6)">저장하면 프로필(닉네임·관심사·MBTI·채팅 유형)은 <b style="color:var(--ink)">7일 후에</b> 다시 변경할 수 있어요. 신중하게 확인해주세요.</p>
+         <button class="cta" style="margin-top:var(--s3)" onclick="saveMe()">저장하기</button>`}`;
+  const chip=(host,items,sel,on,pick)=>{const w=document.getElementById(host);items.forEach(x=>{const b=document.createElement('button');b.className='pick'+(sel(x)?' on':'');b.textContent=x;if(locked)b.style.opacity='.55';else b.onclick=on(x);w.appendChild(b)})};
+  chip('subInt',INTERESTS,x=>editDraft.interests.includes(x),x=>()=>{toggleDraftInt(x);subMe()});
+  chip('subMbti',MBTIS,x=>editDraft.mbti===x,x=>()=>{editDraft.mbti=editDraft.mbti===x?'':x;subMe()});
+  chip('subType',CHATTYPES,x=>editDraft.chatType===x,x=>()=>{editDraft.chatType=editDraft.chatType===x?'':x;subMe()});
+}
+function toggleDraftInt(x){const i=editDraft.interests.indexOf(x);if(i>=0){if(editDraft.interests.length>1)editDraft.interests.splice(i,1);else toast('관심사는 최소 1개가 필요해요')}else editDraft.interests.push(x)}
+function randomSetNick(){editDraft.nick=randomNickStr();const el=document.getElementById('setNick');if(el)el.value=editDraft.nick;toast('닉네임: '+editDraft.nick)}
+function saveMe(){
+  const nick=(editDraft.nick||'').trim();
+  if(nick.length<2)return toast('닉네임은 두 글자 이상이어야 해요');
+  if(editDraft.interests.length<1)return toast('관심사를 하나 이상 선택해주세요');
+  if(!confirm('저장하면 7일 동안 프로필을 변경할 수 없어요.\n저장할까요?'))return;
+  profile.nick=nick;profile.interests=[...editDraft.interests];profile.mbti=editDraft.mbti;profile.chatType=editDraft.chatType;
+  profile.editLockUntil=Date.now()+7*DAY;save();
+  toast('저장했어요');tab('set');go('s-main');
+}
+function subNoti(){
+  document.getElementById('subBody').innerHTML=`
+    <div class="mgroup" style="margin-top:var(--s2)">
+      <button class="mrow" onclick="toggleNoti('msg')">새 메시지 알림<span class="arr" style="color:var(--ink);font-weight:700">${profile.noti.msg?'켜짐':'꺼짐'}</span></button>
+      <button class="mrow" onclick="toggleNoti('preview')">알림 미리보기<span class="dim arr">${profile.noti.msg?'':'· 알림 꺼짐 '}</span><span style="color:var(--ink);font-weight:700;margin-left:8px">${profile.noti.msg&&profile.noti.preview?'켜짐':'꺼짐'}</span></button>
+    </div>
+    <p class="dim small" style="margin-top:var(--s4)">미리보기를 끄면 알림에 상대 이름만 표시되고 내용은 가려져요.</p>`;
+}
+function toggleNoti(k){
+  if(k==='preview'&&!profile.noti.msg)return toast('먼저 새 메시지 알림을 켜주세요');
+  profile.noti[k]=!profile.noti[k];save();subNoti();
+}
+function subFriends(){
+  const fs=chats.filter(c=>c.friend&&!c.ended);
+  const body=document.getElementById('subBody');
+  if(fs.length===0){body.innerHTML=`<div class="center" style="min-height:50vh"><p class="dim body">아직 친구가 없어요.<br>대화 중 ‘친구 추가’로 만들 수 있어요.</p></div>`;return}
+  body.innerHTML=`<div style="margin-top:var(--s3)">`+fs.map(c=>`<div class="row">
+    <button style="flex:1;text-align:left;background:none;padding:0" onclick="openChatById('${c.id}')"><div class="nm">${esc(c.nick)}</div><div class="meta">친구 · 무제한</div></button>
+    <button class="link" onclick="askBlock('${c.id}')">차단</button>
+  </div>`).join('')+`</div>`;
+}
+function askBlock(id){
+  const c=chats.find(x=>x.id===id);if(!c)return;
+  if(confirm(c.nick+'님을 차단하시겠습니까?\n친구가 해제되고 대화가 종료돼요.')){
+    if(!blocks.includes(c.nick))blocks.push(c.nick);
+    c.friend=false;c.ended=true;c.msgs.push({s:'sys',t:'상대를 차단했어요'});
+    save();subFriends();toast('차단했어요');
+  }
+}
+function subBlocks(){
+  let h='';
+  if(blocks.length===0)h=`<div class="center" style="min-height:50vh"><p class="dim body">차단한 사용자가 없어요.</p></div>`;
+  else h=blocks.map((n,i)=>`<div class="row"><div class="nm" style="flex:1">${esc(n)}</div><button class="link" onclick="unblock(${i})">차단 해제</button></div>`).join('');
+  document.getElementById('subBody').innerHTML=`<div style="margin-top:var(--s3)">${h}</div>`;
+}
+function unblock(i){blocks.splice(i,1);save();subBlocks();toast('차단을 해제했어요')}
+function subTerms(){
+  document.getElementById('subBody').innerHTML=`
+    <div class="body" style="margin-top:var(--s4);color:var(--dim)">
+      <p><b style="color:var(--ink)">이용약관</b><br>Veil은 익명 텍스트 대화 서비스입니다. 사진·연락처 등 개인 식별 정보를 요구하지 않으며, 타인을 존중하는 대화를 원칙으로 합니다.</p>
+      <p style="margin-top:var(--s4)"><b style="color:var(--ink)">개인정보 처리방침</b><br>닉네임·관심사·대화 내용은 이 기기에만 저장되며(프로토타입) 외부로 전송되지 않습니다. 계정 삭제 시 모두 지워집니다.</p>
+      <p class="tiny" style="margin-top:var(--s5)">본 화면은 프로토타입 예시 문구입니다.</p>
+    </div>`;
+}
+
+/* ---------- 채팅방 ---------- */
+function phaseOf(c){
+  if(c.ended)return 'ended';
+  if(c.friend)return 'friend';
+  if(c.exp&&Date.now()>=c.exp)return 'decide';   // 24시간 종료 → 연장 결정 단계
+  return 'active';
+}
+function openChatById(id){const c=chats.find(x=>x.id===id);if(c)openChat(c)}
+function openChat(c){
+  cur=c;
+  document.getElementById('chatNick').textContent=c.nick;
+  document.getElementById('chatInput').value='';toggleSend();
+  renderMsgs();refreshChat();
+  clearInterval(ticker);ticker=setInterval(refreshChat,1000);
+  go('s-chat');
 }
 function renderMsgs(){
-  const c=document.getElementById('msgs');c.innerHTML='';
-  msgs.forEach(m=>{const d=document.createElement('div');d.className='b '+m.t;d.textContent=m.x;c.appendChild(d)});
-  c.scrollTop=c.scrollHeight;
+  const el=document.getElementById('chatMsgs');
+  el.innerHTML=cur.msgs.map(m=>`<div class="msg ${m.s}">${esc(m.t)}</div>`).join('');
+  el.scrollTop=el.scrollHeight;
 }
-const REPLIES=['오 정말요? 저도 그래요 ㅎㅎ','그거 완전 공감돼요','오늘 하루는 어땠어요?','대화 잘 통하네요 :)','그 얘기 더 듣고 싶어요!'];
+function remain(exp){
+  let s=Math.max(0,Math.floor((exp-Date.now())/1000));
+  const h=Math.floor(s/3600);s%=3600;const m=Math.floor(s/60);s%=60;
+  return String(h).padStart(2,'0')+':'+String(m).padStart(2,'0')+':'+String(s).padStart(2,'0');
+}
+function timerText(c){
+  const ph=phaseOf(c);
+  if(ph==='friend')return '친구 · 시간제한 없음';
+  if(ph==='ended')return '종료된 대화예요';
+  if(ph==='decide')return '24시간이 끝났어요 · 결정 '+remain(c.decideBy);
+  return '남은 시간 '+remain(c.exp);
+}
+/* 매초 호출: 상태 전이 + 화면 갱신 */
+function refreshChat(){
+  if(!cur)return;
+  const ph=phaseOf(cur);
+  if(ph==='decide'&&!cur.decidePhase){       // 결정 단계 최초 진입
+    cur.decidePhase=true;cur.decideBy=cur.exp+GRACE;
+    cur.msgs.push({s:'sys',t:'24시간이 끝났어요 · 이어가려면 두 분 모두 연장을 선택해야 해요'});
+    save();renderMsgs();
+  }
+  if(ph==='decide'&&cur.decideBy&&Date.now()>cur.decideBy){endChat('grace');return}
+  document.getElementById('chatTimer').textContent=timerText(cur);
+  const comp=document.getElementById('composer'), dec=document.getElementById('chatDecide');
+  if(ph==='decide'){comp.style.display='none';dec.style.display='block';renderDecide()}
+  else if(ph==='ended'){comp.style.display='none';dec.style.display='none'}
+  else{comp.style.display='flex';dec.style.display='none'}
+}
+function renderDecide(){
+  const dec=document.getElementById('chatDecide');
+  const ext=cur.ext||0;
+  if(cur.friendReq){
+    dec.innerHTML=`<div class="dtxt dim">친구 신청을 보냈어요 · 상대의 수락을 기다리는 중…</div>`;
+  }else if(cur.myExtend===true){
+    dec.innerHTML=`<div class="dtxt dim">연장을 신청했어요 · 상대의 응답을 기다리는 중…</div>`;
+  }else if(ext>=3){
+    dec.innerHTML=`<div class="dtxt">세 번 연장했어요 · 이제 친구가 될 수 있어요 <span class="dim">· 결정 ${remain(cur.decideBy)}</span></div>
+      <div class="drow"><button class="dbtn" onclick="befriend()">친구 추가</button><button class="dbtn no" onclick="chooseExtend(false)">종료하기</button></div>`;
+  }else{
+    dec.innerHTML=`<div class="dtxt">대화를 더 이어갈까요? <span class="dim">· ${ext}/3 연장 · 결정 ${remain(cur.decideBy)}</span></div>
+      <div class="drow"><button class="dbtn" onclick="chooseExtend(true)">연장하기</button><button class="dbtn no" onclick="chooseExtend(false)">종료하기</button></div>`;
+  }
+}
+/* 연장 결정 — 양쪽 모두 동의해야 이어짐 */
+function chooseExtend(yes){
+  cur.myExtend=yes;save();
+  if(!yes){endChat('declineSelf');return}
+  renderDecide();
+  const id=cur.id;
+  setTimeout(()=>partnerDecision(id),1400+Math.random()*1600);
+}
+function partnerDecision(id){
+  const c=chats.find(x=>x.id===id);
+  if(!c||c.ended||phaseOf(c)!=='decide'||c.myExtend!==true)return;
+  if(Math.random()<0.7){                     // AI 목업: 상대가 70% 동의 / 30% 거절
+    c.exp=Date.now()+DAY;c.decidePhase=false;c.decideBy=null;c.myExtend=null;c.ext=(c.ext||0)+1;
+    c.msgs.push({s:'sys',t:'두 분 모두 동의해 24시간이 연장됐어요'});save();
+    if(cur&&cur.id===c.id){renderMsgs();refreshChat();toast('연장됐어요')}
+  }else{                                       // 상대는 원하지 않음
+    c.ended=true;c.msgs.push({s:'sys',t:'상대가 연장을 원하지 않아 대화가 종료됐어요'});save();
+    if(cur&&cur.id===c.id){renderMsgs();refreshChat()}
+  }
+}
+function onKey(e){if(e.key==='Enter'&&!e.isComposing&&e.keyCode!==229){e.preventDefault();sendMsg()}}
+function toggleSend(){document.getElementById('sendBtn').disabled=!document.getElementById('chatInput').value.trim()}
 function sendMsg(){
-  const i=document.getElementById('msgInput');if(!i.value.trim())return;
-  msgs.push({t:'me',x:i.value.trim()});i.value='';renderMsgs();
-  setTimeout(()=>{msgs.push({t:'you',x:REPLIES[Math.floor(Math.random()*REPLIES.length)]});renderMsgs()},900);
+  const ph=phaseOf(cur);if(ph!=='active'&&ph!=='friend')return;
+  const i=document.getElementById('chatInput');const t=i.value.trim();if(!t)return;
+  cur.msgs.push({s:'me',t});i.value='';toggleSend();save();renderMsgs();
+  setTimeout(()=>{const p=cur&&phaseOf(cur);if(p==='active'||p==='friend'){cur.msgs.push({s:'them',t:REPLY[Math.floor(Math.random()*REPLY.length)]});save();renderMsgs()}},900);
 }
-function startClock(){
-  clearInterval(clockT);let s=24*3600-12;
-  clockT=setInterval(()=>{s--;const h=String(Math.floor(s/3600)).padStart(2,'0'),m=String(Math.floor(s%3600/60)).padStart(2,'0'),ss=String(s%60).padStart(2,'0');
-    const el=document.getElementById('clock');if(el)el.textContent=`${h}:${m}:${ss}`},1000);
-}
-function extend(){extLeft--;document.getElementById('extLeft').textContent=extLeft;
-  msgs.push({t:'sys',x:'⏳ 24시간이 연장됐어요. ('+(3-extLeft)+'/3회)'});renderMsgs();
-  toast(extLeft>0?'24시간 연장됐어요':'3회 연장 완료! 이제 친구 신청을 할 수 있어요 🤝')}
-function leaveChat(msg){clearInterval(clockT);seedEnded();tab('chats');go('main');toast(msg||'채팅을 종료했어요')}
 
-/* ---------- 메인 탭 ---------- */
-let store={active:[],ended:[],friends:[]};
-function seed(){buildOnboarding();store.active=[{...PEERS[1],last:'그 여행지 사진 진짜 멋지네요!',time:'18:24',left:'18:20:11'}];}
-function seedEnded(){if(!store.ended.find(e=>e.name===curPeer.name))store.ended.unshift({...curPeer,last:'대화 종료됨',time:'방금'});
-  store.active=store.active.filter(a=>a.name!==curPeer.name);}
-function tab(name){
-  ['match','chats','settings'].forEach(n=>{
-    document.getElementById('page-'+n).style.display=n===name?'':'none';
-    document.getElementById('t-'+n).classList.toggle('on',n===name);
-  });
-  if(name==='match')renderMatch();if(name==='chats')renderChats();if(name==='settings')renderSettings();
+/* ---------- 관리 시트 ---------- */
+function openMenu(){
+  const ended=phaseOf(cur)==='ended';
+  document.getElementById('sheetName').textContent=cur.nick;
+  document.getElementById('sheetSub').textContent=timerText(cur);
+  document.getElementById('optFriend').style.display=(phaseOf(cur)==='active'&&!cur.friendReq&&(cur.ext||0)>=3)?'block':'none';
+  document.getElementById('optLeave').style.display=ended?'none':'block';
+  document.getElementById('optBlock').style.display=ended?'none':'block';
+  document.getElementById('optDelete').style.display=ended?'block':'none';
+  document.getElementById('sheet').classList.add('on');
 }
-function renderMatch(){
-  document.getElementById('page-match').innerHTML=`
-    <div class="pad center" style="height:100%">
-      <div class="av" style="width:90px;height:90px;border-radius:28px;font-size:46px;background:var(--grad);margin-bottom:8px">🔀</div>
-      <h2>새로운 사람과 대화해요</h2>
-      <p class="dim">매칭 조건을 선택하세요</p>
-      <div style="width:100%">
-        <div class="seg">
-          <div class="${mode==='similar'?'on':''}" onclick="mode='similar';renderMatch()">관심사 일치</div>
-          <div class="${mode==='different'?'on':''}" onclick="mode='different';renderMatch()">관심사 불일치</div>
-        </div>
-        <p class="dim center">${mode==='similar'?'관심사가 비슷한 사람과 우선 매칭돼요':'관심사가 다른 사람과 우선 매칭돼요'}</p>
-        <div class="card" style="font-size:13px;text-align:left">
-          <b>기준별 자동 매칭</b>
-          <div class="dim" style="margin-top:4px">완벽 매칭이 없으면 자동으로 폭을 넓혀요.</div>
-          <div style="margin-top:6px"><span class="badge live">기준1</span> 완벽 매칭 · <span class="badge">기준2</span> 근접 · <span class="badge">기준3</span> 폭넓게</div>
-        </div>
-        <div class="card dim center" style="font-size:13px">무료 회원은 동시에 최대 2명까지 매칭할 수 있어요</div>
-        <button class="btn" onclick="startMatch()">매칭하기</button>
-      </div>
-    </div>`;
+function delCurChat(){
+  closeMenu();
+  if(confirm('이 대화를 삭제할까요?\n대화 내용이 사라져요.')){
+    const id=cur.id; chats=chats.filter(x=>x.id!==id); save(); clearInterval(ticker); cur=null; tab('list'); go('s-main');
+  }
 }
-function renderChats(){
-  const seg=window._cseg||'active';
-  const items={active:store.active,friends:store.friends,ended:store.ended}[seg];
-  let html=`<div class="topbar"><span class="ttl">대화</span></div>
-    <div class="seg" style="margin:12px 14px 0">
-      <div class="${seg==='active'?'on':''}" onclick="_cseg='active';renderChats()">진행중 ${store.active.length}</div>
-      <div class="${seg==='friends'?'on':''}" onclick="_cseg='friends';renderChats()">친구 ${store.friends.length}</div>
-      <div class="${seg==='ended'?'on':''}" onclick="_cseg='ended';renderChats()">종료됨 ${store.ended.length}</div>
-    </div>`;
-  if(items.length===0){html+=`<div class="center dim" style="height:60%">아직 없어요</div>`;}
-  else items.forEach((p,idx)=>{html+=`
-    <div class="list-item" onclick="curPeer=${JSON.stringify(p).replace(/"/g,'&quot;')};${seg==='ended'?'':'openChat(false)'}">
-      <div class="av" style="background:${p.c};font-size:22px">${p.av}</div>
-      <div style="flex:1;min-width:0">
-        <div class="row" style="gap:6px"><b>${p.name}</b>${seg==='active'?'<span class="badge live">⏳ '+p.left+'</span>':''}${seg==='ended'?'<span class="badge">종료</span>':''}</div>
-        <div class="dim" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${p.last||''}</div>
-      </div>
-      ${seg==='ended'?`<button class="iconbtn" onclick="event.stopPropagation();store.ended.splice(${idx},1);renderChats();toast('기록을 삭제했어요')">🗑</button>`:`<span class="dim">${p.time||''}</span>`}
-    </div>`});
-  document.getElementById('page-chats').innerHTML=html;
+function closeMenu(){document.getElementById('sheet').classList.remove('on')}
+/* 친구 추가 — 양쪽 모두 동의해야 성립 (신청 → 상대 수락) */
+function befriend(){
+  cur.friendReq=true;cur.msgs.push({s:'sys',t:'친구 신청을 보냈어요 · 상대의 수락을 기다려요'});
+  save();renderMsgs();refreshChat();closeMenu();toast('친구 신청을 보냈어요');
+  const id=cur.id;setTimeout(()=>friendDecision(id),1400+Math.random()*1600);
 }
-function renderSettings(){
-  document.getElementById('page-settings').innerHTML=`
-    <div class="topbar"><span class="ttl">설정</span></div>
-    <div class="pad">
-      <div class="card row">
-        <div class="av" style="background:#7c6cff;font-size:30px;width:60px;height:60px;border-radius:18px">🦊</div>
-        <div><b style="font-size:18px">달빛여우</b><div class="dim">조용한 밤 대화 좋아해요</div>
-        <span class="badge" style="margin-top:4px;display:inline-block">패널티 0 / 5</span></div>
-      </div>
-      ${['👤 내 정보 (닉네임·관심사·아바타)','🔔 알림 설정','🤝 친구 관리','🚫 차단 목록','💎 프리미엄 구독','📄 약관·개인정보','🚪 로그아웃'].map(t=>
-        `<div class="list-item" onclick="toast('${t.slice(2)} (프로토타입)')">${t}<span style="margin-left:auto" class="dim">›</span></div>`).join('')}
-    </div>`;
+function friendDecision(id){
+  const c=chats.find(x=>x.id===id);
+  if(!c||c.ended||c.friend||!c.friendReq)return;
+  c.friendReq=false;
+  if(true){                                  // AI 목업: 상대(AI)는 항상 친구 신청을 수락
+    c.friend=true;c.exp=null;c.decidePhase=false;c.myExtend=null;
+    c.msgs.push({s:'sys',t:'친구가 됐어요 · 이제 시간제한 없이 대화해요'});
+  }else{                                       // 상대가 거절 → 대화는 그대로 이어짐
+    c.msgs.push({s:'sys',t:'상대가 친구 신청을 받지 않았어요'});
+  }
+  save();
+  if(cur&&cur.id===c.id){renderMsgs();refreshChat();if(c.friend)toast('친구가 됐어요')}
 }
-window._cseg='active';
-buildOnboarding();
+function leaveChat(){closeMenu();if(confirm('그냥 나가면 패널티 1점이 부여돼요.\n패널티가 3점이 되면 24시간 동안 매칭할 수 없어요.\n나가시겠어요?')){addPenalty();endChat('leave');tab('list');go('s-main')}}
+function blockAndLeave(){closeMenu();if(confirm(cur.nick+'님을 차단할까요? 다시 매칭되지 않아요.')){if(!blocks.includes(cur.nick))blocks.push(cur.nick);endChat('leave');tab('list');go('s-main');toast('차단했어요')}}
+function endChat(reason){
+  cur.ended=true;cur.friend=false;
+  const M={grace:'시간 내에 연장하지 않아 대화가 종료됐어요',declineSelf:'연장하지 않아 대화가 종료됐어요',leave:'대화를 나갔어요'};
+  cur.msgs.push({s:'sys',t:M[reason]||'대화가 종료됐어요'});
+  if(cur.nick)recent[cur.nick]=Date.now()+RECOOL;   // 종료 후 쿨다운 (차단 아니어도 당분간 재매칭 제외)
+  save();clearInterval(ticker);
+  if(document.getElementById('s-chat').classList.contains('active')){renderMsgs();refreshChat()}
+}
 
-/* ---------- 항상 첫 화면에서 시작 (탭 복원/뒤로가기 캐시 대응) ---------- */
-function resetToStart(trigger){
-  clearInterval(countdown); clearInterval(clockT);
-  closeAll();
-  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
-  document.getElementById('s-start').classList.add('active');
-  // 메인 탭 상태도 초기화
-  ['match','chats','settings'].forEach(n=>{const p=document.getElementById('page-'+n);if(p)p.style.display=n==='match'?'':'none';});
-}
-resetToStart('load');
-// 어떤 경로로 다시 보게 되든(뒤로가기·탭복원·탭전환 후 복귀) 항상 첫 화면으로
-window.addEventListener('pageshow', function(){ resetToStart('pageshow'); });
-document.addEventListener('visibilitychange', function(){ if(!document.hidden) resetToStart('visible'); });
-window.addEventListener('focus', function(){ resetToStart('focus'); });
+/* ---------- 유틸 ---------- */
+function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}
+/* 받침 유무에 따라 주격조사 이/가 선택 (음악→이, 영화→가) */
+function iga(w){ if(!w)return '가'; const c=String(w).charCodeAt(String(w).length-1); if(c<0xAC00||c>0xD7A3)return '가'; return ((c-0xAC00)%28)?'이':'가'; }
+
+/* ---------- 부팅 ---------- */
+(function boot(){
+  buildInterests();updateIntState();
+  if(profile&&profile.nick){ if(profile.pin){lockApp()}else{go('s-main');tab('match')} }else{go('s-intro')}
+})();
 </script>
 </body>
 </html>

@@ -77,9 +77,13 @@
   <button data-tab="products" class="tab px-3 py-2 text-sm border-b-2 border-transparent text-[var(--muted)]">상품·가격</button>
   <button data-tab="trend" class="tab px-3 py-2 text-sm border-b-2 border-transparent text-[var(--muted)]">키워드 트렌드</button>
   <button data-tab="demo" class="tab px-3 py-2 text-sm border-b-2 border-transparent text-[var(--muted)]">연령·성별·기기</button>
+  <button data-tab="rank" class="tab px-3 py-2 text-sm border-b-2 border-transparent text-[var(--muted)]">순위 확인</button>
 </nav>
 
 <main class="max-w-6xl mx-auto px-4 py-5">
+
+  <!-- 데이터 소스 전환 (통합 / 네이버 / 쿠팡) -->
+  <div id="srcToggle" class="hidden items-center gap-2 mb-4 text-xs flex-wrap"></div>
 
   <!-- 로딩 -->
   <div id="loading" class="hidden flex items-center gap-2 text-sm text-[var(--muted)] py-8 justify-center">
@@ -111,7 +115,9 @@
 
   <!-- ===== 상품·가격 탭 ===== -->
   <section id="tab-products" class="hidden fade">
-    <div class="flex items-center gap-2 mb-3 text-xs">
+    <!-- 상단 요약: 최저가(몇 번)·최고가(몇 번)·평균가 -->
+    <div id="prodSummary" class="grid grid-cols-3 gap-3 mb-3"></div>
+    <div class="flex items-center gap-2 mb-3 text-xs flex-wrap">
       <span class="text-[var(--muted)]">정렬</span>
       <select id="sortSel" class="rounded-lg px-2 py-1.5">
         <option value="lprice-asc">가격 낮은순</option>
@@ -121,17 +127,23 @@
       <label class="flex items-center gap-1 ml-2 text-[var(--muted)] cursor-pointer">
         <input type="checkbox" id="catalogOnly" class="accent-[var(--accent)]" /> 가격비교(카탈로그)만
       </label>
+      <button id="csvBtn" class="ml-auto rounded-lg px-3 py-1.5 font-semibold flex items-center gap-1"
+              style="background:var(--accent);color:#06231a" title="현재 목록을 엑셀(CSV)로 저장">
+        ⬇ 엑셀 다운로드
+      </button>
     </div>
     <div class="panel rounded-xl overflow-hidden">
       <div class="overflow-x-auto">
         <table class="w-full text-sm">
           <thead class="text-[var(--muted)] text-xs" style="background:var(--panel2)">
-            <tr class="text-left">
-              <th class="px-3 py-2 font-medium">상품</th>
-              <th class="px-3 py-2 font-medium">브랜드</th>
-              <th class="px-3 py-2 font-medium">판매처</th>
-              <th class="px-3 py-2 font-medium text-right">최저가</th>
-              <th class="px-3 py-2 font-medium">유형</th>
+            <tr class="text-left select-none">
+              <th data-sort="orig"     class="px-3 py-2 font-medium text-right w-10 cursor-pointer hover:text-[var(--ink)]">#<span data-arrow></span></th>
+              <th data-sort="source"   class="px-3 py-2 font-medium cursor-pointer hover:text-[var(--ink)]">출처<span data-arrow></span></th>
+              <th data-sort="title"    class="px-3 py-2 font-medium cursor-pointer hover:text-[var(--ink)]">상품<span data-arrow></span></th>
+              <th data-sort="brand"    class="px-3 py-2 font-medium cursor-pointer hover:text-[var(--ink)]">브랜드<span data-arrow></span></th>
+              <th data-sort="mallName" class="px-3 py-2 font-medium cursor-pointer hover:text-[var(--ink)]">판매처<span data-arrow></span></th>
+              <th data-sort="lprice"   class="px-3 py-2 font-medium text-right cursor-pointer hover:text-[var(--ink)]">최저가<span data-arrow></span></th>
+              <th data-sort="productType" class="px-3 py-2 font-medium cursor-pointer hover:text-[var(--ink)]">유형<span data-arrow></span></th>
             </tr>
           </thead>
           <tbody id="prodRows"></tbody>
@@ -144,35 +156,75 @@
   <section id="tab-trend" class="hidden fade space-y-4">
     <div class="panel rounded-xl p-4">
       <div class="flex items-center justify-between mb-3 flex-wrap gap-2">
-        <div class="text-[13px] font-semibold text-[var(--muted)]">키워드 관심도 추이 (최근 12개월, 상대지수)</div>
+        <div id="trendTitle" class="text-[13px] font-semibold text-[var(--muted)]">키워드 관심도 추이 (최근 12개월)</div>
         <div class="flex items-center gap-2 flex-wrap">
-          <!-- 데이터랩 카테고리 선택 (P1: 반려동물 세부 카테고리 코드 매핑) -->
-          <select id="catSel" class="rounded-lg px-2 py-1.5 text-xs" title="데이터랩 카테고리"></select>
           <input id="trendKw" placeholder="비교 키워드 쉼표로 (예: 지위픽,아첨)"
                  class="rounded-lg px-3 py-1.5 text-xs w-64" />
         </div>
       </div>
       <div class="relative" style="height:240px"><canvas id="trendChart"></canvas></div>
-      <p class="text-[11px] text-[var(--muted)] mt-2">
-        ※ 데이터랩 상대지수: 기간 내 최댓값 100 기준. 절대 판매량이 아닌 클릭 관심도 추이입니다.
-        카테고리는 관심도를 집계할 쇼핑 분류입니다 (검색어와 함께 조합).
+      <p class="text-[11px] text-[var(--accent)] mt-2">
+        💡 그래프의 <b>점</b>에 마우스를 올리면(세로 어느 위치든 OK) 그 달의 모든 키워드 수치가 한 번에 표시됩니다.
       </p>
+      <!-- 키워드 비교표 (여러 키워드 입력 시 최근값/평균/최고 비교) -->
+      <div id="trendCompare" class="mt-4"></div>
+      <p class="text-[11px] text-[var(--muted)] mt-3">
+        ※ 그래프는 네이버 <b>검색어 트렌드</b>(전체 검색 기준, 카테고리 무관)를 실제 월검색량으로 환산한 <b>추정 검색량</b>입니다.
+        키워드만 넣으면 어떤 상품이든 계절성 추이가 나옵니다.
+      </p>
+    </div>
+
+    <!-- 연관 키워드 · 실제 월간검색량 (검색광고 API) -->
+    <div class="panel rounded-xl p-4">
+      <div class="text-[13px] font-semibold mb-1 text-[var(--muted)]">연관 키워드 · 실제 월간검색량</div>
+      <p class="text-[11px] text-[var(--muted)] mb-3">
+        검색어와 연관된 키워드를 실제 월간 검색수(PC+모바일) 순으로 보여줍니다. (검색광고 API)
+      </p>
+      <div id="relKw"></div>
     </div>
   </section>
 
   <!-- ===== 연령·성별·기기 탭 ===== -->
-  <section id="tab-demo" class="hidden fade grid md:grid-cols-3 gap-4">
-    <div class="panel rounded-xl p-4">
-      <div class="text-[13px] font-semibold mb-3 text-[var(--muted)]">연령대</div>
-      <div class="relative" style="height:200px"><canvas id="ageChart"></canvas></div>
+  <section id="tab-demo" class="hidden fade space-y-4">
+    <div class="flex items-center gap-2 text-xs flex-wrap">
+      <span class="text-[var(--muted)]">쇼핑 카테고리</span>
+      <select id="catSel" class="rounded-lg px-2 py-1.5 text-xs" title="인구통계 집계 카테고리"></select>
+      <span class="text-[11px] text-[var(--muted)]">※ 인구통계(연령·성별·기기)는 쇼핑 카테고리 기준으로 집계됩니다.</span>
     </div>
-    <div class="panel rounded-xl p-4">
-      <div class="text-[13px] font-semibold mb-3 text-[var(--muted)]">성별</div>
-      <div class="relative" style="height:200px"><canvas id="genderChart"></canvas></div>
+    <div class="grid md:grid-cols-3 gap-4">
+      <div class="panel rounded-xl p-4">
+        <div class="text-[13px] font-semibold mb-3 text-[var(--muted)]">연령대</div>
+        <div class="relative" style="height:200px"><canvas id="ageChart"></canvas></div>
+      </div>
+      <div class="panel rounded-xl p-4">
+        <div class="text-[13px] font-semibold mb-3 text-[var(--muted)]">성별</div>
+        <div class="relative" style="height:200px"><canvas id="genderChart"></canvas></div>
+      </div>
+      <div class="panel rounded-xl p-4">
+        <div class="text-[13px] font-semibold mb-3 text-[var(--muted)]">기기 (PC vs 모바일)</div>
+        <div class="relative" style="height:200px"><canvas id="deviceChart"></canvas></div>
+      </div>
     </div>
-    <div class="panel rounded-xl p-4">
-      <div class="text-[13px] font-semibold mb-3 text-[var(--muted)]">기기 (PC vs 모바일)</div>
-      <div class="relative" style="height:200px"><canvas id="deviceChart"></canvas></div>
+  </section>
+
+  <!-- ===== 순위 확인 탭 ===== -->
+  <section id="tab-rank" class="hidden fade">
+    <div class="panel rounded-xl p-4 space-y-3">
+      <div class="text-[13px] font-semibold text-[var(--muted)]">내 상품 노출순위 확인</div>
+      <p class="text-[11px] text-[var(--muted)]">
+        검색 키워드와 내 상품 링크를 넣으면, 그 키워드로 검색했을 때 몇 번째로 노출되는지 찾아줍니다.
+        (네이버 스마트스토어: 최대 1000위 / 쿠팡: 최대 10위)
+      </p>
+      <input id="rankKw" placeholder="검색 키워드 (예: 강아지 사료)"
+             class="w-full rounded-lg px-3 py-2 text-sm" />
+      <input id="rankLink" placeholder="내 상품 링크 (스마트스토어 또는 쿠팡 URL 붙여넣기)"
+             class="w-full rounded-lg px-3 py-2 text-sm" />
+      <button id="rankGo" class="rounded-lg px-4 py-2 text-sm font-semibold"
+              style="background:var(--accent);color:#06231a">순위 확인</button>
+      <div id="rankResult" class="text-sm"></div>
+      <p class="text-[11px] text-[var(--muted)] leading-relaxed">
+        ※ 네이버는 관련도(sim)순, 쿠팡은 파트너스 API 순서 기준입니다. 실제 웹사이트의 광고 포함 랭킹과는 다를 수 있어요.
+      </p>
     </div>
   </section>
 
@@ -186,7 +238,7 @@
 // ================= 상태 =================
 const KEY_PROXY = "naver_dash_proxy";
 const QUICK_KW = ["지위픽", "질 사료", "아첨 간식", "강아지 사료", "고양이 간식", "츄이씬"];
-let state = { items: [], keyword: "", charts: {} };
+let state = { items: [], keyword: "", charts: {}, source: "all", raw: null };
 
 const $ = (s) => document.querySelector(s);
 const fmt = (n) => Number(n).toLocaleString("ko-KR");
@@ -195,20 +247,42 @@ const stripTag = (s) => s.replace(/<[^>]+>/g, "");
 // ================= 데이터랩 카테고리 맵 (P1) =================
 // 네이버 데이터랩 쇼핑인사이트 실제 카테고리 코드 (생활/건강 > 반려동물 하위).
 // find_category(네이버 쇼핑) 조회로 확인한 값. 검색어 자동 매칭 + 수동 드롭다운 겸용.
+// 배열 순서 = 검색어 자동매칭 우선순위(위에서부터 먼저 매칭). 세부(반려동물·과일)를 먼저,
+// 넓은 대분류를 뒤에 둔다. group 필드는 드롭다운 묶음용(표시 순서는 GROUP_ORDER로 별도 지정).
 const CATEGORY_MAP = [
-  { code: "50000233", label: "반려동물 · 기타용품", match: ["반려", "펫", "용품"] },
-  { code: "50006631", label: "강아지 사료 · 건식", match: ["강아지 사료", "강아지사료", "건식", "지위픽", "질 사료", "츄이씬"] },
-  { code: "50006632", label: "강아지 사료 · 소프트", match: ["소프트"] },
-  { code: "50006633", label: "강아지 사료 · 습식", match: ["강아지 습식"] },
-  { code: "50008289", label: "강아지 사료 · 동결건조", match: ["강아지 동결건조", "에어드라이"] },
-  { code: "50006637", label: "강아지 간식 · 개껌", match: ["개껌"] },
-  { code: "50006638", label: "강아지 간식 · 육포/건조", match: ["강아지 간식", "강아지간식", "아첨", "육포", "트릿"] },
-  { code: "50006679", label: "고양이 사료 · 건식", match: ["고양이 사료", "고양이사료", "고양이 건식"] },
-  { code: "50006680", label: "고양이 사료 · 습식", match: ["고양이 습식"] },
-  { code: "50008388", label: "고양이 사료 · 동결건조", match: ["고양이 동결건조"] },
-  { code: "50006685", label: "고양이 간식 · 캔/파우치", match: ["고양이 간식", "고양이간식", "캔", "파우치"] },
+  // ── 반려동물 (자사 주력) ──
+  { code: "50006631", group: "반려동물", label: "강아지 사료 · 건식", match: ["강아지 사료", "강아지사료", "지위픽", "질 사료", "츄이씬"] },
+  { code: "50006632", group: "반려동물", label: "강아지 사료 · 소프트", match: ["강아지 소프트"] },
+  { code: "50006633", group: "반려동물", label: "강아지 사료 · 습식", match: ["강아지 습식"] },
+  { code: "50008289", group: "반려동물", label: "강아지 사료 · 동결건조", match: ["강아지 동결건조", "에어드라이"] },
+  { code: "50006637", group: "반려동물", label: "강아지 간식 · 개껌", match: ["개껌"] },
+  { code: "50006638", group: "반려동물", label: "강아지 간식 · 육포/건조", match: ["강아지 간식", "강아지간식", "아첨", "육포", "트릿"] },
+  { code: "50006679", group: "반려동물", label: "고양이 사료 · 건식", match: ["고양이 사료", "고양이사료", "고양이 건식"] },
+  { code: "50006680", group: "반려동물", label: "고양이 사료 · 습식", match: ["고양이 습식"] },
+  { code: "50008388", group: "반려동물", label: "고양이 사료 · 동결건조", match: ["고양이 동결건조"] },
+  { code: "50006685", group: "반려동물", label: "고양이 간식 · 캔/파우치", match: ["고양이 간식", "고양이간식", "파우치"] },
+  { code: "50000233", group: "반려동물", label: "반려동물 · 기타용품", match: ["반려", "강아지", "고양이", "펫"] },
+  // ── 식품 · 과일 (세부) ──
+  { code: "50002183", group: "식품 · 과일", label: "과일 · 복숭아", match: ["복숭아"] },
+  { code: "50002160", group: "식품 · 과일", label: "과일 · 사과", match: ["사과"] },
+  { code: "50002161", group: "식품 · 과일", label: "과일 · 배", match: ["배 ", "먹는 배"] },
+  { code: "50002164", group: "식품 · 과일", label: "과일 · 딸기", match: ["딸기"] },
+  { code: "50002163", group: "식품 · 과일", label: "과일 · 감귤", match: ["감귤", "귤", "오렌지"] },
+  { code: "50002162", group: "식품 · 과일", label: "과일 · 토마토", match: ["토마토"] },
+  // ── 대분류(전체) : 넓은 도메인 ──
+  { code: "50000000", group: "대분류(전체)", label: "패션의류", match: ["의류", "옷", "티셔츠", "셔츠", "바지", "원피스", "니트", "코트", "패딩", "패션"] },
+  { code: "50000001", group: "대분류(전체)", label: "패션잡화", match: ["가방", "신발", "운동화", "지갑", "모자", "벨트", "잡화"] },
+  { code: "50000002", group: "대분류(전체)", label: "화장품/미용", match: ["화장품", "스킨", "로션", "크림", "립", "쿠션", "선크림", "향수", "미용", "마스크팩"] },
+  { code: "50000003", group: "대분류(전체)", label: "디지털/가전", match: ["노트북", "휴대폰", "폰", "컴퓨터", "가전", "냉장고", "모니터", "이어폰", "에어팟", "디지털", "전자"] },
+  { code: "50000004", group: "대분류(전체)", label: "가구/인테리어", match: ["가구", "인테리어", "침대", "소파", "책상", "의자", "조명", "커튼", "매트리스"] },
+  { code: "50000005", group: "대분류(전체)", label: "출산/육아", match: ["기저귀", "분유", "유아", "아기", "육아", "출산", "장난감", "유모차"] },
+  { code: "50000006", group: "대분류(전체)", label: "식품", match: ["식품", "간식", "과자", "음료", "커피", "라면", "쌀", "과일", "채소"] },
+  { code: "50000007", group: "대분류(전체)", label: "스포츠/레저", match: ["운동", "스포츠", "레저", "등산", "자전거", "헬스", "골프", "캠핑", "요가"] },
+  { code: "50000008", group: "대분류(전체)", label: "생활/건강", match: ["건강", "영양제", "비타민", "생활", "세제", "휴지", "마스크"] },
+  { code: "50000009", group: "대분류(전체)", label: "여가/생활편의", match: ["여가", "티켓", "편의"] },
 ];
-const DEFAULT_CAT = "50006631"; // 미매칭 시 기본값: 강아지 건식사료
+const GROUP_ORDER = ["대분류(전체)", "식품 · 과일", "반려동물"]; // 드롭다운 묶음 표시 순서
+const DEFAULT_CAT = "50000008"; // 미매칭 시 기본값: 생활/건강(중립적 넓은 분류)
 
 // 검색어로 가장 적합한 카테고리 코드 추정
 function guessCategory(kw) {
@@ -233,13 +307,16 @@ function initQuick() {
     b.onclick = () => { $("#q").value = b.dataset.kw; runSearch(); });
 }
 function initCatSelect() {
-  // "자동" 옵션 + 카테고리 목록
-  $("#catSel").innerHTML =
-    `<option value="">카테고리 자동</option>` +
-    CATEGORY_MAP.map(c => `<option value="${c.code}">${c.label}</option>`).join("");
-  // 카테고리 바꾸면 트렌드 다시 로드
-  $("#catSel").onchange = () =>
-    loadTrend($("#trendKw").value.split(",").map(s=>s.trim()).filter(Boolean));
+  // "자동" 옵션 + 그룹별(optgroup) 카테고리 목록
+  const html = `<option value="">카테고리 자동</option>` +
+    GROUP_ORDER.map(g => {
+      const opts = CATEGORY_MAP.filter(c => c.group === g)
+        .map(c => `<option value="${c.code}">${c.label}</option>`).join("");
+      return `<optgroup label="${g}">${opts}</optgroup>`;
+    }).join("");
+  $("#catSel").innerHTML = html;
+  // 카테고리 바꾸면 인구통계(연령·성별·기기) 다시 로드
+  $("#catSel").onchange = () => { if (state.keyword) loadDemo(state.keyword); };
 }
 function loadCfg() {
   const p = localStorage.getItem(KEY_PROXY) || "";
@@ -258,9 +335,14 @@ document.querySelectorAll(".tab").forEach(t => t.onclick = () => {
     x.classList.remove("on"); x.classList.add("text-[var(--muted)]","border-transparent");
   });
   t.classList.add("on"); t.classList.remove("text-[var(--muted)]","border-transparent");
-  ["overview","products","trend","demo"].forEach(id =>
-    $("#tab-"+id).classList.toggle("hidden", id !== t.dataset.tab));
+  showTab(t.dataset.tab);
 });
+// 현재 활성 탭(.tab.on) 영역을 보이게 하고 나머지는 숨김
+function showTab(tab) {
+  const active = tab || document.querySelector(".tab.on")?.dataset.tab || "overview";
+  ["overview","products","trend","demo","rank"].forEach(id =>
+    $("#tab-"+id).classList.toggle("hidden", id !== active));
+}
 
 // ================= API 호출 =================
 async function api(path, opts) {
@@ -279,30 +361,111 @@ async function runSearch() {
   $("#empty").classList.add("hidden");
   $("#loading").classList.remove("hidden");
   try {
-    let data = await api(`/search?query=${encodeURIComponent(kw)}&display=40`);
-    if (!data) data = demoSearch(kw);       // 프록시 없으면 데모
-    state.items = data.items || [];
-    state._total = data.total || null;
+    // 네이버 + 쿠팡 병렬 검색 (각각 실패 시 자체 데모 폴백)
+    const [nv, cp] = await Promise.all([ fetchNaver(kw), fetchCoupang(kw) ]);
+    state.raw = { naver: nv.items, coupang: cp.items };
+    state._totalNaver = nv.total;
+    state.demo = { naver: nv.demo, coupang: cp.demo }; // 소스별 데모 여부
+    state.demoReason = { naver: nv.reason, coupang: cp.reason }; // 데모로 빠진 이유(진단용)
     render();
     loadTrend([kw]);
     loadDemo(kw);
-  } catch (e) {
-    // 실패 시 데모로 폴백
-    const demo = demoSearch(kw);
-    state.items = demo.items; state._total = demo.total;
-    render(); loadTrend([kw]); loadDemo(kw);
-    $("#cfgState").textContent = "API 오류 · 데모로 표시 (" + e.message + ")";
   } finally {
     $("#loading").classList.add("hidden");
   }
 }
 
+// 네이버 검색 (source 태깅 + 데모 폴백). demo:true면 실데이터 못 받아 데모로 표시 중
+async function fetchNaver(kw) {
+  let reason = "프록시 미설정";
+  try {
+    const d = await api(`/search?query=${encodeURIComponent(kw)}&display=40`);
+    if (d) return { items: tagSource(d.items||[], "naver"), total: d.total||null, demo:false };
+  } catch(e){ reason = e.message || "요청실패"; }
+  const demo = demoSearch(kw);
+  return { items: tagSource(demo.items, "naver"), total: demo.total, demo:true, reason };
+}
+// 쿠팡 파트너스 검색 (source 태깅 + 데모 폴백)
+async function fetchCoupang(kw) {
+  let reason = "프록시 미설정";
+  try {
+    const d = await api(`/coupang?keyword=${encodeURIComponent(kw)}&limit=10`);
+    if (d) {
+      const items = parseCoupang(d);
+      if (items) return { items: tagSource(items, "coupang"), total: items.length, demo:false };
+      reason = "응답형식오류(data.productData 없음)";
+    }
+  } catch(e){ reason = e.message || "요청실패"; }
+  const demo = demoCoupang(kw);
+  return { items: tagSource(demo.items, "coupang"), total: demo.total, demo:true, reason };
+}
+// source 태깅 + 노출순위(rank) 부여. 이미 rank 있으면(쿠팡) 유지, 없으면 응답 순서로 매김(네이버=관련도순)
+function tagSource(items, src){
+  (items||[]).forEach((i,idx) => { i.source = src; if (i.rank==null) i.rank = idx+1; });
+  return items||[];
+}
+
+// 쿠팡 파트너스 응답 → 공통 item 구조로 변환
+function parseCoupang(d) {
+  const arr = d && d.data && d.data.productData;
+  if (!Array.isArray(arr)) return null;
+  return arr.map(p => ({
+    title: p.productName, link: p.productUrl, image: p.productImage,
+    brand: "", mallName: p.isRocket ? "쿠팡(로켓)" : "쿠팡",
+    lprice: p.productPrice, productType: "2", isRocket: !!p.isRocket,
+    isFreeShipping: !!p.isFreeShipping, rank: p.rank, productId: p.productId, // 무료배송·순위·상품ID
+    category: p.categoryName || "",
+  }));
+}
+
+// 현재 소스 필터에 맞는 상품 목록
+function visibleItems() {
+  const raw = state.raw || { naver:[], coupang:[] };
+  if (state.source === "naver")   return raw.naver || [];
+  if (state.source === "coupang") return raw.coupang || [];
+  return [ ...(raw.naver||[]), ...(raw.coupang||[]) ]; // 통합
+}
+
 // ================= 렌더 =================
 function render() {
-  const items = state.items;
+  if (!state.raw) return;
+  renderSourceToggle();
+  const items = visibleItems();
   if (!items.length) return;
   renderOverview(items);
   renderProducts();
+  showTab();  // 검색 후 현재 활성 탭 영역을 실제로 노출 (숨김 상태 해제)
+}
+
+// 데이터 소스 토글 (통합 / 네이버 / 쿠팡) — 개수 함께 표시
+function renderSourceToggle() {
+  const raw = state.raw || { naver:[], coupang:[] };
+  const demo = state.demo || {};
+  const nN = (raw.naver||[]).length, nC = (raw.coupang||[]).length;
+  const tag = (isDemo) => isDemo ? ` <span style="color:var(--warn)">·데모</span>` : "";
+  const opts = [
+    ["all",`통합 ${nN+nC}`, false],
+    ["naver",`네이버 ${nN}`, demo.naver],
+    ["coupang",`쿠팡 ${nC}`, demo.coupang],
+  ];
+  const box = $("#srcToggle");
+  box.className = "flex flex-col gap-1 mb-4 text-xs";
+  const anyDemo = demo.naver || demo.coupang;
+  const reason = state.demoReason || {};
+  // 데모로 빠진 소스별 이유 표시 (진단용)
+  const reasonLines = [];
+  if (demo.naver) reasonLines.push(`네이버 데모 사유: ${reason.naver||"?"}`);
+  if (demo.coupang) reasonLines.push(`쿠팡 데모 사유: ${reason.coupang||"?"}`);
+  box.innerHTML =
+    `<div class="flex items-center gap-2 flex-wrap">
+      <span class="text-[var(--muted)] mr-1">데이터 소스</span>` +
+      opts.map(([v,label,isDemo]) =>
+        `<button class="chip px-3 py-1 rounded-full ${state.source===v?'on':''}" data-src="${v}">${label}${tag(isDemo)}</button>`
+      ).join("") +
+    `</div>` +
+    (anyDemo ? `<div class="text-[11px]" style="color:var(--warn)">⚠ ${reasonLines.join(" · ")} — ⚙ 프록시·키 확인</div>` : "");
+  box.querySelectorAll("[data-src]").forEach(b =>
+    b.onclick = () => { state.source = b.dataset.src; render(); });
 }
 
 function renderOverview(items) {
@@ -310,8 +473,13 @@ function renderOverview(items) {
   const min = Math.min(...prices), max = Math.max(...prices);
   const avg = Math.round(prices.reduce((a,b)=>a+b,0)/prices.length);
   const brands = new Set(items.map(i => i.brand).filter(Boolean)).size;
+  // 검색 결과 카드: 소스별로 의미 다르게 표기
+  let totalV, totalS;
+  if (state.source === "naver") { totalV = (state._totalNaver ? fmt(state._totalNaver) : items.length)+"개"; totalS = "네이버 전체"; }
+  else if (state.source === "coupang") { totalV = items.length+"개"; totalS = "쿠팡 표본"; }
+  else { totalV = items.length+"개"; totalS = "표본 합계(네+쿠)"; }
   const cards = [
-    ["검색 결과", state._total ? fmt(state._total)+"개" : items.length+"개", "전체 상품 수"],
+    ["검색 결과", totalV, totalS],
     ["최저가", "₩"+fmt(min), "이 키워드 최저"],
     ["평균가", "₩"+fmt(avg), "표본 "+prices.length+"개"],
     ["브랜드 수", brands+"개", "노출 브랜드"],
@@ -353,51 +521,394 @@ function drawPriceHist(prices, min, max) {
   });
 }
 
+// 현재 정렬 상태 (헤더 클릭·드롭다운 공용). key='orig'면 원래(관련도) 순서.
+state.sort = { key:"lprice", dir:"asc" };
+
 function renderProducts() {
-  let items = [...state.items];
+  let items = [...visibleItems()];
   if ($("#catalogOnly").checked) items = items.filter(i => i.productType === "1");
-  const [k,dir] = $("#sortSel").value.split("-");
-  if (k === "lprice") items.sort((a,b)=> dir==="asc" ? a.lprice-b.lprice : b.lprice-a.lprice);
-  $("#prodRows").innerHTML = items.map(i => `
+
+  const { key, dir } = state.sort;
+  if (key && key !== "orig") {
+    const numeric = key === "lprice";
+    items.sort((a,b)=>{
+      let av = a[key], bv = b[key];
+      if (numeric) { av = +av||0; bv = +bv||0; return dir==="asc" ? av-bv : bv-av; }
+      av = stripTag(String(av||"")); bv = stripTag(String(bv||""));
+      return dir==="asc" ? av.localeCompare(bv,"ko") : bv.localeCompare(av,"ko");
+    });
+  }
+  updateSortArrows();
+  state.displayed = items;  // 엑셀 내보내기가 "현재 보이는 목록"과 일치하도록 저장
+
+  // 행마다 순번(#) 부여 (1부터)
+  $("#prodRows").innerHTML = items.map((i,idx) => `
     <tr class="border-t" style="border-color:var(--line)">
+      <td class="px-3 py-2 text-right mono text-[var(--muted)]">${idx+1}</td>
+      <td class="px-3 py-2">${srcBadge(i.source)}</td>
       <td class="px-3 py-2 max-w-[300px]">
-        <a href="${i.link}" target="_blank" class="hover:text-[var(--accent)] line-clamp-1">${stripTag(i.title)}</a>
+        <div class="flex items-center gap-2">
+          ${i.image ? `<img src="${i.image}" alt="" class="w-9 h-9 rounded object-cover shrink-0" style="background:var(--panel2)" loading="lazy" onerror="this.style.display='none'">` : ""}
+          <div class="min-w-0">
+            <a href="${i.link}" target="_blank" class="hover:text-[var(--accent)] line-clamp-1">${stripTag(i.title)}</a>
+            ${i.rank ? `<div class="text-[10px] text-[var(--muted)]">${i.source==="coupang"?"쿠팡":"네이버"} 노출순 ${i.rank}위</div>` : ""}
+          </div>
+        </div>
       </td>
       <td class="px-3 py-2 text-[var(--muted)] text-xs">${i.brand||"—"}</td>
       <td class="px-3 py-2 text-xs">${i.mallName}</td>
       <td class="px-3 py-2 text-right mono font-semibold">₩${fmt(i.lprice)}</td>
       <td class="px-3 py-2">
-        <span class="text-[10px] px-1.5 py-0.5 rounded"
-          style="background:var(--panel2);color:${i.productType==='1'?'var(--accent)':'var(--muted)'}">
-          ${i.productType==='1'?'가격비교':'단독'}</span>
+        <div class="flex flex-wrap gap-1">
+        ${i.source==="coupang"
+          ? ((i.isRocket ? `<span class="text-[10px] px-1.5 py-0.5 rounded" style="background:var(--panel2);color:var(--accent2)">로켓</span>` : "")
+             + (i.isFreeShipping ? `<span class="text-[10px] px-1.5 py-0.5 rounded" style="background:var(--panel2);color:var(--accent)">무료배송</span>` : "")
+             + (!i.isRocket && !i.isFreeShipping ? `<span class="text-[var(--muted)]">—</span>` : ""))
+          : `<span class="text-[10px] px-1.5 py-0.5 rounded" style="background:var(--panel2);color:${i.productType==='1'?'var(--accent)':'var(--muted)'}">${i.productType==='1'?'가격비교':'단독'}</span>`}
+        </div>
       </td>
     </tr>`).join("");
+
+  renderProdSummary(items);
 }
-$("#sortSel").onchange = renderProducts;
+
+// 출처 배지 (네이버=초록, 쿠팡=주황)
+function srcBadge(src) {
+  const isCp = src === "coupang";
+  const color = isCp ? "var(--accent2)" : "var(--accent)";
+  const label = isCp ? "쿠팡" : "네이버";
+  return `<span class="text-[10px] px-1.5 py-0.5 rounded whitespace-nowrap" style="background:var(--panel2);color:${color}">${label}</span>`;
+}
+
+// 상단 요약: 현재 목록 기준 최저가·최고가가 몇 번 상품인지 + 평균가
+function renderProdSummary(items) {
+  const box = $("#prodSummary");
+  if (!items.length) { box.innerHTML = ""; return; }
+  let minIdx = 0, maxIdx = 0;
+  items.forEach((it,idx) => {
+    if (+it.lprice < +items[minIdx].lprice) minIdx = idx;
+    if (+it.lprice > +items[maxIdx].lprice) maxIdx = idx;
+  });
+  const avg = Math.round(items.reduce((a,b)=>a+(+b.lprice||0),0)/items.length);
+  const card = (label, num, price, color) => `
+    <div class="panel rounded-xl p-3">
+      <div class="text-[11px] text-[var(--muted)]">${label}${num!=null?` · <b style="color:${color}">${num}번</b>`:""}</div>
+      <div class="text-lg font-bold mono mt-1" style="color:${color}">₩${fmt(price)}</div>
+    </div>`;
+  box.innerHTML =
+    card("최저가", minIdx+1, items[minIdx].lprice, "var(--accent)") +
+    card("최고가", maxIdx+1, items[maxIdx].lprice, "var(--accent2)") +
+    card("평균가", null, avg, "var(--ink)");
+}
 $("#catalogOnly").onchange = renderProducts;
+
+// 드롭다운 정렬 → state.sort 반영 (헤더 클릭과 동일 상태 공유)
+$("#sortSel").onchange = () => {
+  const v = $("#sortSel").value;
+  if (v === "rel") state.sort = { key:"orig", dir:"asc" };
+  else { const [k,dir] = v.split("-"); state.sort = { key:k, dir }; }
+  renderProducts();
+};
+
+// 표 제목(헤더) 클릭 → 그 열로 정렬, 같은 열 다시 누르면 오름/내림 토글
+document.querySelectorAll("#tab-products th[data-sort]").forEach(th => {
+  th.onclick = () => {
+    const key = th.dataset.sort;
+    if (state.sort.key === key) state.sort.dir = state.sort.dir === "asc" ? "desc" : "asc";
+    else state.sort = { key, dir: key === "lprice" ? "asc" : "asc" };
+    // 가격 정렬이면 드롭다운도 맞춰줌 (그 외엔 드롭다운은 그대로)
+    if (key === "lprice") $("#sortSel").value = "lprice-" + state.sort.dir;
+    else if (key === "orig") $("#sortSel").value = "rel";
+    renderProducts();
+  };
+});
+
+// 활성 정렬 열에 화살표(▲/▼) 표시, 나머지는 지움
+function updateSortArrows() {
+  document.querySelectorAll("#tab-products th[data-sort]").forEach(th => {
+    const arrow = th.querySelector("[data-arrow]");
+    if (!arrow) return;
+    if (th.dataset.sort === state.sort.key) {
+      arrow.textContent = state.sort.dir === "asc" ? " ▲" : " ▼";
+      th.classList.add("text-[var(--accent)]");
+    } else {
+      arrow.textContent = "";
+      th.classList.remove("text-[var(--accent)]");
+    }
+  });
+}
+
+// ---- 엑셀(CSV) 내보내기 ----
+// 현재 화면에 보이는 목록(state.displayed)을 CSV로 저장. 한글 깨짐 방지 위해 UTF-8 BOM 첨부.
+function downloadCSV() {
+  const items = state.displayed || [];
+  if (!items.length) { alert("내보낼 상품이 없습니다. 먼저 검색하세요."); return; }
+  const cols = ["순번","출처","상품명","브랜드","판매처","최저가","유형","링크"];
+  const esc = (v) => `"${String(v==null?"":v).replace(/"/g,'""')}"`; // 따옴표/쉼표 안전 처리
+  const typeLabel = (i) => i.source==="coupang" ? (i.isRocket?"로켓":"") : (i.productType==="1"?"가격비교":"단독");
+  const rows = items.map((i,idx) => [
+    idx+1, i.source==="coupang"?"쿠팡":"네이버", stripTag(i.title), i.brand||"", i.mallName||"",
+    i.lprice||"", typeLabel(i), i.link||""
+  ].map(esc).join(","));
+  const csv = "﻿" + [cols.map(esc).join(","), ...rows].join("\r\n");
+  const blob = new Blob([csv], { type:"text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  const kw = (state.keyword||"상품").replace(/[\\/:*?"<>|]/g,"_"); // 파일명 금지문자 제거
+  a.href = url; a.download = `쇼핑인사이트_${kw}.csv`;
+  document.body.appendChild(a); a.click();
+  document.body.removeChild(a); URL.revokeObjectURL(url);
+}
+$("#csvBtn").onclick = downloadCSV;
 
 // ---- 트렌드 ----
 async function loadTrend(kws) {
   $("#trendKw").value = kws.join(",");
-  let data;
-  try {
-    data = await api("/datalab", { method:"POST", headers:{"Content-Type":"application/json"},
-      body: JSON.stringify(datalabBody(kws)) });
-  } catch(e){ data = null; }
-  if (!data) data = demoTrend(kws);
-  drawTrend(data);
+  // 데이터랩(상대추이) + 검색광고(네이버 실검색량) + 쿠팡(가격) 병렬 조회
+  const [trend, kwData, cpStats] = await Promise.all([
+    fetchTrend(kws), fetchKeywordVolumes(kws), fetchCoupangStats(kws)
+  ]);
+  drawTrend(trend, kwData);                              // 그래프: 월별 추정 검색량
+  renderTrendCompare(trend.results, kwData.volumes, cpStats); // 비교표: 네이버 검색량 + 쿠팡 가격
+  renderRelated(kwData.related);
+}
+
+// 키워드별 쿠팡 가격 통계 {정규화kw:{count,min,avg}} (실패/미설정 시 데모)
+async function fetchCoupangStats(kws) {
+  const out = {};
+  await Promise.all(kws.map(async (kw) => {
+    let items = null;
+    try {
+      const d = await api(`/coupang?keyword=${encodeURIComponent(kw)}&limit=10`);
+      items = parseCoupang(d);
+    } catch(e){}
+    if (!items) items = demoCoupang(kw).items;
+    const prices = (items||[]).map(i=>+i.lprice).filter(Boolean);
+    out[normKw(kw)] = prices.length
+      ? { count: items.length, min: Math.min(...prices), avg: Math.round(prices.reduce((a,b)=>a+b,0)/prices.length) }
+      : { count: 0, min: null, avg: null };
+  }));
+  return out;
 }
 $("#trendKw").onchange = () => loadTrend($("#trendKw").value.split(",").map(s=>s.trim()).filter(Boolean));
 
-function drawTrend(data) {
-  const colors = ["#2dd4a7","#f0883e","#a371f7","#58a6ff"];
-  const ds = (data.results||[]).map((r,i)=>({
-    label:r.title, data:r.data.map(d=>d.ratio),
-    borderColor:colors[i%4], backgroundColor:"transparent",
-    tension:0.35, borderWidth:2, pointRadius:0,
-  }));
-  const labels = data.results?.[0]?.data.map(d=>d.period.slice(2)) || [];
-  chart("trendChart", { type:"line", data:{labels,datasets:ds}, options: baseOpts(true) });
+// 검색어 트렌드 (카테고리 불필요 → 아무 키워드나 실제 계절성 곡선). 실패/미설정 시 데모
+async function fetchTrend(kws) {
+  try {
+    const d = await api("/datalab-search", { method:"POST", headers:{"Content-Type":"application/json"},
+      body: JSON.stringify(searchTrendBody(kws)) });
+    if (d && d.results) return d;
+  } catch(e){}
+  return demoTrend(kws);
+}
+// 검색어트렌드 요청 바디 (쇼핑 카테고리 없음)
+function searchTrendBody(kws) {
+  const end = new Date(), start = new Date(); start.setMonth(start.getMonth()-12);
+  const iso = d => d.toISOString().slice(0,10);
+  return {
+    startDate: iso(start), endDate: iso(end), timeUnit: "month",
+    keywordGroups: kws.map(k => ({ groupName: k, keywords: [k] })),
+  };
+}
+
+// 검색광고 키워드도구: 연관키워드 + 실제 월간검색량 (실패/미설정 시 데모)
+async function fetchKeywordVolumes(kws) {
+  try {
+    const d = await api(`/keywords?hintKeywords=${encodeURIComponent(kws.join(","))}`);
+    if (d && d.keywordList) return parseKeywordTool(d, kws);
+  } catch(e){}
+  return demoKeywords(kws);
+}
+
+// 키워드 정규화(공백 제거·대문자) — 검색광고 응답의 relKeyword 표기에 맞춤
+const normKw = (s) => String(s||"").replace(/\s+/g,"").toUpperCase();
+// 월간검색수 파싱: "< 10" 같은 문자열은 5로 근사, 숫자는 그대로
+const qcNum = (v) => {
+  if (v==null) return 0;
+  const s = String(v);
+  if (s.includes("<")) return 5;
+  const n = parseInt(s.replace(/[^0-9]/g,""),10);
+  return isFinite(n) ? n : 0;
+};
+// 검색광고 응답 → { volumes:{정규화kw:{pc,mo,total,comp}}, related:[...상위 15] }
+function parseKeywordTool(d, kws) {
+  const list = (d.keywordList||[]).map(k=>{
+    const pc = qcNum(k.monthlyPcQcCnt), mo = qcNum(k.monthlyMobileQcCnt);
+    return { kw:k.relKeyword, pc, mo, total:pc+mo, comp:k.compIdx||"" };
+  });
+  const wanted = new Set(kws.map(normKw));
+  const volumes = {};
+  list.forEach(k => { if (wanted.has(normKw(k.kw))) volumes[normKw(k.kw)] = k; });
+  const related = list.filter(k => !wanted.has(normKw(k.kw)))
+    .sort((a,b)=> b.total - a.total).slice(0,50); // 연관키워드 상위 50개 표시
+  return { volumes, related };
+}
+
+// 마우스 올린 지점에 세로 안내선을 그려 "어느 달인지" 명확히 표시하는 미니 플러그인
+const hoverLinePlugin = {
+  id: "hoverLine",
+  afterDraw(chart) {
+    const act = chart.tooltip && chart.tooltip.getActiveElements ? chart.tooltip.getActiveElements() : [];
+    if (!act.length) return;
+    const x = act[0].element.x;
+    const { top, bottom } = chart.chartArea;
+    const ctx = chart.ctx;
+    ctx.save();
+    ctx.beginPath(); ctx.moveTo(x, top); ctx.lineTo(x, bottom);
+    ctx.lineWidth = 1; ctx.strokeStyle = "rgba(230,237,243,0.28)"; ctx.stroke();
+    ctx.restore();
+  }
+};
+
+const TREND_COLORS = ["#2dd4a7","#f0883e","#a371f7","#58a6ff","#e3b341","#db61a2"];
+
+function drawTrend(data, kwData) {
+  const results = data.results || [];
+  const C = TREND_COLORS;
+  const vols = (kwData && kwData.volumes) || {};
+  // 모든 키워드에 실검색량이 있으면 → "월별 추정 검색량"(절대수치) 모드, 아니면 상대지수
+  const absMode = results.length > 0 && results.every(r => vols[normKw(r.title)]);
+  const ds = results.map((r,i)=>{
+    let series = r.data.map(d=>+d.ratio);
+    if (absMode) {
+      // 데이터랩 12개월 곡선 × (실월간검색량 / 최근달 지수) = 월별 추정 검색량
+      const v = vols[normKw(r.title)];
+      const lastR = series[series.length-1] || 0;
+      const scale = lastR > 0 ? v.total / lastR : 0;
+      series = series.map(x => Math.round(x * scale));
+    }
+    return {
+      label:r.title, data:series,
+      borderColor:C[i%C.length], backgroundColor:"transparent",
+      tension:0.35, borderWidth:2, pointRadius:3, pointHoverRadius:6,
+      pointBackgroundColor:C[i%C.length], pointBorderColor:"#0d1117", pointBorderWidth:1.5,
+    };
+  });
+  const labels = results[0]?.data.map(d=>d.period.slice(2,7)) || []; // "2025-07-01"→"25-07"
+  chart("trendChart", {
+    type:"line",
+    data:{ labels, datasets:ds },
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      interaction:{ mode:"index", intersect:false },
+      plugins:{
+        legend:{ labels:{ color:"#8b949e", font:{size:11} } },
+        tooltip:{
+          backgroundColor:"#1c2129", borderColor:"#2a313c", borderWidth:1,
+          titleColor:"#e6edf3", bodyColor:"#e6edf3", padding:10,
+          callbacks:{
+            title:(t)=> (t[0]?.label||"") + "월",
+            label:(c)=> `${c.dataset.label}: ${fmt(c.parsed.y)}${absMode?" 회(추정)":""}`,
+          }
+        }
+      },
+      scales:{
+        x:{ ticks:{color:"#8b949e",font:{size:10}}, grid:{display:false} },
+        y:{ ticks:{color:"#8b949e",font:{size:10}, callback:(v)=>fmt(v)}, grid:{color:"#2a313c"},
+            beginAtZero:true, suggestedMax: absMode ? undefined : 100 },
+      },
+    },
+    plugins:[hoverLinePlugin],
+  });
+  // 그래프 제목 업데이트
+  const h = document.getElementById("trendTitle");
+  if (h) h.textContent = absMode
+    ? "월별 추정 검색량 (최근 12개월, 네이버)"
+    : "키워드 관심도 추이 (최근 12개월, 상대지수)";
+}
+
+// 경쟁도 배지 (검색광고 compIdx: 낮음/중간/높음)
+function compBadge(c) {
+  if (!c) return `<span class="text-[var(--muted)]">—</span>`;
+  const color = c.includes("높") ? "var(--warn)" : c.includes("중") ? "var(--accent2)" : "var(--accent)";
+  return `<span class="text-[10px] px-1.5 py-0.5 rounded" style="background:var(--panel2);color:${color}">${c}</span>`;
+}
+
+// 키워드 비교표: 네이버 월간검색량(관심도) vs 쿠팡 가격(최저/평균). 값 없으면 "—".
+function renderTrendCompare(results, volumes, cpStats) {
+  const box = $("#trendCompare");
+  if (!results.length) { box.innerHTML = ""; return; }
+  const C = TREND_COLORS;
+  const rows = results.map((r,i)=>{
+    const vol = volumes && volumes[normKw(r.title)];
+    const naver = vol ? vol.total : null;
+    const cp = cpStats && cpStats[normKw(r.title)];
+    return { title:r.title, color:C[i%C.length], naver,
+      cpMin: cp?cp.min:null, cpAvg: cp?cp.avg:null };
+  }).sort((a,b)=> (b.naver||0) - (a.naver||0));
+  const maxN = Math.max(...rows.map(r=>r.naver||0), 1);
+  box.innerHTML = `
+    <div class="text-[13px] font-semibold mb-2 text-[var(--muted)]">키워드 비교 · 네이버 검색량 vs 쿠팡 가격</div>
+    <div class="overflow-x-auto"><table class="w-full text-xs">
+      <thead class="text-[var(--muted)]"><tr class="text-left">
+        <th class="py-1.5 pr-2 font-medium">키워드</th>
+        <th class="py-1.5 px-2 font-medium">네이버 검색량 비교</th>
+        <th class="py-1.5 px-2 font-medium text-right">네이버 월검색량</th>
+        <th class="py-1.5 px-2 font-medium text-right">쿠팡 최저가</th>
+        <th class="py-1.5 pl-2 font-medium text-right">쿠팡 평균가</th>
+      </tr></thead>
+      <tbody>${rows.map(r=>`
+        <tr class="border-t" style="border-color:var(--line)">
+          <td class="py-1.5 pr-2 whitespace-nowrap">
+            <span class="inline-block w-2.5 h-2.5 rounded-full mr-1.5 align-middle" style="background:${r.color}"></span>${r.title}
+          </td>
+          <td class="py-1.5 px-2" style="min-width:90px">
+            <div class="rounded-full h-2" style="background:var(--panel2)">
+              <div class="h-2 rounded-full" style="width:${(r.naver||0)/maxN*100}%;background:${r.color}"></div>
+            </div>
+          </td>
+          <td class="py-1.5 px-2 text-right mono font-semibold">${r.naver!=null?fmt(r.naver):"—"}</td>
+          <td class="py-1.5 px-2 text-right mono" style="color:var(--accent2)">${r.cpMin!=null?"₩"+fmt(r.cpMin):"—"}</td>
+          <td class="py-1.5 pl-2 text-right mono text-[var(--muted)]">${r.cpAvg!=null?"₩"+fmt(r.cpAvg):"—"}</td>
+        </tr>`).join("")}
+      </tbody>
+    </table></div>
+    <p class="text-[11px] text-[var(--muted)] mt-2">
+      · 네이버 월검색량 = 검색광고 실검색수(관심도). · 쿠팡 가격 = 파트너스 상품 최저/평균가.
+      쿠팡은 검색량 지표가 없어 가격으로 대체했습니다.
+    </p>`;
+}
+
+// 연관 키워드 표: 실제 월간검색량(PC/모바일) 순
+function renderRelated(related) {
+  const box = $("#relKw");
+  if (!related || !related.length) {
+    box.innerHTML = `<p class="text-xs text-[var(--muted)]">연관 키워드가 없습니다.</p>`; return;
+  }
+  const max = Math.max(...related.map(r=>r.total), 1);
+  box.innerHTML = `
+    <div class="overflow-x-auto"><table class="w-full text-xs">
+      <thead class="text-[var(--muted)]"><tr class="text-left">
+        <th class="py-1.5 pr-2 font-medium">연관 키워드</th>
+        <th class="py-1.5 px-2 font-medium">검색량 비교</th>
+        <th class="py-1.5 px-2 font-medium text-right">월간검색량</th>
+        <th class="py-1.5 px-2 font-medium text-right">PC</th>
+        <th class="py-1.5 px-2 font-medium text-right">모바일</th>
+        <th class="py-1.5 pl-2 font-medium">경쟁도</th>
+      </tr></thead>
+      <tbody>${related.map(r=>`
+        <tr class="border-t" style="border-color:var(--line)">
+          <td class="py-1.5 pr-2 whitespace-nowrap">
+            <button class="hover:text-[var(--accent)]" onclick="quickTrend('${(r.kw||'').replace(/'/g,"")}')" title="이 키워드로 트렌드 보기">${r.kw}</button>
+          </td>
+          <td class="py-1.5 px-2" style="min-width:90px">
+            <div class="rounded-full h-2" style="background:var(--panel2)">
+              <div class="h-2 rounded-full" style="width:${r.total/max*100}%;background:var(--accent)"></div>
+            </div>
+          </td>
+          <td class="py-1.5 px-2 text-right mono font-semibold">${fmt(r.total)}</td>
+          <td class="py-1.5 px-2 text-right mono text-[var(--muted)]">${fmt(r.pc)}</td>
+          <td class="py-1.5 px-2 text-right mono text-[var(--muted)]">${fmt(r.mo)}</td>
+          <td class="py-1.5 pl-2">${compBadge(r.comp)}</td>
+        </tr>`).join("")}
+      </tbody>
+    </table></div>`;
+}
+// 연관 키워드 클릭 → 트렌드 비교에 추가
+function quickTrend(kw) {
+  const cur = $("#trendKw").value.split(",").map(s=>s.trim()).filter(Boolean);
+  if (!cur.includes(kw)) cur.push(kw);
+  loadTrend(cur.slice(0,5)); // 데이터랩 최대 5개
 }
 
 // ---- 연령/성별/기기 (P1: 실API 병렬 호출 + 데모 폴백) ----
@@ -481,16 +992,30 @@ function datalabBody(kws) {
 }
 
 // ================= 데모 데이터 (프록시 미설정 시) =================
+// 브랜드/판매처는 특정 업종색 없는 일반 샘플명 (실데이터로 오해 방지)
 function demoSearch(kw) {
-  const malls = ["네이버","지위픽 공식몰","지펫온라인","펫프렌즈","어바웃펫","쿠팡"];
-  const brands = ["지위픽","질","아첨","웰츠","","츄이씬"];
+  const malls = ["네이버","종합몰","오픈마켓A","오픈마켓B","전문몰","직영몰"];
+  const brands = ["샘플브랜드A","샘플브랜드B","","샘플브랜드C","","샘플브랜드D"];
   const items = Array.from({length:32}, (_,i)=>({
-    title:`${kw} ${["오리지널","프리미엄","에어드라이","소프트"][i%4]} ${(i%3+1)*454}g`,
+    title:`[데모] ${kw} 샘플상품 ${i+1}`,
     link:"#", brand:brands[i%brands.length], mallName:malls[i%malls.length],
     lprice: 30000 + Math.round(Math.random()*90000/100)*100,
     productType: i%3===0 ? "1":"2",
   }));
   return { total:3879, items };
+}
+// 쿠팡 데모: 쿠팡 판매처/로켓 위주 표본
+function demoCoupang(kw) {
+  const items = Array.from({length:24}, (_,i)=>{
+    const rocket = i%3!==0;
+    return {
+      title:`[데모] ${kw} 샘플상품 ${i+1}`,
+      link:"#", image:"", brand:"", mallName: rocket?"쿠팡(로켓)":"쿠팡",
+      lprice: 25000 + Math.round(Math.random()*80000/100)*100,
+      productType:"2", isRocket: rocket, isFreeShipping: i%2===0, rank: i+1, category:"",
+    };
+  });
+  return { total:24, items };
 }
 function demoTrend(kws) {
   const periods = Array.from({length:12},(_,i)=>{
@@ -504,6 +1029,102 @@ function demoTrend(kws) {
 function demoDemographics(kw) {
   return { age:[5,28,32,20,10,5], gender:[62,38], device:[78,22] };
 }
+// 검색광고 데모: 입력 키워드 볼륨 + 연관키워드 (프록시/광고키 미설정 시)
+function demoKeywords(kws) {
+  const comps = ["낮음","중간","높음"];
+  const volumes = {};
+  kws.forEach((k,i)=>{
+    const total = 8000 + Math.round(Math.random()*42000);
+    const pc = Math.round(total*0.25);
+    volumes[normKw(k)] = { kw:k, pc, mo:total-pc, total, comp:comps[i%3] };
+  });
+  const base = kws[0] || "키워드";
+  const sfx = ["추천","가격","후기","브랜드","순위","선물세트","대용량","유기농","1위","best",
+    "인기","할인","최저가","비교","정품","공식","묶음","세트","소량","프리미엄",
+    "국산","수입","신상","저렴한","가성비"];
+  const related = sfx.map((s,i)=>{
+    const total = 2000 + Math.round(Math.random()*33000);
+    const pc = Math.round(total*0.25);
+    return { kw:`${base} ${s}`, pc, mo:total-pc, total, comp:comps[i%3] };
+  }).sort((a,b)=> b.total - a.total);
+  return { volumes, related };
+}
+
+// ================= 순위 확인 =================
+// 링크에서 6자리 이상 숫자(상품ID 후보) 추출
+function extractIds(url){ return (String(url).match(/\d{6,}/g) || []); }
+// 검색결과 1건이 내 링크(userIds)와 같은 상품인지: productId 또는 링크 속 ID 매칭
+function matchItem(item, userIds){
+  const cand = [String(item.productId||""), ...extractIds(item.link||"")];
+  return cand.some(c => c && userIds.includes(c));
+}
+// 네이버: 100개씩 최대 1000위까지 검색하며 매칭 (워커 start 미지원이면 중복감지로 중단)
+async function findNaverRank(kw, userIds){
+  let prevFirst = null, scanned = 0;
+  for (let start=1; start<=1000; start+=100){
+    let d;
+    try { d = await api(`/search?query=${encodeURIComponent(kw)}&display=100&start=${start}`); }
+    catch(e){ return { error: e.message||"요청실패" }; }
+    if (!d) return { error: "프록시 미설정" };
+    const items = d.items || [];
+    if (!items.length) break;
+    // 워커가 start를 무시하면 첫 상품이 매 페이지 동일 → 중단(상위 100만 검색됨)
+    const firstId = String((items[0]||{}).productId||"");
+    if (start>1 && firstId && firstId===prevFirst) return { rank:null, scanned, capped:true };
+    prevFirst = firstId;
+    for (let j=0;j<items.length;j++){
+      if (matchItem(items[j], userIds)) return { rank:start+j, item:items[j], scanned:start+j };
+    }
+    scanned = start + items.length - 1;
+    if (items.length < 100) break;
+  }
+  return { rank:null, scanned };
+}
+// 쿠팡: 상위 10개만
+async function findCoupangRank(kw, userIds){
+  let d;
+  try { d = await api(`/coupang?keyword=${encodeURIComponent(kw)}&limit=10`); }
+  catch(e){ return { error: e.message||"요청실패" }; }
+  if (!d) return { error: "프록시 미설정" };
+  const items = parseCoupang(d) || [];
+  for (let j=0;j<items.length;j++){
+    if (matchItem(items[j], userIds)) return { rank:items[j].rank||j+1, item:items[j], scanned:items.length };
+  }
+  return { rank:null, scanned:items.length };
+}
+async function checkRank(){
+  const kw = $("#rankKw").value.trim();
+  const link = $("#rankLink").value.trim();
+  const box = $("#rankResult");
+  if (!kw || !link){ box.innerHTML = `<span style="color:var(--warn)">키워드와 링크를 모두 입력하세요.</span>`; return; }
+  const src = /coupang\.com|link\.coupang/i.test(link) ? "coupang" : "naver";
+  const userIds = extractIds(link);
+  if (!userIds.length){ box.innerHTML = `<span style="color:var(--warn)">링크에서 상품 ID를 찾지 못했어요. 상품 상세페이지 URL을 붙여주세요.</span>`; return; }
+  box.innerHTML = `<span class="text-[var(--muted)]">🔎 ${src==="coupang"?"쿠팡":"네이버"}에서 '${kw}' 검색 중…</span>`;
+  const r = src==="coupang" ? await findCoupangRank(kw, userIds) : await findNaverRank(kw, userIds);
+  const srcName = src==="coupang" ? "쿠팡" : "네이버";
+  if (r.error){ box.innerHTML = `<span style="color:var(--warn)">확인 실패: ${r.error} (⚙ 프록시·키 확인)</span>`; return; }
+  if (r.rank){
+    box.innerHTML =
+      `<div class="panel rounded-lg p-3 mt-1" style="border-color:var(--accent)">
+        <div class="text-lg font-bold" style="color:var(--accent)">${srcName} 노출순위 ${r.rank}위 🎯</div>
+        <div class="text-xs text-[var(--muted)] mt-1 line-clamp-1">${stripTag((r.item&&r.item.title)||"")}</div>
+      </div>`;
+  } else {
+    const limitTxt = src==="coupang" ? "상위 10위" : (r.capped ? "상위 100위" : "상위 1000위");
+    box.innerHTML =
+      `<div class="panel rounded-lg p-3 mt-1">
+        <div class="font-semibold" style="color:var(--accent2)">${limitTxt} 안에서 못 찾았어요</div>
+        <div class="text-xs text-[var(--muted)] mt-1">
+          ${src==="coupang" ? "쿠팡 API는 10개까지만 조회돼요." :
+            (r.capped ? "워커가 구버전이라 상위 100위까지만 검색됐어요. worker.js를 최신으로 재배포하면 1000위까지 확인됩니다."
+                      : "이 키워드 상위 노출권에는 없네요.")}
+        </div>
+      </div>`;
+  }
+}
+$("#rankGo").onclick = checkRank;
+$("#rankLink").addEventListener("keydown", e => { if(e.key==="Enter") checkRank(); });
 
 // ================= 이벤트 =================
 $("#go").onclick = runSearch;

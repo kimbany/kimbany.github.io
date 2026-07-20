@@ -6,9 +6,14 @@
  * 인증 헤더를 서버 측에서 붙여 중계한다.
  *
  * 환경변수 (Cloudflare > Settings > Variables 에 등록, 하드코딩 금지):
- *   - NAVER_CLIENT_ID
+ *   - NAVER_CLIENT_ID          (검색/데이터랩 오픈API)
  *   - NAVER_CLIENT_SECRET
- *   - ALLOWED_ORIGINS  (쉼표 구분, 예: "https://kimbany.github.io")
+ *   - ALLOWED_ORIGINS          (쉼표 구분, 예: "https://kimbany.github.io")
+ *   - NAVER_AD_API_KEY         (검색광고 API 액세스라이선스) ── /keywords 용
+ *   - NAVER_AD_SECRET_KEY      (검색광고 API 비밀키)
+ *   - NAVER_AD_CUSTOMER_ID     (검색광고 CUSTOMER_ID)
+ *   - COUPANG_ACCESS_KEY       (쿠팡 파트너스 액세스키) ── /coupang 용
+ *   - COUPANG_SECRET_KEY       (쿠팡 파트너스 시크릿키)
  *
  * 엔드포인트:
  *   GET  /search          → search/shop.json
@@ -16,9 +21,13 @@
  *   POST /datalab-age     → datalab/shopping/category/keyword/age
  *   POST /datalab-gender  → datalab/shopping/category/keyword/gender
  *   POST /datalab-device  → datalab/shopping/category/keyword/device
+ *   GET  /keywords        → (검색광고) /keywordstool : 연관키워드 + 실제 월간검색량
+ *   GET  /coupang         → (쿠팡 파트너스) 상품 검색
  */
 
 const NAVER = "https://openapi.naver.com/v1";
+const NAVER_AD = "https://api.naver.com"; // 검색광고 API 베이스
+const COUPANG = "https://api-gateway.coupang.com"; // 쿠팡 파트너스 API 베이스
 
 export default {
   async fetch(request, env) {
@@ -39,12 +48,18 @@ export default {
         result = await proxySearch(url, env);
       } else if (path === "/datalab" && request.method === "POST") {
         result = await proxyDatalab("/datalab/shopping/category/keywords", request, env);
+      } else if (path === "/datalab-search" && request.method === "POST") {
+        result = await proxyDatalab("/datalab/search", request, env); // 검색어트렌드(카테고리 불필요)
       } else if (path === "/datalab-age" && request.method === "POST") {
         result = await proxyDatalab("/datalab/shopping/category/keyword/age", request, env);
       } else if (path === "/datalab-gender" && request.method === "POST") {
         result = await proxyDatalab("/datalab/shopping/category/keyword/gender", request, env);
       } else if (path === "/datalab-device" && request.method === "POST") {
         result = await proxyDatalab("/datalab/shopping/category/keyword/device", request, env);
+      } else if (path === "/keywords" && request.method === "GET") {
+        result = await proxyKeywords(url, env);
+      } else if (path === "/coupang" && request.method === "GET") {
+        result = await proxyCoupang(url, env);
       } else {
         return json({ error: "Not Found" }, 404, cors);
       }
@@ -60,8 +75,9 @@ export default {
 async function proxySearch(url, env) {
   const query = url.searchParams.get("query") || "";
   const display = url.searchParams.get("display") || "40";
+  const start = url.searchParams.get("start") || "1"; // 페이지네이션(순위확인용, 최대 1000)
   const sort = url.searchParams.get("sort") || "sim"; // sim | date | asc | dsc
-  const target = `${NAVER}/search/shop.json?query=${encodeURIComponent(query)}&display=${display}&sort=${sort}`;
+  const target = `${NAVER}/search/shop.json?query=${encodeURIComponent(query)}&display=${display}&start=${start}&sort=${sort}`;
   const res = await fetch(target, { headers: naverHeaders(env) });
   return { status: res.status, body: await res.json() };
 }
@@ -75,6 +91,77 @@ async function proxyDatalab(apiPath, request, env) {
     body,
   });
   return { status: res.status, body: await res.json() };
+}
+
+// ---- 검색광고 키워드도구 중계 (HMAC-SHA256 서명 인증) ----
+// 연관키워드 + 실제 월간검색수(PC/모바일)를 반환. 오픈API와 인증 방식이 완전히 다름.
+async function proxyKeywords(url, env) {
+  const hint = url.searchParams.get("hintKeywords") || "";
+  const method = "GET";
+  const apiPath = "/keywordstool";
+  const ts = Date.now().toString();
+  // 서명 = Base64( HMAC-SHA256( secretKey, "{timestamp}.{method}.{apiPath}" ) )
+  const signature = await signHmac(`${ts}.${method}.${apiPath}`, env.NAVER_AD_SECRET_KEY || "");
+  const target = `${NAVER_AD}${apiPath}?hintKeywords=${encodeURIComponent(hint)}&showDetail=1`;
+  const res = await fetch(target, {
+    method,
+    headers: {
+      "X-Timestamp": ts,
+      "X-API-KEY": env.NAVER_AD_API_KEY || "",
+      "X-Customer": env.NAVER_AD_CUSTOMER_ID || "",
+      "X-Signature": signature,
+    },
+  });
+  return { status: res.status, body: await res.json() };
+}
+
+// HMAC-SHA256 서명 (Base64). Cloudflare Workers의 Web Crypto 사용.
+async function signHmac(message, secret) {
+  const enc = new TextEncoder();
+  const key = await crypto.subtle.importKey(
+    "raw", enc.encode(secret), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]
+  );
+  const sig = await crypto.subtle.sign("HMAC", key, enc.encode(message));
+  let bin = "";
+  new Uint8Array(sig).forEach((b) => (bin += String.fromCharCode(b)));
+  return btoa(bin);
+}
+
+// ---- 쿠팡 파트너스 상품 검색 중계 (CEA HMAC 서명) ----
+async function proxyCoupang(url, env) {
+  const keyword = url.searchParams.get("keyword") || "";
+  const limit = url.searchParams.get("limit") || "40";
+  const method = "GET";
+  const apiPath = "/v2/providers/affiliate_open_api/apis/openapi/v1/products/search";
+  const query = `keyword=${encodeURIComponent(keyword)}&limit=${limit}`;
+  const datetime = coupangDatetime();
+  // 쿠팡 서명 = HMAC-SHA256( secretKey, datetime + method + path + query ) 를 hex로
+  const signature = await signHmacHex(datetime + method + apiPath + query, env.COUPANG_SECRET_KEY || "");
+  const authorization =
+    `CEA algorithm=HmacSHA256, access-key=${env.COUPANG_ACCESS_KEY || ""}, signed-date=${datetime}, signature=${signature}`;
+  const res = await fetch(`${COUPANG}${apiPath}?${query}`, {
+    method,
+    headers: { "Authorization": authorization, "Content-Type": "application/json;charset=UTF-8" },
+  });
+  return { status: res.status, body: await res.json() };
+}
+
+// 쿠팡 서명용 시각: GMT 기준 yyMMdd'T'HHmmss'Z'
+function coupangDatetime() {
+  const d = new Date();
+  const p = (n) => String(n).padStart(2, "0");
+  return p(d.getUTCFullYear() % 100) + p(d.getUTCMonth() + 1) + p(d.getUTCDate())
+    + "T" + p(d.getUTCHours()) + p(d.getUTCMinutes()) + p(d.getUTCSeconds()) + "Z";
+}
+
+// HMAC-SHA256 서명 (hex). 쿠팡용.
+async function signHmacHex(message, secret) {
+  const enc = new TextEncoder();
+  const key = await crypto.subtle.importKey(
+    "raw", enc.encode(secret), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]
+  );
+  const sig = await crypto.subtle.sign("HMAC", key, enc.encode(message));
+  return [...new Uint8Array(sig)].map((b) => b.toString(16).padStart(2, "0")).join("");
 }
 
 // ---- 공통 유틸 ----

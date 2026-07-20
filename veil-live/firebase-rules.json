@@ -1,0 +1,65 @@
+{
+  "rules": {
+    "users": {
+      "$uid": {
+        ".read": "$uid === auth.uid",
+        ".write": "$uid === auth.uid",
+        "rooms": {
+          "$roomId": {
+            ".write": "$uid === auth.uid || root.child('rooms').child($roomId).child('members').child(auth.uid).val() === true"
+          }
+        }
+      }
+    },
+    "rooms": {
+      "$roomId": {
+        ".read": "data.child('members').child(auth.uid).val() === true",
+        ".write": "data.child('members').child(auth.uid).val() === true || !data.exists()",
+        "members": {
+          "$uid": { ".write": "$uid === auth.uid" }
+        },
+        "memberNicknames": {
+          "$uid": { ".write": "$uid === auth.uid" }
+        }
+      }
+    },
+    "roomUserState": {
+      "$roomId": {
+        "$uid": {
+          ".read": "$uid === auth.uid",
+          ".write": "$uid === auth.uid"
+        }
+      }
+    },
+    "messages": {
+      "$roomId": {
+        ".read": "root.child('rooms').child($roomId).child('members').child(auth.uid).val() === true",
+        ".write": "root.child('rooms').child($roomId).child('members').child(auth.uid).val() === true",
+        ".indexOn": "timestamp"
+      }
+    },
+    "inviteCodes": {
+      "$code": {
+        ".read": true,
+        ".write": "auth != null"
+      }
+    },
+
+    "veil_live": {
+      "queue": {
+        ".read": "auth != null",
+        "$uid": {
+          ".write": "auth != null",
+          ".validate": "newData.hasChildren(['uid']) || !newData.exists() || newData.hasChild('session')"
+        }
+      },
+      "sessions": {
+        "$sid": {
+          ".read": "auth != null",
+          ".write": "auth != null",
+          "messages": { ".indexOn": "ts" }
+        }
+      }
+    }
+  }
+}
