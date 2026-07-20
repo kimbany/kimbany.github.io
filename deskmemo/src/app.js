@@ -347,6 +347,14 @@ function renderNote(note, { focus = false, focusItemId = null } = {}) {
 
   makeDraggable(card, card.querySelector(".drag-handle"), note.id);
   observeResize(card, note);
+  // 최근 편집 시각 기록(입력 직후 원격 echo가 카드를 덮어쓰지 않도록)
+  card.addEventListener(
+    "input",
+    () => {
+      card.dataset.editedAt = String(performance.now());
+    },
+    true
+  );
 
   if (focus) {
     setTimeout(() => {
@@ -684,10 +692,11 @@ function renderItemRow(item, note, depth) {
     e.preventDefault();
     showItemContextMenu(e.clientX, e.clientY, note, item.id);
   });
-  // Enter → 같은 깊이에 새 항목
+  // Enter → 같은 깊이에 새 항목 (한글 조합 중 엔터는 무시)
   text.addEventListener("keydown", (e) => {
-    if (e.key === "Enter") {
+    if (e.key === "Enter" && !e.isComposing && e.keyCode !== 229) {
       e.preventDefault();
+      item.text = text.value; // 현재 입력값 확정 반영(마지막 글자 유실 방지)
       const sibling = newItem();
       const parentList = findParentList(note.items, item.id) || note.items;
       const idx = parentList.findIndex((x) => x.id === item.id);
@@ -1148,6 +1157,11 @@ function findParentList(items, id) {
 
 // ---- 카드 갱신/재렌더 ------------------------------------------------------
 
+function recentlyEdited(card) {
+  const t = parseFloat(card.dataset.editedAt || "0");
+  return performance.now() - t < 2000;
+}
+
 function rerenderCard(id, opts = {}) {
   const note = getNote(id);
   const old = document.querySelector(`[data-id="${id}"]`);
@@ -1207,12 +1221,13 @@ function reconcile(remote) {
       board.appendChild(renderNote(note));
     } else if (
       !card.contains(document.activeElement) &&
-      card.dataset.dragging !== "1"
+      card.dataset.dragging !== "1" &&
+      !recentlyEdited(card)
     ) {
       card._ro?.disconnect();
       card.replaceWith(renderNote(note));
     }
-    // 편집/드래그 중인 카드는 echo로 덮지 않음
+    // 편집 중이거나 방금 편집한(2초 내) 카드는 echo로 덮지 않음
   }
   refreshEmptyHint();
   renderNoteList();
