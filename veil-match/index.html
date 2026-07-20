@@ -272,6 +272,22 @@
     <div class="pad"><button class="cta danger" id="reportSubmit" disabled onclick="submitReport()">신고하고 차단하기</button></div>
   </section>
 
+  <!-- 이의제기 -->
+  <section id="s-appeal" class="screen">
+    <div class="top"><button class="back" onclick="closeAppeal()">‹</button><div class="t">이의제기</div></div>
+    <div class="grow pad" style="padding-top:0">
+      <div style="padding:var(--s3) 0 var(--s4);border-bottom:1px solid var(--line)">
+        <div id="appealCard" style="font-size:18px;font-weight:800;color:var(--danger)"></div>
+        <div id="appealReason" class="dim small" style="margin-top:4px"></div>
+      </div>
+      <p class="dim small" style="margin-top:var(--s4)">억울하다면 이의제기하세요. 관리자가 <b style="color:var(--ink)">신고된 대화의 서버 원본 기록</b>을 다시 확인해 판단해요. <b style="color:var(--ink)">캡처는 필요 없어요</b>(조작 방지). 평소엔 아무도 대화를 볼 수 없고, 신고·이의제기가 있을 때 해당 대화만 열려요.</p>
+      <div class="mlabel" style="margin-top:var(--s5)">소명 (선택)</div>
+      <textarea id="appealNote" class="field" rows="3" maxlength="500" placeholder="상황을 간단히 적어주세요" style="resize:none"></textarea>
+      <p id="appealStatus" class="small" style="margin-top:var(--s4)"></p>
+    </div>
+    <div class="pad"><button class="cta" id="appealSubmit" onclick="submitAppeal()">이의제기 제출</button></div>
+  </section>
+
   <!-- 관리 시트 -->
   <div id="sheet" class="ovl" onclick="if(event.target===this)closeMenu()">
     <div class="sheet">
@@ -377,6 +393,7 @@ let cur=null;                       // 현재 열린 chat
 let ticker=null, matchTimer=null;
 if(profile&&!profile.noti)profile.noti={msg:true,preview:true};
 if(profile&&profile.penalty==null)profile.penalty=0;
+if(profile&&profile.card==null){profile.reportsRx=0;profile.card=0;profile.cardUntil=0;profile.cardReason='';profile.appeal=null;}
 
 function load(k){try{return JSON.parse(localStorage.getItem(k))}catch(e){return null}}
 function save(){try{localStorage.setItem(KEY_P,JSON.stringify(profile));localStorage.setItem(KEY_C,JSON.stringify(chats));localStorage.setItem(KEY_B,JSON.stringify(blocks));localStorage.setItem(KEY_R,JSON.stringify(recent));localStorage.setItem(KEY_RP,JSON.stringify(reports))}catch(e){}}
@@ -442,7 +459,7 @@ function buildAbout(){
   CHATTYPES.forEach(x=>{const b=document.createElement('button');b.className='pick'+(draftType===x?' on':'');b.textContent=x;b.onclick=()=>{draftType=draftType===x?'':x;buildAbout()};tw.appendChild(b)});
 }
 function finishOnboarding(){
-  profile={nick:document.getElementById('nickInput').value.trim(),interests:[...draftInterests],mbti:draftMbti,chatType:draftType,noti:{msg:true,preview:true},penalty:0,matchLock:0};
+  profile={nick:document.getElementById('nickInput').value.trim(),interests:[...draftInterests],mbti:draftMbti,chatType:draftType,noti:{msg:true,preview:true},penalty:0,matchLock:0,reportsRx:0,card:0,cardUntil:0,cardReason:'',appeal:null};
   save();go('s-main');tab('match');
 }
 
@@ -461,6 +478,10 @@ function renderMatch(){
     </div>`;
 }
 function startMatch(){
+  if(cardActive()){
+    if(profile.card>=3){toast('레드카드 · 앱 이용이 정지됐어요');return}
+    toast('신고 누적 제재 중이라 매칭할 수 없어요 · 남은 '+remain(profile.cardUntil));return;
+  }
   if(profile.matchLock&&Date.now()<profile.matchLock){toast('패널티로 매칭이 제한됐어요 · 남은 '+remain(profile.matchLock));return}
   go('s-matching');matchTimer=setTimeout(doMatch,1800);
 }
@@ -468,6 +489,59 @@ function addPenalty(){
   profile.penalty=(profile.penalty||0)+1;
   if(profile.penalty>=3){profile.penalty=0;profile.matchLock=Date.now()+DAY;save();toast('패널티 3점 · 24시간 매칭 제한')}
   else{save();toast('패널티 '+profile.penalty+'점이 부여됐어요')}
+}
+/* ---------- 신고 누적 카드 / 이의제기 (시뮬레이션) ---------- */
+const CARD_LABEL={1:'🟡 옐로카드 · 1차',2:'🟡 옐로카드 · 2차',3:'🔴 레드카드'};
+const CARD_DESC={1:'매칭 24시간 정지',2:'매칭 48시간 정지',3:'앱 이용 정지 (영구)'};
+function cardActive(){ return !!(profile&&profile.card>0&&(profile.card>=3||profile.cardUntil>Date.now())); }
+// 데모: 실제로는 서로 다른 신고자 3명(검증 통과)에게 신고당하면 카드. 여기선 버튼으로 1건씩 시뮬레이션.
+function receiveReport(){
+  profile.reportsRx=(profile.reportsRx||0)+1;
+  if(profile.reportsRx>=3){
+    profile.reportsRx=0;
+    profile.card=Math.min((profile.card||0)+1,3);
+    profile.cardReason=REPORT_REASONS[Math.floor(Math.random()*(REPORT_REASONS.length-1))];
+    profile.cardUntil=profile.card===1?Date.now()+DAY:(profile.card===2?Date.now()+2*DAY:0);
+    profile.appeal=null;
+    save();renderSet();toast(CARD_LABEL[profile.card]+' · 신고 누적으로 제재됐어요');
+  }else{ save();renderSet();toast('신고 누적 '+profile.reportsRx+'/3 (데모)'); }
+}
+function openAppeal(){ go('s-appeal');renderAppeal(); }
+function closeAppeal(){ tab('set');go('s-main'); }
+function renderAppeal(){
+  const ap=profile.appeal, lv=profile.card;
+  document.getElementById('appealCard').textContent=lv?CARD_LABEL[lv]+' · '+CARD_DESC[lv]:'제재 없음';
+  document.getElementById('appealReason').textContent=profile.cardReason?('신고 사유: '+profile.cardReason):'';
+  const note=document.getElementById('appealNote'), btn=document.getElementById('appealSubmit'), st=document.getElementById('appealStatus');
+  const pending=ap&&ap.status==='pending';
+  note.value=ap&&ap.note?ap.note:''; note.disabled=pending; btn.disabled=pending;
+  btn.textContent=pending?'검토 중…':'이의제기 제출';
+  if(!ap){ st.textContent=''; }
+  else if(ap.status==='pending'){ st.textContent='관리자가 해당 대화의 서버 원본 기록을 확인하고 있어요. 결과가 나오면 알려드려요.'; st.style.color='var(--dim)'; }
+  else if(ap.status==='accepted'){ st.textContent='이의제기가 인정됐어요. 제재가 취소되고 누적이 복구됐어요.'; st.style.color='var(--ink)'; }
+  else { st.textContent='이의제기가 받아들여지지 않았어요. 서버 기록상 위반이 확인됐어요.'; st.style.color='var(--danger)'; }
+}
+function submitAppeal(){
+  if(!profile.card){toast('제재 상태가 아니에요');return}
+  const note=(document.getElementById('appealNote').value||'').trim();
+  profile.appeal={status:'pending',note,ts:Date.now()};
+  save();renderAppeal();toast('이의제기가 접수됐어요 · 검토 후 결과를 알려드려요');
+  setTimeout(resolveAppeal,2600);   // 데모: 실제로는 관리자/AI가 서버 로그를 재검토
+}
+function resolveAppeal(){
+  if(!profile.appeal||profile.appeal.status!=='pending')return;
+  const ok=Math.random()<0.5, note=profile.appeal.note;   // 데모: 무작위. 실제 판정은 서버 원본 기록 기준.
+  if(ok){
+    profile.card=Math.max((profile.card||1)-1,0);
+    profile.cardUntil=0; if(!profile.card)profile.cardReason='';
+    profile.appeal={status:'accepted',note,ts:Date.now()};
+    save();toast('이의제기가 인정됐어요 · 제재가 취소됐어요');
+  }else{
+    profile.appeal={status:'rejected',note,ts:Date.now()};
+    save();toast('이의제기가 받아들여지지 않았어요');
+  }
+  if(document.getElementById('s-appeal').classList.contains('active'))renderAppeal();
+  renderSet();
 }
 function cancelMatch(){clearTimeout(matchTimer);go('s-main')}
 function doMatch(){
@@ -527,13 +601,34 @@ function statusLabel(c){
 function renderSet(){
   const friends=chats.filter(c=>c.friend&&!c.ended).length;
   const pen=profile.penalty||0, locked=profile.matchLock&&Date.now()<profile.matchLock;
+  const rx=profile.reportsRx||0, lv=profile.card||0, cActive=cardActive(), ap=profile.appeal;
+  let cardHTML;
+  if(cActive){
+    const rem = lv<3 ? ` · 남은 ${remain(profile.cardUntil)}` : '';
+    cardHTML=`<div style="font-size:18px;font-weight:800;color:var(--danger);margin-top:2px">${CARD_LABEL[lv]}</div>
+      <div class="small" style="color:var(--danger);margin-top:4px">${CARD_DESC[lv]}${rem}</div>
+      <div class="dim small" style="margin-top:2px">사유: ${esc(profile.cardReason||'')}</div>
+      ${ap&&ap.status==='pending'
+        ?`<div class="dim small" style="margin-top:8px">이의제기 검토 중…</div>`
+        :ap&&ap.status==='rejected'
+          ?`<div class="small" style="color:var(--danger);margin-top:8px">이의제기가 기각됐어요</div>`
+          :`<button onclick="openAppeal()" style="margin-top:10px;padding:8px 14px;background:none;border:1.5px solid var(--danger);border-radius:8px;color:var(--danger);font-size:14px;font-weight:700">이의제기</button>`}`;
+  }else{
+    cardHTML=`<div style="font-size:24px;font-weight:800;margin-top:2px">${rx}<span class="dim" style="font-size:16px;font-weight:500"> / 3</span></div>
+      <div class="dim small" style="margin-top:6px">서로 다른 3명에게 신고당하면 옐로카드 · 매칭이 정지돼요${ap&&ap.status==='accepted'?'<br>지난 이의제기: 인정됨 · 제재 취소':''}</div>`;
+  }
   document.getElementById('pg-set').innerHTML=`
     <div class="top"><div class="t">설정</div></div>
     <div class="grow pad" style="padding-top:0">
       <div style="padding:var(--s5) 0 var(--s4)">
-        <div class="mlabel">패널티</div>
+        <div class="mlabel">나가기 패널티</div>
         <div style="font-size:24px;font-weight:800;margin-top:2px">${pen}<span class="dim" style="font-size:16px;font-weight:500"> / 3</span></div>
         ${locked?`<div class="small" style="color:var(--danger);margin-top:6px">매칭 제한 중 · 남은 시간 ${remain(profile.matchLock)}</div>`:`<div class="dim small" style="margin-top:6px">대화를 그냥 나가면 1점 · 3점이면 24시간 매칭이 제한돼요</div>`}
+      </div>
+      <div style="padding:0 0 var(--s4);border-top:1px solid var(--line);padding-top:var(--s4)">
+        <div class="mlabel">신고 누적</div>
+        ${cardHTML}
+        <button onclick="receiveReport()" style="display:block;margin-top:10px;background:none;color:var(--dim);font-size:12px;text-decoration:underline">데모: 신고 1건 받았다고 가정 ›</button>
       </div>
       <div class="mgroup" style="margin-top:var(--s4)">
         <button class="mrow" onclick="openSub('me')">내 정보<span class="dim" style="margin-left:8px">${esc(profile.nick)}</span><span class="arr">›</span></button>
