@@ -1,0 +1,826 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<title>결 · 나를 읽다</title>
+<style>
+  :root{
+    --bg:#F6F3EC; --card:#FFFFFF; --ink:#2A2823; --dim:#8E887C; --faint:#B7B1A4;
+    --line:#E7E2D6; --accent:#6E7B62; --accent-soft:#EAEDE3; --warm:#C7986A;
+    --danger:#BF4A31; --shadow:0 10px 30px rgba(60,54,40,.10);
+    --s1:4px; --s2:8px; --s3:12px; --s4:16px; --s5:24px; --s6:32px; --s7:48px;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;margin:0;padding:0}
+  html,body{height:100%}
+  body{font-family:-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Noto Sans KR","Malgun Gothic",sans-serif;
+    background:#E9E4D8;color:var(--ink);display:flex;align-items:center;justify-content:center;
+    -webkit-font-smoothing:antialiased;line-height:1.55}
+  #app{position:relative;width:100%;max-width:430px;height:100dvh;max-height:920px;background:var(--bg);
+    overflow:hidden;display:flex;flex-direction:column;box-shadow:0 24px 70px rgba(0,0,0,.45)}
+  button{font-family:inherit;color:inherit;background:none;border:0;cursor:pointer}
+  input,textarea,select{font-family:inherit;font-size:16px;color:inherit}
+  ::placeholder{color:var(--faint)}
+  a{color:inherit}
+
+  .screen{position:absolute;inset:0;display:none;flex-direction:column;background:var(--bg)}
+  .screen.active{display:flex;animation:fade .3s ease}
+  @keyframes fade{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+  @keyframes rise{from{transform:translateY(24px);opacity:0}to{transform:none;opacity:1}}
+
+  .scroll{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch}
+  .pad{padding:var(--s5)}
+  .pb-nav{padding-bottom:96px}
+
+  h1{font-size:26px;font-weight:700;letter-spacing:-.5px}
+  h2{font-size:20px;font-weight:700;letter-spacing:-.3px}
+  h3{font-size:16px;font-weight:700}
+  .dim{color:var(--dim)} .faint{color:var(--faint)} .small{font-size:13px}
+  .mt1{margin-top:var(--s2)} .mt2{margin-top:var(--s4)} .mt3{margin-top:var(--s5)} .mt4{margin-top:var(--s6)}
+  .center{text-align:center}
+
+  .btn{display:block;width:100%;padding:16px;border-radius:16px;background:var(--accent);color:#fff;
+    font-size:16px;font-weight:600;transition:transform .1s, opacity .2s}
+  .btn:active{transform:scale(.98)}
+  .btn.ghost{background:transparent;color:var(--accent);border:1.5px solid var(--line)}
+  .btn.soft{background:var(--accent-soft);color:var(--accent)}
+  .btn.sm{padding:11px 14px;font-size:14px;border-radius:12px;width:auto;display:inline-block}
+  .btn:disabled{opacity:.4}
+  .btn.danger{background:transparent;color:var(--danger);border:1.5px solid #eccabf}
+
+  .card{background:var(--card);border-radius:20px;padding:var(--s5);box-shadow:var(--shadow);border:1px solid var(--line)}
+  .card+.card{margin-top:var(--s4)}
+  .tile{background:var(--card);border-radius:16px;padding:var(--s4);border:1px solid var(--line)}
+
+  textarea{width:100%;min-height:150px;border:1px solid var(--line);border-radius:16px;padding:16px;
+    background:var(--card);resize:none;line-height:1.6}
+  textarea:focus,input:focus{outline:none;border-color:var(--accent)}
+  input.txt{width:100%;border:1px solid var(--line);border-radius:14px;padding:14px 16px;background:var(--card)}
+
+  .chip{display:inline-flex;align-items:center;padding:9px 14px;border-radius:999px;border:1.5px solid var(--line);
+    background:var(--card);font-size:14px;margin:0 6px 8px 0;transition:.15s}
+  .chip.on{background:var(--accent);color:#fff;border-color:var(--accent)}
+  .chip.tag.on{background:var(--warm);border-color:var(--warm)}
+
+  .row{display:flex;align-items:center;gap:var(--s3)}
+  .between{display:flex;align-items:center;justify-content:space-between;gap:var(--s3)}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:var(--s3)}
+
+  /* top bar */
+  .topbar{display:flex;align-items:center;gap:var(--s3);padding:16px var(--s5) 8px}
+  .topbar h2{flex:1}
+  .iconbtn{width:38px;height:38px;border-radius:12px;display:flex;align-items:center;justify-content:center;
+    font-size:18px;color:var(--dim);border:1px solid transparent}
+  .iconbtn:active{background:var(--accent-soft)}
+  .back{font-size:22px;color:var(--ink)}
+
+  /* bottom nav */
+  .nav{position:absolute;left:0;right:0;bottom:0;height:76px;background:rgba(255,255,255,.92);
+    backdrop-filter:blur(12px);border-top:1px solid var(--line);display:flex;padding-bottom:env(safe-area-inset-bottom)}
+  .nav button{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;
+    color:var(--faint);font-size:11px;font-weight:600}
+  .nav button .ic{font-size:20px;line-height:1}
+  .nav button.on{color:var(--accent)}
+
+  .pill{display:inline-block;font-size:12px;padding:4px 10px;border-radius:999px;background:var(--accent-soft);
+    color:var(--accent);font-weight:600}
+  .pill.warm{background:#F4E8D8;color:var(--warm)}
+  .divider{height:1px;background:var(--line);margin:var(--s4) 0}
+
+  .quote{background:var(--accent-soft);border-radius:16px;padding:16px 18px;line-height:1.6;font-size:15px}
+  .qmark{font-size:15px;color:var(--accent);font-weight:700;margin-bottom:6px}
+
+  /* progress dots */
+  .dots{display:flex;gap:6px;justify-content:center}
+  .dots i{width:7px;height:7px;border-radius:50%;background:var(--line);transition:.3s}
+  .dots i.on{background:var(--accent);width:22px;border-radius:4px}
+
+  /* chat */
+  .bubble{max-width:82%;padding:13px 16px;border-radius:18px;font-size:15px;line-height:1.55;margin-bottom:10px;animation:rise .3s ease}
+  .bubble.ai{background:var(--card);border:1px solid var(--line);border-bottom-left-radius:6px;align-self:flex-start}
+  .bubble.me{background:var(--accent);color:#fff;border-bottom-right-radius:6px;align-self:flex-end}
+  .chatwrap{display:flex;flex-direction:column}
+
+  .toggle{position:relative;width:46px;height:28px;border-radius:999px;background:var(--line);transition:.2s;flex:0 0 auto}
+  .toggle.on{background:var(--accent)}
+  .toggle i{position:absolute;top:3px;left:3px;width:22px;height:22px;border-radius:50%;background:#fff;transition:.2s;box-shadow:0 1px 3px rgba(0,0,0,.2)}
+  .toggle.on i{left:21px}
+
+  .bar{height:8px;border-radius:999px;background:var(--line);overflow:hidden}
+  .bar i{display:block;height:100%;background:var(--accent);border-radius:999px}
+
+  .empty{text-align:center;color:var(--faint);padding:48px 24px;font-size:14px;line-height:1.7}
+
+  .fb{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}
+  .fb button{font-size:13px;padding:8px 12px;border-radius:999px;border:1px solid var(--line);background:var(--card);color:var(--dim)}
+  .fb button.on{background:var(--accent-soft);color:var(--accent);border-color:var(--accent-soft)}
+
+  .rec{padding:14px 0;border-bottom:1px solid var(--line)}
+  .rec:last-child{border-bottom:0}
+  .sheet-mask{position:absolute;inset:0;background:rgba(30,26,18,.45);display:none;z-index:40}
+  .sheet-mask.on{display:block;animation:fade .2s}
+  .sheet{position:absolute;left:0;right:0;bottom:0;background:var(--bg);border-radius:24px 24px 0 0;
+    padding:var(--s5) var(--s5) var(--s6);z-index:41;transform:translateY(100%);transition:transform .3s;max-height:88%;overflow-y:auto}
+  .sheet.on{transform:none}
+  .grab{width:40px;height:4px;border-radius:2px;background:var(--line);margin:0 auto var(--s4)}
+
+  .kw{display:inline-flex;align-items:baseline;gap:6px;padding:8px 12px;border-radius:12px;background:var(--accent-soft);margin:0 8px 8px 0}
+  .kw b{font-size:15px} .kw span{font-size:12px;color:var(--accent)}
+  .hl{color:var(--accent);font-weight:700}
+</style>
+</head>
+<body>
+<div id="app"></div>
+
+<script>
+/* ============================================================
+   결 · 나를 읽다  —  자기이해(Self-Discovery) 앱 MVP
+   순수 클라이언트. 기록은 이 기기(localStorage)에만 저장됩니다.
+   AI 분석은 규칙 기반 언어 패턴 관찰입니다(진단 아님).
+   ============================================================ */
+const KEY = 'gyeol.v1';
+const $app = document.getElementById('app');
+
+/* ---------- 상태 ---------- */
+const DEFAULT = {
+  onboarded:false,
+  settings:{ aiLang:true, aiEmotion:true, aiLong:true, aiPersonal:true, aiNotify:false, aiOn:true,
+             lockOn:false, pin:'' },
+  initial:{ done:false, answers:{} },
+  records:[],
+  feedback:{},         // discoveryKey -> feedback label
+  hidden:[],           // discoveryKey list
+  selfView:[],         // "내가 생각하는 나" free statements
+  lastDaily:null
+};
+let S = load();
+function load(){ try{ return Object.assign(structuredClone(DEFAULT), JSON.parse(localStorage.getItem(KEY)||'{}')); }catch(e){ return structuredClone(DEFAULT); } }
+function save(){ localStorage.setItem(KEY, JSON.stringify(S)); }
+function uid(){ return 'r'+Date.now().toString(36)+Math.random().toString(36).slice(2,6); }
+function now(){ return new Date().toISOString(); }
+
+/* ---------- 콘텐츠 ---------- */
+const INITIAL_Q = [
+  '나는 어떤 사람이라고 생각하나요?',
+  '나는 어떤 사람이 되고 싶나요?',
+  '요즘 내 삶에서 가장 중요한 것은 무엇인가요?',
+  '최근 가장 행복했던 순간은 언제였나요?',
+  '최근 가장 마음에 걸리는 일은 무엇인가요?',
+  '아무도 나를 평가하지 않는다면 무엇을 하고 싶나요?',
+  '지금 하고 있는 선택은 정말 내가 원하는 선택인가요?'
+];
+const DAILY_Q = [
+  '오늘 가장 나다웠던 순간은 언제였나요?',
+  '오늘 하기 싫었지만 억지로 한 일은 무엇인가요?',
+  '오늘 누군가의 시선을 의식했던 순간이 있었나요?',
+  '오늘 가장 솔직하지 못했던 순간은 언제였나요?',
+  '오늘 나에게 필요한 것은 무엇이었나요?',
+  '오늘 포기한 것은 무엇인가요?',
+  '오늘 선택을 다시 할 수 있다면 무엇을 바꾸고 싶나요?'
+];
+const EMOTIONS = ['기쁨','편안함','설렘','뿌듯함','무기력함','불안함','분노','서운함','외로움','혼란스러움'];
+const TAGS = ['일','가족','연애','친구','돈','미래','건강','나 자신','선택','관계'];
+
+/* ---------- 규칙 기반 언어 분석 ---------- */
+const LEX = {
+  uncertainty:['잘 모르겠','모르겠','것 같','그런 것 같','아마','어쩌면','굳이','그냥','글쎄','아무래도','일단','혹시'],
+  certainty:['분명','반드시','확실','무조건','당연','꼭 ','절대','반드'],
+  desireSelf:['하고 싶','원해','원한다','싫다','싫어','좋아','중요하다','필요하다','필요해'],
+  obligation:['해야','어쩔 수 없','어쩔수없','원래 그렇','할 수밖에','해야만','참','버텨'],
+  other:['사람들이','남들이','부모님','엄마가','아빠가','친구들이','회사에서','회사가','실망','욕먹','눈치','시선','평가','어떻게 볼','어떻게 생각','이상하게','뭐라고 할','챙피','창피'],
+  self:['나는','내가','나에게','내게','나를','나만','스스로'],
+  emoDirect:['속상','질투','무서','서운','기뻤','화났','슬펐','불안했','외로웠','설레','행복했','뿌듯','짜증']
+};
+const THEMES = {
+  '인정':['인정','칭찬','잘했','알아줘','알아주'],
+  '비교':['비교','남들','다른 사람','더 나','뒤처','뒤쳐'],
+  '돈':['돈','월급','경제','비용','저축','가난','벌어'],
+  '가족':['가족','부모','엄마','아빠','부모님','형','누나','동생'],
+  '연애':['연애','사랑','남자친구','여자친구','애인','썸','헤어'],
+  '일':['일','직장','회사','업무','프로젝트','커리어','취업','퇴사','이직'],
+  '자유':['자유','자유롭','벗어나','내 마음대로'],
+  '책임':['책임','의무','맡','부담'],
+  '외모':['외모','살','다이어트','얼굴','몸매'],
+  '실패':['실패','망했','망할','실수','못하'],
+  '안정':['안정','안전','지키','불안정','확실한'],
+  '도전':['도전','새로운','시도','변화','바꾸','모험'],
+  '관계':['관계','친구','사람들','연결','멀어','가까'],
+  '외로움':['외로','혼자','쓸쓸','고립'],
+  '성취':['성취','성공','이루','목표','달성'],
+  '휴식':['휴식','쉬고','쉼','여유','쉬어','쉬는'],
+  '죄책감':['죄책','미안','자책','죄스'],
+  '미래':['미래','앞으로','나중','장래','내일']
+};
+const STOP = new Set('그리고 그런데 하지만 그래서 근데 나는 내가 나를 나에게 정말 너무 조금 많이 다시 계속 오늘 어제 내일 지금 이런 저런 그런 것 수 좀 왜 더 다 안 못 잘 또 뭐 이 그 저 은 는 이 가 을 를 에 의 도 만 과 와 로 으로 한 할 하는 했다 한다 있다 없다 되다 같다'.split(' '));
+
+function tokenize(t){
+  return (t||'').replace(/[^가-힣\w\s]/g,' ').split(/\s+/).filter(w=>w.length>1 && !STOP.has(w));
+}
+function countHits(text, list){ let n=0; for(const p of list){ let i=0; while((i=text.indexOf(p,i))>=0){n++;i+=p.length;} } return n; }
+
+// 텍스트 코퍼스 통계
+function analyze(records){
+  const texts = records.map(r=>r.text||'').filter(Boolean);
+  const corpus = texts.join('  ');
+  const freq = {};
+  texts.forEach(t=>tokenize(t).forEach(w=>freq[w]=(freq[w]||0)+1));
+  const words = Object.entries(freq).filter(([w,c])=>c>=2).sort((a,b)=>b[1]-a[1]).slice(0,12);
+  const themes = Object.entries(THEMES).map(([name,ks])=>[name,countHits(corpus,ks)]).filter(([,c])=>c>0).sort((a,b)=>b[1]-a[1]);
+  const emoTally = {};
+  records.filter(r=>r.type==='emotion'&&r.emotion).forEach(r=>emoTally[r.emotion]=(emoTally[r.emotion]||0)+1);
+  const emotions = Object.entries(emoTally).sort((a,b)=>b[1]-a[1]);
+  return {
+    n:texts.length, corpus, words, themes, emotions,
+    uncertainty:countHits(corpus,LEX.uncertainty),
+    certainty:countHits(corpus,LEX.certainty),
+    obligation:countHits(corpus,LEX.obligation),
+    other:countHits(corpus,LEX.other),
+    self:countHits(corpus,LEX.self),
+    desireSelf:countHits(corpus,LEX.desireSelf),
+    emoDirect:countHits(corpus,LEX.emoDirect)
+  };
+}
+
+// 실시간 관찰 + 후속 질문 (단일 기록)
+function observe(text){
+  const has = list => countHits(text,list)>0;
+  const obs=[], follow=[];
+  if(has(LEX.other)){ obs.push('선택을 설명할 때 다른 사람의 반응을 언급했어요.');
+    follow.push('아무도 이 선택을 알 수 없다면, 그래도 같은 선택을 할까요?'); }
+  if(has(LEX.obligation)){ obs.push('“해야 한다”에 가까운 표현이 보였어요.');
+    follow.push('그 마음은 정말 내가 원하는 것일까요, 아니면 지켜야 한다고 배운 것일까요?'); }
+  if(has(LEX.uncertainty) && !has(LEX.certainty)){ obs.push('확신보다는 조심스러운 표현이 많았어요.');
+    follow.push('이 일에서 확신하기 어려운 부분은 무엇인가요?'); }
+  if(!has(LEX.emoDirect) && text.length>20){ obs.push('상황은 설명했지만 감정을 직접 말하지는 않았어요.');
+    follow.push('그때 느낀 감정에 이름을 붙인다면 무엇에 가장 가까웠나요?'); }
+  if(follow.length===0){
+    follow.push(pick(['그 생각은 언제부터 시작되었나요?','그 선택에서 가장 지키고 싶었던 것은 무엇인가요?','반대로 선택한다면 무엇을 잃게 될까요?','이것은 나의 생각인가요, 누군가에게 배운 생각인가요?']));
+  }
+  return { obs, follow:follow.slice(0,1)[0] };
+}
+function pick(a){ return a[Math.floor((Date.now()/8.64e7|0 + a.length)%a.length)]; }
+
+// 발견 카드 생성 (임계값: spec §11)
+function discoveries(records){
+  const A = analyze(records); const n=A.n; const cards=[];
+  const add=(key,tag,title,body)=>{ if(!S.hidden.includes(key)) cards.push({key,tag,title,body}); };
+  if(n>=5){
+    if(A.obligation>=2) add('lang.obl','언어 습관','반복된 표현', `기록에서 “해야 한다”에 가까운 표현이 ${A.obligation}번 나타났어요. 바람보다 책임을 먼저 이야기한 순간이 있었는지 돌아볼 수 있어요.`);
+    if(A.uncertainty>=3 && A.uncertainty>A.certainty) add('lang.unc','언어 습관','확신과 불확실', `“잘 모르겠다”, “그런 것 같다” 같은 표현이 ${A.uncertainty}번 보였어요. 요즘 확신하기 어려운 일이 있는지 살펴볼 수 있어요.`);
+    if(A.words.length) add('lang.word','언어 습관','자주 쓰는 단어', `요즘 <b class="hl">${A.words.slice(0,3).map(w=>w[0]).join('</b>, <b class="hl">')}</b> 같은 단어가 반복해서 등장했어요.`);
+  }
+  if(n>=10){
+    if(A.themes.length) add('theme','반복되는 주제','자주 떠오른 주제', `최근 기록에는 <b class="hl">${A.themes.slice(0,2).map(t=>t[0]).join('</b>, <b class="hl">')}</b>에 관한 이야기가 자주 등장했어요.`);
+    if(A.other> A.self+1) add('focus','선택의 기준','시선의 방향', `선택과 감정을 설명할 때, 자신의 욕구보다 다른 사람의 기대와 반응을 먼저 언급한 경우가 많았어요.`);
+    if(A.emoDirect < n*0.4) add('emo','감정 표현','감정을 말하는 방식', `상황은 자세히 설명하지만, 그때의 감정은 직접 표현하지 않는 편이었어요. 감정에 이름을 붙여보면 더 또렷해질 수 있어요.`);
+  }
+  if(n>=20){
+    add('value','가치의 결','드러나는 가치', `충분한 기록이 쌓이면서, 말로 고른 가치와 실제 선택에서 드러난 가치를 비교해볼 수 있게 됐어요. ‘나’ 화면에서 확인해보세요.`);
+    if(A.desireSelf>=4) add('desire','변화','직접 말하는 욕구', `이전보다 “원한다”, “하고 싶다”처럼 자신의 바람을 직접 말하는 문장이 늘어나고 있어요.`);
+  }
+  return { cards, A, n };
+}
+
+/* ---------- 라우팅 ---------- */
+let tab='home';
+function render(){
+  if(!S.onboarded){ return renderOnboarding(); }
+  if(S.settings.lockOn && S.settings.pin && !unlocked){ return renderLock(); }
+  if(!S.initial.done){ return renderInitial(); }
+  renderMain();
+}
+let unlocked=false;
+
+/* ---------- 온보딩 ---------- */
+let obStep=0;
+const OB=[
+  {t:'당신은 당신 자신을<br>얼마나 알고 있나요?', d:'남들이 정한 기준이 아니라,<br>내가 발견한 나를 만나는 곳.', b:'나를 알아가기', logo:true},
+  {t:'이 앱은 당신을<br>어떤 유형으로 판단하지 않아요', d:'남긴 말과 기록에서 반복되는 표현과 변화를 찾아, 스스로를 이해할 수 있는 질문을 건넬 뿐이에요.', b:'다음'},
+  {t:'AI의 분석은<br>정답이 아니에요', d:'맞지 않는 관찰은 언제든 수정하거나 숨길 수 있어요. 이 앱은 의료·심리 진단 서비스를 제공하지 않아요.', b:'다음'},
+  {t:'기록은<br>이 기기에만 남아요', d:'당신의 기록을 AI 모델 학습에 사용하지 않는 것을 기본값으로 합니다. 아래에서 원하는 분석만 켤 수 있어요.', b:'시작하기', perms:true}
+];
+function renderOnboarding(){
+  const s=OB[obStep];
+  $app.innerHTML = `
+  <div class="screen active">
+    <div class="scroll pad" style="display:flex;flex-direction:column;justify-content:center;min-height:100%">
+      ${s.logo?`<div class="center" style="font-size:44px;margin-bottom:20px">🪞</div>`:''}
+      <h1 class="center" style="line-height:1.35">${s.t}</h1>
+      <p class="center dim mt3" style="font-size:15px;line-height:1.7">${s.d}</p>
+      ${s.perms?permsHTML():''}
+      <div class="mt4"></div>
+    </div>
+    <div class="pad" style="padding-top:0">
+      <div class="dots mt2" style="margin-bottom:18px">${OB.map((_,i)=>`<i class="${i===obStep?'on':''}"></i>`).join('')}</div>
+      <button class="btn" id="obNext">${s.b}</button>
+    </div>
+  </div>`;
+  document.getElementById('obNext').onclick=()=>{
+    if(obStep<OB.length-1){ obStep++; renderOnboarding(); }
+    else { S.onboarded=true; save(); render(); }
+  };
+  if(s.perms) bindPerms();
+}
+const PERMS=[['aiLang','AI 언어 분석','자주 쓰는 단어·말투를 관찰해요'],
+  ['aiEmotion','감정 패턴 분석','감정 표현 방식을 살펴봐요'],
+  ['aiLong','장기 변화 분석','시간에 따른 변화를 보여줘요'],
+  ['aiPersonal','개인화 질문','기록에 맞는 질문을 건네요'],
+  ['aiNotify','분석 결과 알림','새 발견을 알려줘요']];
+function permsHTML(){
+  return `<div class="card mt4" style="padding:8px 18px">${PERMS.map(([k,t,d])=>`
+    <div class="between" style="padding:14px 0;border-bottom:1px solid var(--line)">
+      <div><h3 style="font-size:15px">${t}</h3><div class="small dim">${d}</div></div>
+      <div class="toggle ${S.settings[k]?'on':''}" data-perm="${k}"><i></i></div>
+    </div>`).join('')}</div>`;
+}
+function bindPerms(){
+  $app.querySelectorAll('[data-perm]').forEach(el=>el.onclick=()=>{
+    const k=el.dataset.perm; S.settings[k]=!S.settings[k]; save(); el.classList.toggle('on');
+  });
+}
+
+/* ---------- 앱 잠금 ---------- */
+let pinBuf='';
+function renderLock(){
+  $app.innerHTML=`<div class="screen active"><div class="scroll pad" style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100%">
+    <div style="font-size:40px">🔒</div>
+    <h2 class="mt3">잠금 해제</h2>
+    <p class="dim small mt1">PIN 4자리를 입력하세요</p>
+    <div class="row mt3" id="pinDots">${[0,1,2,3].map(i=>`<div style="width:14px;height:14px;border-radius:50%;border:2px solid var(--accent);background:${i<pinBuf.length?'var(--accent)':'transparent'}"></div>`).join('')}</div>
+    <div class="grid2 mt4" style="grid-template-columns:repeat(3,1fr);gap:10px;width:230px">
+      ${[1,2,3,4,5,6,7,8,9].map(d=>`<button class="tile center" style="padding:16px;font-size:20px" data-k="${d}">${d}</button>`).join('')}
+      <button class="tile center small" style="padding:16px" data-k="bio">지문</button>
+      <button class="tile center" style="padding:16px;font-size:20px" data-k="0">0</button>
+      <button class="tile center" style="padding:16px" data-k="del">⌫</button>
+    </div>
+  </div></div>`;
+  $app.querySelectorAll('[data-k]').forEach(b=>b.onclick=()=>{
+    const k=b.dataset.k;
+    if(k==='bio'){ unlocked=true; toast('지문으로 잠금 해제됨(데모)'); render(); return; }
+    if(k==='del'){ pinBuf=pinBuf.slice(0,-1); }
+    else if(pinBuf.length<4){ pinBuf+=k; }
+    if(pinBuf.length===4){
+      if(pinBuf===S.settings.pin){ unlocked=true; pinBuf=''; render(); }
+      else { toast('PIN이 맞지 않아요'); pinBuf=''; renderLock(); return; }
+    }
+    renderLock();
+  });
+}
+
+/* ---------- 최초 자기 탐색 ---------- */
+let iq=0;
+function renderInitial(){
+  const total=INITIAL_Q.length;
+  $app.innerHTML=`<div class="screen active">
+    <div class="topbar"><span class="dim small">최초 자기 탐색 · ${iq+1}/${total}</span></div>
+    <div class="scroll pad">
+      <div class="bar mt1"><i style="width:${(iq/total)*100}%"></i></div>
+      <h2 class="mt4" style="line-height:1.4">${INITIAL_Q[iq]}</h2>
+      <p class="dim small mt2">떠오르는 대로 편하게 적어도 좋아요.</p>
+      <textarea id="ia" class="mt3" placeholder="생각을 적어보세요…">${S.initial.answers[iq]||''}</textarea>
+    </div>
+    <div class="pad" style="padding-top:0">
+      <button class="btn" id="inext">${iq<total-1?'다음':'시작하기'}</button>
+      <button class="btn ghost mt2" id="iskip">나중에 답하기</button>
+    </div>
+  </div>`;
+  const ta=document.getElementById('ia');
+  const commit=()=>{ S.initial.answers[iq]=ta.value.trim(); save(); };
+  document.getElementById('inext').onclick=()=>{ commit(); if(iq<total-1){iq++; renderInitial();} else { S.initial.done=true; save(); tab='home'; render(); } };
+  document.getElementById('iskip').onclick=()=>{ commit(); S.initial.done=true; save(); tab='home'; render(); };
+}
+
+/* ---------- 메인 셸 ---------- */
+function renderMain(){
+  $app.innerHTML=`<div class="screen active">
+    <div class="scroll pb-nav" id="view"></div>
+    <div class="nav">
+      ${[['home','🏠','홈'],['record','✍️','기록'],['chat','💬','AI 대화'],['discover','🧭','발견'],['me','🌿','나']]
+        .map(([k,ic,t])=>`<button data-tab="${k}" class="${tab===k?'on':''}"><span class="ic">${ic}</span>${t}</button>`).join('')}
+    </div>
+  </div>
+  <div class="sheet-mask" id="mask"></div>
+  <div class="sheet" id="sheet"></div>`;
+  $app.querySelectorAll('[data-tab]').forEach(b=>b.onclick=()=>{ tab=b.dataset.tab; renderMain(); });
+  document.getElementById('mask').onclick=closeSheet;
+  ({home:viewHome,record:viewRecord,chat:viewChat,discover:viewDiscover,me:viewMe}[tab])();
+}
+const view=()=>document.getElementById('view');
+
+/* ---------- 홈 ---------- */
+function streak(){
+  const days=new Set(S.records.map(r=>r.createdAt.slice(0,10)));
+  let c=0, d=new Date();
+  for(;;){ const k=d.toISOString().slice(0,10); if(days.has(k)){c++; d.setDate(d.getDate()-1);} else break; }
+  return c;
+}
+function todayDaily(){
+  const day=new Date().toISOString().slice(0,10);
+  const idx=Math.abs([...day].reduce((a,c)=>a+c.charCodeAt(0),0))%DAILY_Q.length;
+  return DAILY_Q[idx];
+}
+function viewHome(){
+  const A=analyze(S.records);
+  const d=discoveries(S.records);
+  const recent=d.cards[0];
+  view().innerHTML=`
+  <div class="pad">
+    <div class="between">
+      <div><div class="dim small">${greeting()}</div><h1 style="margin-top:2px">오늘의 나</h1></div>
+      <div class="pill warm">🔥 ${streak()}일 연속</div>
+    </div>
+
+    <div class="card mt3">
+      <span class="pill">오늘의 질문</span>
+      <h2 class="mt2" style="line-height:1.4">${todayDaily()}</h2>
+      <button class="btn mt3" data-open="daily">답해보기</button>
+    </div>
+
+    <div class="grid2 mt3">
+      <button class="tile center" data-open="emotion" style="padding:20px 12px"><div style="font-size:24px">🌤️</div><div class="mt1" style="font-weight:600;font-size:14px">지금 기분</div></button>
+      <button class="tile center" data-open="free" style="padding:20px 12px"><div style="font-size:24px">✍️</div><div class="mt1" style="font-weight:600;font-size:14px">자유롭게 기록</div></button>
+    </div>
+
+    <h3 class="mt4">최근 발견</h3>
+    ${recent?`<div class="card mt2"><span class="pill">${recent.tag}</span><div class="quote mt2">${recent.body}</div></div>`
+      :`<div class="tile mt2 dim small" style="line-height:1.7">아직 발견할 만큼 기록이 쌓이지 않았어요. 기록이 5개 이상 모이면 언어 습관을 조심스럽게 비춰드릴게요. (현재 ${A.n}개)</div>`}
+
+    ${A.words.length?`<h3 class="mt4">이번 주의 단어</h3><div class="mt2">${A.words.slice(0,6).map(([w,c])=>`<span class="kw"><b>${w}</b><span>${c}</span></span>`).join('')}</div>`:''}
+
+    <h3 class="mt4">이어서 생각해볼 질문</h3>
+    <div class="quote mt2"><div class="qmark">Q.</div>${followSuggestion(A)}</div>
+    <div class="mt3"></div>
+  </div>`;
+  view().querySelectorAll('[data-open]').forEach(b=>b.onclick=()=>openCompose(b.dataset.open));
+}
+function greeting(){ const h=new Date().getHours(); return h<6?'고요한 새벽이에요':h<12?'좋은 아침이에요':h<18?'오늘 하루는 어떤가요':'하루를 돌아보는 시간이에요'; }
+function followSuggestion(A){
+  if(A.other>A.self+1) return '이번 주에 한 선택 중, 아무도 평가하지 않았다면 다르게 했을 선택이 있었나요?';
+  if(A.obligation>=2) return '요즘 “해야 한다”고 느끼는 일 중, 사실은 하지 않아도 되는 일이 있을까요?';
+  if(A.n<3) return '지금 이 순간, 나에게 가장 필요한 것은 무엇인가요?';
+  return '오늘의 나에게, 가장 정직하게 말해주고 싶은 한마디는 무엇인가요?';
+}
+
+/* ---------- 기록 작성(시트) ---------- */
+let compose={type:'free', emotion:null, tags:[], question:null, choice:{}};
+function openCompose(type){
+  compose={type, emotion:null, tags:[], question:type==='daily'?todayDaily():null, choice:{}};
+  const sheet=document.getElementById('sheet');
+  sheet.innerHTML=composeHTML(type);
+  bindCompose(type);
+  openSheet();
+}
+function composeHTML(type){
+  const head={daily:'오늘의 질문',free:'자유 기록',emotion:'감정 기록',choice:'선택 기록',checkin:'짧은 체크인'}[type];
+  let body='';
+  if(type==='daily'){
+    body=`<div class="quote mb"><div class="qmark">오늘의 질문</div>${compose.question}</div>
+      <textarea id="ctext" class="mt3" placeholder="떠오르는 대로 적어보세요…"></textarea>`;
+  } else if(type==='free'){
+    body=`<textarea id="ctext" placeholder="오늘 있었던 일, 지금 드는 생각, 하지 못한 말… 무엇이든 좋아요."></textarea>`;
+  } else if(type==='emotion'){
+    body=`<p class="dim small">지금 감정을 고르고, 이유를 한 줄로 적어보세요.</p>
+      <div class="mt3">${EMOTIONS.map(e=>`<button class="chip" data-emo="${e}">${e}</button>`).join('')}</div>
+      <input id="ctext" class="txt mt2" placeholder="이유를 한 줄로… (선택)">`;
+  } else if(type==='choice'){
+    body=`<p class="dim small">중요한 결정을 앞두고, 또는 내린 뒤에 적어보세요.</p>
+      <input class="txt mt3" id="c_what" placeholder="어떤 선택이었나요?">
+      <input class="txt mt2" id="c_pick" placeholder="무엇을 선택했나요?">
+      <textarea class="mt2" id="ctext" style="min-height:90px" placeholder="왜 그렇게 선택했나요? 무엇이 걱정됐나요? 누구의 반응을 생각했나요?"></textarea>`;
+  } else if(type==='checkin'){
+    body=`<p class="dim small">글을 쓰기 어려운 날엔 슬라이더로 가볍게 남겨요.</p>
+      ${['오늘의 에너지','혼자 있고 싶은 정도','오늘 나답게 산 정도','타인의 시선을 의식한 정도'].map((l,i)=>`
+        <div class="mt3"><div class="between"><span class="small">${l}</span><span class="small dim" id="cv${i}">3</span></div>
+        <input type="range" min="1" max="5" value="3" data-ci="${i}" style="width:100%" oninput="document.getElementById('cv'+${i}).textContent=this.value"></div>`).join('')}
+      <input id="ctext" type="hidden">`;
+  }
+  return `<div class="grab"></div>
+    <div class="between"><h2>${head}</h2><button class="iconbtn" id="cclose">✕</button></div>
+    <div class="mt3">${body}</div>
+    ${type!=='checkin'?`<div class="mt3"><div class="small dim">태그</div><div class="mt1">${TAGS.map(t=>`<button class="chip tag" data-tag="${t}">${t}</button>`).join('')}</div></div>`:''}
+    <button class="btn mt4" id="csave">저장하기</button>`;
+}
+function bindCompose(type){
+  document.getElementById('cclose').onclick=closeSheet;
+  const sheet=document.getElementById('sheet');
+  sheet.querySelectorAll('[data-emo]').forEach(b=>b.onclick=()=>{ sheet.querySelectorAll('[data-emo]').forEach(x=>x.classList.remove('on')); b.classList.add('on'); compose.emotion=b.dataset.emo; });
+  sheet.querySelectorAll('[data-tag]').forEach(b=>b.onclick=()=>{ b.classList.toggle('on'); const t=b.dataset.tag; compose.tags.includes(t)?compose.tags=compose.tags.filter(x=>x!==t):compose.tags.push(t); });
+  document.getElementById('csave').onclick=()=>saveCompose(type);
+}
+function saveCompose(type){
+  const ta=document.getElementById('ctext');
+  let text=(ta&&ta.value||'').trim();
+  if(type==='choice'){
+    const w=(document.getElementById('c_what')?.value||'').trim();
+    const p=(document.getElementById('c_pick')?.value||'').trim();
+    text=[w&&('선택: '+w), p&&('결정: '+p), text].filter(Boolean).join('\n');
+  }
+  if(type==='checkin'){
+    const vals=[...document.querySelectorAll('[data-ci]')].map(s=>s.value);
+    text=`에너지 ${vals[0]} · 혼자 ${vals[1]} · 나답게 ${vals[2]} · 시선의식 ${vals[3]}`;
+  }
+  if(type==='emotion' && !compose.emotion){ toast('감정을 하나 골라주세요'); return; }
+  if(type!=='emotion' && type!=='checkin' && !text){ toast('내용을 적어주세요'); return; }
+  const rec={ id:uid(), createdAt:now(), type, question:compose.question, emotion:compose.emotion, text, tags:compose.tags };
+  S.records.unshift(rec); save();
+  closeSheet();
+  // 실시간 관찰 → 대화로 이어가기
+  if(S.settings.aiOn && text.length>4){
+    startRealtime(rec);
+  } else { toast('기록이 저장됐어요'); if(tab==='home')viewHome(); else if(tab==='record')viewRecord(); }
+}
+
+/* ---------- 기록 탭 ---------- */
+const TYPE_LABEL={daily:'오늘의 질문',free:'자유 기록',emotion:'감정 기록',choice:'선택 기록',checkin:'짧은 체크인'};
+function viewRecord(){
+  view().innerHTML=`<div class="pad">
+    <h1>기록</h1>
+    <div class="grid2 mt3">
+      ${[['daily','📝','오늘의 질문'],['free','✍️','자유 기록'],['emotion','💗','감정 기록'],['choice','⚖️','선택 기록'],['checkin','⚡','짧은 체크인']]
+        .map(([k,ic,t])=>`<button class="tile" data-open="${k}" style="text-align:left"><div style="font-size:22px">${ic}</div><div class="mt1" style="font-weight:600">${t}</div></button>`).join('')}
+    </div>
+    <h3 class="mt4">지난 기록 <span class="dim small">${S.records.length}</span></h3>
+    <div class="mt2">${S.records.length?S.records.map(recRow).join(''):`<div class="empty">아직 기록이 없어요.<br>위에서 하나를 골라 시작해보세요.</div>`}</div>
+  </div>`;
+  view().querySelectorAll('[data-open]').forEach(b=>b.onclick=()=>openCompose(b.dataset.open));
+  view().querySelectorAll('[data-rec]').forEach(b=>b.onclick=()=>openRecord(b.dataset.rec));
+}
+function recRow(r){
+  const t=r.emotion?`${r.emotion} · ${r.text||'—'}`:(r.text||'—');
+  return `<div class="rec" data-rec="${r.id}" style="cursor:pointer">
+    <div class="between"><span class="pill" style="font-size:11px">${TYPE_LABEL[r.type]||r.type}</span><span class="small faint">${fmt(r.createdAt)}</span></div>
+    ${r.question?`<div class="small dim mt1">${r.question}</div>`:''}
+    <div class="mt1" style="white-space:pre-wrap;font-size:15px">${clip(t,90)}</div>
+    ${r.tags?.length?`<div class="mt1">${r.tags.map(x=>`<span class="small" style="color:var(--warm)">#${x} </span>`).join('')}</div>`:''}
+  </div>`;
+}
+function openRecord(id){
+  const r=S.records.find(x=>x.id===id); if(!r)return;
+  const sheet=document.getElementById('sheet');
+  sheet.innerHTML=`<div class="grab"></div>
+    <div class="between"><span class="pill">${TYPE_LABEL[r.type]||r.type}</span><span class="small faint">${fmt(r.createdAt)}</span></div>
+    ${r.question?`<h3 class="mt3">${r.question}</h3>`:''}
+    <div class="mt2" style="white-space:pre-wrap;font-size:16px;line-height:1.7">${r.emotion?`<b>${r.emotion}</b><br>`:''}${r.text||'—'}</div>
+    ${r.tags?.length?`<div class="mt3">${r.tags.map(x=>`<span class="chip tag on" style="pointer-events:none">#${x}</span>`).join('')}</div>`:''}
+    <div class="divider"></div>
+    <button class="btn soft" id="rObs">이 기록에 대해 질문 받기</button>
+    <button class="btn danger mt2" id="rDel">이 기록 삭제</button>`;
+  openSheet();
+  document.getElementById('rObs').onclick=()=>{ closeSheet(); startRealtime(r); };
+  document.getElementById('rDel').onclick=()=>{ if(confirm('이 기록을 삭제할까요? 되돌릴 수 없어요.')){ S.records=S.records.filter(x=>x.id!==id); save(); closeSheet(); viewRecord(); toast('삭제됐어요'); } };
+}
+
+/* ---------- AI 대화 (실시간 관찰 + 인터뷰) ---------- */
+let thread=[]; // {who,text}
+function startRealtime(rec){
+  const {obs,follow}=observe(rec.text||'');
+  thread=[];
+  thread.push({who:'me', text:rec.text||rec.emotion||''});
+  let aiText='';
+  if(obs.length){ aiText=obs.join(' '); }
+  else { aiText='기록을 잘 읽었어요.'; }
+  thread.push({who:'ai', text:aiText});
+  thread.push({who:'ai', text:follow, q:true});
+  tab='chat'; renderMain();
+}
+function viewChat(){
+  if(!thread.length){
+    const A=analyze(S.records);
+    const q=S.records.length? interviewSeed(A) : '아직 기록이 많지 않아요. 먼저 오늘의 질문이나 자유 기록을 남겨보면, 그 내용을 바탕으로 함께 이야기해볼게요.';
+    thread=[{who:'ai', text:'안녕하세요. 저는 당신을 판단하지 않아요. 당신의 말을 다시 비춰주는 거울에 가까워요.'},
+            {who:'ai', text:q, q:S.records.length>0}];
+  }
+  view().innerHTML=`<div class="topbar"><h2>AI 대화</h2><button class="iconbtn" id="chReset">↺</button></div>
+    <div class="pad"><div class="chatwrap" id="chatwrap">${thread.map(m=>bubble(m)).join('')}</div></div>`;
+  document.getElementById('chReset').onclick=()=>{ thread=[]; viewChat(); };
+  // 입력 바
+  const bar=document.createElement('div');
+  bar.innerHTML=`<div style="position:absolute;left:0;right:0;bottom:76px;padding:12px 16px;background:var(--bg);border-top:1px solid var(--line)">
+    <div class="row"><input id="chIn" class="txt" placeholder="여기에 답하거나 더 적어보세요…"><button class="btn sm" id="chSend" style="padding:14px 16px">보내기</button></div></div>`;
+  $app.querySelector('.screen').appendChild(bar.firstElementChild);
+  const wrap=document.getElementById('chatwrap'); wrap.scrollTop=wrap.scrollHeight;
+  document.getElementById('view').scrollTop=document.getElementById('view').scrollHeight;
+  const send=()=>{
+    const inp=document.getElementById('chIn'); const t=inp.value.trim(); if(!t)return;
+    thread.push({who:'me',text:t});
+    // 답변을 자유 기록으로 저장(대화 = 기록)
+    S.records.unshift({id:uid(),createdAt:now(),type:'free',question:lastQ(),emotion:null,text:t,tags:[]}); save();
+    const {follow}=observe(t);
+    thread.push({who:'ai',text:pick(['그렇게 느꼈군요. 조금 더 들려줄래요?','그 마음을 알아차린 것만으로도 의미가 있어요.','충분히 그럴 수 있어요.'])});
+    thread.push({who:'ai',text:follow,q:true});
+    viewChat();
+  };
+  document.getElementById('chSend').onclick=send;
+  document.getElementById('chIn').addEventListener('keydown',e=>{ if(e.key==='Enter')send(); });
+}
+function lastQ(){ for(let i=thread.length-1;i>=0;i--) if(thread[i].who==='ai'&&thread[i].q) return thread[i].text; return null; }
+function bubble(m){ return `<div class="bubble ${m.who}">${m.q?'<div class="qmark">Q.</div>':''}${escapeHtml(m.text)}</div>`; }
+function interviewSeed(A){
+  if(A.other>A.self) return '최근 선택을 이야기할 때, 다른 사람의 반응을 자주 떠올린 것 같아요. 아무도 반대하지 않는다면, 지금 가장 하고 싶은 건 무엇인가요?';
+  if(A.obligation>=2) return '“해야 한다”는 마음이 자주 보였어요. 그중 하나를 골라본다면, 그건 정말 나의 생각일까요, 아니면 배운 생각일까요?';
+  return '요즘 가장 자주 떠오르는 생각은 무엇인가요? 왜 그 생각이 자꾸 떠오를까요?';
+}
+
+/* ---------- 발견 ---------- */
+const CATS=['언어 습관','감정 표현','반복되는 주제','선택의 기준','변화','가치의 결'];
+function viewDiscover(){
+  if(!S.settings.aiOn){
+    view().innerHTML=`<div class="pad"><h1>발견</h1><div class="empty mt4">AI 분석이 꺼져 있어요.<br>‘나’ 화면에서 다시 켤 수 있어요.</div></div>`;
+    return;
+  }
+  const {cards,n}=discoveries(S.records);
+  const conf = n<5?'아직 알아가는 중':n<10?'약하게 나타나는 패턴':n<20?'반복해서 나타나는 패턴':'최근 달라지고 있는 패턴';
+  view().innerHTML=`<div class="pad">
+    <div class="between"><h1>발견</h1><span class="pill">${conf}</span></div>
+    <p class="dim small mt1">확정된 특성이 아니라, 기록에서 조심스럽게 관찰한 ‘가능성’이에요.</p>
+    <div class="mt3">
+      ${cards.length? cards.map(discCard).join('')
+        : `<div class="empty">아직 발견을 만들 만큼 기록이 충분하지 않아요.<br>기록이 <b>5개</b> 이상이면 언어 습관부터 비춰드릴게요.<br><span class="faint">현재 ${n}개</span></div>`}
+    </div>
+    ${cards.length?`<p class="faint small center mt3" style="line-height:1.7">이 관찰은 당신을 고정된 유형으로 정의하지 않습니다.<br>새로운 경험과 선택에 따라 달라질 수 있어요.</p>`:''}
+  </div>`;
+  bindDisc();
+}
+const FB=['맞는 것 같아요','조금 다른 것 같아요','잘 모르겠어요'];
+function discCard(c){
+  const cur=S.feedback[c.key];
+  return `<div class="card" data-key="${c.key}">
+    <span class="pill">${c.tag}</span>
+    <h3 class="mt2">${c.title}</h3>
+    <div class="quote mt2">${c.body}</div>
+    <div class="fb">${FB.map(f=>`<button data-fb="${f}" class="${cur===f?'on':''}">${f}</button>`).join('')}
+      <button data-hide="1">🙈 숨기기</button></div>
+  </div>`;
+}
+function bindDisc(){
+  view().querySelectorAll('[data-key]').forEach(card=>{
+    const key=card.dataset.key;
+    card.querySelectorAll('[data-fb]').forEach(b=>b.onclick=()=>{ S.feedback[key]=b.dataset.fb; save(); card.querySelectorAll('[data-fb]').forEach(x=>x.classList.remove('on')); b.classList.add('on'); toast('피드백은 다음 분석에 반영돼요'); });
+    card.querySelector('[data-hide]').onclick=()=>{ S.hidden.push(key); save(); viewDiscover(); };
+  });
+}
+
+/* ---------- 나 ---------- */
+function viewMe(){
+  const A=analyze(S.records); const n=A.n;
+  const other=A.other, self=A.self, tot=Math.max(1,other+self);
+  view().innerHTML=`<div class="pad">
+    <h1>나</h1>
+
+    <div class="card mt3">
+      <h3>현재의 나 <span class="pill" style="margin-left:6px">${n<5?'알아가는 중':'경향'}</span></h3>
+      ${n<5?`<p class="dim small mt2">기록이 조금 더 쌓이면 지금의 나를 정리해드릴게요. (현재 ${n}개)</p>`:`
+      <div class="mt3">
+        <div class="between small"><span>시선의 방향</span><span class="dim">나 ${self} · 타인 ${other}</span></div>
+        <div class="bar mt1"><i style="width:${Math.round(self/tot*100)}%"></i></div>
+        <div class="mt3">${A.themes.slice(0,3).map(t=>`<span class="pill" style="margin:0 6px 6px 0">#${t[0]}</span>`).join('')||'<span class="dim small">아직 주제가 뚜렷하지 않아요</span>'}</div>
+        ${A.emotions.length?`<p class="small dim mt2">자주 느낀 감정: ${A.emotions.slice(0,3).map(e=>e[0]).join(', ')}</p>`:''}
+      </div>`}
+    </div>
+
+    <div class="card">
+      <div class="between"><h3>내가 생각하는 나</h3><button class="btn sm soft" id="addSelf">+ 추가</button></div>
+      <div class="mt2">${S.selfView.length?S.selfView.map((s,i)=>`<div class="rec small"><div class="between"><span>“${escapeHtml(s)}”</span><button class="faint" data-selfdel="${i}">✕</button></div></div>`).join('')
+        :'<p class="dim small">“나는 도전을 좋아한다” 처럼, 스스로 생각하는 내 모습을 적어보세요.</p>'}</div>
+    </div>
+
+    <div class="card">
+      <h3>기록에서 드러난 나</h3>
+      ${n<10?`<p class="dim small mt2">기록이 10개 이상이면, 내가 생각하는 나와 실제 기록의 결을 비교해볼 수 있어요.</p>`
+        :`<div class="quote mt2">${revealedText(A)}</div>`}
+    </div>
+
+    <div class="card">
+      <h3>리포트</h3>
+      <button class="btn soft mt2" id="weekly">주간 리포트 보기</button>
+    </div>
+
+    <div class="card">
+      <h3>변화 타임라인</h3>
+      <div class="mt2">${timelineHTML()}</div>
+    </div>
+
+    <div class="card">
+      <h3>개인정보 · 분석 설정</h3>
+      <div class="mt2">
+        ${settingRow('aiOn','AI 분석 기능','발견·관찰 생성을 켜고 끕니다')}
+        ${PERMS.map(([k,t,d])=>settingRow(k,t,d)).join('')}
+        ${settingRow('aiNotify','분석 결과 알림','새 발견을 알려줘요')}
+      </div>
+      <div class="divider"></div>
+      ${lockRow()}
+      <div class="divider"></div>
+      <button class="btn ghost" id="expData">데이터 내보내기</button>
+      <button class="btn danger mt2" id="wipe">모든 기록·분석 완전 삭제</button>
+      <p class="faint small center mt3" style="line-height:1.7">이 앱은 의료·심리 진단을 제공하지 않아요.<br>기록은 이 기기에만 저장되며 모델 학습에 사용하지 않습니다.</p>
+    </div>
+    <div class="mt3"></div>
+  </div>`;
+  bindMe();
+}
+function revealedText(A){
+  const bits=[];
+  if(A.other>A.self+1) bits.push('중요한 선택을 설명할 때 다른 사람의 반응을 반복적으로 언급했어요.');
+  if(A.emoDirect<A.n*0.4) bits.push('감정을 직접 표현하기보다 상황을 설명하는 편이었어요.');
+  if(A.obligation>=2) bits.push('바람보다 책임과 의무를 먼저 이야기한 순간이 있었어요.');
+  if(A.desireSelf>=4) bits.push('한편으로는 “원한다/하고 싶다”처럼 자신의 바람을 직접 말하기도 했어요.');
+  if(!bits.length) bits.push('아직 뚜렷한 경향보다, 다양한 결이 함께 나타나고 있어요.');
+  return bits.join(' ');
+}
+function settingRow(k,t,d){
+  return `<div class="between" style="padding:12px 0;border-bottom:1px solid var(--line)">
+    <div style="flex:1"><div style="font-weight:600;font-size:15px">${t}</div><div class="small dim">${d}</div></div>
+    <div class="toggle ${S.settings[k]?'on':''}" data-set="${k}"><i></i></div></div>`;
+}
+function lockRow(){
+  return `<div class="between" style="padding:12px 0">
+    <div style="flex:1"><div style="font-weight:600;font-size:15px">앱 잠금 · 생체 인증</div><div class="small dim">${S.settings.lockOn?'PIN이 설정되어 있어요':'PIN으로 앱을 보호해요'}</div></div>
+    <div class="toggle ${S.settings.lockOn?'on':''}" data-lock="1"><i></i></div></div>`;
+}
+function bindMe(){
+  view().querySelectorAll('[data-set]').forEach(el=>el.onclick=()=>{ const k=el.dataset.set; S.settings[k]=!S.settings[k]; save(); el.classList.toggle('on'); if(k==='aiOn')viewMe(); });
+  view().querySelector('[data-lock]').onclick=toggleLock;
+  view().querySelectorAll('[data-selfdel]').forEach(b=>b.onclick=()=>{ S.selfView.splice(+b.dataset.selfdel,1); save(); viewMe(); });
+  document.getElementById('addSelf').onclick=()=>{ const v=prompt('스스로 생각하는 내 모습을 한 문장으로 적어보세요.\n예) 나는 혼자 있는 걸 좋아한다'); if(v&&v.trim()){ S.selfView.push(v.trim()); save(); viewMe(); } };
+  document.getElementById('weekly').onclick=openWeekly;
+  document.getElementById('expData').onclick=exportData;
+  document.getElementById('wipe').onclick=()=>{ if(confirm('정말 모든 기록과 분석을 삭제할까요?\n이 작업은 되돌릴 수 없어요.')){ localStorage.removeItem(KEY); S=structuredClone(DEFAULT); obStep=0; iq=0; unlocked=false; save(); render(); } };
+}
+function toggleLock(){
+  if(S.settings.lockOn){ if(confirm('앱 잠금을 해제할까요?')){ S.settings.lockOn=false; S.settings.pin=''; save(); viewMe(); } return; }
+  const p=prompt('설정할 PIN 4자리를 입력하세요'); if(p&&/^\d{4}$/.test(p)){ S.settings.pin=p; S.settings.lockOn=true; save(); viewMe(); toast('앱 잠금이 켜졌어요'); }
+  else if(p!==null) toast('숫자 4자리를 입력해주세요');
+}
+
+/* ---------- 주간 리포트 ---------- */
+function openWeekly(){
+  const wk=S.records.filter(r=>Date.now()-new Date(r.createdAt)<7*864e5);
+  const A=analyze(wk);
+  const sheet=document.getElementById('sheet');
+  sheet.innerHTML=`<div class="grab"></div>
+    <span class="pill">주간 리포트</span>
+    <h2 class="mt2">이번 주의 나</h2>
+    <p class="dim small">최근 7일 · 기록 ${wk.length}개</p>
+    ${wk.length? `
+    <div class="tile mt3"><div class="small dim">자주 등장한 감정</div><div class="mt1">${A.emotions.length?A.emotions.slice(0,3).map(e=>`<span class="pill" style="margin:0 6px 6px 0">${e[0]}</span>`).join(''):'<span class="faint small">감정 기록이 없어요</span>'}</div></div>
+    <div class="tile mt2"><div class="small dim">자주 등장한 주제</div><div class="mt1">${A.themes.length?A.themes.slice(0,3).map(t=>`<span class="pill warm" style="margin:0 6px 6px 0">${t[0]}</span>`).join(''):'<span class="faint small">아직 뚜렷하지 않아요</span>'}</div></div>
+    <div class="tile mt2"><div class="small dim">이번 주의 표현</div><div class="mt1">${A.words.length?A.words.slice(0,5).map(w=>`<span class="kw"><b>${w[0]}</b><span>${w[1]}</span></span>`).join(''):'<span class="faint small">—</span>'}</div></div>
+    <div class="card mt2"><div class="qmark">AI가 발견한 점</div><div style="line-height:1.65">${weeklyInsight(A)}</div></div>
+    <div class="quote mt2"><div class="qmark">이번 주의 질문</div>${followSuggestion(A)}</div>
+    ` : `<div class="empty">이번 주 기록이 아직 없어요.<br>가볍게 한 줄이라도 남겨보세요.</div>`}
+    <button class="btn mt4" id="wkClose">닫기</button>`;
+  openSheet();
+  document.getElementById('wkClose').onclick=closeSheet;
+}
+function weeklyInsight(A){
+  if(!A.n) return '기록이 쌓이면 이번 주의 흐름을 정리해드릴게요.';
+  if(A.other>A.self) return '이번 주에는 자신이 원하는 것보다 책임과 다른 사람의 평가를 먼저 생각한 기록이 많았어요.';
+  if(A.obligation>=2) return '“해야 한다”는 표현이 자주 보였어요. 하고 싶은 것과 해야 하는 것 사이의 균형을 살펴볼 수 있어요.';
+  if(A.desireSelf>=3) return '이번 주에는 자신의 바람을 직접 말하는 문장이 늘어났어요.';
+  return '이번 주의 기록에서는 다양한 감정과 생각이 고르게 나타났어요.';
+}
+
+/* ---------- 타임라인 ---------- */
+function timelineHTML(){
+  const byMonth={};
+  S.records.forEach(r=>{ const m=r.createdAt.slice(0,7); (byMonth[m]=byMonth[m]||[]).push(r); });
+  const months=Object.keys(byMonth).sort().reverse().slice(0,4);
+  if(!months.length) return '<p class="dim small">기록이 쌓이면 달마다의 변화를 시간순으로 보여드릴게요.</p>';
+  return months.map(m=>{
+    const A=analyze(byMonth[m]);
+    const bits=[];
+    if(A.themes[0]) bits.push(`‘${A.themes[0][0]}’ 주제가 자주 등장`);
+    if(A.other>A.self) bits.push('타인의 시선을 의식한 표현이 많음');
+    if(A.desireSelf>=2) bits.push('자신의 욕구를 직접 표현하는 문장');
+    if(A.emotions[0]) bits.push(`가장 많이 느낀 감정: ${A.emotions[0][0]}`);
+    if(!bits.length) bits.push(`기록 ${A.n}개`);
+    const [y,mo]=m.split('-');
+    return `<div class="rec"><div class="small hl">${y}년 ${+mo}월</div><ul class="mt1" style="padding-left:18px;font-size:14px;line-height:1.7">${bits.map(b=>`<li>${b}</li>`).join('')}</ul></div>`;
+  }).join('');
+}
+
+/* ---------- 내보내기 ---------- */
+function exportData(){
+  const blob=new Blob([JSON.stringify({exportedAt:now(), records:S.records, initial:S.initial, selfView:S.selfView},null,2)],{type:'application/json'});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='gyeol-export.json'; a.click();
+  toast('데이터를 내보냈어요');
+}
+
+/* ---------- 시트 · 토스트 · 유틸 ---------- */
+function openSheet(){ document.getElementById('mask').classList.add('on'); requestAnimationFrame(()=>document.getElementById('sheet').classList.add('on')); }
+function closeSheet(){ const s=document.getElementById('sheet'),m=document.getElementById('mask'); if(!s)return; s.classList.remove('on'); m.classList.remove('on'); }
+function toast(msg){
+  let t=document.getElementById('toast');
+  if(!t){ t=document.createElement('div'); t.id='toast'; t.style.cssText='position:absolute;left:50%;bottom:100px;transform:translateX(-50%);background:rgba(42,40,35,.94);color:#fff;padding:11px 18px;border-radius:999px;font-size:13px;z-index:60;transition:.3s;opacity:0'; $app.appendChild(t); }
+  t.textContent=msg; t.style.opacity='1'; clearTimeout(t._t); t._t=setTimeout(()=>t.style.opacity='0',1800);
+}
+function fmt(iso){ const d=new Date(iso), td=new Date(); const same=d.toDateString()===td.toDateString();
+  return same?`오늘 ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`:`${d.getMonth()+1}월 ${d.getDate()}일`; }
+function clip(s,n){ s=s.replace(/\n/g,' '); return s.length>n?s.slice(0,n)+'…':s; }
+function escapeHtml(s){ return (s||'').replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])); }
+
+/* ---------- 시작 ---------- */
+render();
+</script>
+</body>
+</html>
