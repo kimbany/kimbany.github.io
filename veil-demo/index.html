@@ -89,6 +89,11 @@
   .page.on{display:flex}
 
   /* 목록 행 */
+  /* 목록 상단 제목: 목록 줄과 확실히 구분되는 헤더 */
+  .lhead{padding:var(--s5) var(--s5) var(--s3);border-bottom:2px solid var(--ink)}
+  .lhead .lt{font-size:24px;font-weight:800;letter-spacing:-.01em}
+  .list-rows{padding-top:var(--s2)}
+  .list-rows .row:first-child{border-top:0}
   .row{display:flex;align-items:center;gap:var(--s3);padding:var(--s4) 0;border-top:1px solid var(--line);text-align:left;width:100%}
   .row:last-child{border-bottom:1px solid var(--line)}
   .row .nm{font-size:17px;font-weight:700}
@@ -576,7 +581,7 @@ function doMatch(){
 /* ---------- 대화 목록 ---------- */
 function renderList(){
   const el=document.getElementById('pg-list');
-  let h=`<div class="top"><div class="t">대화</div></div><div class="grow pad" style="padding-top:0">`;
+  let h=`<div class="lhead"><div class="lt">대화</div></div><div class="grow pad list-rows">`;
   if(chats.length===0){
     h+=`<div class="center" style="min-height:60vh"><p class="dim body">아직 대화가 없어요.<br>매칭을 시작해보세요.</p></div>`;
   }else{
