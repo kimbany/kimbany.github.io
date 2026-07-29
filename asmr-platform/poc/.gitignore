@@ -1,0 +1,22 @@
+# Flutter
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+.pub-cache/
+.pub/
+build/
+.idea/
+.vscode/
+*.iml
+.DS_Store
+ios/Pods/
+ios/.symlinks/
+android/.gradle/
+android/local.properties
+android/key.properties
+
+# PoC sound assets (저작권 확보 후 본인이 직접 추가)
+assets/sounds/*.mp3
+assets/sounds/*.wav
+assets/sounds/*.ogg
