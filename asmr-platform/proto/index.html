@@ -1,0 +1,1180 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#0a0a0f">
+<title>ASMR 앱 프로토타입</title>
+<style>
+  :root {
+    --bg: #0a0a0f;
+    --panel: #14141c;
+    --card: #1c1c26;
+    --card2: #232332;
+    --border: #2a2a38;
+    --text: #ececf1;
+    --muted: #8a8aa0;
+    --accent: #8b7cff;
+    --accent2: #b39dff;
+    --danger: #ff6b81;
+    --success: #67e0a3;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  html, body {
+    background: var(--bg); color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI",
+      "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
+    height: 100dvh;
+    overflow: hidden;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+  button { font-family: inherit; }
+
+  .app {
+    display: flex; flex-direction: column;
+    height: 100dvh; max-width: 500px; margin: 0 auto;
+    position: relative;
+  }
+  .views { flex: 1; overflow: hidden; position: relative; }
+  .view {
+    position: absolute; inset: 0;
+    display: none;
+    flex-direction: column;
+    overflow: hidden;
+    padding-top: env(safe-area-inset-top);
+  }
+  .view.active { display: flex; }
+
+  .body { flex: 1; overflow-y: auto; padding: 8px 20px 20px; -webkit-overflow-scrolling: touch; }
+
+  /* --------- Top bar variants --------- */
+  .top-title { padding: 16px 20px 8px; }
+  .greeting { color: var(--muted); font-size: 13px; margin-bottom: 2px; }
+  .top-title h1 { font-size: 22px; font-weight: 700; }
+  .top-bar {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 14px 20px;
+    min-height: 56px;
+  }
+  .top-bar .back, .top-bar .action-btn {
+    color: var(--muted); font-size: 15px; font-weight: 600;
+    background: none; border: 0; padding: 6px 8px; cursor: pointer;
+  }
+  .top-bar .back { font-size: 22px; }
+  .top-bar h2 { font-size: 16px; font-weight: 600; }
+  .top-bar .action-btn.primary { color: var(--accent2); }
+  .top-bar .action-btn:disabled { color: #3a3a48; }
+
+  /* --------- Cards --------- */
+  .sec-h {
+    display: flex; align-items: center; justify-content: space-between;
+    margin: 20px 0 10px;
+  }
+  .sec-h h3 { font-size: 15px; font-weight: 700; }
+  .sec-h .more { color: var(--muted); font-size: 12px; cursor: pointer; }
+  .big-card {
+    background: linear-gradient(135deg, #3a2a6b, #1e1e3a);
+    border-radius: 16px; padding: 20px; height: 160px; cursor: pointer;
+    display: flex; flex-direction: column; justify-content: space-between;
+    position: relative; overflow: hidden;
+  }
+  .big-card::after {
+    content: attr(data-icon); position: absolute; right: 12px; bottom: -8px;
+    font-size: 80px; opacity: .3;
+  }
+  .big-card .tag {
+    font-size: 10px; background: rgba(255,255,255,.15); padding: 3px 8px;
+    border-radius: 10px; display: inline-block; width: fit-content;
+  }
+  .big-card .title { font-size: 18px; font-weight: 700; }
+  .big-card .by { font-size: 12px; color: var(--muted); }
+
+  .h-scroll {
+    display: flex; gap: 12px; overflow-x: auto; margin: 0 -20px; padding: 0 20px 8px;
+    scrollbar-width: none;
+  }
+  .h-scroll::-webkit-scrollbar { display: none; }
+  .small-card {
+    background: var(--card); border-radius: 12px; padding: 12px;
+    min-width: 130px; height: 130px; cursor: pointer;
+    display: flex; flex-direction: column; justify-content: space-between;
+    flex-shrink: 0;
+  }
+  .small-card:active { transform: scale(.96); background: var(--card2); }
+  .small-card .emoji { font-size: 32px; }
+  .small-card .name { font-size: 12px; font-weight: 600; }
+  .small-card .meta { font-size: 10px; color: var(--muted); }
+
+  .list-item {
+    display: flex; align-items: center; gap: 12px;
+    padding: 10px 0; border-bottom: 1px solid var(--border);
+    cursor: pointer;
+  }
+  .list-item:active { background: var(--card); }
+  .list-item .icon-box {
+    width: 44px; height: 44px; border-radius: 10px;
+    background: linear-gradient(135deg, #3a2a6b, #1e1e3a);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 22px; flex-shrink: 0;
+  }
+  .list-item .info { flex: 1; min-width: 0; }
+  .list-item .info .t { font-size: 14px; font-weight: 600;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .list-item .info .s { font-size: 11px; color: var(--muted); margin-top: 2px; }
+  .list-item .right { font-size: 18px; color: var(--muted); }
+
+  /* --------- Bottom tab bar --------- */
+  .tabbar {
+    display: flex; justify-content: space-around;
+    padding: 8px 0 calc(8px + env(safe-area-inset-bottom));
+    border-top: 1px solid var(--border);
+    background: rgba(20,20,28,.95);
+    backdrop-filter: blur(20px);
+  }
+  .tabbar .tab {
+    display: flex; flex-direction: column; align-items: center; gap: 2px;
+    color: var(--muted); font-size: 10px; padding: 6px 12px;
+    background: none; border: 0; cursor: pointer;
+    min-width: 60px;
+  }
+  .tabbar .tab.active { color: var(--accent2); }
+  .tabbar .tab .icon { font-size: 22px; }
+  .tabbar .tab.create .icon {
+    background: var(--accent); color: #0a0a0f;
+    width: 40px; height: 40px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 22px;
+    box-shadow: 0 4px 12px rgba(139,124,255,.4);
+  }
+  .tabbar .tab.create { color: transparent; font-size: 0; }
+
+  /* --------- Sound picker --------- */
+  .sound-grid {
+    display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px;
+    margin-top: 8px;
+  }
+  .sound-item {
+    background: var(--card); border: 2px solid var(--border);
+    border-radius: 14px; padding: 16px; position: relative;
+    aspect-ratio: 1.3;
+    display: flex; flex-direction: column; justify-content: space-between;
+    cursor: pointer;
+    transition: transform .1s, border-color .1s, background .1s;
+  }
+  .sound-item:active { transform: scale(.97); }
+  .sound-item.selected { border-color: var(--accent); background: #221f3a; }
+  .sound-item .emoji { font-size: 30px; }
+  .sound-item .name { font-size: 13px; font-weight: 600; }
+  .sound-item .cat { font-size: 10px; color: var(--muted); margin-top: 2px; }
+  .sound-item .check {
+    position: absolute; top: 10px; right: 10px;
+    width: 24px; height: 24px; border-radius: 50%;
+    background: var(--accent); color: #0a0a0f;
+    display: none; align-items: center; justify-content: center;
+    font-size: 14px; font-weight: 700;
+  }
+  .sound-item.selected .check { display: flex; }
+
+  .chips {
+    display: flex; gap: 8px; overflow-x: auto;
+    margin: 0 -20px; padding: 0 20px 8px;
+    scrollbar-width: none;
+  }
+  .chips::-webkit-scrollbar { display: none; }
+  .chip {
+    background: var(--card); border: 1px solid var(--border); color: var(--muted);
+    padding: 6px 14px; border-radius: 16px; font-size: 12px; white-space: nowrap;
+    flex-shrink: 0; cursor: pointer;
+  }
+  .chip.active { background: var(--accent); color: #0a0a0f; border-color: var(--accent); font-weight: 600; }
+
+  /* --------- Timeline editor --------- */
+  .track-row {
+    background: var(--card); border-radius: 12px; padding: 14px;
+    margin-bottom: 10px;
+  }
+  .track-row .head {
+    display: flex; align-items: center; gap: 10px; margin-bottom: 8px;
+  }
+  .track-row .em { font-size: 22px; }
+  .track-row .name { flex: 1; font-size: 14px; font-weight: 600; }
+  .track-row .vol { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .track-row .remove {
+    color: var(--muted); font-size: 18px; background: none; border: 0; cursor: pointer;
+    padding: 4px 8px;
+  }
+  input[type=range] {
+    width: 100%; height: 30px; background: transparent;
+    accent-color: var(--accent);
+  }
+
+  /* --------- Primary buttons --------- */
+  .footer-cta {
+    padding: 12px 20px calc(20px + env(safe-area-inset-bottom));
+    background: var(--bg);
+    border-top: 1px solid var(--border);
+  }
+  .btn-primary {
+    background: var(--accent); color: #0a0a0f; border: 0; width: 100%;
+    padding: 16px; border-radius: 14px; font-size: 15px; font-weight: 700;
+    cursor: pointer;
+  }
+  .btn-primary:disabled { background: #3a3a48; color: #6a6a80; }
+  .btn-primary:active:not(:disabled) { transform: scale(.98); }
+
+  .btn-outline {
+    background: transparent; color: var(--text);
+    border: 1px solid var(--border); width: 100%;
+    padding: 15px; border-radius: 14px; font-size: 14px; font-weight: 600;
+    cursor: pointer;
+  }
+
+  /* --------- Now playing --------- */
+  .np-header {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 14px 20px;
+  }
+  .np-header .close, .np-header .dim {
+    background: none; border: 0; color: var(--muted); font-size: 22px;
+    cursor: pointer; padding: 4px 8px;
+  }
+  .np-header .mode { font-size: 12px; color: var(--muted); }
+  .np-timer {
+    text-align: center; padding: 24px 20px 12px;
+  }
+  .np-timer .big {
+    font-size: 60px; font-weight: 200; letter-spacing: -3px;
+    font-variant-numeric: tabular-nums;
+  }
+  .np-timer .total { font-size: 12px; color: var(--muted); margin-top: 4px; }
+  .np-progress { padding: 0 20px 20px; }
+  .np-progress .bar {
+    height: 4px; background: #2a2a38; border-radius: 2px; position: relative; overflow: hidden;
+  }
+  .np-progress .fill {
+    height: 100%; background: var(--accent); border-radius: 2px;
+    width: 0%; transition: width .3s;
+  }
+  .np-tracks { padding: 0 20px 20px; }
+  .np-tracks .h { font-size: 12px; color: var(--muted); margin-bottom: 12px; }
+  .np-tracks .np-track {
+    display: flex; align-items: center; gap: 12px; margin-bottom: 10px;
+  }
+  .np-track .em { font-size: 22px; width: 26px; }
+  .np-track .name {
+    font-size: 13px; width: 70px;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .np-track input[type=range] { flex: 1; }
+  .np-track .val {
+    font-size: 11px; color: var(--muted); width: 34px; text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+  .np-controls {
+    display: flex; justify-content: center; align-items: center; gap: 30px;
+    padding: 20px 0;
+  }
+  .np-controls .btn {
+    background: none; border: 0; color: var(--muted); font-size: 26px;
+    cursor: pointer; padding: 8px;
+  }
+  .np-controls .play-btn {
+    width: 72px; height: 72px; border-radius: 50%;
+    background: var(--accent); color: #0a0a0f;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 32px; border: 0; cursor: pointer;
+    box-shadow: 0 8px 24px rgba(139,124,255,.4);
+  }
+  .np-controls .play-btn:active { transform: scale(.95); }
+  .np-timer-modal {
+    display: flex; gap: 8px; padding: 0 20px 12px;
+    flex-wrap: wrap; justify-content: center;
+  }
+  .timer-chip {
+    background: var(--card); border: 1px solid var(--border); color: var(--muted);
+    padding: 8px 14px; border-radius: 20px; font-size: 12px;
+    cursor: pointer;
+  }
+  .timer-chip.active { background: var(--accent); color: #0a0a0f; border-color: var(--accent); font-weight: 600; }
+
+  /* --------- Save form --------- */
+  .field { margin-bottom: 16px; }
+  .field label {
+    display: block; font-size: 12px; color: var(--muted); margin-bottom: 6px;
+  }
+  .field input, .field textarea {
+    width: 100%; background: var(--card); border: 1px solid var(--border);
+    color: var(--text); padding: 12px; border-radius: 10px; font-size: 14px;
+    font-family: inherit;
+  }
+  .field textarea { min-height: 60px; resize: none; }
+  .radio-row {
+    display: flex; align-items: center; gap: 10px;
+    padding: 14px; background: var(--card); border-radius: 12px;
+    margin-bottom: 8px; border: 2px solid var(--border);
+    cursor: pointer;
+  }
+  .radio-row.active { border-color: var(--accent); background: #221f3a; }
+  .radio-row .dot {
+    width: 20px; height: 20px; border-radius: 50%;
+    border: 2px solid var(--muted); flex-shrink: 0;
+    position: relative;
+  }
+  .radio-row.active .dot { border-color: var(--accent); background: var(--accent); }
+  .radio-row.active .dot::after {
+    content: '✓'; position: absolute; inset: 0;
+    display: flex; align-items: center; justify-content: center;
+    color: #0a0a0f; font-size: 12px; font-weight: 700;
+  }
+  .radio-row .body { flex: 1; }
+  .radio-row .body .t { font-size: 14px; font-weight: 600; }
+  .radio-row .body .s { font-size: 11px; color: var(--muted); margin-top: 2px; }
+
+  /* --------- Toast --------- */
+  .toast {
+    position: fixed; bottom: 100px; left: 50%; transform: translateX(-50%);
+    background: var(--accent); color: #0a0a0f;
+    padding: 12px 20px; border-radius: 24px;
+    font-size: 13px; font-weight: 600;
+    z-index: 1000; opacity: 0;
+    pointer-events: none;
+    transition: opacity .2s, transform .2s;
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(-10px); }
+
+  /* --------- Empty state --------- */
+  .empty {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    padding: 60px 20px; color: var(--muted); text-align: center; gap: 12px;
+  }
+  .empty .em { font-size: 48px; }
+  .empty .t { font-size: 14px; font-weight: 600; color: var(--text); }
+  .empty .s { font-size: 12px; }
+</style>
+</head>
+<body>
+
+<div class="app">
+  <div class="views">
+
+    <!-- ============ HOME ============ -->
+    <div class="view active" id="v-home">
+      <div class="top-title">
+        <div class="greeting" id="greeting">안녕하세요</div>
+        <h1>오늘도 좋은 밤이에요 🌙</h1>
+      </div>
+      <div class="body">
+        <div class="sec-h"><h3>⭐ 오늘의 추천</h3></div>
+        <div class="big-card" data-icon="🌧" data-preset="rainy_cabin">
+          <span class="tag">수면</span>
+          <div>
+            <div class="title">비오는 겨울밤 오두막</div>
+            <div class="by">추천 · 30분</div>
+          </div>
+        </div>
+
+        <div class="sec-h"><h3>🔥 지금 인기</h3></div>
+        <div class="h-scroll" id="popular"></div>
+
+        <div class="sec-h">
+          <h3>📂 내가 저장한 것</h3>
+          <span class="more" data-tab="library">전체</span>
+        </div>
+        <div id="home-saved"></div>
+      </div>
+    </div>
+
+    <!-- ============ EXPLORE (placeholder) ============ -->
+    <div class="view" id="v-explore">
+      <div class="top-title"><h1>탐색</h1></div>
+      <div class="body">
+        <div class="empty">
+          <div class="em">🔍</div>
+          <div class="t">아직 준비 중이에요</div>
+          <div class="s">v1.1에서 다른 사용자의 믹스를<br>둘러볼 수 있어요</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============ SOUND PICKER (create step 1) ============ -->
+    <div class="view" id="v-picker">
+      <div class="top-bar">
+        <button class="back" data-back-to="home">✕</button>
+        <h2>소리 고르기</h2>
+        <button class="action-btn primary" id="picker-next" disabled>다음</button>
+      </div>
+      <div class="body">
+        <div class="chips" id="picker-chips">
+          <div class="chip active" data-cat="all">전체</div>
+          <div class="chip" data-cat="nature">자연</div>
+          <div class="chip" data-cat="ambient">앰비언트</div>
+          <div class="chip" data-cat="human">사람</div>
+        </div>
+        <div class="sound-grid" id="picker-grid"></div>
+      </div>
+      <div class="footer-cta">
+        <button class="btn-primary" id="picker-next-btn" disabled>선택하지 않았어요</button>
+      </div>
+    </div>
+
+    <!-- ============ TIMELINE / MIX (create step 2) ============ -->
+    <div class="view" id="v-mix">
+      <div class="top-bar">
+        <button class="back" data-back-to="picker">←</button>
+        <h2>믹스 만들기</h2>
+        <button class="action-btn primary" id="mix-play">재생</button>
+      </div>
+      <div class="body">
+        <div style="background:var(--card);padding:12px;border-radius:10px;margin-bottom:16px;font-size:12px;color:var(--muted);">
+          💡 볼륨을 조절해 나만의 소리를 만들어보세요
+        </div>
+        <div id="mix-tracks"></div>
+        <button class="btn-outline" data-back-to="picker" style="margin-top:16px;">+ 소리 추가</button>
+      </div>
+      <div class="footer-cta">
+        <button class="btn-primary" id="mix-play-btn">▶ 재생하기</button>
+      </div>
+    </div>
+
+    <!-- ============ NOW PLAYING ============ -->
+    <div class="view" id="v-playing">
+      <div class="np-header">
+        <button class="close" id="np-close">✕</button>
+        <span class="mode" id="np-mode">동시 재생</span>
+        <button class="dim" id="np-dim">🌙</button>
+      </div>
+      <div style="flex:1;overflow-y:auto;">
+        <div class="np-timer">
+          <div class="big" id="np-time">--:--:--</div>
+          <div class="total" id="np-total"></div>
+        </div>
+        <div class="np-progress">
+          <div class="bar"><div class="fill" id="np-fill"></div></div>
+        </div>
+
+        <div class="np-timer-modal" id="timer-chips">
+          <div class="timer-chip active" data-sec="0">∞</div>
+          <div class="timer-chip" data-sec="900">15분</div>
+          <div class="timer-chip" data-sec="1800">30분</div>
+          <div class="timer-chip" data-sec="3600">1시간</div>
+          <div class="timer-chip" data-sec="7200">2시간</div>
+          <div class="timer-chip" data-sec="28800">8시간</div>
+        </div>
+
+        <div class="np-tracks">
+          <div class="h">지금 재생 중</div>
+          <div id="np-tracks-list"></div>
+        </div>
+
+        <div class="np-controls">
+          <button class="btn" id="np-save">💾</button>
+          <div style="width:40px;"></div>
+          <button class="play-btn" id="np-toggle">▶</button>
+          <div style="width:40px;"></div>
+          <button class="btn" id="np-share">↗</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============ SAVE ============ -->
+    <div class="view" id="v-save">
+      <div class="top-bar">
+        <button class="back" data-back-to="playing">←</button>
+        <h2>저장하기</h2>
+        <span></span>
+      </div>
+      <div class="body">
+        <div class="field">
+          <label>제목</label>
+          <input id="save-title" placeholder="내 첫 ASMR">
+        </div>
+        <div class="field">
+          <label>설명 (선택)</label>
+          <textarea id="save-desc" placeholder="언제 들으면 좋은지, 어떤 느낌인지..."></textarea>
+        </div>
+        <div class="field">
+          <label>공개 범위</label>
+          <div class="radio-row active" data-vis="private">
+            <div class="dot"></div>
+            <div class="body"><div class="t">🔒 비공개</div><div class="s">나만 볼 수 있어요</div></div>
+          </div>
+          <div class="radio-row" data-vis="link">
+            <div class="dot"></div>
+            <div class="body"><div class="t">🔗 링크 공유</div><div class="s">링크가 있는 사람만</div></div>
+          </div>
+          <div class="radio-row" data-vis="public">
+            <div class="dot"></div>
+            <div class="body"><div class="t">🌐 전체 공개</div><div class="s">누구나 찾아 들을 수 있어요</div></div>
+          </div>
+        </div>
+      </div>
+      <div class="footer-cta">
+        <button class="btn-primary" id="save-confirm">저장하기</button>
+      </div>
+    </div>
+
+    <!-- ============ LIBRARY ============ -->
+    <div class="view" id="v-library">
+      <div class="top-title"><h1>보관함</h1></div>
+      <div class="body">
+        <div id="library-list"></div>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="tabbar">
+    <button class="tab active" data-tab="home"><span class="icon">🏠</span>홈</button>
+    <button class="tab" data-tab="explore"><span class="icon">🔍</span>탐색</button>
+    <button class="tab create" data-tab="picker"><span class="icon">+</span>만들기</button>
+    <button class="tab" data-tab="library"><span class="icon">📂</span>보관함</button>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ================ SOUND CATALOG ================
+const SOUNDS = [
+  { id: 'rain',   name: '빗소리',    icon: '🌧', cat: 'nature' },
+  { id: 'ocean',  name: '파도',      icon: '🌊', cat: 'nature' },
+  { id: 'stream', name: '시냇물',    icon: '💧', cat: 'nature' },
+  { id: 'wind',   name: '바람',      icon: '💨', cat: 'nature' },
+  { id: 'fire',   name: '모닥불',    icon: '🔥', cat: 'nature' },
+  { id: 'white',  name: '화이트 노이즈', icon: '⬜', cat: 'ambient' },
+  { id: 'pink',   name: '핑크 노이즈',  icon: '🌸', cat: 'ambient' },
+  { id: 'brown',  name: '브라운 노이즈', icon: '🟫', cat: 'ambient' },
+  { id: 'fan',    name: '선풍기',    icon: '🌀', cat: 'ambient' },
+  { id: 'cafe',   name: '카페',      icon: '☕', cat: 'human' },
+  { id: 'library',name: '도서관',    icon: '📚', cat: 'human' },
+  { id: 'keyboard', name: '키보드',  icon: '⌨',  cat: 'human' },
+];
+
+const PRESETS = {
+  rainy_cabin: {
+    title: '비오는 겨울밤 오두막',
+    sounds: [
+      { id: 'rain', vol: 0.7 },
+      { id: 'fire', vol: 0.5 },
+      { id: 'wind', vol: 0.3 },
+    ]
+  },
+  focus_cafe: {
+    title: '집중용 카페',
+    sounds: [{ id: 'cafe', vol: 0.6 }, { id: 'keyboard', vol: 0.4 }]
+  },
+  ocean_night: {
+    title: '파도치는 밤바다',
+    sounds: [{ id: 'ocean', vol: 0.7 }, { id: 'wind', vol: 0.3 }]
+  },
+};
+
+// ================ STATE ================
+const state = {
+  view: 'home',
+  selectedSounds: new Set(),
+  tracks: [], // {id, vol}
+  playing: false,
+  durationSec: 0, // 0 = infinite
+  startTime: 0,
+  endTime: 0,
+  timerHandle: null,
+  currentPreset: null,
+};
+
+const LS_KEY = 'asmr_proto_mixes_v1';
+function loadMixes() {
+  try { return JSON.parse(localStorage.getItem(LS_KEY) || '[]'); }
+  catch { return []; }
+}
+function saveMixes(mixes) {
+  localStorage.setItem(LS_KEY, JSON.stringify(mixes));
+}
+
+// ================ AUDIO ENGINE (Web Audio, procedural) ================
+let ctx = null;
+let masterGain = null;
+const active = new Map(); // id -> { gain, stop }
+
+function ensureCtx() {
+  if (!ctx) {
+    ctx = new (window.AudioContext || window.webkitAudioContext)();
+    masterGain = ctx.createGain();
+    masterGain.gain.value = 0.8;
+    masterGain.connect(ctx.destination);
+  }
+  if (ctx.state === 'suspended') ctx.resume();
+}
+
+function whiteNoise() {
+  const buf = ctx.createBuffer(1, ctx.sampleRate * 2, ctx.sampleRate);
+  const d = buf.getChannelData(0);
+  for (let i=0;i<d.length;i++) d[i] = Math.random()*2-1;
+  const s = ctx.createBufferSource(); s.buffer = buf; s.loop = true;
+  return s;
+}
+function pinkNoise() {
+  const buf = ctx.createBuffer(1, ctx.sampleRate * 2, ctx.sampleRate);
+  const d = buf.getChannelData(0);
+  let b0=0,b1=0,b2=0,b3=0,b4=0,b5=0,b6=0;
+  for (let i=0;i<d.length;i++) {
+    const w = Math.random()*2-1;
+    b0=.99886*b0+w*.0555179; b1=.99332*b1+w*.0750759;
+    b2=.96900*b2+w*.1538520; b3=.86650*b3+w*.3104856;
+    b4=.55000*b4+w*.5329522; b5=-.7616*b5-w*.0168980;
+    d[i]=(b0+b1+b2+b3+b4+b5+b6+w*.5362)*.11; b6=w*.115926;
+  }
+  const s = ctx.createBufferSource(); s.buffer = buf; s.loop = true;
+  return s;
+}
+function brownNoise() {
+  const buf = ctx.createBuffer(1, ctx.sampleRate * 2, ctx.sampleRate);
+  const d = buf.getChannelData(0);
+  let last=0;
+  for (let i=0;i<d.length;i++) {
+    const w = Math.random()*2-1; last=(last+.02*w)/1.02; d[i]=last*3.5;
+  }
+  const s = ctx.createBufferSource(); s.buffer = buf; s.loop = true;
+  return s;
+}
+
+function buildSound(id) {
+  ensureCtx();
+  const out = ctx.createGain();
+  out.gain.value = 0;
+  out.connect(masterGain);
+  let cleanup = () => {};
+
+  if (id === 'white') {
+    const s = whiteNoise(); s.connect(out); s.start();
+    cleanup = () => { try { s.stop(); } catch(e){} };
+  } else if (id === 'pink') {
+    const s = pinkNoise(); s.connect(out); s.start();
+    cleanup = () => { try { s.stop(); } catch(e){} };
+  } else if (id === 'brown') {
+    const s = brownNoise(); s.connect(out); s.start();
+    cleanup = () => { try { s.stop(); } catch(e){} };
+  } else if (id === 'rain') {
+    const s = whiteNoise();
+    const hp = ctx.createBiquadFilter(); hp.type='highpass'; hp.frequency.value=400;
+    const lp = ctx.createBiquadFilter(); lp.type='lowpass';  lp.frequency.value=6000;
+    s.connect(hp); hp.connect(lp); lp.connect(out); s.start();
+    const drops = setInterval(() => {
+      if (!ctx) return;
+      const o = ctx.createOscillator(); const og = ctx.createGain();
+      o.frequency.value = 800 + Math.random()*1500;
+      og.gain.setValueAtTime(0, ctx.currentTime);
+      og.gain.linearRampToValueAtTime(.08, ctx.currentTime+.005);
+      og.gain.exponentialRampToValueAtTime(.0001, ctx.currentTime+.06);
+      o.connect(og); og.connect(out); o.start(); o.stop(ctx.currentTime+.07);
+    }, 120);
+    cleanup = () => { clearInterval(drops); try{s.stop();}catch(e){} };
+  } else if (id === 'ocean') {
+    const s = brownNoise();
+    const lp = ctx.createBiquadFilter(); lp.type='lowpass'; lp.frequency.value=1200;
+    s.connect(lp); lp.connect(out);
+    const lfo = ctx.createOscillator(); lfo.frequency.value=.12;
+    const lg = ctx.createGain(); lg.gain.value=.4;
+    lfo.connect(lg); lg.connect(out.gain);
+    s.start(); lfo.start();
+    cleanup = () => { try{s.stop();lfo.stop();}catch(e){} };
+  } else if (id === 'wind') {
+    const s = pinkNoise();
+    const bp = ctx.createBiquadFilter(); bp.type='bandpass'; bp.frequency.value=500; bp.Q.value=.6;
+    s.connect(bp); bp.connect(out);
+    const lfo = ctx.createOscillator(); lfo.frequency.value=.15;
+    const lg = ctx.createGain(); lg.gain.value=300;
+    lfo.connect(lg); lg.connect(bp.frequency);
+    s.start(); lfo.start();
+    cleanup = () => { try{s.stop();lfo.stop();}catch(e){} };
+  } else if (id === 'fire') {
+    const s = whiteNoise();
+    const lp = ctx.createBiquadFilter(); lp.type='lowpass'; lp.frequency.value=1800;
+    s.connect(lp); lp.connect(out); s.start();
+    const crackle = setInterval(() => {
+      if (!ctx) return;
+      const o = ctx.createOscillator(); o.type='square';
+      const og = ctx.createGain();
+      o.frequency.value = 100 + Math.random()*400;
+      og.gain.setValueAtTime(0, ctx.currentTime);
+      og.gain.linearRampToValueAtTime(.15, ctx.currentTime+.002);
+      og.gain.exponentialRampToValueAtTime(.0001, ctx.currentTime+.04);
+      o.connect(og); og.connect(out); o.start(); o.stop(ctx.currentTime+.05);
+    }, 180);
+    cleanup = () => { clearInterval(crackle); try{s.stop();}catch(e){} };
+  } else if (id === 'stream') {
+    const s = whiteNoise();
+    const hp = ctx.createBiquadFilter(); hp.type='highpass'; hp.frequency.value=1500;
+    const lp = ctx.createBiquadFilter(); lp.type='lowpass';  lp.frequency.value=5000;
+    s.connect(hp); hp.connect(lp); lp.connect(out);
+    const lfo = ctx.createOscillator(); lfo.frequency.value=3.2;
+    const lg = ctx.createGain(); lg.gain.value=800;
+    lfo.connect(lg); lg.connect(lp.frequency);
+    s.start(); lfo.start();
+    cleanup = () => { try{s.stop();lfo.stop();}catch(e){} };
+  } else if (id === 'fan') {
+    const s = brownNoise();
+    const lp = ctx.createBiquadFilter(); lp.type='lowpass'; lp.frequency.value=800;
+    s.connect(lp); lp.connect(out);
+    const o = ctx.createOscillator(); o.frequency.value=60; o.type='sine';
+    const og = ctx.createGain(); og.gain.value=.05;
+    o.connect(og); og.connect(out);
+    s.start(); o.start();
+    cleanup = () => { try{s.stop();o.stop();}catch(e){} };
+  } else if (id === 'cafe') {
+    const s = pinkNoise();
+    const lp = ctx.createBiquadFilter(); lp.type='lowpass'; lp.frequency.value=2500;
+    const hp = ctx.createBiquadFilter(); hp.type='highpass'; hp.frequency.value=200;
+    s.connect(hp); hp.connect(lp); lp.connect(out); s.start();
+    const clatter = setInterval(() => {
+      if (!ctx) return;
+      const o = ctx.createOscillator(); o.type='triangle';
+      const og = ctx.createGain();
+      o.frequency.value = 1500 + Math.random()*1500;
+      og.gain.setValueAtTime(0, ctx.currentTime);
+      og.gain.linearRampToValueAtTime(.03, ctx.currentTime+.003);
+      og.gain.exponentialRampToValueAtTime(.0001, ctx.currentTime+.03);
+      o.connect(og); og.connect(out); o.start(); o.stop(ctx.currentTime+.04);
+    }, 400);
+    cleanup = () => { clearInterval(clatter); try{s.stop();}catch(e){} };
+  } else if (id === 'library') {
+    const s = brownNoise();
+    const lp = ctx.createBiquadFilter(); lp.type='lowpass'; lp.frequency.value=400;
+    s.connect(lp); lp.connect(out); s.start();
+    cleanup = () => { try{s.stop();}catch(e){} };
+  } else if (id === 'keyboard') {
+    const s = whiteNoise();
+    const g0 = ctx.createGain(); g0.gain.value = 0;
+    s.connect(g0); g0.connect(out); s.start();
+    const tick = setInterval(() => {
+      if (!ctx) return;
+      const o = ctx.createOscillator(); o.type='square';
+      const og = ctx.createGain();
+      o.frequency.value = 800 + Math.random()*1200;
+      og.gain.setValueAtTime(0, ctx.currentTime);
+      og.gain.linearRampToValueAtTime(.05, ctx.currentTime+.001);
+      og.gain.exponentialRampToValueAtTime(.0001, ctx.currentTime+.02);
+      o.connect(og); og.connect(out); o.start(); o.stop(ctx.currentTime+.03);
+    }, 120);
+    cleanup = () => { clearInterval(tick); try{s.stop();}catch(e){} };
+  }
+
+  return { gain: out, stop: cleanup };
+}
+
+function startTrack(id, vol) {
+  if (active.has(id)) return;
+  const b = buildSound(id);
+  b.gain.gain.setValueAtTime(0, ctx.currentTime);
+  b.gain.gain.linearRampToValueAtTime(vol, ctx.currentTime + .5);
+  active.set(id, b);
+}
+function stopTrack(id) {
+  const b = active.get(id);
+  if (!b) return;
+  const now = ctx.currentTime;
+  b.gain.gain.cancelScheduledValues(now);
+  b.gain.gain.setValueAtTime(b.gain.gain.value, now);
+  b.gain.gain.linearRampToValueAtTime(0, now + .3);
+  setTimeout(() => { b.stop(); try{b.gain.disconnect();}catch(e){} }, 400);
+  active.delete(id);
+}
+function setTrackVol(id, vol) {
+  const b = active.get(id);
+  if (b) b.gain.gain.value = vol;
+}
+function stopAll() {
+  [...active.keys()].forEach(stopTrack);
+}
+
+// ================ VIEW SWITCH ================
+function go(view, opts = {}) {
+  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+  const el = document.getElementById('v-' + view);
+  if (el) el.classList.add('active');
+  state.view = view;
+
+  document.querySelectorAll('.tabbar .tab').forEach(t => {
+    const tab = t.dataset.tab;
+    const isActive = (
+      (tab === view) ||
+      (tab === 'home' && view === 'home') ||
+      (tab === 'library' && view === 'library') ||
+      (tab === 'explore' && view === 'explore')
+    );
+    t.classList.toggle('active', isActive);
+  });
+
+  if (view === 'home') renderHome();
+  if (view === 'library') renderLibrary();
+  if (view === 'picker') renderPicker();
+  if (view === 'mix') renderMix();
+  if (view === 'playing') renderPlaying();
+}
+
+// ================ HOME ================
+function renderHome() {
+  const p = document.getElementById('popular');
+  p.innerHTML = '';
+  Object.entries(PRESETS).slice(0,3).forEach(([k,v]) => {
+    const c = document.createElement('div');
+    c.className = 'small-card';
+    c.dataset.preset = k;
+    c.innerHTML = `
+      <span class="emoji">${SOUNDS.find(s=>s.id===v.sounds[0].id)?.icon || '🎧'}</span>
+      <div>
+        <div class="name">${v.title}</div>
+        <div class="meta">${v.sounds.length}개 소리</div>
+      </div>
+    `;
+    c.addEventListener('click', () => playPreset(k));
+    p.appendChild(c);
+  });
+
+  const saved = loadMixes();
+  const el = document.getElementById('home-saved');
+  if (saved.length === 0) {
+    el.innerHTML = `<div class="empty" style="padding:32px 0;">
+      <div class="em">📂</div>
+      <div class="s">아직 저장한 게 없어요<br>만들어서 저장해보세요</div>
+    </div>`;
+  } else {
+    el.innerHTML = '';
+    saved.slice(-4).reverse().forEach(mix => {
+      const div = document.createElement('div');
+      div.className = 'list-item';
+      div.innerHTML = `
+        <div class="icon-box">${SOUNDS.find(s=>s.id===mix.sounds[0].id)?.icon || '🎧'}</div>
+        <div class="info">
+          <div class="t">${mix.title}</div>
+          <div class="s">${mix.sounds.length}개 소리 · ${new Date(mix.createdAt).toLocaleDateString('ko-KR')}</div>
+        </div>
+        <div class="right">▶</div>
+      `;
+      div.addEventListener('click', () => playMix(mix));
+      el.appendChild(div);
+    });
+  }
+}
+
+function playPreset(key) {
+  const p = PRESETS[key];
+  if (!p) return;
+  state.currentPreset = { title: p.title, sounds: p.sounds };
+  state.tracks = p.sounds.map(s => ({...s}));
+  state.durationSec = 0;
+  startPlayback();
+  go('playing');
+}
+function playMix(mix) {
+  state.currentPreset = { title: mix.title, sounds: mix.sounds };
+  state.tracks = mix.sounds.map(s => ({...s}));
+  state.durationSec = 0;
+  startPlayback();
+  go('playing');
+}
+
+// ================ PICKER ================
+let pickerCat = 'all';
+function renderPicker() {
+  const g = document.getElementById('picker-grid');
+  g.innerHTML = '';
+  SOUNDS.filter(s => pickerCat === 'all' || s.cat === pickerCat).forEach(s => {
+    const el = document.createElement('div');
+    el.className = 'sound-item' + (state.selectedSounds.has(s.id) ? ' selected' : '');
+    el.innerHTML = `
+      <div class="check">✓</div>
+      <div class="emoji">${s.icon}</div>
+      <div>
+        <div class="name">${s.name}</div>
+        <div class="cat">${labelCat(s.cat)}</div>
+      </div>
+    `;
+    el.addEventListener('click', () => {
+      if (state.selectedSounds.has(s.id)) state.selectedSounds.delete(s.id);
+      else state.selectedSounds.add(s.id);
+      renderPicker();
+      updatePickerNext();
+    });
+    g.appendChild(el);
+  });
+  updatePickerNext();
+}
+function labelCat(c) {
+  return { nature: '자연', ambient: '앰비언트', human: '사람' }[c] || '';
+}
+function updatePickerNext() {
+  const n = state.selectedSounds.size;
+  const btn = document.getElementById('picker-next-btn');
+  const nav = document.getElementById('picker-next');
+  btn.disabled = n === 0;
+  nav.disabled = n === 0;
+  btn.textContent = n === 0 ? '소리를 하나 이상 선택해주세요' : `${n}개 선택함 · 다음 →`;
+}
+
+// ================ MIX EDITOR ================
+function renderMix() {
+  // Initialize tracks from selectedSounds if not yet built
+  if (state.tracks.length === 0 || state.tracks.length !== state.selectedSounds.size) {
+    state.tracks = [...state.selectedSounds].map(id => {
+      const existing = state.tracks.find(t => t.id === id);
+      return { id, vol: existing?.vol ?? 0.6 };
+    });
+  }
+  const el = document.getElementById('mix-tracks');
+  el.innerHTML = '';
+  state.tracks.forEach(t => {
+    const s = SOUNDS.find(x => x.id === t.id);
+    const row = document.createElement('div');
+    row.className = 'track-row';
+    row.innerHTML = `
+      <div class="head">
+        <span class="em">${s.icon}</span>
+        <span class="name">${s.name}</span>
+        <span class="vol">${Math.round(t.vol*100)}%</span>
+        <button class="remove" data-remove="${t.id}">✕</button>
+      </div>
+      <input type="range" min="0" max="100" value="${Math.round(t.vol*100)}" data-vol="${t.id}">
+    `;
+    row.querySelector('input').addEventListener('input', (e) => {
+      t.vol = e.target.value / 100;
+      row.querySelector('.vol').textContent = e.target.value + '%';
+      setTrackVol(t.id, t.vol);
+    });
+    row.querySelector('.remove').addEventListener('click', (e) => {
+      e.stopPropagation();
+      state.selectedSounds.delete(t.id);
+      state.tracks = state.tracks.filter(x => x.id !== t.id);
+      renderMix();
+    });
+    el.appendChild(row);
+  });
+}
+
+// ================ PLAYBACK ================
+function startPlayback() {
+  ensureCtx();
+  stopAll();
+  state.tracks.forEach(t => startTrack(t.id, t.vol));
+  state.playing = true;
+  state.startTime = Date.now();
+  if (state.durationSec > 0) state.endTime = Date.now() + state.durationSec * 1000;
+  else state.endTime = 0;
+  if (state.timerHandle) clearInterval(state.timerHandle);
+  state.timerHandle = setInterval(updateTimer, 250);
+  updateTimer();
+}
+function togglePlayback() {
+  if (state.playing) {
+    stopAll();
+    state.playing = false;
+    if (state.timerHandle) { clearInterval(state.timerHandle); state.timerHandle = null; }
+  } else {
+    startPlayback();
+  }
+  renderPlayButton();
+}
+function renderPlayButton() {
+  document.getElementById('np-toggle').textContent = state.playing ? '⏸' : '▶';
+}
+function fmt(sec) {
+  const h = Math.floor(sec/3600), m = Math.floor((sec%3600)/60), s = sec%60;
+  return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+}
+function updateTimer() {
+  if (!state.playing) return;
+  if (state.endTime === 0) {
+    const elapsed = Math.floor((Date.now() - state.startTime) / 1000);
+    document.getElementById('np-time').textContent = fmt(elapsed);
+    document.getElementById('np-total').textContent = '∞ 무한 재생';
+    document.getElementById('np-fill').style.width = '100%';
+  } else {
+    const remain = Math.max(0, Math.floor((state.endTime - Date.now())/1000));
+    document.getElementById('np-time').textContent = fmt(remain);
+    document.getElementById('np-total').textContent = `/ ${fmt(state.durationSec)}`;
+    const pct = 1 - (remain / state.durationSec);
+    document.getElementById('np-fill').style.width = (pct*100) + '%';
+    if (remain <= 0) {
+      stopAll(); state.playing = false;
+      clearInterval(state.timerHandle); state.timerHandle = null;
+      renderPlayButton();
+      toast('재생이 끝났어요');
+    }
+  }
+}
+
+function renderPlaying() {
+  const preset = state.currentPreset;
+  if (preset) {
+    document.getElementById('np-mode').textContent = preset.title;
+  }
+  const el = document.getElementById('np-tracks-list');
+  el.innerHTML = '';
+  state.tracks.forEach(t => {
+    const s = SOUNDS.find(x => x.id === t.id);
+    const row = document.createElement('div');
+    row.className = 'np-track';
+    row.innerHTML = `
+      <span class="em">${s.icon}</span>
+      <span class="name">${s.name}</span>
+      <input type="range" min="0" max="100" value="${Math.round(t.vol*100)}">
+      <span class="val">${Math.round(t.vol*100)}%</span>
+    `;
+    row.querySelector('input').addEventListener('input', (e) => {
+      t.vol = e.target.value / 100;
+      row.querySelector('.val').textContent = e.target.value + '%';
+      setTrackVol(t.id, t.vol);
+    });
+    el.appendChild(row);
+  });
+  renderPlayButton();
+}
+
+// ================ LIBRARY ================
+function renderLibrary() {
+  const el = document.getElementById('library-list');
+  const mixes = loadMixes();
+  if (mixes.length === 0) {
+    el.innerHTML = `<div class="empty">
+      <div class="em">📂</div>
+      <div class="t">아직 저장한 게 없어요</div>
+      <div class="s">가운데 + 버튼을 눌러<br>첫 ASMR을 만들어보세요</div>
+    </div>`;
+    return;
+  }
+  el.innerHTML = '';
+  mixes.slice().reverse().forEach((m, idx) => {
+    const div = document.createElement('div');
+    div.className = 'list-item';
+    div.innerHTML = `
+      <div class="icon-box">${SOUNDS.find(s=>s.id===m.sounds[0].id)?.icon || '🎧'}</div>
+      <div class="info">
+        <div class="t">${m.title}</div>
+        <div class="s">${m.sounds.length}개 소리 · ${new Date(m.createdAt).toLocaleDateString('ko-KR')} · ${m.visibility === 'private' ? '🔒' : m.visibility === 'link' ? '🔗' : '🌐'}</div>
+      </div>
+      <div class="right">▶</div>
+    `;
+    div.addEventListener('click', () => playMix(m));
+    el.appendChild(div);
+  });
+}
+
+// ================ TOAST ================
+let toastHandle;
+function toast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  if (toastHandle) clearTimeout(toastHandle);
+  toastHandle = setTimeout(() => t.classList.remove('show'), 2000);
+}
+
+// ================ EVENT WIRING ================
+document.querySelectorAll('.tabbar .tab').forEach(t => {
+  t.addEventListener('click', () => {
+    const dest = t.dataset.tab;
+    if (dest === 'picker') {
+      state.selectedSounds = new Set();
+      state.tracks = [];
+    }
+    go(dest);
+  });
+});
+document.querySelectorAll('[data-back-to]').forEach(el => {
+  el.addEventListener('click', () => go(el.dataset.backTo));
+});
+document.querySelectorAll('.big-card').forEach(c => {
+  c.addEventListener('click', () => playPreset(c.dataset.preset));
+});
+document.querySelectorAll('#picker-chips .chip').forEach(c => {
+  c.addEventListener('click', () => {
+    pickerCat = c.dataset.cat;
+    document.querySelectorAll('#picker-chips .chip').forEach(x => x.classList.toggle('active', x === c));
+    renderPicker();
+  });
+});
+document.getElementById('picker-next-btn').addEventListener('click', () => {
+  if (state.selectedSounds.size === 0) return;
+  go('mix');
+});
+document.getElementById('picker-next').addEventListener('click', () => {
+  if (state.selectedSounds.size === 0) return;
+  go('mix');
+});
+document.getElementById('mix-play-btn').addEventListener('click', () => {
+  state.currentPreset = { title: '나만의 믹스', sounds: state.tracks };
+  startPlayback();
+  go('playing');
+});
+document.getElementById('mix-play').addEventListener('click', () => {
+  state.currentPreset = { title: '나만의 믹스', sounds: state.tracks };
+  startPlayback();
+  go('playing');
+});
+document.getElementById('np-close').addEventListener('click', () => {
+  go('home');
+});
+document.getElementById('np-toggle').addEventListener('click', togglePlayback);
+document.getElementById('np-save').addEventListener('click', () => {
+  if (state.tracks.length === 0) { toast('트랙이 없어요'); return; }
+  document.getElementById('save-title').value = state.currentPreset?.title || '내 ASMR';
+  go('save');
+});
+document.getElementById('np-share').addEventListener('click', () => {
+  toast('공유 기능은 v1.1에서 열려요');
+});
+document.getElementById('np-dim').addEventListener('click', () => {
+  document.body.style.filter = document.body.style.filter === 'brightness(.4)' ? '' : 'brightness(.4)';
+});
+
+document.querySelectorAll('#timer-chips .timer-chip').forEach(c => {
+  c.addEventListener('click', () => {
+    document.querySelectorAll('#timer-chips .timer-chip').forEach(x => x.classList.toggle('active', x === c));
+    state.durationSec = parseInt(c.dataset.sec, 10);
+    if (state.playing) {
+      // reset timer with new duration
+      state.startTime = Date.now();
+      if (state.durationSec > 0) state.endTime = Date.now() + state.durationSec * 1000;
+      else state.endTime = 0;
+      updateTimer();
+    }
+  });
+});
+
+document.querySelectorAll('#v-save .radio-row').forEach(r => {
+  r.addEventListener('click', () => {
+    document.querySelectorAll('#v-save .radio-row').forEach(x => x.classList.toggle('active', x === r));
+  });
+});
+document.getElementById('save-confirm').addEventListener('click', () => {
+  const title = document.getElementById('save-title').value.trim() || '이름 없는 ASMR';
+  const desc = document.getElementById('save-desc').value.trim();
+  const vis = document.querySelector('#v-save .radio-row.active')?.dataset.vis || 'private';
+  const mix = {
+    id: 'mix_' + Date.now(),
+    title, desc, visibility: vis,
+    sounds: state.tracks.map(t => ({ id: t.id, vol: t.vol })),
+    createdAt: Date.now(),
+  };
+  const mixes = loadMixes();
+  mixes.push(mix);
+  saveMixes(mixes);
+  toast('저장했어요');
+  setTimeout(() => go('library'), 300);
+});
+
+// Initial
+const hour = new Date().getHours();
+document.getElementById('greeting').textContent =
+  hour < 6 ? '깊은 밤이네요' :
+  hour < 12 ? '좋은 아침이에요' :
+  hour < 18 ? '오후예요' :
+  '저녁이네요';
+renderHome();
+</script>
+
+</body>
+</html>
