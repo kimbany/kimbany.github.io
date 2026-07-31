@@ -125,6 +125,10 @@
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .list-item .info .s { font-size: 11px; color: var(--muted); margin-top: 2px; }
   .list-item .right { font-size: 18px; color: var(--muted); }
+  .list-item.large { padding: 12px 0; gap: 14px; }
+  .list-item.large .icon-box { width: 56px; height: 56px; border-radius: 8px; font-size: 26px; }
+  .list-item.large .info .t { font-size: 15px; }
+  .list-item.large .info .s { font-size: 12px; margin-top: 4px; }
 
   /* --------- Bottom tab bar --------- */
   .tabbar {
@@ -488,8 +492,17 @@
           </div>
         </div>
 
-        <div class="sec-h"><h3>🔥 지금 인기</h3></div>
-        <div class="h-scroll" id="popular"></div>
+        <div class="sec-h">
+          <h3>🔥 지금 인기</h3>
+          <span class="more" data-tab="explore">더 보기</span>
+        </div>
+        <div id="popular"></div>
+
+        <div class="sec-h">
+          <h3>✨ 새로 올라온</h3>
+          <span class="more" data-tab="explore">더 보기</span>
+        </div>
+        <div id="recent"></div>
 
         <div class="sec-h">
           <h3>📂 내가 저장한 것</h3>
@@ -1061,9 +1074,9 @@ function fmtDays(d) {
   return Math.floor(d/30) + '개월 전';
 }
 
-function makeMixListItem(m) {
+function makeMixListItem(m, size = 'default') {
   const div = document.createElement('div');
-  div.className = 'list-item';
+  div.className = 'list-item' + (size === 'large' ? ' large' : '');
   const firstIcon = SOUNDS.find(s => s.id === m.sounds[0].id)?.icon || '🎧';
   div.innerHTML = `
     <div class="icon-box">${firstIcon}</div>
@@ -1296,23 +1309,21 @@ function updateMiniPlayer() {
 
 // ================ HOME ================
 function renderHome() {
-  const p = document.getElementById('popular');
-  p.innerHTML = '';
-  Object.entries(PRESETS).slice(0,3).forEach(([k,v]) => {
-    const c = document.createElement('div');
-    c.className = 'small-card';
-    c.dataset.preset = k;
-    c.innerHTML = `
-      <span class="emoji">${SOUNDS.find(s=>s.id===v.sounds[0].id)?.icon || '🎧'}</span>
-      <div>
-        <div class="name">${v.title}</div>
-        <div class="meta">${v.sounds.length}개 소리</div>
-      </div>
-    `;
-    c.addEventListener('click', () => playPreset(k));
-    p.appendChild(c);
+  // 지금 인기: 좋아요 순 5개
+  const popEl = document.getElementById('popular');
+  popEl.innerHTML = '';
+  MOCK_MIXES.slice().sort((a,b) => b.likes - a.likes).slice(0, 5).forEach(m => {
+    popEl.appendChild(makeMixListItem(m, 'large'));
   });
 
+  // 새로 올라온: 날짜 오름차순 5개
+  const recEl = document.getElementById('recent');
+  recEl.innerHTML = '';
+  MOCK_MIXES.slice().sort((a,b) => a.days - b.days).slice(0, 5).forEach(m => {
+    recEl.appendChild(makeMixListItem(m, 'large'));
+  });
+
+  // 내가 저장한 것
   const saved = loadMixes();
   const el = document.getElementById('home-saved');
   if (saved.length === 0) {
@@ -1324,7 +1335,7 @@ function renderHome() {
     el.innerHTML = '';
     saved.slice(-4).reverse().forEach(mix => {
       const div = document.createElement('div');
-      div.className = 'list-item';
+      div.className = 'list-item large';
       div.innerHTML = `
         <div class="icon-box">${SOUNDS.find(s=>s.id===mix.sounds[0].id)?.icon || '🎧'}</div>
         <div class="info">
@@ -1561,6 +1572,15 @@ document.querySelectorAll('.tabbar .tab').forEach(t => {
       state.tracks = [];
     }
     go(dest);
+  });
+});
+
+// "더 보기" 링크 등 tabbar 밖의 data-tab 요소
+document.querySelectorAll('[data-tab]').forEach(el => {
+  if (el.closest('.tabbar')) return;
+  el.addEventListener('click', (e) => {
+    e.stopPropagation();
+    go(el.dataset.tab);
   });
 });
 document.querySelectorAll('[data-back-to]').forEach(el => {
