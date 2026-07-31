@@ -354,6 +354,81 @@
   .empty .t { font-size: 14px; font-weight: 600; color: var(--text); }
   .empty .s { font-size: 12px; }
 
+  /* --------- Search box --------- */
+  .search-box {
+    display: flex; align-items: center;
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: 12px; padding: 8px 12px;
+    margin-top: 8px; margin-bottom: 8px;
+  }
+  .search-box .search-icon { color: var(--muted); margin-right: 8px; font-size: 15px; }
+  .search-box input {
+    flex: 1; background: transparent; border: 0;
+    color: var(--text); font-family: inherit; font-size: 14px;
+    outline: none; padding: 6px 0;
+  }
+  .search-box input::placeholder { color: var(--muted); }
+  .search-box .search-clear {
+    background: none; border: 0; color: var(--muted);
+    cursor: pointer; font-size: 14px; padding: 4px;
+  }
+
+  /* --------- Category grid --------- */
+  .cat-grid {
+    display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px;
+    margin-top: 8px;
+  }
+  .cat-card {
+    aspect-ratio: 1.7;
+    border-radius: 14px; padding: 14px;
+    display: flex; flex-direction: column; justify-content: space-between;
+    cursor: pointer; position: relative; overflow: hidden;
+    color: #fff;
+  }
+  .cat-card:active { transform: scale(.97); }
+  .cat-card .em {
+    font-size: 34px; opacity: .95;
+    filter: drop-shadow(0 2px 8px rgba(0,0,0,.3));
+  }
+  .cat-card .name { font-size: 15px; font-weight: 700; }
+  .cat-card .cnt { font-size: 11px; opacity: .75; }
+
+  /* --------- Creator card --------- */
+  .creator {
+    display: flex; align-items: center; gap: 12px;
+    padding: 12px 0; cursor: pointer;
+    border-bottom: 1px solid var(--border);
+  }
+  .creator .avatar {
+    width: 44px; height: 44px; border-radius: 50%;
+    background: linear-gradient(135deg, #8b7cff, #b39dff);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px; font-weight: 700; color: #0a0a0f;
+    flex-shrink: 0;
+  }
+  .creator .info { flex: 1; min-width: 0; }
+  .creator .info .name { font-size: 14px; font-weight: 600; }
+  .creator .info .stats { font-size: 11px; color: var(--muted); margin-top: 2px; }
+  .creator .follow-btn {
+    background: transparent; border: 1px solid var(--accent);
+    color: var(--accent2); font-size: 12px; font-weight: 600;
+    padding: 6px 14px; border-radius: 20px; cursor: pointer;
+  }
+  .creator .follow-btn.following {
+    background: var(--accent); color: #0a0a0f;
+  }
+
+  /* --------- Search result section --------- */
+  .search-section-h {
+    font-size: 12px; color: var(--muted);
+    margin: 16px 0 8px; text-transform: uppercase; letter-spacing: .5px;
+  }
+  .no-results {
+    padding: 40px 20px; text-align: center; color: var(--muted);
+    font-size: 13px;
+  }
+  .no-results .em { font-size: 40px; margin-bottom: 12px; }
+
   /* --------- Mini player --------- */
   .mini-player {
     display: none;
@@ -424,15 +499,56 @@
       </div>
     </div>
 
-    <!-- ============ EXPLORE (placeholder) ============ -->
+    <!-- ============ EXPLORE ============ -->
     <div class="view" id="v-explore">
       <div class="top-title"><h1>탐색</h1></div>
       <div class="body">
-        <div class="empty">
-          <div class="em">🔍</div>
-          <div class="t">아직 준비 중이에요</div>
-          <div class="s">v1.1에서 다른 사용자의 믹스를<br>둘러볼 수 있어요</div>
+        <div class="search-box">
+          <span class="search-icon">🔍</span>
+          <input id="search-input" placeholder="ASMR·크리에이터·태그 검색" autocomplete="off">
+          <button class="search-clear" id="search-clear" style="display:none;">✕</button>
         </div>
+
+        <div id="search-results" style="display:none;"></div>
+
+        <div id="explore-main">
+          <div class="sec-h"><h3>카테고리</h3></div>
+          <div class="cat-grid" id="cat-grid"></div>
+
+          <div class="sec-h"><h3>인기 태그</h3></div>
+          <div class="chips" id="tag-chips"></div>
+
+          <div class="sec-h">
+            <h3>🔥 지금 뜨는 ASMR</h3>
+          </div>
+          <div class="h-scroll" id="trending-mixes"></div>
+
+          <div class="sec-h">
+            <h3>✨ 최신 업로드</h3>
+          </div>
+          <div id="recent-mixes"></div>
+
+          <div class="sec-h">
+            <h3>🎨 인기 크리에이터</h3>
+          </div>
+          <div id="creators"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============ CATEGORY DETAIL ============ -->
+    <div class="view" id="v-category">
+      <div class="top-bar">
+        <button class="back" data-back-to="explore">←</button>
+        <h2 id="cat-title">카테고리</h2>
+        <span></span>
+      </div>
+      <div class="body">
+        <div class="sec-h">
+          <h3 id="cat-count">— 개</h3>
+          <span class="more" id="cat-sort">최신순 ▾</span>
+        </div>
+        <div id="cat-list"></div>
       </div>
     </div>
 
@@ -599,6 +715,58 @@ const SOUNDS = [
   { id: 'library',name: '도서관',    icon: '📚', cat: 'human' },
   { id: 'keyboard', name: '키보드',  icon: '⌨',  cat: 'human' },
 ];
+
+const CATEGORIES = [
+  { id: 'sleep',      name: '수면', em: '🌙', gradient: 'linear-gradient(135deg,#4a3b8f,#241b47)' },
+  { id: 'focus',      name: '집중', em: '🎯', gradient: 'linear-gradient(135deg,#5a3fc2,#2a1e5a)' },
+  { id: 'healing',    name: '힐링', em: '🍃', gradient: 'linear-gradient(135deg,#2d8659,#1a3d2f)' },
+  { id: 'meditation', name: '명상', em: '🧘', gradient: 'linear-gradient(135deg,#6c5ce7,#3a2f7a)' },
+  { id: 'cafe',       name: '카페', em: '☕', gradient: 'linear-gradient(135deg,#8b6f47,#4a3a2a)' },
+  { id: 'reading',    name: '독서', em: '📖', gradient: 'linear-gradient(135deg,#3a5a8c,#1e2f4a)' },
+  { id: 'nature',     name: '자연', em: '🌿', gradient: 'linear-gradient(135deg,#3f8c5a,#1f4a30)' },
+  { id: 'winter',     name: '겨울', em: '❄️', gradient: 'linear-gradient(135deg,#5a7a9e,#2a3d54)' },
+];
+
+const CREATORS = [
+  { id: '숲속감성',   plays: 43200, followers: 1240 },
+  { id: '이연권',     plays: 28900, followers: 890 },
+  { id: '겨울감성',   plays: 21400, followers: 720 },
+  { id: '오후세시',   plays: 15600, followers: 510 },
+  { id: '별밤산책',   plays: 12300, followers: 430 },
+  { id: '조용한새벽', plays: 9800,  followers: 320 },
+  { id: '나른한오후', plays: 8200,  followers: 280 },
+  { id: '폭우의밤',   plays: 6500,  followers: 220 },
+];
+
+const MOCK_MIXES = [
+  { id: 'm01', title: '비오는 겨울밤 오두막',   author: '숲속감성', cat: 'sleep',      tags: ['수면','빗소리','모닥불','겨울'], sounds: [{id:'rain',vol:.7},{id:'fire',vol:.5},{id:'wind',vol:.3}], likes: 2100, plays: 15300, days: 3 },
+  { id: 'm02', title: '파도치는 밤바다',         author: '이연권',   cat: 'sleep',      tags: ['수면','파도','바다'],           sounds: [{id:'ocean',vol:.7},{id:'wind',vol:.3}],                             likes: 1840, plays: 12200, days: 5 },
+  { id: 'm03', title: '벽난로 & 재즈',            author: '겨울감성', cat: 'healing',    tags: ['힐링','모닥불','겨울'],         sounds: [{id:'fire',vol:.8}],                                                likes: 1420, plays: 9800,  days: 7 },
+  { id: 'm04', title: '한적한 카페 오후',         author: '오후세시', cat: 'focus',      tags: ['집중','카페','작업'],           sounds: [{id:'cafe',vol:.6},{id:'keyboard',vol:.4}],                          likes: 890,  plays: 7100,  days: 2 },
+  { id: 'm05', title: '새벽 도서관',              author: '조용한새벽', cat: 'focus',    tags: ['집중','도서관','공부'],         sounds: [{id:'library',vol:.5},{id:'keyboard',vol:.5}],                       likes: 760,  plays: 6300,  days: 1 },
+  { id: 'm06', title: '숲속 아침',                author: '별밤산책', cat: 'healing',    tags: ['힐링','자연','새벽'],           sounds: [{id:'stream',vol:.6},{id:'wind',vol:.4}],                            likes: 1200, plays: 8400,  days: 4 },
+  { id: 'm07', title: '폭우 속 창가',             author: '폭우의밤', cat: 'sleep',      tags: ['수면','빗소리','폭우'],         sounds: [{id:'rain',vol:.9}],                                                likes: 980,  plays: 7200,  days: 6 },
+  { id: 'm08', title: '명상용 화이트 노이즈',     author: '나른한오후', cat: 'meditation', tags: ['명상','화이트노이즈'],         sounds: [{id:'white',vol:.5}],                                               likes: 540,  plays: 4200,  days: 8 },
+  { id: 'm09', title: '시냇물과 새소리',          author: '별밤산책', cat: 'nature',     tags: ['자연','시냇물','새소리'],       sounds: [{id:'stream',vol:.6}],                                              likes: 720,  plays: 5400,  days: 3 },
+  { id: 'm10', title: '집중 브라운노이즈',        author: '이연권',   cat: 'focus',      tags: ['집중','브라운노이즈'],         sounds: [{id:'brown',vol:.6}],                                               likes: 890,  plays: 6700,  days: 4 },
+  { id: 'm11', title: '여름밤 파도',              author: '이연권',   cat: 'healing',    tags: ['힐링','여름','파도'],           sounds: [{id:'ocean',vol:.7},{id:'wind',vol:.3}],                             likes: 640,  plays: 4900,  days: 9 },
+  { id: 'm12', title: '겨울밤 모닥불',            author: '겨울감성', cat: 'winter',     tags: ['겨울','모닥불','수면'],         sounds: [{id:'fire',vol:.7},{id:'wind',vol:.3}],                              likes: 1560, plays: 10200, days: 5 },
+  { id: 'm13', title: '봄 아침 새소리',           author: '숲속감성', cat: 'healing',    tags: ['봄','새소리','아침'],           sounds: [{id:'stream',vol:.5}],                                              likes: 430,  plays: 3200,  days: 12 },
+  { id: 'm14', title: '야근 카페',                author: '오후세시', cat: 'focus',      tags: ['집중','카페','야근'],           sounds: [{id:'cafe',vol:.7}],                                                likes: 380,  plays: 2900,  days: 2 },
+  { id: 'm15', title: '잠 안 올 때',              author: '조용한새벽', cat: 'sleep',    tags: ['수면','핑크노이즈','빗소리'],   sounds: [{id:'pink',vol:.5},{id:'rain',vol:.5}],                              likes: 1720, plays: 11800, days: 6 },
+  { id: 'm16', title: '태풍 지나는 밤',           author: '폭우의밤', cat: 'sleep',      tags: ['수면','폭우','바람'],           sounds: [{id:'rain',vol:.8},{id:'wind',vol:.6}],                              likes: 850,  plays: 6100,  days: 4 },
+  { id: 'm17', title: '잔잔한 밤바다',            author: '이연권',   cat: 'sleep',      tags: ['수면','파도','잔잔'],           sounds: [{id:'ocean',vol:.5}],                                               likes: 690,  plays: 5300,  days: 10 },
+  { id: 'm18', title: '서재의 오후',              author: '조용한새벽', cat: 'reading',  tags: ['독서','서재','조용'],          sounds: [{id:'library',vol:.4}],                                             likes: 320,  plays: 2400,  days: 5 },
+  { id: 'm19', title: '폭포 아래 명상',           author: '나른한오후', cat: 'meditation', tags: ['명상','폭포','자연'],         sounds: [{id:'stream',vol:.8},{id:'wind',vol:.2}],                            likes: 470,  plays: 3700,  days: 7 },
+  { id: 'm20', title: '잠 못 이루는 새벽',        author: '폭우의밤', cat: 'sleep',      tags: ['수면','브라운노이즈','빗소리'], sounds: [{id:'brown',vol:.5},{id:'rain',vol:.5}],                             likes: 1080, plays: 8100,  days: 3 },
+  { id: 'm21', title: '카페에서 작업',            author: '오후세시', cat: 'cafe',       tags: ['카페','집중','작업'],           sounds: [{id:'cafe',vol:.7},{id:'keyboard',vol:.5}],                          likes: 720,  plays: 5800,  days: 6 },
+  { id: 'm22', title: '별밤 산책',                author: '별밤산책', cat: 'healing',    tags: ['힐링','바람','밤'],             sounds: [{id:'wind',vol:.6}],                                                likes: 590,  plays: 4400,  days: 8 },
+  { id: 'm23', title: '눈 오는 밤',               author: '겨울감성', cat: 'winter',     tags: ['겨울','수면','바람'],           sounds: [{id:'fan',vol:.5},{id:'rain',vol:.3}],                               likes: 810,  plays: 5900,  days: 4 },
+  { id: 'm24', title: '도서관 공부',              author: '조용한새벽', cat: 'reading',  tags: ['독서','집중','도서관'],        sounds: [{id:'library',vol:.5},{id:'keyboard',vol:.4}],                       likes: 380,  plays: 3100,  days: 11 },
+  { id: 'm25', title: '여름 산속',                author: '별밤산책', cat: 'nature',     tags: ['자연','여름','시냇물'],         sounds: [{id:'stream',vol:.7},{id:'wind',vol:.3}],                            likes: 520,  plays: 4100,  days: 9 },
+];
+
+const POPULAR_TAGS = ['수면','힐링','집중','빗소리','모닥불','파도','카페','명상','겨울','자연','공부','새벽'];
 
 const PRESETS = {
   rainy_cabin: {
@@ -850,7 +1018,7 @@ function go(view, opts = {}) {
       (tab === view) ||
       (tab === 'home' && view === 'home') ||
       (tab === 'library' && view === 'library') ||
-      (tab === 'explore' && view === 'explore')
+      (tab === 'explore' && (view === 'explore' || view === 'category'))
     );
     t.classList.toggle('active', isActive);
   });
@@ -860,8 +1028,253 @@ function go(view, opts = {}) {
   if (view === 'picker') renderPicker();
   if (view === 'mix') renderMix();
   if (view === 'playing') renderPlaying();
+  if (view === 'explore') renderExplore();
+  if (view === 'category') renderCategory();
 
   updateMiniPlayer();
+}
+
+// ================ EXPLORE ================
+let currentCategory = null;
+let currentSearchQuery = '';
+let followed = new Set(); // followed creators
+
+function playMockMix(m) {
+  state.currentPreset = { title: m.title, sounds: m.sounds, author: m.author };
+  state.tracks = m.sounds.map(s => ({...s}));
+  state.durationSec = 0;
+  startPlayback();
+  go('playing');
+}
+
+function fmtCount(n) {
+  if (n >= 10000) return (n/10000).toFixed(1).replace('.0','') + '만';
+  if (n >= 1000) return (n/1000).toFixed(1).replace('.0','') + 'k';
+  return String(n);
+}
+
+function fmtDays(d) {
+  if (d === 0) return '오늘';
+  if (d === 1) return '어제';
+  if (d < 7) return d + '일 전';
+  if (d < 30) return Math.floor(d/7) + '주 전';
+  return Math.floor(d/30) + '개월 전';
+}
+
+function makeMixListItem(m) {
+  const div = document.createElement('div');
+  div.className = 'list-item';
+  const firstIcon = SOUNDS.find(s => s.id === m.sounds[0].id)?.icon || '🎧';
+  div.innerHTML = `
+    <div class="icon-box">${firstIcon}</div>
+    <div class="info">
+      <div class="t">${m.title}</div>
+      <div class="s">by ${m.author} · ❤ ${fmtCount(m.likes)} · ${fmtDays(m.days)}</div>
+    </div>
+    <div class="right">▶</div>
+  `;
+  div.addEventListener('click', () => playMockMix(m));
+  return div;
+}
+
+function makeMixSmallCard(m) {
+  const c = document.createElement('div');
+  c.className = 'small-card';
+  const firstIcon = SOUNDS.find(s => s.id === m.sounds[0].id)?.icon || '🎧';
+  c.innerHTML = `
+    <span class="emoji">${firstIcon}</span>
+    <div>
+      <div class="name">${m.title}</div>
+      <div class="meta">by ${m.author} · ❤ ${fmtCount(m.likes)}</div>
+    </div>
+  `;
+  c.addEventListener('click', () => playMockMix(m));
+  return c;
+}
+
+function renderExplore() {
+  // categories
+  const cg = document.getElementById('cat-grid');
+  cg.innerHTML = '';
+  CATEGORIES.forEach(c => {
+    const count = MOCK_MIXES.filter(m => m.cat === c.id).length;
+    const card = document.createElement('div');
+    card.className = 'cat-card';
+    card.style.background = c.gradient;
+    card.innerHTML = `
+      <div class="em">${c.em}</div>
+      <div>
+        <div class="name">${c.name}</div>
+        <div class="cnt">${count}개</div>
+      </div>
+    `;
+    card.addEventListener('click', () => {
+      currentCategory = c;
+      go('category');
+    });
+    cg.appendChild(card);
+  });
+
+  // tag chips
+  const tc = document.getElementById('tag-chips');
+  tc.innerHTML = '';
+  POPULAR_TAGS.forEach(t => {
+    const chip = document.createElement('div');
+    chip.className = 'chip';
+    chip.textContent = '#' + t;
+    chip.addEventListener('click', () => {
+      document.getElementById('search-input').value = t;
+      currentSearchQuery = t;
+      updateSearch();
+    });
+    tc.appendChild(chip);
+  });
+
+  // trending (by likes)
+  const tr = document.getElementById('trending-mixes');
+  tr.innerHTML = '';
+  MOCK_MIXES.slice().sort((a,b) => b.likes - a.likes).slice(0, 8).forEach(m => {
+    tr.appendChild(makeMixSmallCard(m));
+  });
+
+  // recent (by days, ascending)
+  const rc = document.getElementById('recent-mixes');
+  rc.innerHTML = '';
+  MOCK_MIXES.slice().sort((a,b) => a.days - b.days).slice(0, 5).forEach(m => {
+    rc.appendChild(makeMixListItem(m));
+  });
+
+  // creators
+  const cr = document.getElementById('creators');
+  cr.innerHTML = '';
+  CREATORS.slice(0, 5).forEach(c => {
+    const div = document.createElement('div');
+    div.className = 'creator';
+    const initial = c.id[0];
+    const isFollowing = followed.has(c.id);
+    div.innerHTML = `
+      <div class="avatar">${initial}</div>
+      <div class="info">
+        <div class="name">${c.id}</div>
+        <div class="stats">재생 ${fmtCount(c.plays)} · 팔로워 ${fmtCount(c.followers)}</div>
+      </div>
+      <button class="follow-btn ${isFollowing ? 'following' : ''}">${isFollowing ? '팔로잉' : '팔로우'}</button>
+    `;
+    div.querySelector('.follow-btn').addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (followed.has(c.id)) followed.delete(c.id);
+      else followed.add(c.id);
+      renderExplore();
+      toast(followed.has(c.id) ? c.id + '님을 팔로우했어요' : '팔로우 취소');
+    });
+    cr.appendChild(div);
+  });
+}
+
+function renderCategory() {
+  if (!currentCategory) return;
+  document.getElementById('cat-title').textContent =
+    currentCategory.em + ' ' + currentCategory.name;
+  const list = MOCK_MIXES.filter(m => m.cat === currentCategory.id);
+  document.getElementById('cat-count').textContent = list.length + '개';
+  const el = document.getElementById('cat-list');
+  el.innerHTML = '';
+  list.slice().sort((a,b) => b.likes - a.likes).forEach(m => {
+    el.appendChild(makeMixListItem(m));
+  });
+  if (list.length === 0) {
+    el.innerHTML = '<div class="empty"><div class="em">🎧</div><div class="s">아직 이 카테고리에 믹스가 없어요</div></div>';
+  }
+}
+
+function updateSearch() {
+  const q = currentSearchQuery.trim().toLowerCase();
+  const clearBtn = document.getElementById('search-clear');
+  clearBtn.style.display = q ? 'block' : 'none';
+
+  const resultsEl = document.getElementById('search-results');
+  const mainEl = document.getElementById('explore-main');
+
+  if (!q) {
+    resultsEl.style.display = 'none';
+    mainEl.style.display = 'block';
+    return;
+  }
+
+  resultsEl.style.display = 'block';
+  mainEl.style.display = 'none';
+
+  const matchMixes = MOCK_MIXES.filter(m =>
+    m.title.toLowerCase().includes(q) ||
+    m.author.toLowerCase().includes(q) ||
+    m.tags.some(t => t.toLowerCase().includes(q))
+  );
+  const matchCreators = CREATORS.filter(c => c.id.toLowerCase().includes(q));
+  const matchTags = POPULAR_TAGS.filter(t => t.toLowerCase().includes(q));
+
+  resultsEl.innerHTML = '';
+
+  if (matchMixes.length === 0 && matchCreators.length === 0 && matchTags.length === 0) {
+    resultsEl.innerHTML = `
+      <div class="no-results">
+        <div class="em">🔍</div>
+        "${currentSearchQuery}"에 대한 결과가 없어요
+      </div>`;
+    return;
+  }
+
+  if (matchTags.length > 0) {
+    const h = document.createElement('div');
+    h.className = 'search-section-h';
+    h.textContent = `태그 · ${matchTags.length}`;
+    resultsEl.appendChild(h);
+    const chips = document.createElement('div');
+    chips.className = 'chips';
+    chips.style.marginBottom = '8px';
+    matchTags.forEach(t => {
+      const chip = document.createElement('div');
+      chip.className = 'chip active';
+      chip.textContent = '#' + t;
+      chips.appendChild(chip);
+    });
+    resultsEl.appendChild(chips);
+  }
+
+  if (matchCreators.length > 0) {
+    const h = document.createElement('div');
+    h.className = 'search-section-h';
+    h.textContent = `크리에이터 · ${matchCreators.length}`;
+    resultsEl.appendChild(h);
+    matchCreators.forEach(c => {
+      const div = document.createElement('div');
+      div.className = 'creator';
+      const initial = c.id[0];
+      const isFollowing = followed.has(c.id);
+      div.innerHTML = `
+        <div class="avatar">${initial}</div>
+        <div class="info">
+          <div class="name">${c.id}</div>
+          <div class="stats">재생 ${fmtCount(c.plays)} · 팔로워 ${fmtCount(c.followers)}</div>
+        </div>
+        <button class="follow-btn ${isFollowing ? 'following' : ''}">${isFollowing ? '팔로잉' : '팔로우'}</button>
+      `;
+      div.querySelector('.follow-btn').addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (followed.has(c.id)) followed.delete(c.id);
+        else followed.add(c.id);
+        updateSearch();
+      });
+      resultsEl.appendChild(div);
+    });
+  }
+
+  if (matchMixes.length > 0) {
+    const h = document.createElement('div');
+    h.className = 'search-section-h';
+    h.textContent = `ASMR · ${matchMixes.length}`;
+    resultsEl.appendChild(h);
+    matchMixes.forEach(m => resultsEl.appendChild(makeMixListItem(m)));
+  }
 }
 
 // ================ MINI PLAYER ================
@@ -1231,6 +1644,17 @@ document.getElementById('save-confirm').addEventListener('click', () => {
   saveMixes(mixes);
   toast('저장했어요');
   setTimeout(() => go('library'), 300);
+});
+
+// Search wiring
+document.getElementById('search-input').addEventListener('input', (e) => {
+  currentSearchQuery = e.target.value;
+  updateSearch();
+});
+document.getElementById('search-clear').addEventListener('click', () => {
+  document.getElementById('search-input').value = '';
+  currentSearchQuery = '';
+  updateSearch();
 });
 
 // Mini player wiring
