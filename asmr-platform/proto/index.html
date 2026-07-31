@@ -488,7 +488,7 @@
           <span class="tag">수면</span>
           <div>
             <div class="title">비오는 겨울밤 오두막</div>
-            <div class="by">추천 · 30분</div>
+            <div class="by">by 숲속감성 · 45분</div>
           </div>
         </div>
 
@@ -752,31 +752,31 @@ const CREATORS = [
 ];
 
 const MOCK_MIXES = [
-  { id: 'm01', title: '비오는 겨울밤 오두막',   author: '숲속감성', cat: 'sleep',      tags: ['수면','빗소리','모닥불','겨울'], sounds: [{id:'rain',vol:.7},{id:'fire',vol:.5},{id:'wind',vol:.3}], likes: 2100, plays: 15300, days: 3 },
-  { id: 'm02', title: '파도치는 밤바다',         author: '이연권',   cat: 'sleep',      tags: ['수면','파도','바다'],           sounds: [{id:'ocean',vol:.7},{id:'wind',vol:.3}],                             likes: 1840, plays: 12200, days: 5 },
-  { id: 'm03', title: '벽난로 & 재즈',            author: '겨울감성', cat: 'healing',    tags: ['힐링','모닥불','겨울'],         sounds: [{id:'fire',vol:.8}],                                                likes: 1420, plays: 9800,  days: 7 },
-  { id: 'm04', title: '한적한 카페 오후',         author: '오후세시', cat: 'focus',      tags: ['집중','카페','작업'],           sounds: [{id:'cafe',vol:.6},{id:'keyboard',vol:.4}],                          likes: 890,  plays: 7100,  days: 2 },
-  { id: 'm05', title: '새벽 도서관',              author: '조용한새벽', cat: 'focus',    tags: ['집중','도서관','공부'],         sounds: [{id:'library',vol:.5},{id:'keyboard',vol:.5}],                       likes: 760,  plays: 6300,  days: 1 },
-  { id: 'm06', title: '숲속 아침',                author: '별밤산책', cat: 'healing',    tags: ['힐링','자연','새벽'],           sounds: [{id:'stream',vol:.6},{id:'wind',vol:.4}],                            likes: 1200, plays: 8400,  days: 4 },
-  { id: 'm07', title: '폭우 속 창가',             author: '폭우의밤', cat: 'sleep',      tags: ['수면','빗소리','폭우'],         sounds: [{id:'rain',vol:.9}],                                                likes: 980,  plays: 7200,  days: 6 },
-  { id: 'm08', title: '명상용 화이트 노이즈',     author: '나른한오후', cat: 'meditation', tags: ['명상','화이트노이즈'],         sounds: [{id:'white',vol:.5}],                                               likes: 540,  plays: 4200,  days: 8 },
-  { id: 'm09', title: '시냇물과 새소리',          author: '별밤산책', cat: 'nature',     tags: ['자연','시냇물','새소리'],       sounds: [{id:'stream',vol:.6}],                                              likes: 720,  plays: 5400,  days: 3 },
-  { id: 'm10', title: '집중 브라운노이즈',        author: '이연권',   cat: 'focus',      tags: ['집중','브라운노이즈'],         sounds: [{id:'brown',vol:.6}],                                               likes: 890,  plays: 6700,  days: 4 },
-  { id: 'm11', title: '여름밤 파도',              author: '이연권',   cat: 'healing',    tags: ['힐링','여름','파도'],           sounds: [{id:'ocean',vol:.7},{id:'wind',vol:.3}],                             likes: 640,  plays: 4900,  days: 9 },
-  { id: 'm12', title: '겨울밤 모닥불',            author: '겨울감성', cat: 'winter',     tags: ['겨울','모닥불','수면'],         sounds: [{id:'fire',vol:.7},{id:'wind',vol:.3}],                              likes: 1560, plays: 10200, days: 5 },
-  { id: 'm13', title: '봄 아침 새소리',           author: '숲속감성', cat: 'healing',    tags: ['봄','새소리','아침'],           sounds: [{id:'stream',vol:.5}],                                              likes: 430,  plays: 3200,  days: 12 },
-  { id: 'm14', title: '야근 카페',                author: '오후세시', cat: 'focus',      tags: ['집중','카페','야근'],           sounds: [{id:'cafe',vol:.7}],                                                likes: 380,  plays: 2900,  days: 2 },
-  { id: 'm15', title: '잠 안 올 때',              author: '조용한새벽', cat: 'sleep',    tags: ['수면','핑크노이즈','빗소리'],   sounds: [{id:'pink',vol:.5},{id:'rain',vol:.5}],                              likes: 1720, plays: 11800, days: 6 },
-  { id: 'm16', title: '태풍 지나는 밤',           author: '폭우의밤', cat: 'sleep',      tags: ['수면','폭우','바람'],           sounds: [{id:'rain',vol:.8},{id:'wind',vol:.6}],                              likes: 850,  plays: 6100,  days: 4 },
-  { id: 'm17', title: '잔잔한 밤바다',            author: '이연권',   cat: 'sleep',      tags: ['수면','파도','잔잔'],           sounds: [{id:'ocean',vol:.5}],                                               likes: 690,  plays: 5300,  days: 10 },
-  { id: 'm18', title: '서재의 오후',              author: '조용한새벽', cat: 'reading',  tags: ['독서','서재','조용'],          sounds: [{id:'library',vol:.4}],                                             likes: 320,  plays: 2400,  days: 5 },
-  { id: 'm19', title: '폭포 아래 명상',           author: '나른한오후', cat: 'meditation', tags: ['명상','폭포','자연'],         sounds: [{id:'stream',vol:.8},{id:'wind',vol:.2}],                            likes: 470,  plays: 3700,  days: 7 },
-  { id: 'm20', title: '잠 못 이루는 새벽',        author: '폭우의밤', cat: 'sleep',      tags: ['수면','브라운노이즈','빗소리'], sounds: [{id:'brown',vol:.5},{id:'rain',vol:.5}],                             likes: 1080, plays: 8100,  days: 3 },
-  { id: 'm21', title: '카페에서 작업',            author: '오후세시', cat: 'cafe',       tags: ['카페','집중','작업'],           sounds: [{id:'cafe',vol:.7},{id:'keyboard',vol:.5}],                          likes: 720,  plays: 5800,  days: 6 },
-  { id: 'm22', title: '별밤 산책',                author: '별밤산책', cat: 'healing',    tags: ['힐링','바람','밤'],             sounds: [{id:'wind',vol:.6}],                                                likes: 590,  plays: 4400,  days: 8 },
-  { id: 'm23', title: '눈 오는 밤',               author: '겨울감성', cat: 'winter',     tags: ['겨울','수면','바람'],           sounds: [{id:'fan',vol:.5},{id:'rain',vol:.3}],                               likes: 810,  plays: 5900,  days: 4 },
-  { id: 'm24', title: '도서관 공부',              author: '조용한새벽', cat: 'reading',  tags: ['독서','집중','도서관'],        sounds: [{id:'library',vol:.5},{id:'keyboard',vol:.4}],                       likes: 380,  plays: 3100,  days: 11 },
-  { id: 'm25', title: '여름 산속',                author: '별밤산책', cat: 'nature',     tags: ['자연','여름','시냇물'],         sounds: [{id:'stream',vol:.7},{id:'wind',vol:.3}],                            likes: 520,  plays: 4100,  days: 9 },
+  { id: 'm01', title: '비오는 겨울밤 오두막',   author: '숲속감성', cat: 'sleep',      tags: ['수면','빗소리','모닥불','겨울'], sounds: [{id:'rain',vol:.7},{id:'fire',vol:.5},{id:'wind',vol:.3}], dur: 45, likes: 2100, plays: 15300, days: 3 },
+  { id: 'm02', title: '파도치는 밤바다',         author: '이연권',   cat: 'sleep',      tags: ['수면','파도','바다'],           sounds: [{id:'ocean',vol:.7},{id:'wind',vol:.3}],                             dur: 60, likes: 1840, plays: 12200, days: 5 },
+  { id: 'm03', title: '벽난로 & 재즈',            author: '겨울감성', cat: 'healing',    tags: ['힐링','모닥불','겨울'],         sounds: [{id:'fire',vol:.8}],                                                dur: 30, likes: 1420, plays: 9800,  days: 7 },
+  { id: 'm04', title: '한적한 카페 오후',         author: '오후세시', cat: 'focus',      tags: ['집중','카페','작업'],           sounds: [{id:'cafe',vol:.6},{id:'keyboard',vol:.4}],                          dur: 45, likes: 890,  plays: 7100,  days: 2 },
+  { id: 'm05', title: '새벽 도서관',              author: '조용한새벽', cat: 'focus',    tags: ['집중','도서관','공부'],         sounds: [{id:'library',vol:.5},{id:'keyboard',vol:.5}],                       dur: 40, likes: 760,  plays: 6300,  days: 1 },
+  { id: 'm06', title: '숲속 아침',                author: '별밤산책', cat: 'healing',    tags: ['힐링','자연','새벽'],           sounds: [{id:'stream',vol:.6},{id:'wind',vol:.4}],                            dur: 25, likes: 1200, plays: 8400,  days: 4 },
+  { id: 'm07', title: '폭우 속 창가',             author: '폭우의밤', cat: 'sleep',      tags: ['수면','빗소리','폭우'],         sounds: [{id:'rain',vol:.9}],                                                dur: 60, likes: 980,  plays: 7200,  days: 6 },
+  { id: 'm08', title: '명상용 화이트 노이즈',     author: '나른한오후', cat: 'meditation', tags: ['명상','화이트노이즈'],         sounds: [{id:'white',vol:.5}],                                               dur: 20, likes: 540,  plays: 4200,  days: 8 },
+  { id: 'm09', title: '시냇물과 새소리',          author: '별밤산책', cat: 'nature',     tags: ['자연','시냇물','새소리'],       sounds: [{id:'stream',vol:.6}],                                              dur: 30, likes: 720,  plays: 5400,  days: 3 },
+  { id: 'm10', title: '집중 브라운노이즈',        author: '이연권',   cat: 'focus',      tags: ['집중','브라운노이즈'],         sounds: [{id:'brown',vol:.6}],                                               dur: 30, likes: 890,  plays: 6700,  days: 4 },
+  { id: 'm11', title: '여름밤 파도',              author: '이연권',   cat: 'healing',    tags: ['힐링','여름','파도'],           sounds: [{id:'ocean',vol:.7},{id:'wind',vol:.3}],                             dur: 40, likes: 640,  plays: 4900,  days: 9 },
+  { id: 'm12', title: '겨울밤 모닥불',            author: '겨울감성', cat: 'winter',     tags: ['겨울','모닥불','수면'],         sounds: [{id:'fire',vol:.7},{id:'wind',vol:.3}],                              dur: 50, likes: 1560, plays: 10200, days: 5 },
+  { id: 'm13', title: '봄 아침 새소리',           author: '숲속감성', cat: 'healing',    tags: ['봄','새소리','아침'],           sounds: [{id:'stream',vol:.5}],                                              dur: 20, likes: 430,  plays: 3200,  days: 12 },
+  { id: 'm14', title: '야근 카페',                author: '오후세시', cat: 'focus',      tags: ['집중','카페','야근'],           sounds: [{id:'cafe',vol:.7}],                                                dur: 60, likes: 380,  plays: 2900,  days: 2 },
+  { id: 'm15', title: '잠 안 올 때',              author: '조용한새벽', cat: 'sleep',    tags: ['수면','핑크노이즈','빗소리'],   sounds: [{id:'pink',vol:.5},{id:'rain',vol:.5}],                              dur: 90, likes: 1720, plays: 11800, days: 6 },
+  { id: 'm16', title: '태풍 지나는 밤',           author: '폭우의밤', cat: 'sleep',      tags: ['수면','폭우','바람'],           sounds: [{id:'rain',vol:.8},{id:'wind',vol:.6}],                              dur: 45, likes: 850,  plays: 6100,  days: 4 },
+  { id: 'm17', title: '잔잔한 밤바다',            author: '이연권',   cat: 'sleep',      tags: ['수면','파도','잔잔'],           sounds: [{id:'ocean',vol:.5}],                                               dur: 30, likes: 690,  plays: 5300,  days: 10 },
+  { id: 'm18', title: '서재의 오후',              author: '조용한새벽', cat: 'reading',  tags: ['독서','서재','조용'],          sounds: [{id:'library',vol:.4}],                                             dur: 45, likes: 320,  plays: 2400,  days: 5 },
+  { id: 'm19', title: '폭포 아래 명상',           author: '나른한오후', cat: 'meditation', tags: ['명상','폭포','자연'],         sounds: [{id:'stream',vol:.8},{id:'wind',vol:.2}],                            dur: 25, likes: 470,  plays: 3700,  days: 7 },
+  { id: 'm20', title: '잠 못 이루는 새벽',        author: '폭우의밤', cat: 'sleep',      tags: ['수면','브라운노이즈','빗소리'], sounds: [{id:'brown',vol:.5},{id:'rain',vol:.5}],                             dur: 60, likes: 1080, plays: 8100,  days: 3 },
+  { id: 'm21', title: '카페에서 작업',            author: '오후세시', cat: 'cafe',       tags: ['카페','집중','작업'],           sounds: [{id:'cafe',vol:.7},{id:'keyboard',vol:.5}],                          dur: 50, likes: 720,  plays: 5800,  days: 6 },
+  { id: 'm22', title: '별밤 산책',                author: '별밤산책', cat: 'healing',    tags: ['힐링','바람','밤'],             sounds: [{id:'wind',vol:.6}],                                                dur: 30, likes: 590,  plays: 4400,  days: 8 },
+  { id: 'm23', title: '눈 오는 밤',               author: '겨울감성', cat: 'winter',     tags: ['겨울','수면','바람'],           sounds: [{id:'fan',vol:.5},{id:'rain',vol:.3}],                               dur: 40, likes: 810,  plays: 5900,  days: 4 },
+  { id: 'm24', title: '도서관 공부',              author: '조용한새벽', cat: 'reading',  tags: ['독서','집중','도서관'],        sounds: [{id:'library',vol:.5},{id:'keyboard',vol:.4}],                       dur: 45, likes: 380,  plays: 3100,  days: 11 },
+  { id: 'm25', title: '여름 산속',                author: '별밤산책', cat: 'nature',     tags: ['자연','여름','시냇물'],         sounds: [{id:'stream',vol:.7},{id:'wind',vol:.3}],                            dur: 30, likes: 520,  plays: 4100,  days: 9 },
 ];
 
 const POPULAR_TAGS = ['수면','힐링','집중','빗소리','모닥불','파도','카페','명상','겨울','자연','공부','새벽'];
@@ -1078,11 +1078,12 @@ function makeMixListItem(m, size = 'default') {
   const div = document.createElement('div');
   div.className = 'list-item' + (size === 'large' ? ' large' : '');
   const firstIcon = SOUNDS.find(s => s.id === m.sounds[0].id)?.icon || '🎧';
+  const dur = m.dur ? `⏱ ${m.dur}분 · ` : '';
   div.innerHTML = `
     <div class="icon-box">${firstIcon}</div>
     <div class="info">
       <div class="t">${m.title}</div>
-      <div class="s">by ${m.author} · ❤ ${fmtCount(m.likes)} · ${fmtDays(m.days)}</div>
+      <div class="s">by ${m.author} · ${dur}❤ ${fmtCount(m.likes)} · ${fmtDays(m.days)}</div>
     </div>
     <div class="right">▶</div>
   `;
@@ -1098,7 +1099,7 @@ function makeMixSmallCard(m) {
     <span class="emoji">${firstIcon}</span>
     <div>
       <div class="name">${m.title}</div>
-      <div class="meta">by ${m.author} · ❤ ${fmtCount(m.likes)}</div>
+      <div class="meta">${m.dur ? m.dur + '분 · ' : ''}❤ ${fmtCount(m.likes)}</div>
     </div>
   `;
   c.addEventListener('click', () => playMockMix(m));
