@@ -159,6 +159,68 @@
   }
   .reset-btn:hover { background: #f3f4f6; color: var(--text); }
 
+  .subtabs { display: flex; gap: 6px; margin-bottom: 14px; }
+  .subtabs button {
+    flex: 1;
+    padding: 10px 8px;
+    border: 1px solid var(--line);
+    background: #fff;
+    border-radius: 10px;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--sub);
+    cursor: pointer;
+  }
+  .subtabs button.active { border-color: var(--accent); color: var(--accent); background: #eef4ff; }
+  .subtab-panel { display: none; }
+  .subtab-panel.active { display: block; }
+
+  .mat-select {
+    width: 100%;
+    padding: 9px 12px;
+    margin-bottom: 6px;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    font-size: 13px;
+    background: #fff;
+    color: var(--text);
+  }
+  .cat-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .cat-chips button {
+    padding: 9px 12px;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    background: #fff;
+    font-size: 13px;
+    color: var(--sub);
+    cursor: pointer;
+  }
+  .cat-chips button.active { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+
+  .mat-list-title { font-size: 14px; font-weight: 700; margin: 20px 0 10px; }
+  .mat-item {
+    background: #f8fafc;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 12px 14px;
+    margin-bottom: 8px;
+  }
+  .mat-item .top { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+  .mat-item .nm { font-weight: 700; font-size: 14px; }
+  .mat-item .pr { color: var(--accent); font-weight: 700; font-size: 14px; white-space: nowrap; }
+  .mat-item .detail { font-size: 12px; color: var(--sub); margin-top: 4px; }
+  .mat-item .actions { margin-top: 8px; display: flex; gap: 6px; }
+  .mat-item .actions button {
+    padding: 6px 12px;
+    font-size: 12px;
+    border-radius: 8px;
+    border: 1px solid var(--line);
+    background: #fff;
+    cursor: pointer;
+    color: var(--sub);
+  }
+  .mat-item .actions .del { color: #dc2626; border-color: #fecaca; background: #fff5f5; }
+
   .calc-btn {
     width: 100%;
     padding: 14px;
@@ -311,6 +373,12 @@
 
   <!-- ============ 판매가 계산기 ============ -->
   <div class="tab-panel" id="tab-sale">
+    <div class="subtabs">
+      <button type="button" class="active" data-subtab="calc">계산기</button>
+      <button type="button" data-subtab="settings">설정</button>
+    </div>
+
+    <div class="subtab-panel active" id="subtab-calc">
     <div class="card">
       <div class="preset">
         <label>입력값 저장</label>
@@ -379,22 +447,27 @@
       <div class="grid-2">
         <div class="field">
           <label for="boxCost">박스</label>
+          <select class="mat-select" id="boxSelect" data-cat="box" data-target="boxCost"></select>
           <input type="number" id="boxCost" placeholder="예: 1000" min="0" step="any" inputmode="numeric">
         </div>
         <div class="field">
           <label for="cushionCost">완충재</label>
+          <select class="mat-select" id="cushionSelect" data-cat="cushion" data-target="cushionCost"></select>
           <input type="number" id="cushionCost" placeholder="예: 100" min="0" step="any" inputmode="numeric">
         </div>
         <div class="field">
           <label for="packCost">팩</label>
+          <select class="mat-select" id="packSelect" data-cat="pack" data-target="packCost"></select>
           <input type="number" id="packCost" placeholder="예: 200" min="0" step="any" inputmode="numeric">
         </div>
         <div class="field">
           <label for="wrapCost">크래프트지·끈</label>
+          <select class="mat-select" id="wrapSelect" data-cat="wrap" data-target="wrapCost"></select>
           <input type="number" id="wrapCost" placeholder="예: 200" min="0" step="any" inputmode="numeric">
         </div>
         <div class="field">
           <label for="noticeCost">품질보증·안내지</label>
+          <select class="mat-select" id="noticeSelect" data-cat="notice" data-target="noticeCost"></select>
           <input type="number" id="noticeCost" placeholder="예: 100" min="0" step="any" inputmode="numeric">
         </div>
       </div>
@@ -431,6 +504,57 @@
         <div class="breakdown" id="saleBreakdown"></div>
       </div>
     </div>
+    </div><!-- /subtab-calc -->
+
+    <div class="subtab-panel" id="subtab-settings">
+      <div class="card">
+        <div class="field">
+          <label>부자재 종류</label>
+          <div class="cat-chips" id="catChips">
+            <button type="button" class="active" data-cat="box">박스</button>
+            <button type="button" data-cat="cushion">완충재</button>
+            <button type="button" data-cat="pack">팩</button>
+            <button type="button" data-cat="wrap">크래프트지·끈</button>
+            <button type="button" data-cat="notice">품질보증·안내지</button>
+          </div>
+        </div>
+
+        <div class="field">
+          <label for="matName">이름</label>
+          <input type="text" id="matName" placeholder="예: 박스 1">
+        </div>
+
+        <div class="grid-2">
+          <div class="field">
+            <label for="matPrice">가격 (원)</label>
+            <input type="number" id="matPrice" placeholder="예: 1000" min="0" step="any" inputmode="numeric">
+          </div>
+          <div class="field">
+            <label for="matW">가로 (cm)</label>
+            <input type="number" id="matW" placeholder="예: 10" min="0" step="any" inputmode="decimal">
+          </div>
+          <div class="field">
+            <label for="matD">세로 (cm)</label>
+            <input type="number" id="matD" placeholder="예: 20" min="0" step="any" inputmode="decimal">
+          </div>
+          <div class="field">
+            <label for="matH">높이·두께 (cm)</label>
+            <input type="number" id="matH" placeholder="예: 20" min="0" step="any" inputmode="decimal">
+          </div>
+        </div>
+
+        <div class="field">
+          <label for="matNote">비고</label>
+          <input type="text" id="matNote" placeholder="예: 일반 박스형">
+        </div>
+
+        <button type="button" class="calc-btn" id="matSave">저장</button>
+        <p class="error" id="matError"></p>
+
+        <p class="mat-list-title" id="matListTitle">저장된 박스</p>
+        <div id="matList"></div>
+      </div>
+    </div><!-- /subtab-settings -->
   </div>
 </div>
 
@@ -586,6 +710,18 @@
 
   renderHistory();
 
+  /* ===== 판매가 계산기: 하위 메뉴 (계산기/설정) ===== */
+  document.querySelectorAll('.subtabs button').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      document.querySelectorAll('.subtabs button').forEach(function (b) {
+        b.classList.toggle('active', b === btn);
+      });
+      document.querySelectorAll('.subtab-panel').forEach(function (p) {
+        p.classList.toggle('active', p.id === 'subtab-' + btn.dataset.subtab);
+      });
+    });
+  });
+
   /* ===== 판매가 계산기 ===== */
   var specUnit = setupUnitToggle('specUnitToggle', 'specUnitLabel', 'kg');
   var marginUnit = setupUnitToggle('marginUnitToggle', 'marginUnitLabel', '원', function (unit) {
@@ -714,11 +850,183 @@
     specUnit.set('kg');
     marginUnit.set('원');
     $('presetSelect').value = '';
+    document.querySelectorAll('.mat-select').forEach(function (sel) { sel.value = ''; });
     $('saleResultBox').classList.remove('show');
     $('saleErrorMsg').classList.remove('show');
   });
 
   renderPresetSelect();
+
+  /* ----- 부자재 설정 (종류별 항목 저장) ----- */
+  var MAT_KEY = 'saleMaterials';
+  var MAT_CATS = {
+    box: '박스', cushion: '완충재', pack: '팩',
+    wrap: '크래프트지·끈', notice: '품질보증·안내지'
+  };
+  var currentCat = 'box';
+
+  function loadMaterials() {
+    try {
+      var m = JSON.parse(localStorage.getItem(MAT_KEY));
+      if (m && typeof m === 'object' && !Array.isArray(m)) return m;
+    } catch (e) {}
+    return {};
+  }
+  var materials = loadMaterials();
+  Object.keys(MAT_CATS).forEach(function (cat) {
+    if (!Array.isArray(materials[cat])) materials[cat] = [];
+  });
+
+  function storeMaterials() {
+    localStorage.setItem(MAT_KEY, JSON.stringify(materials));
+  }
+
+  function matDetailText(item) {
+    var dims = [];
+    if (item.w) dims.push('가로 ' + item.w);
+    if (item.d) dims.push('세로 ' + item.d);
+    if (item.h) dims.push('높이·두께 ' + item.h);
+    var parts = [];
+    if (dims.length) parts.push(dims.join(' × ') + ' cm');
+    if (item.note) parts.push(item.note);
+    return parts.join(' · ');
+  }
+
+  function renderMatSelects() {
+    document.querySelectorAll('.mat-select').forEach(function (sel) {
+      var cat = sel.dataset.cat;
+      var prev = sel.value;
+      sel.innerHTML = '';
+      var opt = document.createElement('option');
+      opt.value = '';
+      opt.textContent = '직접 입력';
+      sel.appendChild(opt);
+      materials[cat].forEach(function (item) {
+        var o = document.createElement('option');
+        o.value = item.name;
+        o.textContent = item.name + (item.price !== '' ? ' (' + comma(item.price) + '원)' : '');
+        sel.appendChild(o);
+      });
+      sel.value = prev && materials[cat].some(function (i) { return i.name === prev; }) ? prev : '';
+    });
+  }
+
+  document.querySelectorAll('.mat-select').forEach(function (sel) {
+    sel.addEventListener('change', function () {
+      var cat = sel.dataset.cat;
+      var item = materials[cat].filter(function (i) { return i.name === sel.value; })[0];
+      if (item && item.price !== '') $(sel.dataset.target).value = item.price;
+    });
+  });
+
+  function renderMatList() {
+    $('matListTitle').textContent = '저장된 ' + MAT_CATS[currentCat];
+    var box = $('matList');
+    box.innerHTML = '';
+    var list = materials[currentCat];
+    if (list.length === 0) {
+      box.innerHTML = '<p class="empty">저장된 항목이 없습니다</p>';
+      return;
+    }
+    list.forEach(function (item) {
+      var div = document.createElement('div');
+      div.className = 'mat-item';
+
+      var top = document.createElement('div');
+      top.className = 'top';
+      var nm = document.createElement('span');
+      nm.className = 'nm';
+      nm.textContent = item.name;
+      var pr = document.createElement('span');
+      pr.className = 'pr';
+      pr.textContent = item.price !== '' ? comma(item.price) + '원' : '가격 미입력';
+      top.appendChild(nm);
+      top.appendChild(pr);
+      div.appendChild(top);
+
+      var detailText = matDetailText(item);
+      if (detailText) {
+        var detail = document.createElement('div');
+        detail.className = 'detail';
+        detail.textContent = detailText;
+        div.appendChild(detail);
+      }
+
+      var actions = document.createElement('div');
+      actions.className = 'actions';
+      var editBtn = document.createElement('button');
+      editBtn.type = 'button';
+      editBtn.textContent = '수정';
+      editBtn.addEventListener('click', function () {
+        $('matName').value = item.name;
+        $('matPrice').value = item.price;
+        $('matW').value = item.w;
+        $('matD').value = item.d;
+        $('matH').value = item.h;
+        $('matNote').value = item.note;
+        $('matName').scrollIntoView({ behavior: 'smooth', block: 'center' });
+      });
+      var delBtn = document.createElement('button');
+      delBtn.type = 'button';
+      delBtn.className = 'del';
+      delBtn.textContent = '삭제';
+      delBtn.addEventListener('click', function () {
+        if (!confirm("'" + item.name + "' 항목을 삭제하시겠습니까?")) return;
+        materials[currentCat] = materials[currentCat].filter(function (i) { return i.name !== item.name; });
+        storeMaterials();
+        renderMatList();
+        renderMatSelects();
+      });
+      actions.appendChild(editBtn);
+      actions.appendChild(delBtn);
+      div.appendChild(actions);
+
+      box.appendChild(div);
+    });
+  }
+
+  document.querySelectorAll('#catChips button').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      currentCat = btn.dataset.cat;
+      document.querySelectorAll('#catChips button').forEach(function (b) {
+        b.classList.toggle('active', b === btn);
+      });
+      renderMatList();
+    });
+  });
+
+  function showMatError(msg) {
+    var el = $('matError');
+    el.textContent = msg;
+    el.classList.add('show');
+    clearTimeout(showMatError._t);
+    showMatError._t = setTimeout(function () { el.classList.remove('show'); }, 2500);
+  }
+
+  $('matSave').addEventListener('click', function () {
+    var name = $('matName').value.trim();
+    if (!name) return showMatError('이름을 입력해주세요. (예: 박스 1)');
+    var priceV = parseFloat($('matPrice').value);
+    var item = {
+      name: name,
+      price: isNaN(priceV) ? '' : priceV,
+      w: $('matW').value.trim(),
+      d: $('matD').value.trim(),
+      h: $('matH').value.trim(),
+      note: $('matNote').value.trim()
+    };
+    var list = materials[currentCat];
+    var idx = -1;
+    list.forEach(function (i, n) { if (i.name === name) idx = n; });
+    if (idx >= 0) list[idx] = item; else list.push(item);
+    storeMaterials();
+    renderMatList();
+    renderMatSelects();
+    ['matName', 'matPrice', 'matW', 'matD', 'matH', 'matNote'].forEach(function (id) { $(id).value = ''; });
+  });
+
+  renderMatList();
+  renderMatSelects();
 
   function calcSale() {
     var errorMsg = $('saleErrorMsg');
