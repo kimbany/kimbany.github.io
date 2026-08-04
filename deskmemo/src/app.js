@@ -1184,21 +1184,39 @@ function renderAll() {
   renderNoteList();
 }
 
-/** 원격 스냅샷을 DOM과 맞춤. 편집/드래그 중인 카드는 건드리지 않음. */
+/** 원격 스냅샷을 DOM과 맞춤. 메모 객체 참조는 유지(내용만 갱신)해서
+ *  화면의 입력창/우클릭 메뉴가 붙잡은 객체와 항상 일치하게 한다. */
 function reconcile(remote) {
-  // 저장 대기 중이거나, 로컬이 더 최근인 변경은 원격 echo로 덮어쓰지 않는다.
-  const localById = new Map(notes.map((n) => [n.id, n]));
-  const merged = remote.map(normalize).map((rn) => {
-    const local = localById.get(rn.id);
-    if (!local) return rn;
+  const remoteNotes = remote.map(normalize);
+  const byId = new Map(notes.map((n) => [n.id, n]));
+  const seen = new Set();
+  const next = [];
+  for (const rn of remoteNotes) {
+    seen.add(rn.id);
+    const local = byId.get(rn.id);
+    if (!local) {
+      next.push(rn);
+      continue;
+    }
+    const card = board.querySelector(`[data-id="${rn.id}"]`);
+    const editing =
+      !!card &&
+      (card.contains(document.activeElement) ||
+        card.dataset.dragging === "1" ||
+        recentlyEdited(card));
     const keepLocal =
-      cloudDebouncers.has(rn.id) || (local.updatedAt || 0) > (rn.updatedAt || 0);
-    return keepLocal ? local : rn;
-  });
-  for (const [id, ln] of localById) {
-    if (cloudDebouncers.has(id) && !merged.some((n) => n.id === id)) merged.push(ln);
+      editing ||
+      cloudDebouncers.has(rn.id) ||
+      (local.updatedAt || 0) > (rn.updatedAt || 0);
+    // 항상 기존 객체(local) 참조를 유지. 덮어써야 할 때만 필드 복사.
+    if (!keepLocal) Object.assign(local, rn);
+    next.push(local);
   }
-  notes = merged.sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+  // 로컬에만 있는(저장 대기 중 새 노트) 것은 유지
+  for (const n of notes) {
+    if (!seen.has(n.id) && cloudDebouncers.has(n.id)) next.push(n);
+  }
+  notes = next.sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
   const incoming = new Map(notes.map((n) => [n.id, n]));
 
   board.querySelectorAll("[data-id]").forEach((card) => {
@@ -1909,6 +1927,8 @@ btnCal.addEventListener("click", toggleCalendar);
 authBtn.addEventListener("click", async () => {
   try {
     if (mode === "cloud") {
+      const ok = await confirmDialog("로그아웃 할까요?");
+      if (!ok) return;
       await signOutUser();
     } else {
       await signInGoogle();
