@@ -104,6 +104,48 @@
   }
   .unit-toggle button.active { background: var(--accent); color: #fff; font-weight: 700; }
 
+  .preset {
+    background: #f8fafc;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 14px;
+    margin-bottom: 18px;
+  }
+  .preset > label {
+    display: block;
+    font-size: 13px;
+    font-weight: 700;
+    margin-bottom: 8px;
+  }
+  .preset-row { display: flex; gap: 8px; margin-bottom: 8px; }
+  .preset-row:last-of-type { margin-bottom: 0; }
+  .preset-row select {
+    flex: 1;
+    min-width: 0;
+    padding: 10px 12px;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    font-size: 14px;
+    background: #fff;
+    color: var(--text);
+  }
+  .preset-row input[type="text"] { flex: 1; min-width: 0; padding: 10px 12px; font-size: 14px; }
+  .preset-btn {
+    padding: 10px 14px;
+    border: none;
+    border-radius: 10px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .preset-btn.save { background: var(--accent); color: #fff; }
+  .preset-btn.save:hover { background: var(--accent-dark); }
+  .preset-btn.delete { background: #fee2e2; color: #dc2626; }
+  .preset-msg { font-size: 12px; color: var(--accent); margin-top: 8px; display: none; }
+  .preset-msg.show { display: block; }
+  .preset-msg.warn { color: #dc2626; }
+
   .calc-btn {
     width: 100%;
     padding: 14px;
@@ -257,6 +299,19 @@
   <!-- ============ 판매가 계산기 ============ -->
   <div class="tab-panel" id="tab-sale">
     <div class="card">
+      <div class="preset">
+        <label>입력값 저장</label>
+        <div class="preset-row">
+          <select id="presetSelect"></select>
+          <button type="button" class="preset-btn delete" id="presetDelete">삭제</button>
+        </div>
+        <div class="preset-row">
+          <input type="text" id="presetName" placeholder="저장할 이름 입력">
+          <button type="button" class="preset-btn save" id="presetSave">저장</button>
+        </div>
+        <p class="preset-msg" id="presetMsg"></p>
+      </div>
+
       <div class="field">
         <label for="saleName">제품명 <span class="hint">(선택)</span></label>
         <input type="text" id="saleName" placeholder="예: 샤인머스캣 1kg">
@@ -328,14 +383,24 @@
       </div>
 
       <p class="section-title">마진 · 수수료</p>
-      <div class="grid-2">
-        <div class="field">
-          <label for="marginCost">마진 (원)</label>
-          <input type="number" id="marginCost" placeholder="예: 500" min="0" step="any" inputmode="numeric">
+      <div class="field">
+        <label for="marginCost">마진 <span class="hint" id="marginHint">(원 단위)</span></label>
+        <div class="input-row">
+          <div class="input-box has-unit">
+            <input type="number" id="marginCost" placeholder="예: 1000" min="0" step="any" inputmode="decimal">
+            <span class="unit" id="marginUnitLabel">원</span>
+          </div>
+          <div class="unit-toggle" id="marginUnitToggle">
+            <button type="button" class="active" data-unit="원">원</button>
+            <button type="button" data-unit="%">%</button>
+          </div>
         </div>
-        <div class="field">
-          <label for="feeRate">수수료 (%)</label>
+      </div>
+      <div class="field">
+        <label for="feeRate">수수료 (%)</label>
+        <div class="input-box has-unit">
           <input type="number" id="feeRate" placeholder="예: 20" min="0" max="99" step="any" inputmode="decimal">
+          <span class="unit">%</span>
         </div>
       </div>
 
@@ -361,17 +426,19 @@
     return n.toLocaleString('ko-KR', { maximumFractionDigits: 1 });
   }
 
-  function setupUnitToggle(toggleId, labelId, onChange) {
-    var state = { unit: 'kg' };
-    document.querySelectorAll('#' + toggleId + ' button').forEach(function (btn) {
-      btn.addEventListener('click', function () {
-        state.unit = btn.dataset.unit;
-        document.querySelectorAll('#' + toggleId + ' button').forEach(function (b) {
-          b.classList.toggle('active', b === btn);
-        });
-        $(labelId).textContent = state.unit;
-        if (onChange) onChange(state.unit);
+  function setupUnitToggle(toggleId, labelId, initial, onChange) {
+    var buttons = document.querySelectorAll('#' + toggleId + ' button');
+    var state = { unit: initial || 'kg' };
+    state.set = function (unit) {
+      state.unit = unit;
+      buttons.forEach(function (b) {
+        b.classList.toggle('active', b.dataset.unit === unit);
       });
+      $(labelId).textContent = unit;
+      if (onChange) onChange(unit);
+    };
+    buttons.forEach(function (btn) {
+      btn.addEventListener('click', function () { state.set(btn.dataset.unit); });
     });
     return state;
   }
@@ -389,8 +456,8 @@
   });
 
   /* ===== 원가 계산기 ===== */
-  var baseUnit = setupUnitToggle('baseUnitToggle', 'baseUnitLabel');
-  var targetUnit = setupUnitToggle('targetUnitToggle', 'targetUnitLabel');
+  var baseUnit = setupUnitToggle('baseUnitToggle', 'baseUnitLabel', 'kg');
+  var targetUnit = setupUnitToggle('targetUnitToggle', 'targetUnitLabel', 'kg');
 
   function toGrams(value, unit) {
     return unit === 'kg' ? value * 1000 : value;
@@ -503,12 +570,131 @@
   renderHistory();
 
   /* ===== 판매가 계산기 ===== */
-  var specUnit = setupUnitToggle('specUnitToggle', 'specUnitLabel');
+  var specUnit = setupUnitToggle('specUnitToggle', 'specUnitLabel', 'kg');
+  var marginUnit = setupUnitToggle('marginUnitToggle', 'marginUnitLabel', '원', function (unit) {
+    $('marginHint').textContent = unit === '%' ? '(판매가 기준 %)' : '(원 단위)';
+  });
 
   function num(id) {
     var v = parseFloat($(id).value);
     return isNaN(v) ? 0 : v;
   }
+
+  /* ----- 입력값 프리셋 저장 ----- */
+  var PRESET_KEY = 'salePresets';
+  var PRESET_FIELDS = {
+    loss: 'lossRate', labor: 'laborCost', shipping: 'shippingCost',
+    box: 'boxCost', cushion: 'cushionCost', pack: 'packCost',
+    wrap: 'wrapCost', notice: 'noticeCost', margin: 'marginCost', fee: 'feeRate'
+  };
+  var DEFAULT_PRESET_NAME = '기본값';
+  var DEFAULT_PRESET = {
+    loss: 10, labor: 1000, shipping: 3300, box: 1000, cushion: 100,
+    pack: 200, wrap: 200, notice: 100, margin: 1000, marginType: '원', fee: 20
+  };
+
+  function loadPresets() {
+    try {
+      var p = JSON.parse(localStorage.getItem(PRESET_KEY));
+      if (p && typeof p === 'object' && !Array.isArray(p)) return p;
+    } catch (e) {}
+    return null;
+  }
+
+  var presets = loadPresets();
+  if (!presets) {
+    presets = {};
+    presets[DEFAULT_PRESET_NAME] = DEFAULT_PRESET;
+    storePresets();
+  }
+
+  function storePresets() {
+    localStorage.setItem(PRESET_KEY, JSON.stringify(presets));
+  }
+
+  function presetNames() {
+    var names = Object.keys(presets);
+    names.sort(function (a, b) {
+      if (a === DEFAULT_PRESET_NAME) return -1;
+      if (b === DEFAULT_PRESET_NAME) return 1;
+      return a.localeCompare(b, 'ko');
+    });
+    return names;
+  }
+
+  function renderPresetSelect(selected) {
+    var sel = $('presetSelect');
+    sel.innerHTML = '';
+    var names = presetNames();
+    if (names.length === 0) {
+      var opt = document.createElement('option');
+      opt.value = '';
+      opt.textContent = '저장된 값 없음';
+      sel.appendChild(opt);
+      return;
+    }
+    names.forEach(function (name) {
+      var opt = document.createElement('option');
+      opt.value = name;
+      opt.textContent = name;
+      sel.appendChild(opt);
+    });
+    sel.value = selected && presets[selected] ? selected : names[0];
+  }
+
+  function applyPreset(name) {
+    var p = presets[name];
+    if (!p) return;
+    Object.keys(PRESET_FIELDS).forEach(function (key) {
+      $(PRESET_FIELDS[key]).value = (p[key] === undefined || p[key] === null) ? '' : p[key];
+    });
+    marginUnit.set(p.marginType === '%' ? '%' : '원');
+  }
+
+  function showPresetMsg(msg, warn) {
+    var el = $('presetMsg');
+    el.textContent = msg;
+    el.classList.toggle('warn', !!warn);
+    el.classList.add('show');
+    clearTimeout(showPresetMsg._t);
+    showPresetMsg._t = setTimeout(function () { el.classList.remove('show'); }, 2500);
+  }
+
+  $('presetSelect').addEventListener('change', function () {
+    if (this.value) applyPreset(this.value);
+  });
+
+  $('presetSave').addEventListener('click', function () {
+    var name = $('presetName').value.trim();
+    if (!name) return showPresetMsg('저장할 이름을 입력해주세요.', true);
+    var p = { marginType: marginUnit.unit };
+    Object.keys(PRESET_FIELDS).forEach(function (key) {
+      var v = parseFloat($(PRESET_FIELDS[key]).value);
+      p[key] = isNaN(v) ? '' : v;
+    });
+    var isNew = !presets[name];
+    presets[name] = p;
+    storePresets();
+    renderPresetSelect(name);
+    $('presetName').value = '';
+    showPresetMsg("'" + name + "' " + (isNew ? '저장 완료' : '덮어쓰기 완료'));
+  });
+
+  $('presetDelete').addEventListener('click', function () {
+    var name = $('presetSelect').value;
+    if (!name || !presets[name]) return showPresetMsg('삭제할 저장값이 없습니다.', true);
+    delete presets[name];
+    storePresets();
+    renderPresetSelect();
+    showPresetMsg("'" + name + "' 삭제 완료");
+  });
+
+  $('presetName').addEventListener('keydown', function (e) {
+    if (e.key === 'Enter') $('presetSave').click();
+  });
+
+  renderPresetSelect(DEFAULT_PRESET_NAME);
+  if ($('presetSelect').value) applyPreset($('presetSelect').value);
 
   function calcSale() {
     var errorMsg = $('saleErrorMsg');
@@ -526,7 +712,7 @@
     var pack = num('packCost');
     var wrap = num('wrapCost');
     var notice = num('noticeCost');
-    var margin = num('marginCost');
+    var marginInput = num('marginCost');
     var feeRate = num('feeRate') / 100;   // 수수료 %
 
     if (!(rawPrice > 0)) return showError(errorMsg, '원물대를 입력해주세요.', resultBox);
@@ -536,8 +722,21 @@
     var specKg = specUnit.unit === 'kg' ? spec : spec / 1000;
     var rawCost = rawPrice * specKg * (1 + lossRate); // 로스 반영 원물비
     var materials = box + cushion + pack + wrap + notice;
-    var totalCost = rawCost + labor + shipping + materials + margin;
-    var salePrice = totalCost / (1 - feeRate);
+    var baseCost = rawCost + labor + shipping + materials; // 마진 제외 비용
+
+    var salePrice, margin;
+    if (marginUnit.unit === '%') {
+      var marginRate = marginInput / 100;
+      if (feeRate + marginRate >= 1) {
+        return showError(errorMsg, '수수료율과 마진율의 합은 100% 미만이어야 합니다.', resultBox);
+      }
+      salePrice = baseCost / (1 - feeRate - marginRate);
+      margin = salePrice * marginRate;
+    } else {
+      margin = marginInput;
+      salePrice = (baseCost + margin) / (1 - feeRate);
+    }
+    var totalCost = baseCost + margin;
     var fee = salePrice - totalCost;
     var rounded = Math.ceil(salePrice / 100) * 100;
 
@@ -562,7 +761,12 @@
     if (labor > 0) row('인건비', comma(labor) + '원', 'sub');
     if (shipping > 0) row('택배비', comma(shipping) + '원', 'sub');
     if (materials > 0) row('부자재 합계', comma(materials) + '원', 'sub');
-    if (margin > 0) row('마진', comma(margin) + '원', 'sub');
+    if (margin > 0) {
+      var marginLabel = marginUnit.unit === '%'
+        ? '마진 (판매가의 ' + comma(marginInput) + '%)'
+        : '마진';
+      row(marginLabel, comma(Math.round(margin)) + '원', 'sub');
+    }
     row('총원가 + 마진', comma(Math.round(totalCost)) + '원');
     row('수수료 (' + comma(feeRate * 100) + '%)', comma(Math.round(fee)) + '원', 'sub');
     row('판매가', comma(Math.round(salePrice)) + '원', 'total');
