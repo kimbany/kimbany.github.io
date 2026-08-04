@@ -146,6 +146,19 @@
   .preset-msg.show { display: block; }
   .preset-msg.warn { color: #dc2626; }
 
+  .reset-row { display: flex; justify-content: flex-end; margin-bottom: 12px; }
+  .reset-btn {
+    padding: 8px 14px;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: #fff;
+    color: var(--sub);
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .reset-btn:hover { background: #f3f4f6; color: var(--text); }
+
   .calc-btn {
     width: 100%;
     padding: 14px;
@@ -310,6 +323,10 @@
           <button type="button" class="preset-btn save" id="presetSave">저장</button>
         </div>
         <p class="preset-msg" id="presetMsg"></p>
+      </div>
+
+      <div class="reset-row">
+        <button type="button" class="reset-btn" id="saleReset">입력값 전체 초기화</button>
       </div>
 
       <div class="field">
@@ -626,20 +643,17 @@
     var sel = $('presetSelect');
     sel.innerHTML = '';
     var names = presetNames();
-    if (names.length === 0) {
-      var opt = document.createElement('option');
-      opt.value = '';
-      opt.textContent = '저장된 값 없음';
-      sel.appendChild(opt);
-      return;
-    }
+    var placeholder = document.createElement('option');
+    placeholder.value = '';
+    placeholder.textContent = names.length ? '저장된 입력값 선택' : '저장된 값 없음';
+    sel.appendChild(placeholder);
     names.forEach(function (name) {
       var opt = document.createElement('option');
       opt.value = name;
       opt.textContent = name;
       sel.appendChild(opt);
     });
-    sel.value = selected && presets[selected] ? selected : names[0];
+    sel.value = selected && presets[selected] ? selected : '';
   }
 
   function applyPreset(name) {
@@ -682,7 +696,8 @@
 
   $('presetDelete').addEventListener('click', function () {
     var name = $('presetSelect').value;
-    if (!name || !presets[name]) return showPresetMsg('삭제할 저장값이 없습니다.', true);
+    if (!name || !presets[name]) return showPresetMsg('삭제할 저장값을 먼저 선택해주세요.', true);
+    if (!confirm("'" + name + "' 저장값을 삭제하시겠습니까?")) return;
     delete presets[name];
     storePresets();
     renderPresetSelect();
@@ -693,8 +708,17 @@
     if (e.key === 'Enter') $('presetSave').click();
   });
 
-  renderPresetSelect(DEFAULT_PRESET_NAME);
-  if ($('presetSelect').value) applyPreset($('presetSelect').value);
+  $('saleReset').addEventListener('click', function () {
+    ['saleName', 'rawPrice', 'spec'].forEach(function (id) { $(id).value = ''; });
+    Object.keys(PRESET_FIELDS).forEach(function (key) { $(PRESET_FIELDS[key]).value = ''; });
+    specUnit.set('kg');
+    marginUnit.set('원');
+    $('presetSelect').value = '';
+    $('saleResultBox').classList.remove('show');
+    $('saleErrorMsg').classList.remove('show');
+  });
+
+  renderPresetSelect();
 
   function calcSale() {
     var errorMsg = $('saleErrorMsg');
