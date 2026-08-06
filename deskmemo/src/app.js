@@ -18,6 +18,7 @@ import {
   upsertNote,
   removeNote,
 } from "./firebase.js";
+import { openLeavePanel } from "./leave.js";
 
 // 각 색: bg(카드 배경) + dark(어두운 카드 → 흰 글씨)
 const COLORS = {
@@ -480,6 +481,8 @@ function svgIcon(name) {
     x: '<line x1="5" y1="5" x2="19" y2="19"/><line x1="19" y1="5" x2="5" y2="19"/>',
     copy:
       '<rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>',
+    umbrella:
+      '<path d="M12 2v2"/><path d="M2.5 12a9.5 9.5 0 0 1 19 0z"/><path d="M12 12v6a2.5 2.5 0 0 0 5 0"/>',
     chat: '<path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/>',
     eyeOff:
       '<path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><path d="M6.61 6.61A18.5 18.5 0 0 0 1 12s4 8 11 8a9.12 9.12 0 0 0 5.39-1.61"/><line x1="1" y1="1" x2="23" y2="23"/>',
@@ -1916,13 +1919,16 @@ function wireGlobalEvents() {
 const btnAdd = document.getElementById("btn-add");
 const btnList = document.getElementById("btn-list");
 const btnCal = document.getElementById("btn-cal");
+const btnLeave = document.getElementById("btn-leave");
 btnAdd.innerHTML = svgIcon("plus");
 btnList.innerHTML = svgIcon("list");
 btnCal.innerHTML = svgIcon("calendar");
-[btnAdd, btnList, btnCal].forEach((b) => b.classList.add("inline-flex", "items-center"));
+btnLeave.innerHTML = svgIcon("umbrella");
+[btnAdd, btnList, btnCal, btnLeave].forEach((b) => b.classList.add("inline-flex", "items-center"));
 btnAdd.addEventListener("click", (e) => showAddMenu(e.currentTarget));
 btnList.addEventListener("click", () => toggleNoteList());
 btnCal.addEventListener("click", toggleCalendar);
+btnLeave.addEventListener("click", () => openLeavePanel());
 
 authBtn.addEventListener("click", async () => {
   try {
