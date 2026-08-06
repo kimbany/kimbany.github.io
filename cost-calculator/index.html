@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>원가 · 판매가 계산기</title>
+<title>원가 · 판매가 · ROAS 계산기</title>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
   :root {
@@ -175,6 +175,20 @@
   .subtab-panel { display: none; }
   .subtab-panel.active { display: block; }
 
+  .tab-desc {
+    font-size: 13px;
+    color: var(--sub);
+    line-height: 1.6;
+    background: #f8fafc;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 12px 14px;
+    margin-bottom: 18px;
+  }
+  .field-note { font-size: 12px; color: var(--sub); margin: -6px 0 14px; }
+  .result .price.loss { color: #dc2626; }
+  .result .price.profit { color: #16a34a; }
+
   .mat-select {
     width: 100%;
     padding: 9px 12px;
@@ -301,11 +315,12 @@
 </head>
 <body>
 <div class="wrap">
-  <h1>원가 · 판매가 계산기</h1>
+  <h1>원가 · 판매가 · ROAS 계산기</h1>
 
   <div class="tabs">
     <button type="button" class="active" data-tab="cost">원가 계산기</button>
     <button type="button" data-tab="sale">판매가 계산기</button>
+    <button type="button" data-tab="roas">ROAS 계산기</button>
   </div>
 
   <!-- ============ 원가 계산기 ============ -->
@@ -556,6 +571,131 @@
       </div>
     </div><!-- /subtab-settings -->
   </div>
+
+  <!-- ============ ROAS 계산기 ============ -->
+  <div class="tab-panel" id="tab-roas">
+    <div class="subtabs">
+      <button type="button" class="active" data-subtab="and">앤드로아스</button>
+      <button type="button" data-subtab="pnl">로아스 손익</button>
+    </div>
+
+    <!-- 앤드로아스 -->
+    <div class="subtab-panel active" id="subtab-and">
+      <div class="card">
+        <p class="tab-desc">앤드로아스(AND ROAS)는 광고 집행 시 손익분기점(BEP)을 맞추기 위해 필요한 <b>최소 ROAS</b>입니다.<br>고정비(인건비·임대료 등)는 빼고, 판매될 때마다 발생하는 변동비만 입력하세요.</p>
+
+        <div class="field">
+          <label for="andPrice">판매가 (원)</label>
+          <div class="input-box has-unit">
+            <input type="number" id="andPrice" placeholder="예: 59000" min="0" step="any" inputmode="numeric">
+            <span class="unit">원</span>
+          </div>
+        </div>
+
+        <div class="grid-2">
+          <div class="field">
+            <label for="andCogs">상품 원가 (원)</label>
+            <input type="number" id="andCogs" placeholder="예: 20000" min="0" step="any" inputmode="numeric">
+          </div>
+          <div class="field">
+            <label for="andShip">배송비 (원)</label>
+            <input type="number" id="andShip" placeholder="예: 3000" min="0" step="any" inputmode="numeric">
+          </div>
+          <div class="field">
+            <label for="andPack">포장비 (원)</label>
+            <input type="number" id="andPack" placeholder="예: 500" min="0" step="any" inputmode="numeric">
+          </div>
+          <div class="field">
+            <label for="andEtc">기타 변동비 (원)</label>
+            <input type="number" id="andEtc" placeholder="예: 0" min="0" step="any" inputmode="numeric">
+          </div>
+        </div>
+
+        <div class="field">
+          <label for="andPg">PG 수수료</label>
+          <div class="input-row">
+            <div class="input-box has-unit">
+              <input type="number" id="andPg" placeholder="예: 1500" min="0" step="any" inputmode="decimal">
+              <span class="unit" id="andPgLabel">원</span>
+            </div>
+            <div class="unit-toggle" id="andPgToggle">
+              <button type="button" class="active" data-unit="원">원</button>
+              <button type="button" data-unit="%">%</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="field">
+          <label for="andMarket">마켓 수수료</label>
+          <div class="input-row">
+            <div class="input-box has-unit">
+              <input type="number" id="andMarket" placeholder="예: 4000" min="0" step="any" inputmode="decimal">
+              <span class="unit" id="andMarketLabel">원</span>
+            </div>
+            <div class="unit-toggle" id="andMarketToggle">
+              <button type="button" class="active" data-unit="원">원</button>
+              <button type="button" data-unit="%">%</button>
+            </div>
+          </div>
+        </div>
+
+        <button type="button" class="calc-btn" id="andCalcBtn">앤드로아스 계산하기</button>
+        <p class="error" id="andError"></p>
+
+        <div class="result" id="andResultBox">
+          <p class="name">손익분기 최소 ROAS (앤드로아스)</p>
+          <p class="price" id="andResultPrice"></p>
+          <p class="per" id="andResultNote"></p>
+          <div class="breakdown" id="andBreakdown"></div>
+        </div>
+      </div>
+    </div><!-- /subtab-and -->
+
+    <!-- 로아스 손익 -->
+    <div class="subtab-panel" id="subtab-pnl">
+      <div class="card">
+        <p class="tab-desc">납품가와 원가를 넣으면 납품마진율·가용 광고비·한계 ROAS(앤드로아스)가 나오고,<br>실제 ROAS를 입력하면 총광고비와 손익금액·손익율까지 계산됩니다.</p>
+
+        <div class="grid-2">
+          <div class="field">
+            <label for="pnlPrice">소비가 (원)</label>
+            <input type="number" id="pnlPrice" placeholder="예: 11900" min="0" step="any" inputmode="numeric">
+          </div>
+          <div class="field">
+            <label for="pnlFeeRate">수수료율 (%) <span class="hint">(선택)</span></label>
+            <input type="number" id="pnlFeeRate" placeholder="예: 10" min="0" max="99" step="any" inputmode="decimal">
+          </div>
+          <div class="field">
+            <label for="pnlSupply">납품가 (원)</label>
+            <input type="number" id="pnlSupply" placeholder="예: 10710" min="0" step="any" inputmode="numeric">
+          </div>
+          <div class="field">
+            <label for="pnlCogs">원가 (원)</label>
+            <input type="number" id="pnlCogs" placeholder="예: 6722" min="0" step="any" inputmode="numeric">
+          </div>
+        </div>
+        <p class="field-note">수수료율을 입력하면 납품가가 자동 계산됩니다. (납품가 = 소비가 × (1 − 수수료율))</p>
+
+        <div class="field">
+          <label for="pnlRoas">실제 ROAS (%) <span class="hint">(선택 — 입력 시 손익 계산)</span></label>
+          <div class="input-box has-unit">
+            <input type="number" id="pnlRoas" placeholder="예: 160" min="0" step="any" inputmode="decimal">
+            <span class="unit">%</span>
+          </div>
+        </div>
+
+        <button type="button" class="calc-btn" id="pnlCalcBtn">손익 계산하기</button>
+        <p class="error" id="pnlError"></p>
+
+        <div class="result" id="pnlResultBox">
+          <p class="name" id="pnlResultName"></p>
+          <p class="price" id="pnlResultPrice"></p>
+          <p class="per" id="pnlResultNote"></p>
+          <div class="breakdown" id="pnlBreakdown"></div>
+        </div>
+      </div>
+    </div><!-- /subtab-pnl -->
+  </div>
 </div>
 
 <script>
@@ -710,14 +850,17 @@
 
   renderHistory();
 
-  /* ===== 판매가 계산기: 하위 메뉴 (계산기/설정) ===== */
-  document.querySelectorAll('.subtabs button').forEach(function (btn) {
-    btn.addEventListener('click', function () {
-      document.querySelectorAll('.subtabs button').forEach(function (b) {
-        b.classList.toggle('active', b === btn);
-      });
-      document.querySelectorAll('.subtab-panel').forEach(function (p) {
-        p.classList.toggle('active', p.id === 'subtab-' + btn.dataset.subtab);
+  /* ===== 하위 메뉴 전환 (탭별로 독립 동작) ===== */
+  document.querySelectorAll('.subtabs').forEach(function (group) {
+    var parentTab = group.closest('.tab-panel');
+    group.querySelectorAll('button').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        group.querySelectorAll('button').forEach(function (b) {
+          b.classList.toggle('active', b === btn);
+        });
+        parentTab.querySelectorAll('.subtab-panel').forEach(function (p) {
+          p.classList.toggle('active', p.id === 'subtab-' + btn.dataset.subtab);
+        });
       });
     });
   });
@@ -1112,6 +1255,158 @@
   ].forEach(function (id) {
     $(id).addEventListener('keydown', function (e) {
       if (e.key === 'Enter') calcSale();
+    });
+  });
+
+  /* ===== ROAS 계산기: 앤드로아스 ===== */
+  var andPgUnit = setupUnitToggle('andPgToggle', 'andPgLabel', '원');
+  var andMarketUnit = setupUnitToggle('andMarketToggle', 'andMarketLabel', '원');
+
+  function calcAnd() {
+    var errorMsg = $('andError');
+    var resultBox = $('andResultBox');
+    errorMsg.classList.remove('show');
+
+    var price = num('andPrice');
+    if (!(price > 0)) return showError(errorMsg, '판매가를 입력해주세요.', resultBox);
+
+    var cogs = num('andCogs');
+    var ship = num('andShip');
+    var pack = num('andPack');
+    var etc = num('andEtc');
+    var pg = andPgUnit.unit === '%' ? price * num('andPg') / 100 : num('andPg');
+    var market = andMarketUnit.unit === '%' ? price * num('andMarket') / 100 : num('andMarket');
+
+    var variableCost = cogs + ship + pack + pg + market + etc;
+    var adAllowance = price - variableCost;
+
+    if (adAllowance <= 0) {
+      return showError(errorMsg,
+        '광고 허용비가 ' + comma(Math.round(adAllowance)) + '원으로 0원 이하입니다. ' +
+        '현재 가격 구조에서는 광고를 집행할 수 없는 상품입니다.', resultBox);
+    }
+
+    var andRoas = price / adAllowance;
+    var andRoasPct = Math.round(andRoas * 1000) / 10;
+
+    $('andResultPrice').textContent = comma(andRoasPct) + '%';
+    $('andResultNote').textContent =
+      'ROAS가 최소 ' + comma(andRoasPct) + '% 이상 나와야 손익분기점입니다. 그 미만이면 광고비로 인해 적자가 발생합니다.';
+
+    var bd = $('andBreakdown');
+    bd.innerHTML = '';
+    function row(label, value, cls) {
+      var div = document.createElement('div');
+      div.className = 'row' + (cls ? ' ' + cls : '');
+      var l = document.createElement('span'); l.textContent = label;
+      var r = document.createElement('span'); r.textContent = value;
+      div.appendChild(l); div.appendChild(r); bd.appendChild(div);
+    }
+    row('판매가', comma(price) + '원');
+    if (cogs > 0) row('상품 원가', comma(cogs) + '원', 'sub');
+    if (ship > 0) row('배송비', comma(ship) + '원', 'sub');
+    if (pack > 0) row('포장비', comma(pack) + '원', 'sub');
+    if (pg > 0) row('PG 수수료', comma(Math.round(pg)) + '원', 'sub');
+    if (market > 0) row('마켓 수수료', comma(Math.round(market)) + '원', 'sub');
+    if (etc > 0) row('기타 변동비', comma(etc) + '원', 'sub');
+    row('총 변동비', comma(Math.round(variableCost)) + '원');
+    row('광고 허용비 (판매가 − 총 변동비)', comma(Math.round(adAllowance)) + '원');
+    row('AND ROAS (판매가 ÷ 광고 허용비)', (Math.round(andRoas * 100) / 100) + '배 = ' + comma(andRoasPct) + '%', 'total');
+
+    resultBox.classList.add('show');
+  }
+
+  $('andCalcBtn').addEventListener('click', calcAnd);
+  ['andPrice', 'andCogs', 'andShip', 'andPack', 'andPg', 'andMarket', 'andEtc'].forEach(function (id) {
+    $(id).addEventListener('keydown', function (e) {
+      if (e.key === 'Enter') calcAnd();
+    });
+  });
+
+  /* ===== ROAS 계산기: 로아스 손익 ===== */
+  function autoSupply() {
+    var price = num('pnlPrice');
+    var feeRate = parseFloat($('pnlFeeRate').value);
+    if (price > 0 && !isNaN(feeRate) && feeRate >= 0 && feeRate < 100) {
+      $('pnlSupply').value = Math.round(price * (1 - feeRate / 100));
+    }
+  }
+  $('pnlPrice').addEventListener('input', autoSupply);
+  $('pnlFeeRate').addEventListener('input', autoSupply);
+
+  function calcPnl() {
+    var errorMsg = $('pnlError');
+    var resultBox = $('pnlResultBox');
+    errorMsg.classList.remove('show');
+
+    var price = num('pnlPrice');
+    var supply = num('pnlSupply');
+    var cogs = num('pnlCogs');
+    var roasPct = num('pnlRoas');
+
+    if (!(price > 0)) return showError(errorMsg, '소비가를 입력해주세요.', resultBox);
+    if (!(supply > 0)) return showError(errorMsg, '납품가를 입력해주세요. (수수료율을 넣으면 자동 계산됩니다)', resultBox);
+    if (!(cogs > 0)) return showError(errorMsg, '원가를 입력해주세요.', resultBox);
+
+    var margin = supply - cogs;               // 마진금액 = 가용 광고비
+    var marginRate = margin / supply * 100;   // 납품마진율
+
+    var bd = $('pnlBreakdown');
+    bd.innerHTML = '';
+    function row(label, value, cls) {
+      var div = document.createElement('div');
+      div.className = 'row' + (cls ? ' ' + cls : '');
+      var l = document.createElement('span'); l.textContent = label;
+      var r = document.createElement('span'); r.textContent = value;
+      div.appendChild(l); div.appendChild(r); bd.appendChild(div);
+    }
+
+    var priceEl = $('pnlResultPrice');
+    priceEl.classList.remove('loss', 'profit');
+
+    if (margin <= 0) {
+      return showError(errorMsg,
+        '마진금액이 ' + comma(Math.round(margin)) + '원입니다. 납품가가 원가보다 낮아 광고를 집행할 수 없는 구조입니다.', resultBox);
+    }
+
+    var limitRoas = price / margin * 100;     // 한계 ROAS (앤드로아스)
+
+    row('소비가', comma(price) + '원');
+    row('납품가', comma(supply) + '원', 'sub');
+    row('원가', comma(cogs) + '원', 'sub');
+    row('납품마진율', (Math.round(marginRate * 10) / 10) + '%');
+    row('마진금액 (가용 광고비)', comma(Math.round(margin)) + '원');
+    row('한계 ROAS (앤드로아스)', comma(Math.round(limitRoas)) + '%');
+
+    if (roasPct > 0) {
+      var adSpend = price / (roasPct / 100);  // 매출 1건(소비가) 기준 총광고비
+      var profit = margin - adSpend;          // 손익금액
+      var profitRate = profit / cogs * 100;   // 손익율 (원가 대비)
+
+      row('실제 ROAS', comma(roasPct) + '%');
+      row('총광고비 (소비가 ÷ 실제 ROAS)', comma(Math.round(adSpend)) + '원', 'sub');
+      row(profit >= 0 ? '이익금액' : '손해금액', comma(Math.round(Math.abs(profit))) + '원', 'total');
+      row('손익율 (원가 대비)', (profit >= 0 ? '+' : '−') + (Math.round(Math.abs(profitRate) * 10) / 10) + '%', 'total');
+
+      $('pnlResultName').textContent = '실제 ROAS ' + comma(roasPct) + '% 기준 손익';
+      priceEl.textContent = (profit >= 0 ? '+' : '−') + comma(Math.round(Math.abs(profit))) + '원';
+      priceEl.classList.add(profit >= 0 ? 'profit' : 'loss');
+      $('pnlResultNote').textContent = profit >= 0
+        ? '한계 ROAS ' + comma(Math.round(limitRoas)) + '% 이상이라 광고를 집행해도 이익이 남습니다.'
+        : 'ROAS가 한계치(' + comma(Math.round(limitRoas)) + '%)보다 낮아 판매 1건당 손해가 발생합니다.';
+    } else {
+      $('pnlResultName').textContent = '손익분기 한계 ROAS (앤드로아스)';
+      priceEl.textContent = comma(Math.round(limitRoas)) + '%';
+      $('pnlResultNote').textContent = '실제 ROAS를 입력하면 손익금액과 손익율까지 계산됩니다.';
+    }
+
+    resultBox.classList.add('show');
+  }
+
+  $('pnlCalcBtn').addEventListener('click', calcPnl);
+  ['pnlPrice', 'pnlFeeRate', 'pnlSupply', 'pnlCogs', 'pnlRoas'].forEach(function (id) {
+    $(id).addEventListener('keydown', function (e) {
+      if (e.key === 'Enter') calcPnl();
     });
   });
 })();
