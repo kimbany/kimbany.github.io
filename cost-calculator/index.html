@@ -248,6 +248,13 @@
     cursor: pointer;
   }
   .calc-btn:hover { background: var(--accent-dark); }
+  .calc-btn.secondary {
+    background: #fff;
+    color: var(--accent);
+    border: 1px solid var(--accent);
+    margin-top: 10px;
+  }
+  .calc-btn.secondary:hover { background: #eef4ff; }
 
   .result {
     display: none;
@@ -418,7 +425,7 @@
       </div>
 
       <div class="field">
-        <label for="rawPrice">원물대 <span class="hint">(kg당 얼마)</span></label>
+        <label for="rawPrice">원물대 <span class="hint">(kg당, VAT포함)</span></label>
         <div class="input-box has-unit">
           <input type="number" id="rawPrice" placeholder="예: 1000" min="0" step="any" inputmode="numeric">
           <span class="unit">원/kg</span>
@@ -449,7 +456,7 @@
 
       <div class="grid-2">
         <div class="field">
-          <label for="laborCost">인건비 (원)</label>
+          <label for="laborCost">인건비 <span class="hint">(VAT포함)</span></label>
           <input type="number" id="laborCost" placeholder="예: 1000" min="0" step="any" inputmode="numeric">
         </div>
         <div class="field">
@@ -458,7 +465,7 @@
         </div>
       </div>
 
-      <p class="section-title">부자재 (원)</p>
+      <p class="section-title">부자재 (원, VAT포함)</p>
       <div class="grid-2">
         <div class="field">
           <label for="boxCost">박스</label>
@@ -510,6 +517,7 @@
       </div>
 
       <button type="button" class="calc-btn" id="saleCalcBtn">판매가 계산하기</button>
+      <button type="button" class="calc-btn secondary" id="toAndBtn" style="display:none">계산 결과를 앤드로아스로 보내기 →</button>
       <p class="error" id="saleErrorMsg"></p>
 
       <div class="result" id="saleResultBox">
@@ -541,7 +549,7 @@
 
         <div class="grid-2">
           <div class="field">
-            <label for="matPrice">가격 (원)</label>
+            <label for="matPrice">가격 <span class="hint">(원, VAT포함)</span></label>
             <input type="number" id="matPrice" placeholder="예: 1000" min="0" step="any" inputmode="numeric">
           </div>
           <div class="field">
@@ -594,45 +602,35 @@
 
         <div class="grid-2">
           <div class="field">
-            <label for="andCogs">상품 원가 (원)</label>
+            <label for="andCogs">상품 원가 <span class="hint">(VAT포함)</span></label>
             <input type="number" id="andCogs" placeholder="예: 20000" min="0" step="any" inputmode="numeric">
           </div>
           <div class="field">
-            <label for="andShip">배송비 (원)</label>
+            <label for="andShip">배송비 <span class="hint">(VAT포함)</span></label>
             <input type="number" id="andShip" placeholder="예: 3000" min="0" step="any" inputmode="numeric">
           </div>
           <div class="field">
-            <label for="andPack">포장비 (원)</label>
-            <input type="number" id="andPack" placeholder="예: 500" min="0" step="any" inputmode="numeric">
+            <label for="andPack">부자재 <span class="hint">(VAT포함)</span></label>
+            <input type="number" id="andPack" placeholder="예: 1600" min="0" step="any" inputmode="numeric">
           </div>
           <div class="field">
-            <label for="andEtc">기타 변동비 (원)</label>
+            <label for="andLabor">인건비 <span class="hint">(1건당, VAT포함)</span></label>
+            <input type="number" id="andLabor" placeholder="예: 1000" min="0" step="any" inputmode="numeric">
+          </div>
+          <div class="field">
+            <label for="andEtc">기타 변동비 <span class="hint">(VAT포함)</span></label>
             <input type="number" id="andEtc" placeholder="예: 0" min="0" step="any" inputmode="numeric">
           </div>
         </div>
 
         <div class="field">
-          <label for="andPg">PG 수수료</label>
+          <label for="andFee">PG·마켓 수수료 <span class="hint">(원 입력 시 VAT포함)</span></label>
           <div class="input-row">
             <div class="input-box has-unit">
-              <input type="number" id="andPg" placeholder="예: 1500" min="0" step="any" inputmode="decimal">
-              <span class="unit" id="andPgLabel">원</span>
+              <input type="number" id="andFee" placeholder="예: 5500" min="0" step="any" inputmode="decimal">
+              <span class="unit" id="andFeeLabel">원</span>
             </div>
-            <div class="unit-toggle" id="andPgToggle">
-              <button type="button" class="active" data-unit="원">원</button>
-              <button type="button" data-unit="%">%</button>
-            </div>
-          </div>
-        </div>
-
-        <div class="field">
-          <label for="andMarket">마켓 수수료</label>
-          <div class="input-row">
-            <div class="input-box has-unit">
-              <input type="number" id="andMarket" placeholder="예: 4000" min="0" step="any" inputmode="decimal">
-              <span class="unit" id="andMarketLabel">원</span>
-            </div>
-            <div class="unit-toggle" id="andMarketToggle">
+            <div class="unit-toggle" id="andFeeToggle">
               <button type="button" class="active" data-unit="원">원</button>
               <button type="button" data-unit="%">%</button>
             </div>
@@ -670,7 +668,7 @@
             <input type="number" id="pnlSupply" placeholder="예: 10710" min="0" step="any" inputmode="numeric">
           </div>
           <div class="field">
-            <label for="pnlCogs">원가 (원)</label>
+            <label for="pnlCogs">원가 <span class="hint">(원, VAT포함)</span></label>
             <input type="number" id="pnlCogs" placeholder="예: 6722" min="0" step="any" inputmode="numeric">
           </div>
         </div>
@@ -996,6 +994,7 @@
     document.querySelectorAll('.mat-select').forEach(function (sel) { sel.value = ''; });
     $('saleResultBox').classList.remove('show');
     $('saleErrorMsg').classList.remove('show');
+    $('toAndBtn').style.display = 'none';
   });
 
   renderPresetSelect();
@@ -1246,8 +1245,35 @@
     row('수수료 (' + comma(feeRate * 100) + '%)', comma(Math.round(fee)) + '원', 'sub');
     row('판매가', comma(Math.round(salePrice)) + '원', 'total');
 
+    lastSaleCalc = {
+      price: Math.round(salePrice),
+      rawCost: Math.round(rawCost),
+      shipping: shipping,
+      materials: materials,
+      labor: labor,
+      feeRatePct: feeRate * 100
+    };
+    $('toAndBtn').style.display = 'block';
+
     resultBox.classList.add('show');
   }
+
+  var lastSaleCalc = null;
+
+  $('toAndBtn').addEventListener('click', function () {
+    if (!lastSaleCalc) return;
+    $('andPrice').value = lastSaleCalc.price;
+    $('andCogs').value = lastSaleCalc.rawCost;
+    $('andShip').value = lastSaleCalc.shipping || '';
+    $('andPack').value = lastSaleCalc.materials || '';
+    $('andLabor').value = lastSaleCalc.labor || '';
+    andFeeUnit.set('%');
+    $('andFee').value = lastSaleCalc.feeRatePct || '';
+    document.querySelector('.tabs button[data-tab="roas"]').click();
+    document.querySelector('#tab-roas .subtabs button[data-subtab="and"]').click();
+    calcAnd();
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  });
 
   $('saleCalcBtn').addEventListener('click', calcSale);
   ['rawPrice', 'spec', 'lossRate', 'laborCost', 'shippingCost', 'boxCost',
@@ -1259,8 +1285,7 @@
   });
 
   /* ===== ROAS 계산기: 앤드로아스 ===== */
-  var andPgUnit = setupUnitToggle('andPgToggle', 'andPgLabel', '원');
-  var andMarketUnit = setupUnitToggle('andMarketToggle', 'andMarketLabel', '원');
+  var andFeeUnit = setupUnitToggle('andFeeToggle', 'andFeeLabel', '원');
 
   function calcAnd() {
     var errorMsg = $('andError');
@@ -1273,11 +1298,11 @@
     var cogs = num('andCogs');
     var ship = num('andShip');
     var pack = num('andPack');
+    var laborA = num('andLabor');
     var etc = num('andEtc');
-    var pg = andPgUnit.unit === '%' ? price * num('andPg') / 100 : num('andPg');
-    var market = andMarketUnit.unit === '%' ? price * num('andMarket') / 100 : num('andMarket');
+    var fee = andFeeUnit.unit === '%' ? price * num('andFee') / 100 : num('andFee');
 
-    var variableCost = cogs + ship + pack + pg + market + etc;
+    var variableCost = cogs + ship + pack + laborA + fee + etc;
     var adAllowance = price - variableCost;
 
     if (adAllowance <= 0) {
@@ -1305,9 +1330,9 @@
     row('판매가', comma(price) + '원');
     if (cogs > 0) row('상품 원가', comma(cogs) + '원', 'sub');
     if (ship > 0) row('배송비', comma(ship) + '원', 'sub');
-    if (pack > 0) row('포장비', comma(pack) + '원', 'sub');
-    if (pg > 0) row('PG 수수료', comma(Math.round(pg)) + '원', 'sub');
-    if (market > 0) row('마켓 수수료', comma(Math.round(market)) + '원', 'sub');
+    if (pack > 0) row('부자재', comma(pack) + '원', 'sub');
+    if (laborA > 0) row('인건비', comma(laborA) + '원', 'sub');
+    if (fee > 0) row('PG·마켓 수수료', comma(Math.round(fee)) + '원', 'sub');
     if (etc > 0) row('기타 변동비', comma(etc) + '원', 'sub');
     row('총 변동비', comma(Math.round(variableCost)) + '원');
     row('광고 허용비 (판매가 − 총 변동비)', comma(Math.round(adAllowance)) + '원');
@@ -1317,7 +1342,7 @@
   }
 
   $('andCalcBtn').addEventListener('click', calcAnd);
-  ['andPrice', 'andCogs', 'andShip', 'andPack', 'andPg', 'andMarket', 'andEtc'].forEach(function (id) {
+  ['andPrice', 'andCogs', 'andShip', 'andPack', 'andLabor', 'andFee', 'andEtc'].forEach(function (id) {
     $(id).addEventListener('keydown', function (e) {
       if (e.key === 'Enter') calcAnd();
     });
