@@ -314,7 +314,10 @@
     justify-content: space-between;
     align-items: center;
     box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+    cursor: pointer;
+    border: 1px solid transparent;
   }
+  .history-item:hover { border-color: var(--accent); background: #f6f9ff; }
   .history-item .info { color: var(--sub); font-size: 12px; margin-top: 2px; }
   .history-item .amount { font-weight: 700; color: var(--accent); white-space: nowrap; margin-left: 12px; }
   .empty { color: var(--sub); font-size: 13px; text-align: center; padding: 12px 0; }
@@ -834,9 +837,20 @@
     list.forEach(function (item) {
       var div = document.createElement('div');
       div.className = 'history-item';
+      div.title = '클릭하면 이 값이 다시 입력됩니다';
 
       var tUnit = item.targetUnit || item.unit || 'kg';
       var bUnit = item.baseUnit || item.unit || 'kg';
+
+      div.addEventListener('click', function () {
+        $('productName').value = item.name === '제품' ? '' : item.name;
+        $('baseWeight').value = item.baseWeight;
+        $('basePrice').value = item.basePrice;
+        $('targetWeight').value = item.targetWeight;
+        baseUnit.set(bUnit);
+        targetUnit.set(tUnit);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      });
 
       var left = document.createElement('div');
       var title = document.createElement('div');
