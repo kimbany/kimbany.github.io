@@ -639,6 +639,7 @@
         </div>
 
         <button type="button" class="calc-btn" id="andCalcBtn">앤드로아스 계산하기</button>
+        <button type="button" class="calc-btn secondary" id="toPnlBtn" style="display:none">계산 결과를 로아스 손익으로 보내기 →</button>
         <p class="error" id="andError"></p>
 
         <div class="result" id="andResultBox">
@@ -1360,8 +1361,30 @@
     row('광고 허용비 (판매가 − 총 변동비)', comma(Math.round(adAllowance)) + '원');
     row('AND ROAS (판매가 ÷ 광고 허용비)', (Math.round(andRoas * 100) / 100) + '배 = ' + comma(andRoasPct) + '%', 'total');
 
+    lastAndCalc = {
+      price: price,
+      fee: fee,
+      otherCost: cogs + ship + pack + laborA + etc
+    };
+    $('toPnlBtn').style.display = 'block';
+
     resultBox.classList.add('show');
   }
+
+  var lastAndCalc = null;
+
+  $('toPnlBtn').addEventListener('click', function () {
+    if (!lastAndCalc) return;
+    $('pnlPrice').value = lastAndCalc.price;
+    $('pnlFeeRate').value = Math.round(lastAndCalc.fee / lastAndCalc.price * 10000) / 100;
+    $('pnlSupply').value = Math.round(lastAndCalc.price - lastAndCalc.fee);
+    $('pnlCogs').value = Math.round(lastAndCalc.otherCost);
+    $('pnlRoas').value = '';
+    document.querySelector('#tab-roas .subtabs button[data-subtab="pnl"]').click();
+    calcPnl();
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    $('pnlRoas').focus();
+  });
 
   $('andCalcBtn').addEventListener('click', calcAnd);
   ['andPrice', 'andCogs', 'andShip', 'andPack', 'andLabor', 'andFee', 'andEtc'].forEach(function (id) {
