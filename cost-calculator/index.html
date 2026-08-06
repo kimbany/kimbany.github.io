@@ -375,6 +375,7 @@
       </div>
 
       <button type="button" class="calc-btn" id="calcBtn">원가 계산하기</button>
+      <button type="button" class="calc-btn secondary" id="toSaleBtn" style="display:none">계산 결과를 판매가 계산기로 보내기 →</button>
       <p class="error" id="errorMsg"></p>
 
       <div class="result" id="resultBox">
@@ -773,6 +774,14 @@
       '100g당 ' + comma(Math.round(basePrice / baseG * 100)) + '원';
     resultBox.classList.add('show');
 
+    lastCostCalc = {
+      name: $('productName').value.trim(),
+      perKg: Math.round(basePrice / baseG * 1000),
+      targetWeight: targetWeight,
+      targetUnit: targetUnit.unit
+    };
+    $('toSaleBtn').style.display = 'block';
+
     saveHistory({
       name: name,
       baseWeight: baseWeight,
@@ -783,6 +792,19 @@
       cost: Math.round(cost)
     });
   }
+
+  var lastCostCalc = null;
+
+  $('toSaleBtn').addEventListener('click', function () {
+    if (!lastCostCalc) return;
+    $('saleName').value = lastCostCalc.name;
+    $('rawPrice').value = lastCostCalc.perKg;
+    $('spec').value = lastCostCalc.targetWeight;
+    specUnit.set(lastCostCalc.targetUnit);
+    document.querySelector('.tabs button[data-tab="sale"]').click();
+    document.querySelector('#tab-sale .subtabs button[data-subtab="calc"]').click();
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  });
 
   function loadHistory() {
     try {
