@@ -1,0 +1,182 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>설문 응답</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="wrap">
+  <div id="loading" class="card notice">
+    <div class="emoji">⏳</div>
+    <p class="muted">설문을 불러오는 중…</p>
+  </div>
+
+  <div id="msgBox" class="card notice hidden">
+    <div class="emoji" id="msgEmoji">😥</div>
+    <h2 id="msgTitle"></h2>
+    <p class="muted" id="msgText"></p>
+  </div>
+
+  <div id="formBox" class="hidden">
+    <div class="card accent">
+      <h2 id="svTitle"></h2>
+      <p class="muted mt8" id="svDesc"></p>
+    </div>
+    <div id="qBox"></div>
+    <button class="btn big" id="btnSubmit">제출하기</button>
+    <p class="muted center mt8">답변은 익명으로 제출됩니다.</p>
+  </div>
+</div>
+<div id="toast"></div>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script src="firebase-config.js"></script>
+<script>
+"use strict";
+const $ = id => document.getElementById(id);
+function toast(msg){
+  const t = $("toast"); t.textContent = msg; t.classList.add("show");
+  clearTimeout(t._tm); t._tm = setTimeout(() => t.classList.remove("show"), 2200);
+}
+function esc(s){ return String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
+function showMsg(emoji, title, text){
+  $("loading").classList.add("hidden");
+  $("formBox").classList.add("hidden");
+  $("msgBox").classList.remove("hidden");
+  $("msgEmoji").textContent = emoji;
+  $("msgTitle").textContent = title;
+  $("msgText").textContent = text;
+}
+
+const cfg = window.firebaseConfig || {};
+const surveyId = new URLSearchParams(location.search).get("id");
+
+if (!cfg.apiKey || cfg.apiKey.includes("붙여넣")) {
+  showMsg("🔧", "설정이 필요해요", "사이트 관리자가 아직 파이어베이스 설정을 완료하지 않았어요.");
+} else if (!surveyId) {
+  showMsg("🔍", "설문을 찾을 수 없어요", "링크가 올바른지 확인해 주세요.");
+} else {
+  firebase.initializeApp(cfg);
+  const db = firebase.firestore();
+  let survey = null;
+
+  db.collection("surveys").doc(surveyId).get().then(doc => {
+    if (!doc.exists) {
+      showMsg("🔍", "설문을 찾을 수 없어요", "삭제되었거나 링크가 잘못되었을 수 있어요.");
+      return;
+    }
+    survey = doc.data();
+    if (!survey.open) {
+      showMsg("🔒", "마감된 설문이에요", "이 설문은 더 이상 응답을 받지 않아요.");
+      return;
+    }
+    if (localStorage.getItem("survey_done_" + surveyId)) {
+      showMsg("✅", "이미 참여하셨어요", "소중한 의견 감사합니다!");
+      return;
+    }
+    render();
+  }).catch(e => {
+    showMsg("😥", "불러오기 실패", e.message);
+  });
+
+  function render(){
+    $("loading").classList.add("hidden");
+    $("formBox").classList.remove("hidden");
+    $("svTitle").textContent = survey.title;
+    $("svDesc").textContent = survey.desc || "";
+    document.title = survey.title + " - 설문 응답";
+
+    const box = $("qBox");
+    survey.questions.forEach((q, qi) => {
+      const card = document.createElement("div");
+      card.className = "card q-view";
+      card.dataset.qi = qi;
+      let html = `<div class="q-title">${qi+1}. ${esc(q.title)}${q.required!==false ? '<span class="req">*</span>' : ""}</div>`;
+
+      if (q.type === "single" || q.type === "multi") {
+        const inputType = q.type === "single" ? "radio" : "checkbox";
+        html += q.options.map((opt,oi) => `
+          <label class="choice">
+            <input type="${inputType}" name="q${qi}" value="${esc(opt)}">
+            <span>${esc(opt)}</span>
+          </label>`).join("");
+      } else if (q.type === "rating") {
+        html += `<div class="stars" data-val="0">` +
+          [1,2,3,4,5].map(n => `<span data-n="${n}">★</span>`).join("") + `</div>`;
+      } else {
+        html += `<textarea placeholder="답변을 입력해 주세요"></textarea>`;
+      }
+      card.innerHTML = html;
+
+      // 선택 시 테두리 강조
+      card.querySelectorAll(".choice input").forEach(inp => {
+        inp.addEventListener("change", () => {
+          card.querySelectorAll(".choice").forEach(c =>
+            c.classList.toggle("on", c.querySelector("input").checked));
+        });
+      });
+      // 별점
+      const stars = card.querySelector(".stars");
+      if (stars) {
+        stars.addEventListener("click", e => {
+          const n = Number(e.target.dataset?.n);
+          if (!n) return;
+          stars.dataset.val = n;
+          stars.querySelectorAll("span").forEach(sp =>
+            sp.classList.toggle("on", Number(sp.dataset.n) <= n));
+        });
+      }
+      box.appendChild(card);
+    });
+  }
+
+  $("btnSubmit").addEventListener("click", async () => {
+    const answers = [];
+    for (const card of $("qBox").children) {
+      const qi = Number(card.dataset.qi);
+      const q = survey.questions[qi];
+      let val = null;
+      if (q.type === "single") {
+        const sel = card.querySelector("input:checked");
+        val = sel ? sel.value : null;
+      } else if (q.type === "multi") {
+        const sels = [...card.querySelectorAll("input:checked")].map(i => i.value);
+        val = sels.length ? sels : null;
+      } else if (q.type === "rating") {
+        const n = Number(card.querySelector(".stars").dataset.val);
+        val = n > 0 ? n : null;
+      } else {
+        const t = card.querySelector("textarea").value.trim();
+        val = t || null;
+      }
+      if (q.required !== false && (val === null)) {
+        toast(`${qi+1}번 질문에 답해 주세요`);
+        card.scrollIntoView({ behavior:"smooth", block:"center" });
+        return;
+      }
+      answers.push(val);
+    }
+
+    const btn = $("btnSubmit");
+    btn.disabled = true;
+    btn.textContent = "제출 중…";
+    try {
+      await db.collection("surveys").doc(surveyId).collection("responses").add({
+        answers,
+        createdAt: firebase.firestore.FieldValue.serverTimestamp()
+      });
+      localStorage.setItem("survey_done_" + surveyId, "1");
+      showMsg("🎉", "제출 완료!", "소중한 의견 감사합니다.");
+    } catch(e) {
+      toast("제출 실패: " + e.message);
+      btn.disabled = false;
+      btn.textContent = "제출하기";
+    }
+  });
+}
+</script>
+</body>
+</html>

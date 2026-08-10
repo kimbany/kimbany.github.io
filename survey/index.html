@@ -1,0 +1,400 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>설문조사 만들기</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="wrap">
+  <div class="topbar">
+    <h1><a href="index.html">📋 내 설문조사</a></h1>
+    <div class="user" id="userBox"></div>
+  </div>
+
+  <!-- 파이어베이스 설정 전 안내 -->
+  <div id="viewSetup" class="card notice hidden">
+    <div class="emoji">🔧</div>
+    <h2>파이어베이스 설정이 필요해요</h2>
+    <p class="muted">아직 <code>firebase-config.js</code> 파일에 설정값이 없어요.</p>
+    <ol>
+      <li><b>dajoeuna.official</b> 구글 계정으로 <a href="https://console.firebase.google.com" target="_blank">파이어베이스 콘솔</a>에 로그인</li>
+      <li>프로젝트 만들기 → 웹 앱 추가(<code>&lt;/&gt;</code> 아이콘)</li>
+      <li>나오는 <code>firebaseConfig</code> 값을 <code>survey/firebase-config.js</code>에 붙여넣기</li>
+      <li>자세한 순서는 <code>survey/SETUP.md</code> 파일 참고</li>
+    </ol>
+  </div>
+
+  <!-- 로그인 화면 -->
+  <div id="viewLogin" class="card notice hidden">
+    <div class="emoji">📋</div>
+    <h2>설문조사 관리</h2>
+    <p class="muted">설문을 만들고 결과를 보려면 구글 계정으로 로그인하세요.<br>(응답하는 사람은 로그인이 필요 없어요)</p>
+    <button class="btn mt16" id="btnLogin">구글로 로그인</button>
+  </div>
+
+  <!-- 설문 목록 -->
+  <div id="viewList" class="hidden">
+    <button class="btn big" id="btnNew">＋ 새 설문 만들기</button>
+    <div class="mt16" id="surveyList"></div>
+    <p class="muted center mt16 hidden" id="emptyMsg">아직 만든 설문이 없어요. 첫 설문을 만들어 보세요!</p>
+  </div>
+
+  <!-- 설문 편집 -->
+  <div id="viewEdit" class="hidden">
+    <div class="card accent">
+      <div class="field">
+        <label class="name">설문 제목</label>
+        <input type="text" id="editTitle" placeholder="예) 회식 메뉴 선호도 조사">
+      </div>
+      <div class="field">
+        <label class="name">설명 (선택)</label>
+        <textarea id="editDesc" placeholder="설문에 대한 간단한 설명을 적어 주세요."></textarea>
+      </div>
+    </div>
+    <div id="qList"></div>
+    <button class="btn ghost big" id="btnAddQ">＋ 질문 추가</button>
+    <div class="mt16" style="display:flex; gap:8px;">
+      <button class="btn big" id="btnSave">저장하기</button>
+      <button class="btn plain" id="btnCancelEdit" style="flex-shrink:0;">취소</button>
+    </div>
+  </div>
+
+  <!-- 결과 보기 -->
+  <div id="viewResult" class="hidden">
+    <div class="card accent">
+      <h2 id="resTitle"></h2>
+      <p class="muted" id="resDesc"></p>
+      <p class="mt8"><span class="big-num" id="resCount">0</span> <span class="muted">명 응답</span></p>
+      <div class="mt8" style="display:flex; gap:8px; flex-wrap:wrap;">
+        <button class="btn small ghost" id="btnCopyLink2">🔗 설문 링크 복사</button>
+        <button class="btn small ghost" id="btnCsv">⬇️ CSV 다운로드</button>
+        <button class="btn small plain" id="btnBackFromRes">← 목록으로</button>
+      </div>
+    </div>
+    <div class="card" id="resBody"></div>
+  </div>
+</div>
+<div id="toast"></div>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script src="firebase-config.js"></script>
+<script>
+"use strict";
+const $ = id => document.getElementById(id);
+const views = ["viewSetup","viewLogin","viewList","viewEdit","viewResult"];
+function show(name){ views.forEach(v => $(v).classList.toggle("hidden", v !== name)); }
+function toast(msg){
+  const t = $("toast"); t.textContent = msg; t.classList.add("show");
+  clearTimeout(t._tm); t._tm = setTimeout(() => t.classList.remove("show"), 2200);
+}
+function esc(s){ return String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
+
+// ---------- 설정 확인 ----------
+const cfg = window.firebaseConfig || {};
+if (!cfg.apiKey || cfg.apiKey.includes("붙여넣")) {
+  show("viewSetup");
+} else {
+  firebase.initializeApp(cfg);
+  const auth = firebase.auth();
+  const db = firebase.firestore();
+  let me = null;
+  let editingId = null;   // 수정 중인 설문 id (새 설문이면 null)
+  let currentResult = null; // {survey, responses} CSV용
+
+  const QTYPES = { single:"객관식 (하나 선택)", multi:"체크박스 (여러 개 선택)", text:"주관식 (텍스트)", rating:"별점 (1~5점)" };
+
+  auth.onAuthStateChanged(user => {
+    me = user;
+    if (user) {
+      $("userBox").innerHTML =
+        (user.photoURL ? `<img src="${esc(user.photoURL)}" alt="">` : "") +
+        `<span>${esc(user.displayName || user.email)}</span>
+         <button class="btn small plain" id="btnLogout">로그아웃</button>`;
+      $("btnLogout").onclick = () => auth.signOut();
+      loadList();
+    } else {
+      $("userBox").innerHTML = "";
+      show("viewLogin");
+    }
+  });
+
+  $("btnLogin").onclick = () => {
+    auth.signInWithPopup(new firebase.auth.GoogleAuthProvider())
+      .catch(e => toast("로그인 실패: " + e.message));
+  };
+
+  // ---------- 목록 ----------
+  async function loadList(){
+    show("viewList");
+    const box = $("surveyList");
+    box.innerHTML = '<p class="muted center">불러오는 중…</p>';
+    try {
+      const snap = await db.collection("surveys").where("ownerUid","==",me.uid).get();
+      const items = snap.docs
+        .map(d => ({ id: d.id, ...d.data() }))
+        .sort((a,b) => (b.createdAt?.seconds||0) - (a.createdAt?.seconds||0));
+      box.innerHTML = "";
+      $("emptyMsg").classList.toggle("hidden", items.length > 0);
+      items.forEach(s => {
+        const el = document.createElement("div");
+        el.className = "survey-item";
+        const date = s.createdAt ? new Date(s.createdAt.seconds*1000).toLocaleDateString("ko-KR") : "";
+        el.innerHTML = `
+          <div class="info">
+            <div class="title">${esc(s.title)} <span class="badge ${s.open?"open":"closed"}">${s.open?"진행 중":"마감"}</span></div>
+            <div class="meta">${date} · 질문 ${s.questions.length}개</div>
+          </div>
+          <div class="actions">
+            <button class="btn small" data-act="result">결과</button>
+            <button class="btn small ghost" data-act="link">링크 복사</button>
+            <button class="btn small ghost" data-act="edit">수정</button>
+            <button class="btn small ghost" data-act="toggle">${s.open?"마감하기":"다시 열기"}</button>
+            <button class="btn small danger" data-act="del">삭제</button>
+          </div>`;
+        el.addEventListener("click", async ev => {
+          const act = ev.target.dataset?.act;
+          if (!act) return;
+          if (act === "result") openResult(s.id);
+          if (act === "link") copyLink(s.id);
+          if (act === "edit") openEditor(s);
+          if (act === "toggle") {
+            await db.collection("surveys").doc(s.id).update({ open: !s.open });
+            toast(s.open ? "설문을 마감했어요" : "설문을 다시 열었어요");
+            loadList();
+          }
+          if (act === "del") {
+            if (!confirm(`"${s.title}" 설문을 삭제할까요?\n응답 데이터도 함께 사라져요.`)) return;
+            await db.collection("surveys").doc(s.id).delete();
+            toast("삭제했어요");
+            loadList();
+          }
+        });
+        box.appendChild(el);
+      });
+    } catch(e) {
+      box.innerHTML = `<p class="muted center">불러오기 실패: ${esc(e.message)}<br>SETUP.md의 보안 규칙 설정을 확인해 주세요.</p>`;
+    }
+  }
+
+  function formUrl(id){
+    return location.href.replace(/index\.html.*$|[^/]*$/, "") + "form.html?id=" + id;
+  }
+  function copyLink(id){
+    navigator.clipboard.writeText(formUrl(id))
+      .then(() => toast("설문 링크를 복사했어요! 카톡 등으로 공유하세요 📎"))
+      .catch(() => prompt("아래 링크를 복사하세요:", formUrl(id)));
+  }
+
+  // ---------- 편집 ----------
+  $("btnNew").onclick = () => openEditor(null);
+  $("btnCancelEdit").onclick = () => loadList();
+
+  function openEditor(survey){
+    editingId = survey ? survey.id : null;
+    $("editTitle").value = survey ? survey.title : "";
+    $("editDesc").value = survey ? (survey.desc || "") : "";
+    $("qList").innerHTML = "";
+    (survey ? survey.questions : [ {type:"single", title:"", options:["",""], required:true} ])
+      .forEach(q => addQCard(q));
+    show("viewEdit");
+    window.scrollTo(0,0);
+  }
+
+  $("btnAddQ").onclick = () => addQCard({type:"single", title:"", options:["",""], required:true});
+
+  function addQCard(q){
+    const card = document.createElement("div");
+    card.className = "q-card";
+    card.innerHTML = `
+      <div class="q-head">
+        <input type="text" class="q-title-in" placeholder="질문을 입력하세요" value="${esc(q.title)}">
+        <select class="q-type">
+          ${Object.entries(QTYPES).map(([k,v]) => `<option value="${k}" ${k===q.type?"selected":""}>${v}</option>`).join("")}
+        </select>
+      </div>
+      <div class="q-opts"></div>
+      <div class="q-foot">
+        <label><input type="checkbox" class="q-req" ${q.required!==false?"checked":""}> 필수 답변</label>
+        <button class="btn small danger q-del">질문 삭제</button>
+      </div>`;
+    const optsBox = card.querySelector(".q-opts");
+    const typeSel = card.querySelector(".q-type");
+
+    function renderOpts(){
+      const t = typeSel.value;
+      optsBox.innerHTML = "";
+      if (t === "text") {
+        optsBox.innerHTML = '<p class="muted">응답자가 자유롭게 글로 답해요.</p>';
+      } else if (t === "rating") {
+        optsBox.innerHTML = '<p class="muted">응답자가 별점 1~5점으로 답해요. ⭐⭐⭐⭐⭐</p>';
+      } else {
+        (card._opts || ["",""]).forEach(v => addOptRow(v));
+        const add = document.createElement("button");
+        add.className = "btn small ghost";
+        add.textContent = "＋ 보기 추가";
+        add.onclick = () => { saveOpts(); addOptRow(""); optsBox.appendChild(add); };
+        optsBox.appendChild(add);
+      }
+    }
+    function addOptRow(val){
+      const row = document.createElement("div");
+      row.className = "opt-row";
+      row.innerHTML = `<span class="muted">◦</span><input type="text" placeholder="보기 내용" value="${esc(val)}">
+        <button class="btn small plain">✕</button>`;
+      row.querySelector("button").onclick = () => { row.remove(); saveOpts(); };
+      const addBtn = optsBox.querySelector("button.ghost");
+      optsBox.insertBefore(row, addBtn || null);
+    }
+    function saveOpts(){
+      card._opts = [...optsBox.querySelectorAll(".opt-row input")].map(i => i.value);
+    }
+    card._opts = (q.options && q.options.length) ? [...q.options] : ["",""];
+    typeSel.onchange = renderOpts;
+    optsBox.addEventListener("input", saveOpts);
+    card.querySelector(".q-del").onclick = () => {
+      if ($("qList").children.length <= 1) { toast("질문은 최소 1개 필요해요"); return; }
+      card.remove();
+    };
+    renderOpts();
+    $("qList").appendChild(card);
+  }
+
+  $("btnSave").onclick = async () => {
+    const title = $("editTitle").value.trim();
+    if (!title) { toast("설문 제목을 입력해 주세요"); return; }
+    const questions = [];
+    for (const card of $("qList").children) {
+      const qt = card.querySelector(".q-title-in").value.trim();
+      const type = card.querySelector(".q-type").value;
+      const required = card.querySelector(".q-req").checked;
+      if (!qt) { toast("빈 질문이 있어요. 질문 내용을 입력해 주세요"); return; }
+      let options = [];
+      if (type === "single" || type === "multi") {
+        options = [...card.querySelectorAll(".opt-row input")].map(i => i.value.trim()).filter(Boolean);
+        if (options.length < 2) { toast(`"${qt}" 질문에 보기를 2개 이상 넣어 주세요`); return; }
+      }
+      questions.push({ type, title: qt, options, required });
+    }
+    $("btnSave").disabled = true;
+    try {
+      if (editingId) {
+        await db.collection("surveys").doc(editingId).update({ title, desc: $("editDesc").value.trim(), questions });
+        toast("수정했어요 ✅");
+      } else {
+        const ref = await db.collection("surveys").add({
+          title, desc: $("editDesc").value.trim(), questions,
+          ownerUid: me.uid, ownerEmail: me.email, open: true,
+          createdAt: firebase.firestore.FieldValue.serverTimestamp()
+        });
+        copyLink(ref.id);
+      }
+      loadList();
+    } catch(e) {
+      toast("저장 실패: " + e.message);
+    } finally {
+      $("btnSave").disabled = false;
+    }
+  };
+
+  // ---------- 결과 ----------
+  $("btnBackFromRes").onclick = () => loadList();
+
+  async function openResult(id){
+    show("viewResult");
+    $("resBody").innerHTML = '<p class="muted center">불러오는 중…</p>';
+    try {
+      const [sDoc, rSnap] = await Promise.all([
+        db.collection("surveys").doc(id).get(),
+        db.collection("surveys").doc(id).collection("responses").get()
+      ]);
+      const s = sDoc.data();
+      const responses = rSnap.docs.map(d => d.data());
+      currentResult = { id, survey: s, responses };
+      $("resTitle").textContent = s.title;
+      $("resDesc").textContent = s.desc || "";
+      $("resCount").textContent = responses.length;
+      $("btnCopyLink2").onclick = () => copyLink(id);
+
+      const body = $("resBody");
+      body.innerHTML = "";
+      if (!responses.length) {
+        body.innerHTML = '<p class="muted center">아직 응답이 없어요. 링크를 공유해 보세요!</p>';
+        return;
+      }
+      s.questions.forEach((q, qi) => {
+        const box = document.createElement("div");
+        box.className = "res-q";
+        let html = `<div class="q-title">${qi+1}. ${esc(q.title)}</div>`;
+        const answers = responses.map(r => r.answers[qi]);
+
+        if (q.type === "single" || q.type === "multi") {
+          const counts = {};
+          q.options.forEach(o => counts[o] = 0);
+          answers.forEach(a => {
+            (Array.isArray(a) ? a : [a]).forEach(v => { if (v in counts) counts[v]++; });
+          });
+          const max = Math.max(1, ...Object.values(counts));
+          const total = responses.length;
+          html += Object.entries(counts).map(([opt,c]) => `
+            <div class="bar-row">
+              <div class="lab" title="${esc(opt)}">${esc(opt)}</div>
+              <div class="bar-bg"><div class="bar" style="width:${c/max*100}%"></div></div>
+              <div class="cnt">${c}명 (${Math.round(c/total*100)}%)</div>
+            </div>`).join("");
+        } else if (q.type === "rating") {
+          const nums = answers.filter(a => typeof a === "number");
+          const avg = nums.length ? (nums.reduce((x,y)=>x+y,0)/nums.length) : 0;
+          html += `<p>평균 <b class="big-num" style="font-size:24px">${avg.toFixed(1)}</b> / 5 ⭐</p>`;
+          const max = Math.max(1, ...[1,2,3,4,5].map(n => nums.filter(v=>v===n).length));
+          html += [5,4,3,2,1].map(n => {
+            const c = nums.filter(v => v === n).length;
+            return `<div class="bar-row">
+              <div class="lab">${"⭐".repeat(n)}</div>
+              <div class="bar-bg"><div class="bar" style="width:${c/max*100}%"></div></div>
+              <div class="cnt">${c}명</div>
+            </div>`;
+          }).join("");
+        } else {
+          const texts = answers.filter(a => typeof a === "string" && a.trim());
+          html += texts.length
+            ? texts.map(t => `<div class="text-answer">${esc(t)}</div>`).join("")
+            : '<p class="muted">답변 없음</p>';
+        }
+        box.innerHTML = html;
+        body.appendChild(box);
+      });
+    } catch(e) {
+      $("resBody").innerHTML = `<p class="muted center">불러오기 실패: ${esc(e.message)}</p>`;
+    }
+  }
+
+  // ---------- CSV ----------
+  $("btnCsv").onclick = () => {
+    if (!currentResult) return;
+    const { survey: s, responses } = currentResult;
+    const head = ["응답 시각", ...s.questions.map(q => q.title)];
+    const rows = responses.map(r => {
+      const time = r.createdAt ? new Date(r.createdAt.seconds*1000).toLocaleString("ko-KR") : "";
+      return [time, ...s.questions.map((q,qi) => {
+        const a = r.answers[qi];
+        return Array.isArray(a) ? a.join(", ") : (a ?? "");
+      })];
+    });
+    const csv = [head, ...rows]
+      .map(row => row.map(c => `"${String(c).replace(/"/g,'""')}"`).join(","))
+      .join("\r\n");
+    const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `${s.title}_응답.csv`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  };
+}
+</script>
+</body>
+</html>
