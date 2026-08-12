@@ -70,7 +70,11 @@
   }
   .field .hint { font-weight: 400; color: var(--sub); }
   .input-row { display: flex; gap: 8px; }
+  .input-row > input { flex: 1; min-width: 0; }
   .input-box { position: relative; flex: 1; }
+  .input-box.qty { flex: 0 0 76px; }
+  .input-box.qty input { padding: 12px 30px 12px 10px; }
+  .input-box.qty .unit { right: 10px; }
   input[type="text"], input[type="number"] {
     width: 100%;
     padding: 12px 14px;
@@ -469,32 +473,63 @@
         </div>
       </div>
 
-      <p class="section-title">부자재 (원, VAT포함)</p>
+      <p class="section-title">부자재 (원, VAT포함 · 개당 가격 × 수량)</p>
       <div class="grid-2">
         <div class="field">
           <label for="boxCost">박스</label>
           <select class="mat-select" id="boxSelect" data-cat="box" data-target="boxCost"></select>
-          <input type="number" id="boxCost" placeholder="예: 1000" min="0" step="any" inputmode="numeric">
+          <div class="input-row">
+            <input type="number" id="boxCost" placeholder="예: 1000" min="0" step="any" inputmode="numeric">
+            <div class="input-box has-unit qty"><input type="number" id="boxQty" value="1" min="1" step="1" inputmode="numeric"><span class="unit">개</span></div>
+          </div>
         </div>
         <div class="field">
           <label for="cushionCost">완충재</label>
           <select class="mat-select" id="cushionSelect" data-cat="cushion" data-target="cushionCost"></select>
-          <input type="number" id="cushionCost" placeholder="예: 100" min="0" step="any" inputmode="numeric">
+          <div class="input-row">
+            <input type="number" id="cushionCost" placeholder="예: 100" min="0" step="any" inputmode="numeric">
+            <div class="input-box has-unit qty"><input type="number" id="cushionQty" value="1" min="1" step="1" inputmode="numeric"><span class="unit">개</span></div>
+          </div>
         </div>
         <div class="field">
-          <label for="packCost">팩</label>
-          <select class="mat-select" id="packSelect" data-cat="pack" data-target="packCost"></select>
-          <input type="number" id="packCost" placeholder="예: 200" min="0" step="any" inputmode="numeric">
+          <label for="aircapCost">에어캡</label>
+          <select class="mat-select" id="aircapSelect" data-cat="aircap" data-target="aircapCost"></select>
+          <div class="input-row">
+            <input type="number" id="aircapCost" placeholder="예: 100" min="0" step="any" inputmode="numeric">
+            <div class="input-box has-unit qty"><input type="number" id="aircapQty" value="1" min="1" step="1" inputmode="numeric"><span class="unit">개</span></div>
+          </div>
         </div>
         <div class="field">
-          <label for="wrapCost">크래프트지·끈</label>
-          <select class="mat-select" id="wrapSelect" data-cat="wrap" data-target="wrapCost"></select>
-          <input type="number" id="wrapCost" placeholder="예: 200" min="0" step="any" inputmode="numeric">
+          <label for="caseCost">케이스</label>
+          <select class="mat-select" id="caseSelect" data-cat="case" data-target="caseCost"></select>
+          <div class="input-row">
+            <input type="number" id="caseCost" placeholder="예: 200" min="0" step="any" inputmode="numeric">
+            <div class="input-box has-unit qty"><input type="number" id="caseQty" value="1" min="1" step="1" inputmode="numeric"><span class="unit">개</span></div>
+          </div>
+        </div>
+        <div class="field">
+          <label for="kraftCost">크래프트지</label>
+          <select class="mat-select" id="kraftSelect" data-cat="kraft" data-target="kraftCost"></select>
+          <div class="input-row">
+            <input type="number" id="kraftCost" placeholder="예: 200" min="0" step="any" inputmode="numeric">
+            <div class="input-box has-unit qty"><input type="number" id="kraftQty" value="1" min="1" step="1" inputmode="numeric"><span class="unit">개</span></div>
+          </div>
+        </div>
+        <div class="field">
+          <label for="stringCost">끈</label>
+          <select class="mat-select" id="stringSelect" data-cat="string" data-target="stringCost"></select>
+          <div class="input-row">
+            <input type="number" id="stringCost" placeholder="예: 100" min="0" step="any" inputmode="numeric">
+            <div class="input-box has-unit qty"><input type="number" id="stringQty" value="1" min="1" step="1" inputmode="numeric"><span class="unit">개</span></div>
+          </div>
         </div>
         <div class="field">
           <label for="noticeCost">품질보증·안내지</label>
           <select class="mat-select" id="noticeSelect" data-cat="notice" data-target="noticeCost"></select>
-          <input type="number" id="noticeCost" placeholder="예: 100" min="0" step="any" inputmode="numeric">
+          <div class="input-row">
+            <input type="number" id="noticeCost" placeholder="예: 100" min="0" step="any" inputmode="numeric">
+            <div class="input-box has-unit qty"><input type="number" id="noticeQty" value="1" min="1" step="1" inputmode="numeric"><span class="unit">개</span></div>
+          </div>
         </div>
       </div>
 
@@ -540,8 +575,10 @@
           <div class="cat-chips" id="catChips">
             <button type="button" class="active" data-cat="box">박스</button>
             <button type="button" data-cat="cushion">완충재</button>
-            <button type="button" data-cat="pack">팩</button>
-            <button type="button" data-cat="wrap">크래프트지·끈</button>
+            <button type="button" data-cat="aircap">에어캡</button>
+            <button type="button" data-cat="case">케이스</button>
+            <button type="button" data-cat="kraft">크래프트지</button>
+            <button type="button" data-cat="string">끈</button>
             <button type="button" data-cat="notice">품질보증·안내지</button>
           </div>
         </div>
@@ -913,15 +950,23 @@
 
   /* ----- 입력값 프리셋 저장 ----- */
   var PRESET_KEY = 'salePresets';
+  var MAT_IDS = ['box', 'cushion', 'aircap', 'case', 'kraft', 'string', 'notice'];
   var PRESET_FIELDS = {
     loss: 'lossRate', labor: 'laborCost', shipping: 'shippingCost',
-    box: 'boxCost', cushion: 'cushionCost', pack: 'packCost',
-    wrap: 'wrapCost', notice: 'noticeCost', margin: 'marginCost', fee: 'feeRate'
+    box: 'boxCost', cushion: 'cushionCost', aircap: 'aircapCost',
+    'case': 'caseCost', kraft: 'kraftCost', string: 'stringCost',
+    notice: 'noticeCost', margin: 'marginCost', fee: 'feeRate',
+    boxQty: 'boxQty', cushionQty: 'cushionQty', aircapQty: 'aircapQty',
+    caseQty: 'caseQty', kraftQty: 'kraftQty', stringQty: 'stringQty',
+    noticeQty: 'noticeQty'
   };
   var DEFAULT_PRESET_NAME = '기본값';
   var DEFAULT_PRESET = {
     loss: 10, labor: 1000, shipping: 3300, box: 1000, cushion: 100,
-    pack: 200, wrap: 200, notice: 100, margin: 1000, marginType: '원', fee: 20
+    aircap: '', 'case': 200, kraft: 200, string: '', notice: 100,
+    margin: 1000, marginType: '원', fee: 20,
+    boxQty: 1, cushionQty: 1, aircapQty: 1, caseQty: 1, kraftQty: 1,
+    stringQty: 1, noticeQty: 1
   };
 
   function loadPresets() {
@@ -936,6 +981,14 @@
   if (!presets) {
     presets = {};
     presets[DEFAULT_PRESET_NAME] = DEFAULT_PRESET;
+    storePresets();
+  } else {
+    // 구버전 프리셋 호환: 팩 → 케이스, 크래프트지·끈 → 크래프트지
+    Object.keys(presets).forEach(function (n) {
+      var p = presets[n];
+      if (p.pack !== undefined && p['case'] === undefined) p['case'] = p.pack;
+      if (p.wrap !== undefined && p.kraft === undefined) p.kraft = p.wrap;
+    });
     storePresets();
   }
 
@@ -974,7 +1027,9 @@
     var p = presets[name];
     if (!p) return;
     Object.keys(PRESET_FIELDS).forEach(function (key) {
-      $(PRESET_FIELDS[key]).value = (p[key] === undefined || p[key] === null) ? '' : p[key];
+      var v = (p[key] === undefined || p[key] === null) ? '' : p[key];
+      if (v === '' && key.slice(-3) === 'Qty') v = 1; // 수량 미저장 프리셋은 1개로
+      $(PRESET_FIELDS[key]).value = v;
     });
     marginUnit.set(p.marginType === '%' ? '%' : '원');
   }
@@ -1024,7 +1079,9 @@
 
   $('saleReset').addEventListener('click', function () {
     ['saleName', 'rawPrice', 'spec'].forEach(function (id) { $(id).value = ''; });
-    Object.keys(PRESET_FIELDS).forEach(function (key) { $(PRESET_FIELDS[key]).value = ''; });
+    Object.keys(PRESET_FIELDS).forEach(function (key) {
+      $(PRESET_FIELDS[key]).value = key.slice(-3) === 'Qty' ? 1 : '';
+    });
     specUnit.set('kg');
     marginUnit.set('원');
     $('presetSelect').value = '';
@@ -1039,8 +1096,8 @@
   /* ----- 부자재 설정 (종류별 항목 저장) ----- */
   var MAT_KEY = 'saleMaterials';
   var MAT_CATS = {
-    box: '박스', cushion: '완충재', pack: '팩',
-    wrap: '크래프트지·끈', notice: '품질보증·안내지'
+    box: '박스', cushion: '완충재', aircap: '에어캡', 'case': '케이스',
+    kraft: '크래프트지', string: '끈', notice: '품질보증·안내지'
   };
   var currentCat = 'box';
 
@@ -1052,9 +1109,19 @@
     return {};
   }
   var materials = loadMaterials();
+  // 구버전 항목 호환: 팩 → 케이스, 크래프트지·끈 → 크래프트지
+  if (Array.isArray(materials.pack) && !Array.isArray(materials['case'])) {
+    materials['case'] = materials.pack;
+    delete materials.pack;
+  }
+  if (Array.isArray(materials.wrap) && !Array.isArray(materials.kraft)) {
+    materials.kraft = materials.wrap;
+    delete materials.wrap;
+  }
   Object.keys(MAT_CATS).forEach(function (cat) {
     if (!Array.isArray(materials[cat])) materials[cat] = [];
   });
+  localStorage.setItem(MAT_KEY, JSON.stringify(materials));
 
   function storeMaterials() {
     localStorage.setItem(MAT_KEY, JSON.stringify(materials));
@@ -1218,11 +1285,11 @@
     var lossRate = num('lossRate') / 100; // 로스 %
     var labor = num('laborCost');
     var shipping = num('shippingCost');
-    var box = num('boxCost');
-    var cushion = num('cushionCost');
-    var pack = num('packCost');
-    var wrap = num('wrapCost');
-    var notice = num('noticeCost');
+    function matCost(id) {
+      var qty = parseFloat($(id + 'Qty').value);
+      if (!(qty > 0)) qty = 1;
+      return num(id + 'Cost') * qty;
+    }
     var marginInput = num('marginCost');
     var feeRate = num('feeRate') / 100;   // 수수료 %
 
@@ -1232,7 +1299,8 @@
 
     var specKg = specUnit.unit === 'kg' ? spec : spec / 1000;
     var rawCost = rawPrice * specKg * (1 + lossRate); // 로스 반영 원물비
-    var materials = box + cushion + pack + wrap + notice;
+    var materials = 0;
+    MAT_IDS.forEach(function (id) { materials += matCost(id); });
     var baseCost = rawCost + labor + shipping + materials; // 마진 제외 비용
 
     var salePrice, margin;
@@ -1313,9 +1381,9 @@
   });
 
   $('saleCalcBtn').addEventListener('click', calcSale);
-  ['rawPrice', 'spec', 'lossRate', 'laborCost', 'shippingCost', 'boxCost',
-   'cushionCost', 'packCost', 'wrapCost', 'noticeCost', 'marginCost', 'feeRate'
-  ].forEach(function (id) {
+  var saleEnterIds = ['rawPrice', 'spec', 'lossRate', 'laborCost', 'shippingCost', 'marginCost', 'feeRate'];
+  MAT_IDS.forEach(function (id) { saleEnterIds.push(id + 'Cost', id + 'Qty'); });
+  saleEnterIds.forEach(function (id) {
     $(id).addEventListener('keydown', function (e) {
       if (e.key === 'Enter') calcSale();
     });
