@@ -434,12 +434,43 @@ function normalizeReview(r) {
     images: imgs,
     helpful: num(r.helpCount ?? r.likeCount ?? r.helpfulCount) || 0,
     reviewType: r.reviewType || r.qualityScore || "",
-    sellerReply: String(
-      (r.mallReview && (r.mallReview.content || r.mallReview.commentContent)) ||
-        r.commentContent ||
-        ""
-    ).trim(),
+    sellerReply: replyOf(r),
   };
+}
+
+// 판매자 답변 — mallReview / commentContent / sellerComment … 자리가 제각각이다.
+// "키 이름이 답변스러운 곳"만 훑어서 리뷰 본문과 섞이지 않게 한다.
+const REPLY_KEY = /(mallreview|sellercomment|selleranswer|sellerreply|comment|reply|answer)/i;
+
+function replyOf(r) {
+  const direct = [
+    r.mallReview && (r.mallReview.content || r.mallReview.commentContent),
+    r.commentContent, r.sellerComment, r.sellerAnswer, r.answerContent, r.replyContent,
+  ].find((v) => typeof v === "string" && v.trim());
+  if (direct) return direct.trim();
+
+  const q = [r];
+  let n = 0;
+  while (q.length && n < 3000) {
+    const c = q.shift();
+    n++;
+    if (!c || typeof c !== "object") continue;
+    for (const [k, v] of Object.entries(c)) {
+      if (REPLY_KEY.test(k)) {
+        if (typeof v === "string" && v.trim().length > 1 && !/^https?:/.test(v)) return v.trim();
+        if (v && typeof v === "object" && !Array.isArray(v)) {
+          const s = v.content || v.commentContent || v.text || v.body;
+          if (typeof s === "string" && s.trim()) return s.trim();
+        }
+        if (Array.isArray(v) && v.length && v[0] && typeof v[0] === "object") {
+          const s = v[0].content || v[0].commentContent || v[0].text || v[0].body;
+          if (typeof s === "string" && s.trim()) return s.trim();
+        }
+      }
+      if (v && typeof v === "object") q.push(v);
+    }
+  }
+  return "";
 }
 
 /* ────────────────────────── 이미지 중계 ────────────────────────── */
