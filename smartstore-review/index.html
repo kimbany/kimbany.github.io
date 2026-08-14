@@ -135,6 +135,14 @@
       </div>
     </section>
 
+    <!-- 부분 실패 안내 (예: 리뷰는 됐는데 문의는 못 가져온 경우) -->
+    <section id="diagSec" class="panel p-4 hidden" style="border-color:#5a3d12">
+      <h3 class="font-semibold text-sm mb-1" style="color:var(--warn)">⚠ 일부를 가져오지 못했습니다</h3>
+      <p id="diagMsg" class="muted text-sm mb-3"></p>
+      <button id="btnCopyDiag" class="btn2 text-sm">진단 정보 복사</button>
+      <pre id="diagPre" class="panel2 p-2 mt-2 text-xs overflow-auto max-h-64"></pre>
+    </section>
+
     <!-- 별점 분포 / 월별 추이 -->
     <div class="grid md:grid-cols-2 gap-4 review-only">
       <section class="panel p-4">
@@ -440,28 +448,89 @@ function bookmarkletMain() {
       return typeof x.title === "string" &&
         ["answer", "answerContent", "answered", "answerYn"].some(k => k in x);
     };
-    const pickQnas = (root) => walkFind(root, looksQna);
+    /* 엄격 판별로 못 잡으면, "객체 배열"을 전부 꺼내 문의스러운 정도로 점수를 매겨 고른다.
+       네이버가 어떤 필드명을 쓰든 question/inquiry/qna/answer 계열 키만 있으면 잡힌다. */
+    function arraysOfObjects(root) {
+      const out = [], q = [root]; let n = 0;
+      while (q.length && n < 20000) {
+        const c = q.shift(); n++;
+        if (!c || typeof c !== "object") continue;
+        if (Array.isArray(c)) {
+          if (c.length && c[0] && typeof c[0] === "object" && !Array.isArray(c[0])) out.push(c);
+          for (const v of c) if (v && typeof v === "object") q.push(v);
+          continue;
+        }
+        for (const v of Object.values(c)) if (v && typeof v === "object") q.push(v);
+      }
+      return out;
+    }
+    function qnaScore(arr) {
+      const keys = Object.keys(arr[0] || {}).join(" ").toLowerCase();
+      let s = 0;
+      if (/question|inquiry|qna/.test(keys)) s += 2;
+      if (/answer|reply/.test(keys)) s += 1;
+      if (/reviewscore|reviewcontent|rating/.test(keys)) s -= 5; // 리뷰는 문의가 아니다
+      return s;
+    }
+    const pickQnas = (root) => {
+      const strict = walkFind(root, looksQna);
+      if (strict) return strict;
+      let best = null, bestS = 1; // 2점 이상만 채택
+      for (const arr of arraysOfObjects(root)) {
+        const s = qnaScore(arr);
+        if (s > bestS) { bestS = s; best = arr; }
+      }
+      return best;
+    };
+
+    /* 필드명을 모르는 응답도 받아낼 수 있게 키 패턴으로 값을 고른다 */
+    function fieldBy(x, re, exclude) {
+      for (const [k, v] of Object.entries(x)) {
+        if (typeof v !== "string" || !v.trim() || !re.test(k)) continue;
+        if (exclude && exclude.test(k)) continue;
+        if (v.trim().length < 2 || /^[YN]$/i.test(v.trim())) continue; // answerYn:"Y" 같은 플래그 제외
+        return v.trim();
+      }
+      for (const [k, v] of Object.entries(x)) { // 한 겹 안쪽까지
+        if (!v || typeof v !== "object" || Array.isArray(v) || !re.test(k)) continue;
+        if (exclude && exclude.test(k)) continue;
+        const s = v.content || v.text || v.body || v.answerContent || v.questionContent;
+        if (typeof s === "string" && s.trim()) return s.trim();
+      }
+      return "";
+    }
 
     function normQna(x) {
-      const answer = String(
+      const answer =
         (typeof x.answer === "string" ? x.answer : (x.answer && (x.answer.content || x.answer.answerContent))) ||
-        x.answerContent || x.replyContent || x.commentContent || ""
-      ).trim();
-      const question = String(
-        x.question || x.questionContent || x.inquiryContent || x.qnaContent || x.inquiryTitle || x.title || ""
-      ).trim();
+        x.answerContent || x.replyContent || x.commentContent ||
+        fieldBy(x, /(answer|reply|^ans)/i) || "";
+      const question =
+        x.question || x.questionContent || x.inquiryContent || x.qnaContent || x.inquiryTitle || x.title ||
+        fieldBy(x, /(question|inquiry|qna|inq|title|content)/i, /(answer|reply|^ans)/i) || "";
+      const qDate = x.createDate || x.questionCreateDate || x.registerDate || x.inquiryDate ||
+        fieldBy(x, /(date|time|dt$|created|regist|writ)/i, /(answer|reply|^ans)/i) || "";
+      // id 도 이름이 제각각(qnaNo, inquirySeq …) — 숫자/문자 식별자처럼 생긴 키를 찾는다
+      let id = x.id || x.questionId || x.inquiryNo || x.qnaId || null;
+      if (id == null) {
+        for (const [k, v] of Object.entries(x)) {
+          if ((typeof v === "number" || typeof v === "string") && /(no|id|seq|num)$/i.test(k) &&
+              !/(page|total|count|score)/i.test(k)) { id = v; break; }
+        }
+      }
       return {
-        id: x.id || x.questionId || x.inquiryNo || x.qnaId || null,
-        question: question,
-        questionDate: String(x.createDate || x.questionCreateDate || x.registerDate || x.inquiryDate || "").slice(0, 10),
-        writer: x.writerMemberId || x.writerId || x.memberId || x.customerId || x.writerNickname || "",
+        id: id,
+        question: String(question).trim(),
+        questionDate: String(qDate).slice(0, 10),
+        writer: x.writerMemberId || x.writerId || x.memberId || x.customerId || x.writerNickname ||
+          fieldBy(x, /(writer|member|cust|user|nick|author)/i) || "",
         category: String(x.category || x.categoryName || x.inquiryType || x.questionType || "").trim(),
-        answer: answer,
+        answer: String(answer).trim(),
         answerDate: String(
           x.answerCreateDate || x.answerDate ||
           (x.answer && typeof x.answer === "object" && (x.answer.createDate || x.answer.answerDate)) || ""
         ).slice(0, 10),
-        answered: !!answer || x.answered === true || x.answerYn === "Y",
+        answered: !!String(answer).trim() || x.answered === true || x.answerYn === "Y",
         secret: x.secret === true || x.secretYn === "Y" || x.isSecret === true,
       };
     }
@@ -567,50 +636,78 @@ function bookmarkletMain() {
        "응답 모양"이 리뷰/문의면 그게 우리가 찾는 요청이다. */
     async function capture(pickFn, guide, tabRe) {
       let cap = null;
-      const origFetch = window.fetch;
-      const OPEN = XMLHttpRequest.prototype.open;
-      const SEND = XMLHttpRequest.prototype.send;
+      const seen = [];             // 진단용 — 이 창에서 오간 JSON 응답 요약
+      const hooked = [];           // 원복할 대상 (동일 출처 iframe 포함)
 
       const take = (u, m, b, j) => {
-        if (cap || !u) return;
-        try { if (pickFn(j)) cap = { url: new URL(u, location.origin).toString(), method: m, body: typeof b === "string" ? b : null }; }
-        catch (e) {}
-      };
-
-      window.fetch = function (input, init) {
-        const u = typeof input === "string" ? input : (input && input.url);
-        const m = (init && init.method) || (input && input.method) || "GET";
-        const b = init && init.body;
-        const pr = origFetch.apply(this, arguments);
+        if (!u || !j || typeof j !== "object") return;
+        const sig = m + " " + String(u).split("#")[0];
+        if (seen.length < 40 && !seen.some(s => s.sig === sig)) { // 같은 요청 반복은 한 번만
+          const arrs = arraysOfObjects(j).slice(0, 3).map(a => ({
+            len: a.length, itemKeys: Object.keys(a[0] || {}).slice(0, 20),
+          }));
+          seen.push({ sig: sig, url: String(u).slice(0, 200), method: m,
+            topKeys: Object.keys(j).slice(0, 12), arrays: arrs });
+        }
+        if (cap) return;
         try {
-          pr.then(function (res) {
-            res.clone().json().then(function (j) { take(u, m, b, j); }).catch(function () {});
-          }).catch(function () {});
+          if (pickFn(j)) cap = { url: new URL(u, location.origin).toString(), method: m, body: typeof b === "string" ? b : null };
         } catch (e) {}
-        return pr;
-      };
-      XMLHttpRequest.prototype.open = function (m, u) { this.__m = m; this.__u = u; return OPEN.apply(this, arguments); };
-      XMLHttpRequest.prototype.send = function (b) {
-        const self = this;
-        this.addEventListener("load", function () {
-          try { take(self.__u, self.__m, b, JSON.parse(self.responseText)); } catch (e) {}
-        });
-        return SEND.apply(this, arguments);
       };
 
-      say(guide);
+      // 동일 출처 iframe 안에서 호출되는 경우도 있어 프레임까지 후킹한다
+      const targets = [window];
+      try {
+        for (let i = 0; i < window.frames.length; i++) {
+          try { if (window.frames[i].location.origin === location.origin) targets.push(window.frames[i]); }
+          catch (e) { /* 교차 출처는 접근 불가 — 무시 */ }
+        }
+      } catch (e) {}
+
+      for (const w of targets) {
+        try {
+          const oF = w.fetch, OPEN = w.XMLHttpRequest.prototype.open, SEND = w.XMLHttpRequest.prototype.send;
+          hooked.push({ w: w, oF: oF, OPEN: OPEN, SEND: SEND });
+          w.fetch = function (input, init) {
+            const u = typeof input === "string" ? input : (input && input.url);
+            const m = (init && init.method) || (input && input.method) || "GET";
+            const b = init && init.body;
+            const pr = oF.apply(this, arguments);
+            try {
+              pr.then(function (res) {
+                res.clone().json().then(function (j) { take(u, m, b, j); }).catch(function () {});
+              }).catch(function () {});
+            } catch (e) {}
+            return pr;
+          };
+          w.XMLHttpRequest.prototype.open = function (m, u) { this.__m = m; this.__u = u; return OPEN.apply(this, arguments); };
+          w.XMLHttpRequest.prototype.send = function (b) {
+            const self = this;
+            this.addEventListener("load", function () {
+              try { take(self.__u, self.__m, b, JSON.parse(self.responseText)); } catch (e) {}
+            });
+            return SEND.apply(this, arguments);
+          };
+        } catch (e) {}
+      }
+
       try { // 해당 탭 자동 클릭 시도
         const t = [].slice.call(document.querySelectorAll("a,button,li,span"))
           .filter(e => tabRe.test((e.textContent || "").trim()) && e.offsetParent);
         if (t[0]) t[0].click();
       } catch (e) {}
 
-      for (let i = 0; i < 200 && !cap; i++) await wait(300); // 최대 60초
+      const TICKS = 300; // 300 × 300ms = 최대 90초
+      for (let i = 0; i < TICKS && !cap; i++) {
+        if (i % 4 === 0) say(guide + "\n\n대기 중… " + Math.ceil((TICKS - i) * 0.3) + "초");
+        await wait(300);
+      }
 
-      window.fetch = origFetch;
-      XMLHttpRequest.prototype.open = OPEN;
-      XMLHttpRequest.prototype.send = SEND;
-      return cap;
+      for (const h of hooked) {
+        try { h.w.fetch = h.oF; h.w.XMLHttpRequest.prototype.open = h.OPEN; h.w.XMLHttpRequest.prototype.send = h.SEND; }
+        catch (e) {}
+      }
+      return { cap: cap, seen: seen };
     }
 
     /* 잡은 요청의 페이지 번호만 바꿔가며 반복 */
@@ -659,32 +756,38 @@ function bookmarkletMain() {
       say("리뷰 API 확인 중…");
       let recipe = await tryDirect(reviewCandidates(), pickReviews);
       if (!recipe) {
-        recipe = await capture(pickReviews,
+        const c = await capture(pickReviews,
           "기본 주소가 막혔습니다.\n\n페이지에서 [리뷰] 탭을 눌러주세요.\n(이미 열려 있다면 정렬을 바꾸거나\n리뷰 2페이지를 눌러주세요)",
           /^리뷰/);
-        if (recipe) diag.capturedReview = recipe;
+        recipe = c.cap;
+        if (recipe) diag.capturedReview = recipe; else diag.reviewSeen = c.seen;
       }
       if (recipe) {
         const r = await collect(recipe, pickReviews, normReview,
           (x) => (x.id || "") + "|" + x.date + "|" + x.content.slice(0, 24), "리뷰");
         reviews = r.items; reviewTotal = r.total;
       }
+      if (!reviews.length) diag.reviewFailed = true;
     }
 
     if (wantQna) {
       say("문의 API 확인 중…");
       let recipe = await tryDirect(qnaCandidates(), pickQnas);
       if (!recipe) {
-        recipe = await capture(pickQnas,
-          "이제 [문의] 탭을 눌러주세요.\n(Q&A / 상품문의 탭)\n\n요청을 잡는 즉시 자동으로 수집합니다.",
-          /^(문의|Q&A|상품문의|톡톡문의)/i);
-        if (recipe) diag.capturedQna = recipe;
+        const c = await capture(pickQnas,
+          "이제 [문의] 탭을 눌러주세요.\n(Q&A · 상품문의 · 문의하기)\n\n" +
+          "이미 열려 있다면 2페이지를 누르거나\n탭을 다시 눌러주세요.",
+          /^(문의|Q&A|상품문의|톡톡문의|문의하기)/i);
+        recipe = c.cap;
+        // 못 잡았으면 그 동안 오간 응답 요약을 남긴다 (원인 특정용)
+        if (recipe) diag.capturedQna = recipe; else diag.qnaSeen = c.seen;
       }
       if (recipe) {
         const r = await collect(recipe, pickQnas, normQna,
           (x) => (x.id || "") + "|" + x.questionDate + "|" + x.question.slice(0, 24), "문의");
         qnas = r.items; qnaTotal = r.total;
       }
+      if (!qnas.length) diag.qnaFailed = true;
     }
 
     /* ══════════ 결과 ══════════ */
@@ -696,6 +799,9 @@ function bookmarkletMain() {
       return;
     }
 
+    // 일부만 실패해도 조용히 넘어가지 않는다 — 진단 정보를 결과에 같이 담아
+    // 수집기 페이지에 붙여넣기만 하면 원인을 볼 수 있게 한다.
+    const partial = (wantReview && diag.reviewFailed) || (wantQna && diag.qnaFailed);
     const payload = JSON.stringify({
       source: "bookmarklet",
       via: (diag.capturedReview || diag.capturedQna) ? "capture" : "direct",
@@ -703,9 +809,12 @@ function bookmarkletMain() {
       total: reviewTotal || product.reviewCount,
       reviews: reviews,
       qnas: qnas, qnaTotal: qnaTotal,
+      wanted: { review: wantReview, qna: wantQna },
+      diag: partial ? diag : undefined,
       collectedAt: new Date().toISOString(),
     });
     window.ssReviews = payload;
+    window.ssDiag = JSON.stringify(diag, null, 1);
 
     let ok = false;
     try { await navigator.clipboard.writeText(payload); ok = true; } catch (e) {}
@@ -717,9 +826,12 @@ function bookmarkletMain() {
     }
     const summary = [reviews.length ? "리뷰 " + reviews.length + "건" : "", qnas.length ? "문의 " + qnas.length + "건" : ""]
       .filter(Boolean).join(" · ");
-    say(ok ? "✅ " + summary + " 복사 완료\n수집기 페이지에 붙여넣기(Ctrl+V)"
-           : "⚠ 복사 실패 — 콘솔(F12)의\nssReviews 변수를 사용하세요");
-    bye(8000);
+    const missed = [wantReview && diag.reviewFailed ? "리뷰" : "", wantQna && diag.qnaFailed ? "문의" : ""]
+      .filter(Boolean).join("·");
+    say((ok ? "✅ " + summary + " 복사 완료\n수집기 페이지에 붙여넣기(Ctrl+V)"
+            : "⚠ 복사 실패 — 콘솔(F12)의\nssReviews 변수를 사용하세요") +
+        (missed ? "\n\n⚠ " + missed + "는 못 가져왔습니다.\n원인 정보가 결과에 함께 담겼습니다." : ""));
+    bye(missed ? 15000 : 8000);
   })();
 }
 
@@ -782,6 +894,7 @@ function render(data) {
   buildScoreFilter(rs);
   applyFilter();
   renderQna();
+  renderDiag();
   $("result").scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
@@ -1078,6 +1191,35 @@ function reviewCard(r) {
     ${r.sellerReply ? `<div class="panel2 p-2.5 mt-2.5 text-sm"><b class="muted text-xs">판매자 답변</b><br>${esc(r.sellerReply)}</div>` : ""}
   </article>`;
 }
+
+/* ═══════════════════════ 부분 실패 안내 ═══════════════════════ */
+// 리뷰는 됐는데 문의만 실패하는 식으로 조용히 묻히지 않도록,
+// 북마클릿이 담아 보낸 diag 를 그대로 보여주고 복사할 수 있게 한다.
+function renderDiag() {
+  const d = DATA && DATA.diag;
+  const want = (DATA && DATA.wanted) || {};
+  const missed = [
+    want.qna && !(DATA.qnas || []).length ? "상품 문의(Q&A)" : "",
+    want.review && !(DATA.reviews || []).length ? "리뷰" : "",
+  ].filter(Boolean);
+
+  $("diagSec").classList.toggle("hidden", !d || !missed.length);
+  if (!d || !missed.length) return;
+
+  const seen = d.qnaSeen || d.reviewSeen || [];
+  $("diagMsg").textContent =
+    `${missed.join(" · ")}를 가져오지 못했습니다. ` +
+    (seen.length
+      ? `탭을 누르는 동안 오간 응답 ${seen.length}건을 기록했습니다 — 아래 내용을 복사해 알려주시면 맞춰 고칠 수 있습니다.`
+      : `그 사이 오간 응답이 하나도 없었습니다. 탭을 누르지 않았거나, 해당 상품에 문의 영역이 없을 수 있습니다.`);
+  $("diagPre").textContent = JSON.stringify(d, null, 1).slice(0, 20000);
+}
+
+$("btnCopyDiag").onclick = async () => {
+  const text = JSON.stringify(DATA && DATA.diag, null, 1);
+  try { await navigator.clipboard.writeText(text); $("diagMsg").textContent = "복사했습니다 — 그대로 붙여넣어 알려주세요."; }
+  catch { $("diagPre").focus(); }
+};
 
 /* ═══════════════════════ 상품 문의 (Q&A) ═══════════════════════ */
 let QVIEW = [];
