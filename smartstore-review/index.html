@@ -98,8 +98,14 @@
       <li>아래 <b class="text-[var(--accent)]">리뷰수집</b> 링크를 <b>북마크바로 드래그</b>해서 등록 (또는 [코드 복사] 후 새 북마크의 URL에 붙여넣기)</li>
       <li>스마트스토어 <b>상품 페이지</b>를 열고 등록한 북마크를 클릭</li>
       <li>가져올 페이지 수를 입력 → 수집이 끝나면 결과 JSON이 <b>클립보드에 복사</b>됨</li>
+      <li>“<b>[리뷰] 탭을 눌러주세요</b>”가 뜨면 페이지의 리뷰 탭을 클릭 —
+          그 순간 페이지가 보내는 진짜 요청을 낚아채 이어서 수집합니다
+          <span class="muted">(이미 리뷰가 열려 있다면 정렬을 바꾸거나 2페이지를 누르세요)</span></li>
       <li>아래 칸에 <b>붙여넣기(Ctrl+V)</b> 후 [불러오기]</li>
     </ol>
+    <p class="muted text-xs mb-3">
+      그래도 실패하면 <b>진단 정보</b>가 대신 복사됩니다. 그걸 붙여넣어 알려주시면 원인을 잡을 수 있습니다.
+    </p>
     <div class="flex flex-wrap items-center gap-3 mb-3">
       <a id="bmLink" class="chip font-bold" style="background:#0f2a1a;border-color:#1f5133;color:var(--accent)" href="#">📥 리뷰수집</a>
       <button id="btnCopyBm" class="btn2 text-sm">코드 복사</button>
@@ -272,56 +278,18 @@ function setStatus(msg, warn) {
 */
 function bookmarkletMain() {
   (async function () {
-    const S = window.__PRELOADED_STATE__;
-    if (!S) return alert("스마트스토어 상품 페이지에서 실행하세요.");
-
-    // productNo + name 을 가진 노드가 상품 상세
-    function findNode(root) {
-      const q = [root]; let loose = null, n = 0;
-      while (q.length && n < 50000) {
-        const c = q.shift(); n++;
-        if (!c || typeof c !== "object") continue;
-        if (!Array.isArray(c) && c.productNo && c.name) { if (c.channel) return c; if (!loose) loose = c; }
-        for (const v of Object.values(c)) if (v && typeof v === "object") q.push(v);
-      }
-      return loose;
-    }
-    function deep(root, k) {
-      const q = [root]; let n = 0;
-      while (q.length && n < 50000) {
-        const c = q.shift(); n++;
-        if (!c || typeof c !== "object") continue;
-        if (!Array.isArray(c) && c[k] != null && typeof c[k] !== "object") return c[k];
-        for (const v of Object.values(c)) if (v && typeof v === "object") q.push(v);
-      }
-      return null;
-    }
+    /* 진행 상황 표시 배너 */
+    const box = document.createElement("div");
+    box.style.cssText = "position:fixed;z-index:2147483647;right:16px;bottom:16px;max-width:330px;" +
+      "background:#0b0f14;color:#e6edf6;padding:12px 16px;border-radius:10px;" +
+      "font:13px/1.55 -apple-system,sans-serif;box-shadow:0 8px 30px rgba(0,0,0,.5);white-space:pre-wrap";
+    document.body.appendChild(box);
+    const say = (t) => (box.textContent = t);
+    const bye = (ms) => setTimeout(() => box.remove(), ms || 8000);
     const N = (v) => { const x = parseInt(v, 10); return Number.isFinite(x) ? x : 0; };
     const F = (v) => { const x = parseFloat(v); return Number.isFinite(x) ? x : 0; };
 
-    const node = findNode(S) || {};
-    const ch = node.channel || {}, am = node.reviewAmount || {};
-    const ids = {
-      productNo: N(node.productNo) || N(node.id) || N(deep(S, "productNo")),
-      originProductNo: N(node.originProductNo) || N(deep(S, "originProductNo")),
-      channelNo: N(ch.channelNo) || N(deep(S, "channelNo")),
-      merchantNo: N(ch.payReferenceKey) || N(ch.accountNo) || N(deep(S, "checkoutMerchantNo")) || N(deep(S, "merchantNo")),
-    };
-    const product = {
-      name: node.name || "(상품명 미상)",
-      storeName: ch.channelName || "",
-      image: node.representativeImageUrl || deep(S, "representativeImageUrl") || "",
-      salePrice: N(node.salePrice) || N(node.discountedSalePrice) || 0,
-      reviewCount: N(am.totalReviewCount) || N(deep(S, "totalReviewCount")) || 0,
-      averageScore: F(am.averageReviewScore) || F(deep(S, "averageReviewScore")) || 0,
-      url: location.origin + location.pathname,
-    };
-
-    const ans = prompt("가져올 페이지 수 (1페이지 = 리뷰 20개)", "5");
-    if (ans === null) return;
-    const pages = Math.min(Math.max(parseInt(ans, 10) || 5, 1), 100);
-    const base = location.origin;
-
+    /* ── 응답에서 "리뷰처럼 생긴 배열" 찾기 ── */
     function looks(x) {
       return x && typeof x === "object" && !Array.isArray(x) &&
         ("reviewContent" in x || "content" in x) && ("reviewScore" in x || "score" in x);
@@ -336,6 +304,16 @@ function bookmarkletMain() {
           for (const v of c) if (v && typeof v === "object") q.push(v);
           continue;
         }
+        for (const v of Object.values(c)) if (v && typeof v === "object") q.push(v);
+      }
+      return null;
+    }
+    function deep(root, k) {
+      const q = [root]; let n = 0;
+      while (q.length && n < 50000) {
+        const c = q.shift(); n++;
+        if (!c || typeof c !== "object") continue;
+        if (!Array.isArray(c) && c[k] != null && typeof c[k] !== "object") return c[k];
         for (const v of Object.values(c)) if (v && typeof v === "object") q.push(v);
       }
       return null;
@@ -357,72 +335,219 @@ function bookmarkletMain() {
       };
     }
 
-    // 진행 표시 (페이지 위에 떠 있는 배너)
-    const box = document.createElement("div");
-    box.style.cssText = "position:fixed;z-index:2147483647;right:16px;bottom:16px;background:#0b0f14;color:#e6edf6;padding:12px 16px;border-radius:10px;font:14px/1.4 sans-serif;box-shadow:0 8px 30px rgba(0,0,0,.5)";
-    document.body.appendChild(box);
+    /* ── 상품 메타 (있으면 쓰고, 없어도 수집은 진행) ── */
+    function findNode(root) {
+      const q = [root]; let loose = null, n = 0;
+      while (q.length && n < 50000) {
+        const c = q.shift(); n++;
+        if (!c || typeof c !== "object") continue;
+        if (!Array.isArray(c) && c.productNo && c.name) { if (c.channel) return c; if (!loose) loose = c; }
+        for (const v of Object.values(c)) if (v && typeof v === "object") q.push(v);
+      }
+      return loose;
+    }
+    const S = window.__PRELOADED_STATE__;
+    const node = (S && findNode(S)) || {};
+    const ch = node.channel || {}, am = node.reviewAmount || {};
+    const ids = {
+      productNo: N(node.productNo) || N(node.id) || N(S && deep(S, "productNo")),
+      originProductNo: N(node.originProductNo) || N(S && deep(S, "originProductNo")),
+      channelNo: N(ch.channelNo) || N(S && deep(S, "channelNo")),
+      merchantNo: N(ch.payReferenceKey) || N(ch.accountNo) ||
+                  N(S && deep(S, "checkoutMerchantNo")) || N(S && deep(S, "merchantNo")),
+    };
+    const product = {
+      name: node.name || document.title || "(상품명 미상)",
+      storeName: ch.channelName || "",
+      image: node.representativeImageUrl || (S && deep(S, "representativeImageUrl")) || "",
+      salePrice: N(node.salePrice) || N(node.discountedSalePrice) || 0,
+      reviewCount: N(am.totalReviewCount) || N(S && deep(S, "totalReviewCount")) || 0,
+      averageScore: F(am.averageReviewScore) || F(S && deep(S, "averageReviewScore")) || 0,
+      url: location.origin + location.pathname,
+    };
 
-    const out = []; let total = 0, via = "";
+    const ans = prompt("가져올 페이지 수 (1페이지 = 리뷰 20개)", "5");
+    if (ans === null) { box.remove(); return; }
+    const pages = Math.min(Math.max(parseInt(ans, 10) || 5, 1), 100);
+
+    const diag = { href: location.href, hasState: !!S, ids: ids, tries: [] };
+
+    /* ── 요청 실행기 ── */
+    async function run(req) {
+      const res = await fetch(req.url, {
+        method: req.method || "GET",
+        credentials: "include",
+        headers: req.body ? { "Content-Type": "application/json" } : undefined,
+        body: req.body || undefined,
+      });
+      const text = await res.text();
+      let data = null;
+      try { data = JSON.parse(text); } catch (e) {}
+      return { status: res.status, data: data, snippet: text.slice(0, 400) };
+    }
+
+    /* ── A안: 알려진 엔드포인트로 직접 호출 ── */
+    function directCandidates(p) {
+      const b = location.origin, out = [];
+      if (ids.channelNo && ids.productNo) {
+        out.push({ url: b + "/i/v2/channels/" + ids.channelNo + "/products/" + ids.productNo +
+          "/contents/reviews?page=" + p + "&pageSize=20&sortType=REVIEW_RANKING" });
+      }
+      out.push({ url: b + "/i/v1/contents/reviews/query-pages", method: "POST", body: JSON.stringify({
+        page: p, pageSize: 20, reviewSearchSortType: "REVIEW_RANKING",
+        productNo: ids.productNo, originProductNo: ids.originProductNo || ids.productNo,
+        channelNo: ids.channelNo, checkoutMerchantNo: ids.merchantNo, merchantNo: ids.merchantNo,
+        isNeedPageInfo: true,
+      }) });
+      return out;
+    }
+
+    let recipe = null; // {url, method, body} — page 값만 바꿔가며 재사용할 요청
+    say("리뷰 API 확인 중…");
+    for (const req of directCandidates(1)) {
+      try {
+        const r = await run(req);
+        diag.tries.push({ url: req.url, method: req.method || "GET", status: r.status, snippet: r.snippet });
+        if (r.data && pick(r.data)) { recipe = req; break; }
+      } catch (e) {
+        diag.tries.push({ url: req.url, error: String((e && e.message) || e) });
+      }
+    }
+
+    /* ── B안: 페이지가 실제로 보내는 리뷰 요청을 가로채 그대로 재사용 ──
+       네이버가 주소·파라미터를 바꿔도 이 경로는 따라간다. */
+    if (!recipe) {
+      let cap = null;
+      const origFetch = window.fetch;
+      const OPEN = XMLHttpRequest.prototype.open;
+      const SEND = XMLHttpRequest.prototype.send;
+
+      window.fetch = function (input, init) {
+        const u = typeof input === "string" ? input : (input && input.url);
+        const m = (init && init.method) || (input && input.method) || "GET";
+        const b = init && init.body;
+        const pr = origFetch.apply(this, arguments);
+        try {
+          if (u && /review/i.test(u)) {
+            pr.then(function (res) {
+              res.clone().json().then(function (j) {
+                if (!cap && pick(j)) cap = { url: new URL(u, location.origin).toString(), method: m,
+                  body: typeof b === "string" ? b : null };
+              }).catch(function () {});
+            }).catch(function () {});
+          }
+        } catch (e) {}
+        return pr;
+      };
+      XMLHttpRequest.prototype.open = function (m, u) { this.__m = m; this.__u = u; return OPEN.apply(this, arguments); };
+      XMLHttpRequest.prototype.send = function (b) {
+        const self = this;
+        this.addEventListener("load", function () {
+          try {
+            if (!cap && /review/i.test(self.__u || "")) {
+              const j = JSON.parse(self.responseText);
+              if (pick(j)) cap = { url: new URL(self.__u, location.origin).toString(), method: self.__m,
+                body: typeof b === "string" ? b : null };
+            }
+          } catch (e) {}
+        });
+        return SEND.apply(this, arguments);
+      };
+
+      say("기본 주소가 막혔습니다.\n\n페이지에서 [리뷰] 탭을 눌러주세요.\n(이미 열려 있다면 정렬을 바꾸거나\n리뷰 2페이지를 눌러주세요)\n\n요청을 잡는 즉시 자동으로 수집합니다.");
+      try { // 리뷰 탭 자동 클릭 시도
+        const t = [].slice.call(document.querySelectorAll("a,button,li,span"))
+          .filter(e => /^리뷰/.test((e.textContent || "").trim()) && e.offsetParent);
+        if (t[0]) t[0].click();
+      } catch (e) {}
+
+      for (let i = 0; i < 200 && !cap; i++) await new Promise(r => setTimeout(r, 300)); // 최대 60초 대기
+
+      window.fetch = origFetch;
+      XMLHttpRequest.prototype.open = OPEN;
+      XMLHttpRequest.prototype.send = SEND;
+
+      if (cap) { recipe = cap; diag.captured = cap; }
+    }
+
+    /* ── 둘 다 실패 → 진단 정보를 복사해서 원인을 파악할 수 있게 ── */
+    if (!recipe) {
+      const report = JSON.stringify(diag, null, 1);
+      window.ssDiag = report;
+      try { await navigator.clipboard.writeText(report); } catch (e) {}
+      say("리뷰 API를 찾지 못했습니다.\n\n진단 정보를 클립보드에 복사했습니다.\n그대로 붙여넣어 알려주시면\n원인을 잡을 수 있습니다.\n(콘솔 변수: ssDiag)");
+      bye(20000);
+      return;
+    }
+
+    /* ── 잡은 요청의 page 값만 바꿔가며 반복 ── */
+    const PAGE_KEY = /^page(no|num|number|index)?$/i; // page / pageNo / pageNumber …
+    function withPage(req, p) {
+      if (req.body) {
+        try {
+          const b = JSON.parse(req.body);
+          const k = Object.keys(b).find(x => PAGE_KEY.test(x));
+          b[k || "page"] = p;
+          return { url: req.url, method: req.method || "POST", body: JSON.stringify(b) };
+        } catch (e) {}
+      }
+      const u = new URL(req.url, location.origin);
+      const k = Array.from(u.searchParams.keys()).find(x => PAGE_KEY.test(x));
+      u.searchParams.set(k || "page", p);
+      return { url: u.toString(), method: req.method || "GET", body: req.body };
+    }
+
+    const out = [], seen = new Set();
+    let total = 0;
     try {
       for (let p = 1; p <= pages; p++) {
-        box.textContent = "리뷰 수집 중… " + p + "/" + pages + " (" + out.length + "건)";
-        let arr = null, data = null;
-
-        // 후보 1: v2 GET
-        if (ids.channelNo && ids.productNo) {
-          try {
-            const r = await fetch(base + "/i/v2/channels/" + ids.channelNo + "/products/" + ids.productNo +
-              "/contents/reviews?page=" + p + "&pageSize=20&sortType=REVIEW_RANKING", { credentials: "include" });
-            if (r.ok) { data = await r.json(); arr = pick(data); if (arr) via = "v2"; }
-          } catch (e) {}
-        }
-        // 후보 2: v1 POST
-        if (!arr) {
-          try {
-            const r = await fetch(base + "/i/v1/contents/reviews/query-pages", {
-              method: "POST", credentials: "include",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                page: p, pageSize: 20, reviewSearchSortType: "REVIEW_RANKING",
-                productNo: ids.productNo, originProductNo: ids.originProductNo || ids.productNo,
-                channelNo: ids.channelNo, checkoutMerchantNo: ids.merchantNo,
-                merchantNo: ids.merchantNo, isNeedPageInfo: true,
-              }),
-            });
-            if (r.ok) { data = await r.json(); arr = pick(data); if (arr) via = "v1"; }
-          } catch (e) {}
-        }
+        say("리뷰 수집 중… " + p + "/" + pages + " (" + out.length + "건)");
+        const r = await run(withPage(recipe, p));
+        const arr = r.data && pick(r.data);
         if (!arr || !arr.length) break;
-        if (data) total = N(deep(data, "totalElements")) || N(deep(data, "totalCount")) || total;
-        out.push(...arr.map(norm));
+        total = N(deep(r.data, "totalElements")) || N(deep(r.data, "totalCount")) || total;
+
+        // page 파라미터 이름이 달라 같은 페이지가 계속 오면 여기서 멈춘다
+        let added = 0;
+        for (const rv of arr.map(norm)) {
+          const k = (rv.id || "") + "|" + rv.date + "|" + rv.content.slice(0, 24);
+          if (seen.has(k)) continue;
+          seen.add(k); out.push(rv); added++;
+        }
+        if (!added) break;
         if (total && out.length >= total) break;
-        await new Promise(r => setTimeout(r, 250)); // 연속 호출 간격
+        await new Promise(r2 => setTimeout(r2, 250)); // 연속 호출 간격
       }
-
-      if (!out.length) { box.textContent = "리뷰를 가져오지 못했습니다."; setTimeout(() => box.remove(), 4000); return; }
-
-      const payload = JSON.stringify({
-        source: "bookmarklet", via, product, ids, total: total || product.reviewCount,
-        reviews: out, collectedAt: new Date().toISOString(),
-      });
-
-      let ok = false;
-      try { await navigator.clipboard.writeText(payload); ok = true; } catch (e) {}
-      if (!ok) { // 클립보드 권한이 막힌 경우 폴백
-        const ta = document.createElement("textarea");
-        ta.value = payload; document.body.appendChild(ta); ta.select();
-        try { ok = document.execCommand("copy"); } catch (e) {}
-        ta.remove();
-      }
-      box.textContent = ok
-        ? "✅ " + out.length + "건 복사 완료 — 수집기 페이지에 붙여넣기(Ctrl+V)"
-        : "⚠ 복사 실패 — 콘솔(F12)의 ssReviews 변수를 사용하세요";
-      window.ssReviews = payload;
-      setTimeout(() => box.remove(), 6000);
     } catch (e) {
-      box.textContent = "오류: " + e.message;
-      setTimeout(() => box.remove(), 6000);
+      diag.collectError = String((e && e.message) || e);
     }
+
+    if (!out.length) {
+      window.ssDiag = JSON.stringify(diag, null, 1);
+      try { await navigator.clipboard.writeText(window.ssDiag); } catch (e) {}
+      say("리뷰가 0건입니다.\n진단 정보를 복사했습니다 (ssDiag).");
+      bye(20000);
+      return;
+    }
+
+    const payload = JSON.stringify({
+      source: "bookmarklet", via: diag.captured ? "capture" : "direct",
+      product: product, ids: ids, total: total || product.reviewCount,
+      reviews: out, collectedAt: new Date().toISOString(),
+    });
+    window.ssReviews = payload;
+
+    let ok = false;
+    try { await navigator.clipboard.writeText(payload); ok = true; } catch (e) {}
+    if (!ok) { // 클립보드 권한이 막힌 경우 폴백
+      const ta = document.createElement("textarea");
+      ta.value = payload; document.body.appendChild(ta); ta.select();
+      try { ok = document.execCommand("copy"); } catch (e) {}
+      ta.remove();
+    }
+    say(ok ? "✅ " + out.length + "건 복사 완료\n수집기 페이지에 붙여넣기(Ctrl+V)"
+           : "⚠ 복사 실패 — 콘솔(F12)의\nssReviews 변수를 사용하세요");
+    bye(8000);
   })();
 }
 
