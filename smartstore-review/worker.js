@@ -66,6 +66,12 @@ export default {
         return json({ product: info.product, ids: info.ids, ...page }, 200, cors);
       }
 
+      // 리뷰 사진 중계 — 네이버 이미지 CDN은 CORS 헤더를 안 줘서
+      // 브라우저가 바이트를 못 읽는다(ZIP/폴더 저장 불가). 여기서 붙여준다.
+      if (path === "/img" && request.method === "GET") {
+        return await proxyImage(url.searchParams.get("url") || "", cors);
+      }
+
       if (path === "/collect" && request.method === "POST") {
         const req = await request.json();
         const info = await loadProduct(req.url || "");
@@ -378,12 +384,41 @@ function looksLikeReview(x) {
   return hasText && hasScore;
 }
 
+// 리뷰 사진 URL 수집 — 필드명(attaches/reviewAttaches/mediaList/photoInfos…)이
+// 제각각이라, 리뷰 객체 안의 "이미지처럼 생긴 문자열"을 전부 훑어 모은다.
+const IMG_RE = /^(https?:)?\/\/[^\s"']+\.(jpg|jpeg|png|gif|webp|bmp)(\?|$)/i;
+const IMG_CDN = /^(https?:)?\/\/[a-z0-9.-]*phinf\.pstatic\.net\//i; // 확장자 없는 네이버 이미지
+const IMG_SKIP = /(profile|avatar|blank|icon|logo|noimage|no_image)/i;
+const isImgUrl = (s) => (IMG_RE.test(s) || IMG_CDN.test(s)) && !IMG_SKIP.test(s);
+
+function collectImages(root) {
+  const found = [];
+  const q = [root];
+  let seen = 0;
+  while (q.length && seen < 5000) {
+    const cur = q.shift();
+    seen++;
+    if (!cur || typeof cur !== "object") continue;
+    for (const v of Object.values(cur)) {
+      if (typeof v === "string") { if (isImgUrl(v)) found.push(v); }
+      else if (v && typeof v === "object") q.push(v);
+    }
+  }
+  // 프로토콜 보정 + 중복 제거 (같은 사진의 리사이즈 변형은 하나로 취급)
+  const out = [], keys = new Set();
+  for (let u of found) {
+    if (u.startsWith("//")) u = "https:" + u;
+    const key = u.split("?")[0];
+    if (keys.has(key)) continue;
+    keys.add(key);
+    out.push(u);
+  }
+  return out;
+}
+
 // 필드명이 버전마다 달라 공통 스키마로 눕힌다. (북마클릿 출력과 동일한 모양)
 function normalizeReview(r) {
-  const imgs = []
-    .concat(r.attaches || [], r.reviewAttaches || [], r.images || [])
-    .map((a) => (typeof a === "string" ? a : a && (a.imageUrl || a.url || a.originalUrl)))
-    .filter(Boolean);
+  const imgs = collectImages(r);
 
   return {
     id: r.id || r.reviewId || r.reviewNo || null,
@@ -399,12 +434,72 @@ function normalizeReview(r) {
     images: imgs,
     helpful: num(r.helpCount ?? r.likeCount ?? r.helpfulCount) || 0,
     reviewType: r.reviewType || r.qualityScore || "",
-    sellerReply: String(
-      (r.mallReview && (r.mallReview.content || r.mallReview.commentContent)) ||
-        r.commentContent ||
-        ""
-    ).trim(),
+    sellerReply: replyOf(r),
   };
+}
+
+// 판매자 답변 — mallReview / commentContent / sellerComment … 자리가 제각각이다.
+// "키 이름이 답변스러운 곳"만 훑어서 리뷰 본문과 섞이지 않게 한다.
+const REPLY_KEY = /(mallreview|sellercomment|selleranswer|sellerreply|comment|reply|answer)/i;
+
+function replyOf(r) {
+  const direct = [
+    r.mallReview && (r.mallReview.content || r.mallReview.commentContent),
+    r.commentContent, r.sellerComment, r.sellerAnswer, r.answerContent, r.replyContent,
+  ].find((v) => typeof v === "string" && v.trim());
+  if (direct) return direct.trim();
+
+  const q = [r];
+  let n = 0;
+  while (q.length && n < 3000) {
+    const c = q.shift();
+    n++;
+    if (!c || typeof c !== "object") continue;
+    for (const [k, v] of Object.entries(c)) {
+      if (REPLY_KEY.test(k)) {
+        if (typeof v === "string" && v.trim().length > 1 && !/^https?:/.test(v)) return v.trim();
+        if (v && typeof v === "object" && !Array.isArray(v)) {
+          const s = v.content || v.commentContent || v.text || v.body;
+          if (typeof s === "string" && s.trim()) return s.trim();
+        }
+        if (Array.isArray(v) && v.length && v[0] && typeof v[0] === "object") {
+          const s = v[0].content || v[0].commentContent || v[0].text || v[0].body;
+          if (typeof s === "string" && s.trim()) return s.trim();
+        }
+      }
+      if (v && typeof v === "object") q.push(v);
+    }
+  }
+  return "";
+}
+
+/* ────────────────────────── 이미지 중계 ────────────────────────── */
+
+// 네이버 이미지 CDN만 허용 (열린 이미지 프록시가 되지 않도록)
+const IMG_HOSTS = /(^|\.)(pstatic\.net|naver\.net|naver\.com)$/i;
+
+async function proxyImage(raw, cors) {
+  let u;
+  try {
+    u = new URL(raw);
+  } catch {
+    return json({ error: "이미지 URL이 올바르지 않습니다." }, 400, cors);
+  }
+  if (u.protocol !== "https:" || !IMG_HOSTS.test(u.hostname)) {
+    return json({ error: `허용되지 않은 이미지 호스트: ${u.hostname}` }, 403, cors);
+  }
+  const res = await fetch(u.toString(), {
+    headers: { "User-Agent": UA, "Referer": "https://smartstore.naver.com/" },
+  });
+  if (!res.ok) return json({ error: `이미지 응답 ${res.status}` }, res.status, cors);
+  return new Response(res.body, {
+    status: 200,
+    headers: {
+      "Content-Type": res.headers.get("Content-Type") || "image/jpeg",
+      "Cache-Control": "public, max-age=86400",
+      ...cors,
+    },
+  });
 }
 
 /* ────────────────────────── 공통 유틸 ────────────────────────── */
