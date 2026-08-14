@@ -1,0 +1,702 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>스마트스토어 리뷰 수집기</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  /* 색상 토큰 — 다크 테마 고정 (다른 도구들과 동일 규칙) */
+  :root{
+    --bg:#0b0f14; --panel:#121821; --panel2:#182130; --line:#243040;
+    --text:#e6edf6; --muted:#8b9bb0; --accent:#22c55e; --accent2:#38bdf8; --warn:#f59e0b;
+  }
+  body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Malgun Gothic",sans-serif}
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:14px}
+  .panel2{background:var(--panel2);border:1px solid var(--line);border-radius:10px}
+  .inp{background:#0e141c;border:1px solid var(--line);border-radius:9px;color:var(--text);padding:.6rem .75rem;outline:none}
+  .inp:focus{border-color:var(--accent2)}
+  .btn{background:var(--accent);color:#04180c;font-weight:700;border-radius:9px;padding:.6rem 1.05rem}
+  .btn:disabled{opacity:.45}
+  .btn2{background:#1e2a3a;color:var(--text);border:1px solid var(--line);border-radius:9px;padding:.5rem .9rem}
+  .chip{background:#1a2431;border:1px solid var(--line);border-radius:999px;padding:.25rem .7rem;font-size:.8rem}
+  .muted{color:var(--muted)}
+  .bar{background:#1b2532;border-radius:5px;overflow:hidden;height:9px}
+  .bar>i{display:block;height:100%;background:linear-gradient(90deg,var(--accent2),var(--accent))}
+  .star{color:#fbbf24}
+  a{color:var(--accent2)}
+  ::-webkit-scrollbar{width:10px;height:10px}
+  ::-webkit-scrollbar-thumb{background:#243040;border-radius:6px}
+</style>
+</head>
+<body class="min-h-screen">
+<div class="max-w-5xl mx-auto px-4 py-6">
+
+  <!-- 헤더 -->
+  <header class="flex items-center justify-between gap-3 mb-5">
+    <div>
+      <h1 class="text-xl font-bold">스마트스토어 리뷰 수집기</h1>
+      <p class="muted text-sm mt-0.5">상품 링크를 붙여넣으면 리뷰를 모아서 별점·키워드·옵션까지 정리합니다.</p>
+    </div>
+    <button id="btnSetup" class="btn2 text-sm shrink-0">⚙ 설정</button>
+  </header>
+
+  <!-- 설정 패널 -->
+  <section id="setup" class="panel p-4 mb-4 hidden">
+    <h2 class="font-semibold mb-2">프록시(Cloudflare Workers) 주소</h2>
+    <p class="muted text-sm mb-3">
+      브라우저는 보안(CORS) 때문에 네이버를 직접 못 부릅니다. <code>worker.js</code>를 Cloudflare에 배포하고
+      주소를 넣으면 <b>링크만 붙여넣어도 자동 수집</b>됩니다. 배포가 번거로우면 아래 <b>북마클릿 모드</b>를 쓰세요.
+    </p>
+    <div class="flex flex-wrap gap-2">
+      <input id="proxyUrl" class="inp flex-1 min-w-[260px]" placeholder="https://ss-review.내계정.workers.dev">
+      <button id="btnSaveProxy" class="btn">저장</button>
+      <button id="btnTestProxy" class="btn2">연결 확인</button>
+    </div>
+    <p id="proxyMsg" class="text-sm mt-2 muted"></p>
+  </section>
+
+  <!-- 입력 -->
+  <section class="panel p-4 mb-4">
+    <label class="block text-sm muted mb-1.5">상품 링크</label>
+    <input id="url" class="inp w-full mb-3"
+           placeholder="https://smartstore.naver.com/스토어명/products/1234567890">
+    <div class="flex flex-wrap items-end gap-3">
+      <div>
+        <label class="block text-xs muted mb-1">가져올 양</label>
+        <select id="pages" class="inp text-sm">
+          <option value="1">20개 (1페이지)</option>
+          <option value="3" selected>60개 (3페이지)</option>
+          <option value="5">100개 (5페이지)</option>
+          <option value="10">200개 (10페이지)</option>
+          <option value="25">500개 (25페이지)</option>
+          <option value="50">1000개 (50페이지)</option>
+        </select>
+      </div>
+      <div>
+        <label class="block text-xs muted mb-1">정렬</label>
+        <select id="sort" class="inp text-sm">
+          <option value="REVIEW_RANKING">랭킹순</option>
+          <option value="RECENT">최신순</option>
+          <option value="HIGH_SCORE">별점 높은순</option>
+          <option value="LOW_SCORE">별점 낮은순</option>
+        </select>
+      </div>
+      <button id="btnRun" class="btn">리뷰 가져오기</button>
+      <button id="btnBm" class="btn2 text-sm">북마클릿 모드</button>
+    </div>
+    <p id="status" class="text-sm mt-3 muted"></p>
+  </section>
+
+  <!-- 북마클릿 모드 -->
+  <section id="bmPanel" class="panel p-4 mb-4 hidden">
+    <h2 class="font-semibold mb-1">북마클릿 모드 — 프록시 없이 쓰기</h2>
+    <p class="muted text-sm mb-3">
+      상품 페이지에서 직접 실행하므로 CORS 제한이 없고 차단 위험도 가장 낮습니다.
+    </p>
+    <ol class="text-sm space-y-2 mb-4 list-decimal list-inside">
+      <li>아래 <b class="text-[var(--accent)]">리뷰수집</b> 링크를 <b>북마크바로 드래그</b>해서 등록 (또는 [코드 복사] 후 새 북마크의 URL에 붙여넣기)</li>
+      <li>스마트스토어 <b>상품 페이지</b>를 열고 등록한 북마크를 클릭</li>
+      <li>가져올 페이지 수를 입력 → 수집이 끝나면 결과 JSON이 <b>클립보드에 복사</b>됨</li>
+      <li>아래 칸에 <b>붙여넣기(Ctrl+V)</b> 후 [불러오기]</li>
+    </ol>
+    <div class="flex flex-wrap items-center gap-3 mb-3">
+      <a id="bmLink" class="chip font-bold" style="background:#0f2a1a;border-color:#1f5133;color:var(--accent)" href="#">📥 리뷰수집</a>
+      <button id="btnCopyBm" class="btn2 text-sm">코드 복사</button>
+      <span class="muted text-xs">드래그가 안 되면 [코드 복사] → 북마크 편집 → URL에 붙여넣기</span>
+    </div>
+    <textarea id="pasteBox" class="inp w-full h-24 text-xs font-mono" placeholder="여기에 복사된 JSON을 붙여넣으세요"></textarea>
+    <button id="btnLoadPaste" class="btn mt-2">불러오기</button>
+  </section>
+
+  <!-- 결과 -->
+  <main id="result" class="hidden space-y-4">
+
+    <!-- 상품 카드 -->
+    <section class="panel p-4 flex gap-4">
+      <img id="pImg" class="w-20 h-20 rounded-lg object-cover bg-[#0e141c] shrink-0" alt="">
+      <div class="min-w-0 flex-1">
+        <div id="pStore" class="text-xs muted"></div>
+        <a id="pName" class="font-semibold block truncate" target="_blank" rel="noopener"></a>
+        <div class="text-sm mt-1.5 flex flex-wrap gap-x-4 gap-y-1">
+          <span><span class="star">★</span> <b id="pScore">-</b> <span class="muted">평균</span></span>
+          <span class="muted">전체 리뷰 <b id="pCount" class="text-[var(--text)]">-</b></span>
+          <span class="muted">수집 <b id="pGot" class="text-[var(--text)]">-</b></span>
+          <span class="muted">사진리뷰 <b id="pPhoto" class="text-[var(--text)]">-</b></span>
+        </div>
+      </div>
+    </section>
+
+    <!-- 별점 분포 / 월별 추이 -->
+    <div class="grid md:grid-cols-2 gap-4">
+      <section class="panel p-4">
+        <h3 class="font-semibold text-sm mb-3">별점 분포</h3>
+        <div id="dist" class="space-y-2"></div>
+      </section>
+      <section class="panel p-4">
+        <h3 class="font-semibold text-sm mb-3">월별 리뷰 수</h3>
+        <div id="trend" class="space-y-2"></div>
+      </section>
+    </div>
+
+    <!-- 키워드 / 옵션 -->
+    <div class="grid md:grid-cols-2 gap-4">
+      <section class="panel p-4">
+        <h3 class="font-semibold text-sm mb-1">자주 나온 단어</h3>
+        <p class="muted text-xs mb-3">클릭하면 해당 단어가 들어간 리뷰만 봅니다.</p>
+        <div id="keywords" class="flex flex-wrap gap-1.5"></div>
+      </section>
+      <section class="panel p-4">
+        <h3 class="font-semibold text-sm mb-3">많이 팔린 옵션 (리뷰 기준)</h3>
+        <div id="options" class="space-y-2 text-sm"></div>
+      </section>
+    </div>
+
+    <!-- 필터 + 내보내기 -->
+    <section class="panel p-4">
+      <div class="flex flex-wrap items-center gap-2">
+        <div id="scoreFilter" class="flex gap-1"></div>
+        <label class="chip cursor-pointer flex items-center gap-1.5">
+          <input type="checkbox" id="onlyPhoto" class="accent-[var(--accent)]"> 사진리뷰만
+        </label>
+        <input id="q" class="inp text-sm flex-1 min-w-[160px]" placeholder="리뷰 내용 검색">
+        <select id="listSort" class="inp text-sm">
+          <option value="none">수집순</option>
+          <option value="new">최신순</option>
+          <option value="old">오래된순</option>
+          <option value="high">별점 높은순</option>
+          <option value="low">별점 낮은순</option>
+          <option value="long">긴 글순</option>
+        </select>
+        <span class="grow"></span>
+        <button id="btnCsv" class="btn2 text-sm">CSV</button>
+        <button id="btnJson" class="btn2 text-sm">JSON</button>
+      </div>
+      <p id="listInfo" class="muted text-sm mt-2"></p>
+    </section>
+
+    <!-- 리뷰 목록 -->
+    <section id="list" class="space-y-3"></section>
+    <button id="btnMore" class="btn2 w-full hidden">더 보기</button>
+  </main>
+</div>
+
+<script>
+/* ═══════════════════════ 상태 ═══════════════════════ */
+const LS_PROXY = "ssr.proxyUrl";
+let DATA = null;          // { product, reviews, total, source }
+let VIEW = [];            // 필터링된 리뷰
+let shown = 0;            // 목록에 그려진 개수
+const PAGE_RENDER = 30;   // 한 번에 그리는 개수
+
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s == null ? "" : s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+
+/* ═══════════════════════ 설정 ═══════════════════════ */
+$("proxyUrl").value = localStorage.getItem(LS_PROXY) || "";
+$("btnSetup").onclick = () => $("setup").classList.toggle("hidden");
+$("btnBm").onclick = () => $("bmPanel").classList.toggle("hidden");
+
+$("btnSaveProxy").onclick = () => {
+  const v = $("proxyUrl").value.trim().replace(/\/$/, "");
+  localStorage.setItem(LS_PROXY, v);
+  $("proxyMsg").textContent = v ? "저장했습니다." : "주소를 비웠습니다 (북마클릿 모드만 사용).";
+};
+
+$("btnTestProxy").onclick = async () => {
+  const v = $("proxyUrl").value.trim().replace(/\/$/, "");
+  if (!v) return ($("proxyMsg").textContent = "주소를 먼저 입력하세요.");
+  $("proxyMsg").textContent = "확인 중…";
+  try {
+    const r = await fetch(v + "/health");
+    const j = await r.json();
+    $("proxyMsg").textContent = j.ok ? "✅ 프록시 정상 동작" : "응답은 왔지만 형식이 다릅니다.";
+  } catch (e) {
+    $("proxyMsg").textContent = "❌ 연결 실패: " + e.message;
+  }
+};
+
+/* ═══════════════════════ 수집 (프록시 모드) ═══════════════════════ */
+$("btnRun").onclick = async () => {
+  const url = $("url").value.trim();
+  if (!url) return setStatus("상품 링크를 붙여넣으세요.", true);
+
+  const proxy = (localStorage.getItem(LS_PROXY) || "").replace(/\/$/, "");
+  if (!proxy) {
+    $("bmPanel").classList.remove("hidden");
+    return setStatus("프록시 주소가 없습니다. ⚙설정에서 등록하거나, 아래 북마클릿 모드를 사용하세요.", true);
+  }
+
+  const pages = +$("pages").value, sort = $("sort").value;
+  $("btnRun").disabled = true;
+  const reviews = [];
+  let product = null, total = 0;
+
+  try {
+    for (let p = 1; p <= pages; p++) {
+      setStatus(`수집 중… ${p}/${pages} 페이지 (${reviews.length}건)`);
+      const res = await fetch(proxy + "/reviews", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url, page: p, pageSize: 20, sort }),
+      });
+      const j = await res.json();
+      if (j.error) throw new Error(j.error);
+      product = j.product || product;
+      total = j.total || total;
+      if (!j.reviews || !j.reviews.length) break;
+      reviews.push(...j.reviews);
+      if (total && reviews.length >= total) break;
+    }
+    if (!reviews.length) throw new Error("리뷰가 0건입니다. 링크를 확인하거나 북마클릿 모드를 사용하세요.");
+    render({ source: "proxy", product, total, reviews });
+    setStatus(`완료 — ${reviews.length}건 수집`);
+  } catch (e) {
+    setStatus("실패: " + e.message + " → 북마클릿 모드를 사용해 보세요.", true);
+    $("bmPanel").classList.remove("hidden");
+  } finally {
+    $("btnRun").disabled = false;
+  }
+};
+
+function setStatus(msg, warn) {
+  $("status").textContent = msg;
+  $("status").style.color = warn ? "var(--warn)" : "var(--muted)";
+}
+
+/* ═══════════════════════ 북마클릿 ═══════════════════════ */
+/*
+  상품 페이지에서 실행되는 코드. 동일 출처라 fetch 제한이 없다.
+  worker.js 의 normalizeReview 와 같은 모양으로 결과를 만들어
+  아래 붙여넣기 칸에서 그대로 읽을 수 있게 한다.
+*/
+function bookmarkletMain() {
+  (async function () {
+    const S = window.__PRELOADED_STATE__;
+    if (!S) return alert("스마트스토어 상품 페이지에서 실행하세요.");
+
+    // productNo + name 을 가진 노드가 상품 상세
+    function findNode(root) {
+      const q = [root]; let loose = null, n = 0;
+      while (q.length && n < 50000) {
+        const c = q.shift(); n++;
+        if (!c || typeof c !== "object") continue;
+        if (!Array.isArray(c) && c.productNo && c.name) { if (c.channel) return c; if (!loose) loose = c; }
+        for (const v of Object.values(c)) if (v && typeof v === "object") q.push(v);
+      }
+      return loose;
+    }
+    function deep(root, k) {
+      const q = [root]; let n = 0;
+      while (q.length && n < 50000) {
+        const c = q.shift(); n++;
+        if (!c || typeof c !== "object") continue;
+        if (!Array.isArray(c) && c[k] != null && typeof c[k] !== "object") return c[k];
+        for (const v of Object.values(c)) if (v && typeof v === "object") q.push(v);
+      }
+      return null;
+    }
+    const N = (v) => { const x = parseInt(v, 10); return Number.isFinite(x) ? x : 0; };
+    const F = (v) => { const x = parseFloat(v); return Number.isFinite(x) ? x : 0; };
+
+    const node = findNode(S) || {};
+    const ch = node.channel || {}, am = node.reviewAmount || {};
+    const ids = {
+      productNo: N(node.productNo) || N(node.id) || N(deep(S, "productNo")),
+      originProductNo: N(node.originProductNo) || N(deep(S, "originProductNo")),
+      channelNo: N(ch.channelNo) || N(deep(S, "channelNo")),
+      merchantNo: N(ch.payReferenceKey) || N(ch.accountNo) || N(deep(S, "checkoutMerchantNo")) || N(deep(S, "merchantNo")),
+    };
+    const product = {
+      name: node.name || "(상품명 미상)",
+      storeName: ch.channelName || "",
+      image: node.representativeImageUrl || deep(S, "representativeImageUrl") || "",
+      salePrice: N(node.salePrice) || N(node.discountedSalePrice) || 0,
+      reviewCount: N(am.totalReviewCount) || N(deep(S, "totalReviewCount")) || 0,
+      averageScore: F(am.averageReviewScore) || F(deep(S, "averageReviewScore")) || 0,
+      url: location.origin + location.pathname,
+    };
+
+    const ans = prompt("가져올 페이지 수 (1페이지 = 리뷰 20개)", "5");
+    if (ans === null) return;
+    const pages = Math.min(Math.max(parseInt(ans, 10) || 5, 1), 100);
+    const base = location.origin;
+
+    function looks(x) {
+      return x && typeof x === "object" && !Array.isArray(x) &&
+        ("reviewContent" in x || "content" in x) && ("reviewScore" in x || "score" in x);
+    }
+    function pick(root) {
+      const q = [root]; let n = 0;
+      while (q.length && n < 20000) {
+        const c = q.shift(); n++;
+        if (!c || typeof c !== "object") continue;
+        if (Array.isArray(c)) {
+          if (c.length && c.some(looks)) return c.filter(looks);
+          for (const v of c) if (v && typeof v === "object") q.push(v);
+          continue;
+        }
+        for (const v of Object.values(c)) if (v && typeof v === "object") q.push(v);
+      }
+      return null;
+    }
+    function norm(r) {
+      const imgs = [].concat(r.attaches || [], r.reviewAttaches || [], r.images || [])
+        .map(a => typeof a === "string" ? a : a && (a.imageUrl || a.url || a.originalUrl)).filter(Boolean);
+      return {
+        id: r.id || r.reviewId || r.reviewNo || null,
+        score: F(r.reviewScore != null ? r.reviewScore : (r.score != null ? r.score : r.rating)) || 0,
+        content: String(r.reviewContent || r.content || r.reviewBody || "").trim(),
+        date: String(r.createDate || r.registerDate || r.createdDate || r.writeDate || "").slice(0, 10),
+        writer: r.writerMemberId || r.writerId || r.memberId || r.writerNickname || "",
+        option: String(r.productOptionContent || r.optionContent || r.combinationOptionName || "").trim(),
+        images: imgs,
+        helpful: N(r.helpCount || r.likeCount || r.helpfulCount) || 0,
+        reviewType: r.reviewType || "",
+        sellerReply: String((r.mallReview && (r.mallReview.content || r.mallReview.commentContent)) || r.commentContent || "").trim(),
+      };
+    }
+
+    // 진행 표시 (페이지 위에 떠 있는 배너)
+    const box = document.createElement("div");
+    box.style.cssText = "position:fixed;z-index:2147483647;right:16px;bottom:16px;background:#0b0f14;color:#e6edf6;padding:12px 16px;border-radius:10px;font:14px/1.4 sans-serif;box-shadow:0 8px 30px rgba(0,0,0,.5)";
+    document.body.appendChild(box);
+
+    const out = []; let total = 0, via = "";
+    try {
+      for (let p = 1; p <= pages; p++) {
+        box.textContent = "리뷰 수집 중… " + p + "/" + pages + " (" + out.length + "건)";
+        let arr = null, data = null;
+
+        // 후보 1: v2 GET
+        if (ids.channelNo && ids.productNo) {
+          try {
+            const r = await fetch(base + "/i/v2/channels/" + ids.channelNo + "/products/" + ids.productNo +
+              "/contents/reviews?page=" + p + "&pageSize=20&sortType=REVIEW_RANKING", { credentials: "include" });
+            if (r.ok) { data = await r.json(); arr = pick(data); if (arr) via = "v2"; }
+          } catch (e) {}
+        }
+        // 후보 2: v1 POST
+        if (!arr) {
+          try {
+            const r = await fetch(base + "/i/v1/contents/reviews/query-pages", {
+              method: "POST", credentials: "include",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                page: p, pageSize: 20, reviewSearchSortType: "REVIEW_RANKING",
+                productNo: ids.productNo, originProductNo: ids.originProductNo || ids.productNo,
+                channelNo: ids.channelNo, checkoutMerchantNo: ids.merchantNo,
+                merchantNo: ids.merchantNo, isNeedPageInfo: true,
+              }),
+            });
+            if (r.ok) { data = await r.json(); arr = pick(data); if (arr) via = "v1"; }
+          } catch (e) {}
+        }
+        if (!arr || !arr.length) break;
+        if (data) total = N(deep(data, "totalElements")) || N(deep(data, "totalCount")) || total;
+        out.push(...arr.map(norm));
+        if (total && out.length >= total) break;
+        await new Promise(r => setTimeout(r, 250)); // 연속 호출 간격
+      }
+
+      if (!out.length) { box.textContent = "리뷰를 가져오지 못했습니다."; setTimeout(() => box.remove(), 4000); return; }
+
+      const payload = JSON.stringify({
+        source: "bookmarklet", via, product, ids, total: total || product.reviewCount,
+        reviews: out, collectedAt: new Date().toISOString(),
+      });
+
+      let ok = false;
+      try { await navigator.clipboard.writeText(payload); ok = true; } catch (e) {}
+      if (!ok) { // 클립보드 권한이 막힌 경우 폴백
+        const ta = document.createElement("textarea");
+        ta.value = payload; document.body.appendChild(ta); ta.select();
+        try { ok = document.execCommand("copy"); } catch (e) {}
+        ta.remove();
+      }
+      box.textContent = ok
+        ? "✅ " + out.length + "건 복사 완료 — 수집기 페이지에 붙여넣기(Ctrl+V)"
+        : "⚠ 복사 실패 — 콘솔(F12)의 ssReviews 변수를 사용하세요";
+      window.ssReviews = payload;
+      setTimeout(() => box.remove(), 6000);
+    } catch (e) {
+      box.textContent = "오류: " + e.message;
+      setTimeout(() => box.remove(), 6000);
+    }
+  })();
+}
+
+// 함수 원문을 그대로 북마클릿 URL 로 만든다 (별도 빌드 단계 없이 유지보수)
+const BM_URL = "javascript:" + encodeURIComponent("(" + bookmarkletMain.toString() + ")()");
+$("bmLink").href = BM_URL;
+$("bmLink").onclick = (e) => { e.preventDefault(); alert("클릭이 아니라 북마크바로 드래그하거나, [코드 복사] 후 북마크 URL에 붙여넣으세요."); };
+$("btnCopyBm").onclick = async () => {
+  try { await navigator.clipboard.writeText(BM_URL); $("btnCopyBm").textContent = "복사됨 ✓"; }
+  catch { prompt("아래 코드를 복사하세요", BM_URL); }
+  setTimeout(() => ($("btnCopyBm").textContent = "코드 복사"), 1500);
+};
+
+$("btnLoadPaste").onclick = () => {
+  const raw = $("pasteBox").value.trim();
+  if (!raw) return setStatus("붙여넣은 내용이 없습니다.", true);
+  try {
+    const j = JSON.parse(raw);
+    if (!j.reviews || !j.reviews.length) throw new Error("reviews 배열이 없습니다.");
+    render(j);
+    setStatus(`불러오기 완료 — ${j.reviews.length}건`);
+    $("bmPanel").classList.add("hidden");
+  } catch (e) {
+    setStatus("JSON 해석 실패: " + e.message, true);
+  }
+};
+
+/* ═══════════════════════ 렌더링 ═══════════════════════ */
+function render(data) {
+  DATA = data;
+  const rs = data.reviews;
+  const p = data.product || {};
+
+  $("result").classList.remove("hidden");
+  $("pImg").src = p.image || "";
+  $("pImg").style.display = p.image ? "" : "none";
+  $("pStore").textContent = p.storeName || "";
+  $("pName").textContent = p.name || "(상품명 미상)";
+  $("pName").href = p.url || $("url").value || "#";
+
+  const avgCollected = rs.reduce((a, r) => a + (r.score || 0), 0) / (rs.length || 1);
+  $("pScore").textContent = (p.averageScore || avgCollected).toFixed(2);
+  $("pCount").textContent = (p.reviewCount || data.total || rs.length).toLocaleString();
+  $("pGot").textContent = rs.length.toLocaleString() + "건";
+  const photo = rs.filter(r => r.images && r.images.length).length;
+  $("pPhoto").textContent = Math.round(photo / (rs.length || 1) * 100) + "%";
+
+  renderDist(rs);
+  renderTrend(rs);
+  renderKeywords(rs);
+  renderOptions(rs);
+  buildScoreFilter(rs);
+  applyFilter();
+  $("result").scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+// 별점 분포
+function renderDist(rs) {
+  const cnt = [0, 0, 0, 0, 0]; // index 0 = 1점
+  rs.forEach(r => { const s = Math.round(r.score); if (s >= 1 && s <= 5) cnt[s - 1]++; });
+  const max = Math.max(...cnt, 1);
+  $("dist").innerHTML = [5, 4, 3, 2, 1].map(s => {
+    const c = cnt[s - 1], pct = Math.round(c / (rs.length || 1) * 100);
+    return `<div class="flex items-center gap-2 text-sm">
+      <span class="w-9 shrink-0"><span class="star">★</span>${s}</span>
+      <span class="bar flex-1"><i style="width:${c / max * 100}%"></i></span>
+      <span class="w-20 text-right muted">${c}건 (${pct}%)</span>
+    </div>`;
+  }).join("");
+}
+
+// 월별 리뷰 수 (최근 12개월)
+function renderTrend(rs) {
+  const m = {};
+  rs.forEach(r => { const k = (r.date || "").slice(0, 7); if (/^\d{4}-\d{2}$/.test(k)) m[k] = (m[k] || 0) + 1; });
+  const keys = Object.keys(m).sort().slice(-12);
+  if (!keys.length) return ($("trend").innerHTML = '<p class="muted text-sm">날짜 정보가 없습니다.</p>');
+  const max = Math.max(...keys.map(k => m[k]), 1);
+  $("trend").innerHTML = keys.map(k =>
+    `<div class="flex items-center gap-2 text-sm">
+      <span class="w-16 shrink-0 muted">${k}</span>
+      <span class="bar flex-1"><i style="width:${m[k] / max * 100}%"></i></span>
+      <span class="w-10 text-right muted">${m[k]}</span>
+    </div>`).join("");
+}
+
+/*
+  간이 키워드 집계 — 형태소 분석기 없이 조사만 떼는 수준.
+  핵심 트릭: 조사를 무조건 떼면 '알갱이'가 '알갱'이 되어 버린다. 그래서
+  "떼어낸 어간이 코퍼스에 단독으로 등장하거나(배송이→배송), 서로 다른 조사형이
+  2개 이상 존재할 때(강아지가·강아지도→강아지)"만 병합한다.
+*/
+const STOP = new Set(("그리고 그래서 하지만 그런데 그래도 정말 진짜 너무 조금 많이 아주 매우 완전 진심 대박 " +
+  "그냥 다시 아직 이번 바로 우리 저는 제가 근데 역시 이거 저거 그거 하나 정도 부분 경우 때문 때문에 " +
+  "생각 구매 주문 사용 상품 제품 감사합니다 감사해요 만족 최고 추천 혹시 아마 위해 통해 관련 대한 " +
+  "좋은 나쁜 같은 있는 없는 어요 에요 예요 네요 세요 지요 더라 라고 이라 으로 에서 " +
+  "습니다 입니다 합니다 했어요 해서 하고 있어요 있습니다 없어요 없습니다").split(/\s+/));
+
+const JOSA = /(은|는|이|가|을|를|에|의|도|와|과|로|랑|만|요)$/;
+const VERB_TAIL = /(니다|는데|지만|더니|더라|어요|아요|여요|해요|았어|었어|겠어|아서|어서|라서|져서|드려요)$/;
+const CONJ_MARK = /(했|하는|하게|하고|하지|하네|해서|해요|되는|됐|었|았|져|줘|스럽|스러)/;
+const CONJ2 = /^.[아어여워해돼네죠래라며면서고나까싸]$/; // 2글자로 줄어든 활용 잔재
+const splitWords = (t) => String(t).split(/[^가-힣a-zA-Z0-9]+/).filter(w => w.length >= 2);
+
+function countKeywords(texts, topN) {
+  // 1차 — 원형 빈도 + 어간별 조사형 수집
+  const raw = {}, stemForms = {};
+  for (const t of texts) for (const w of splitWords(t)) {
+    raw[w] = (raw[w] || 0) + 1;
+    if (w.length >= 3 && /[가-힣]$/.test(w)) {
+      const s = w.replace(JOSA, "");
+      if (s !== w && s.length >= 2) (stemForms[s] = stemForms[s] || new Set()).add(w);
+    }
+  }
+  // 은/는/을/를/에/만 은 명사 끝소리로 거의 안 쓰여 항상 떼도 안전하다.
+  // 이/가/도/의/로 등은 '알갱이·온도·정의'처럼 명사 일부일 수 있어 조건부로만 뗀다.
+  const SAFE_JOSA = /(은|는|을|를|에|만)$/;
+  const merge = (w) => {
+    if (w.length < 3 || !/[가-힣]$/.test(w)) return w;
+    const s = w.replace(JOSA, "");
+    if (s === w || s.length < 2) return w;
+    if (SAFE_JOSA.test(w)) return s;
+    return (raw[s] || (stemForms[s] && stemForms[s].size >= 2)) ? s : w;
+  };
+  const keep = (w) =>
+    w.length >= 2 && w.length <= 10 && !STOP.has(w) && !/^\d+$/.test(w) &&
+    !VERB_TAIL.test(w) && !CONJ_MARK.test(w) &&
+    !(/^[가-힣]+$/.test(w) && CONJ2.test(w)) &&
+    !(/요$/.test(w) && CONJ2.test(w.slice(0, -1)));   // 빨라요·먹네요 같은 잔재
+
+  // 2차 — 리뷰 단위 중복 제거(한 리뷰에서 10번 나와도 1로 셈)
+  // 활용형은 조사 제거 '전에' 걸러야 한다('아쉽지만'에서 만을 떼면 '아쉽지'가 남는다).
+  const f = {};
+  for (const t of texts) {
+    const ws = splitWords(t).filter(w => !VERB_TAIL.test(w)).map(merge).filter(keep);
+    for (const w of new Set(ws)) f[w] = (f[w] || 0) + 1;
+  }
+  return Object.entries(f).sort((a, b) => b[1] - a[1]).slice(0, topN || 24);
+}
+
+function renderKeywords(rs) {
+  const top = countKeywords(rs.map(r => r.content), 24);
+  if (!top.length) return ($("keywords").innerHTML = '<p class="muted text-sm">내용이 없습니다.</p>');
+  $("keywords").innerHTML = top.map(([w, c]) =>
+    `<button class="chip hover:border-[var(--accent2)]" data-kw="${esc(w)}">${esc(w)} <span class="muted">${c}</span></button>`).join("");
+  $("keywords").querySelectorAll("[data-kw]").forEach(b =>
+    b.onclick = () => { $("q").value = b.dataset.kw; applyFilter(); });
+}
+
+// 옵션별 리뷰 수 (어떤 옵션이 많이 팔렸는지 대리 지표)
+function renderOptions(rs) {
+  const f = {};
+  rs.forEach(r => { const o = (r.option || "").trim(); if (o) f[o] = (f[o] || 0) + 1; });
+  const top = Object.entries(f).sort((a, b) => b[1] - a[1]).slice(0, 10);
+  if (!top.length) return ($("options").innerHTML = '<p class="muted text-sm">옵션 정보가 없습니다.</p>');
+  const max = top[0][1];
+  $("options").innerHTML = top.map(([o, c]) =>
+    `<div class="flex items-center gap-2">
+      <span class="flex-1 truncate" title="${esc(o)}">${esc(o)}</span>
+      <span class="bar w-24 shrink-0"><i style="width:${c / max * 100}%"></i></span>
+      <span class="w-10 text-right muted">${c}</span>
+    </div>`).join("");
+}
+
+// 별점 필터 버튼
+function buildScoreFilter(rs) {
+  const cnt = {};
+  rs.forEach(r => { const s = Math.round(r.score); cnt[s] = (cnt[s] || 0) + 1; });
+  $("scoreFilter").innerHTML = [5, 4, 3, 2, 1].map(s =>
+    `<button class="chip" data-score="${s}" title="${cnt[s] || 0}건">★${s}</button>`).join("");
+  $("scoreFilter").querySelectorAll("[data-score]").forEach(b => b.onclick = () => {
+    b.classList.toggle("active");
+    b.style.background = b.classList.contains("active") ? "#0f2a1a" : "";
+    b.style.borderColor = b.classList.contains("active") ? "#1f5133" : "";
+    b.style.color = b.classList.contains("active") ? "var(--accent)" : "";
+    applyFilter();
+  });
+}
+
+/* ═══════════════════════ 필터 + 목록 ═══════════════════════ */
+["q", "onlyPhoto", "listSort"].forEach(id => {
+  $(id).addEventListener(id === "q" ? "input" : "change", applyFilter);
+});
+
+function applyFilter() {
+  if (!DATA) return;
+  const scores = [...$("scoreFilter").querySelectorAll(".active")].map(b => +b.dataset.score);
+  const q = $("q").value.trim().toLowerCase();
+  const photoOnly = $("onlyPhoto").checked;
+
+  VIEW = DATA.reviews.filter(r => {
+    if (scores.length && !scores.includes(Math.round(r.score))) return false;
+    if (photoOnly && !(r.images && r.images.length)) return false;
+    if (q && !(r.content + " " + r.option).toLowerCase().includes(q)) return false;
+    return true;
+  });
+
+  const s = $("listSort").value;
+  const by = {
+    new: (a, b) => (b.date || "").localeCompare(a.date || ""),
+    old: (a, b) => (a.date || "").localeCompare(b.date || ""),
+    high: (a, b) => b.score - a.score,
+    low: (a, b) => a.score - b.score,
+    long: (a, b) => (b.content || "").length - (a.content || "").length,
+  }[s];
+  if (by) VIEW = [...VIEW].sort(by);
+
+  const avg = VIEW.reduce((a, r) => a + r.score, 0) / (VIEW.length || 1);
+  $("listInfo").textContent = `${VIEW.length}건 표시 (전체 ${DATA.reviews.length}건 중) · 이 조건 평균 ★${avg.toFixed(2)}`;
+
+  shown = 0;
+  $("list").innerHTML = "";
+  renderMore();
+}
+
+function renderMore() {
+  const slice = VIEW.slice(shown, shown + PAGE_RENDER);
+  $("list").insertAdjacentHTML("beforeend", slice.map(reviewCard).join(""));
+  shown += slice.length;
+  $("btnMore").classList.toggle("hidden", shown >= VIEW.length);
+  $("btnMore").textContent = `더 보기 (${VIEW.length - shown}건 남음)`;
+}
+$("btnMore").onclick = renderMore;
+
+function reviewCard(r) {
+  const stars = "★".repeat(Math.round(r.score)) + "☆".repeat(5 - Math.round(r.score));
+  const imgs = (r.images || []).slice(0, 6).map(u =>
+    `<a href="${esc(u)}" target="_blank" rel="noopener"><img src="${esc(u)}" class="w-16 h-16 rounded object-cover bg-[#0e141c]" loading="lazy" alt=""></a>`).join("");
+  return `<article class="panel p-4">
+    <div class="flex items-center gap-2 text-sm mb-1.5 flex-wrap">
+      <span class="star">${stars}</span>
+      <span class="muted">${esc(r.date)}</span>
+      <span class="muted">${esc(r.writer)}</span>
+      ${r.helpful ? `<span class="muted">👍 ${r.helpful}</span>` : ""}
+      ${r.option ? `<span class="chip text-xs">${esc(r.option)}</span>` : ""}
+    </div>
+    <p class="text-sm whitespace-pre-wrap leading-relaxed">${esc(r.content) || '<span class="muted">(내용 없음)</span>'}</p>
+    ${imgs ? `<div class="flex gap-1.5 mt-2 flex-wrap">${imgs}</div>` : ""}
+    ${r.sellerReply ? `<div class="panel2 p-2.5 mt-2.5 text-sm"><b class="muted text-xs">판매자 답변</b><br>${esc(r.sellerReply)}</div>` : ""}
+  </article>`;
+}
+
+/* ═══════════════════════ 내보내기 ═══════════════════════ */
+$("btnCsv").onclick = () => {
+  if (!VIEW.length) return;
+  const head = ["별점", "작성일", "작성자", "옵션", "내용", "도움됨", "사진수", "판매자답변"];
+  const rows = VIEW.map(r => [r.score, r.date, r.writer, r.option, r.content, r.helpful, (r.images || []).length, r.sellerReply]);
+  const csv = [head, ...rows].map(row =>
+    row.map(v => `"${String(v == null ? "" : v).replace(/"/g, '""')}"`).join(",")).join("\r\n");
+  download("﻿" + csv, fileName("csv"), "text/csv;charset=utf-8");
+};
+
+$("btnJson").onclick = () => {
+  if (!VIEW.length) return;
+  download(JSON.stringify({ ...DATA, reviews: VIEW }, null, 2), fileName("json"), "application/json");
+};
+
+function fileName(ext) {
+  const n = ((DATA && DATA.product && DATA.product.name) || "리뷰").replace(/[\\/:*?"<>|]/g, "").slice(0, 40);
+  return `${n}_리뷰${VIEW.length}건.${ext}`;
+}
+
+function download(text, name, type) {
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([text], { type }));
+  a.download = name;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+
+/* 붙여넣기 칸에 JSON 이 들어오면 바로 안내 */
+$("pasteBox").addEventListener("paste", () => setTimeout(() => {
+  if ($("pasteBox").value.trim().startsWith("{")) $("btnLoadPaste").focus();
+}, 50));
+</script>
+</body>
+</html>
