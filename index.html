@@ -1,73 +1,686 @@
 <!doctype html>
 <html lang="ko">
 <head>
-    <meta charset="utf-8">
-    <title>마담 스터디</title>
-    </head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>invedory — 김바니가 만든 것들</title>
+<meta name="description" content="커머스 도구, AI 실험, 프로토타입까지 — 김바니가 만든 웹 프로젝트 모음.">
+<meta property="og:title" content="invedory — 김바니가 만든 것들">
+<meta property="og:description" content="커머스 도구, AI 실험, 프로토타입까지 — 김바니가 만든 웹 프로젝트 모음.">
+<meta property="og:type" content="website">
+<meta name="theme-color" content="#0e0f13">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🧭</text></svg>">
+<style>
+:root{
+  --bg:#0e0f13;
+  --bg-soft:#14161c;
+  --card:#171a21;
+  --card-hover:#1d212a;
+  --line:#262b36;
+  --line-soft:#1e222b;
+  --text:#e8eaf0;
+  --text-dim:#9aa1b1;
+  --text-faint:#6a7183;
+  --accent:#7c8cff;
+  --accent-soft:rgba(124,140,255,.14);
+  --accent-2:#4fd1c5;
+  --radius:16px;
+  --shadow:0 1px 2px rgba(0,0,0,.3), 0 8px 24px -12px rgba(0,0,0,.6);
+}
+@media (prefers-color-scheme: light){
+  :root:not([data-theme="dark"]){
+    --bg:#f7f8fb;
+    --bg-soft:#ffffff;
+    --card:#ffffff;
+    --card-hover:#ffffff;
+    --line:#e3e6ee;
+    --line-soft:#edeff5;
+    --text:#171a21;
+    --text-dim:#5b6376;
+    --text-faint:#8b93a6;
+    --accent:#4a5bdc;
+    --accent-soft:rgba(74,91,220,.09);
+    --accent-2:#0f9e90;
+    --shadow:0 1px 2px rgba(16,24,40,.04), 0 10px 28px -16px rgba(16,24,40,.25);
+  }
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{
+  margin:0;
+  background:var(--bg);
+  color:var(--text);
+  font-family:-apple-system,BlinkMacSystemFont,"Pretendard","Apple SD Gothic Neo","Malgun Gothic",
+    "Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+  line-height:1.6;
+  -webkit-font-smoothing:antialiased;
+}
+a{color:inherit;text-decoration:none}
+
+/* ---------- layout ---------- */
+.wrap{max-width:1080px;margin:0 auto;padding:0 24px}
+@media (max-width:600px){.wrap{padding:0 18px}}
+
+/* ---------- hero ---------- */
+.hero{
+  position:relative;
+  padding:88px 0 44px;
+  overflow:hidden;
+}
+.hero::before{
+  content:"";
+  position:absolute;
+  top:-220px;left:50%;
+  width:820px;height:520px;
+  margin-left:-410px;
+  background:radial-gradient(closest-side, var(--accent-soft), transparent 72%);
+  pointer-events:none;
+}
+.hero-inner{position:relative}
+.eyebrow{
+  display:inline-flex;align-items:center;gap:8px;
+  font-size:12px;letter-spacing:.14em;text-transform:uppercase;
+  color:var(--text-faint);font-weight:600;
+  margin-bottom:18px;
+}
+.dot{width:6px;height:6px;border-radius:50%;background:var(--accent-2);
+  box-shadow:0 0 0 4px color-mix(in srgb, var(--accent-2) 18%, transparent)}
+h1.brand{
+  margin:0;
+  font-size:clamp(38px,7vw,64px);
+  line-height:1.06;
+  letter-spacing:-.035em;
+  font-weight:800;
+}
+h1.brand .tld{color:var(--text-faint);font-weight:500}
+.tagline{
+  margin:18px 0 0;
+  font-size:clamp(15px,2.1vw,18px);
+  color:var(--text-dim);
+  max-width:56ch;
+}
+.stats{
+  display:flex;flex-wrap:wrap;gap:10px;
+  margin-top:28px;
+}
+.stat{
+  display:inline-flex;align-items:baseline;gap:7px;
+  background:var(--bg-soft);
+  border:1px solid var(--line);
+  border-radius:999px;
+  padding:7px 14px;
+  font-size:13px;color:var(--text-dim);
+}
+.stat b{color:var(--text);font-size:14px;font-weight:700}
+
+/* ---------- controls ---------- */
+.controls{
+  position:sticky;top:0;z-index:20;
+  background:color-mix(in srgb, var(--bg) 88%, transparent);
+  backdrop-filter:blur(12px);
+  -webkit-backdrop-filter:blur(12px);
+  border-bottom:1px solid var(--line-soft);
+  padding:14px 0;
+  margin-bottom:40px;
+}
+.controls-inner{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+.search{
+  position:relative;flex:1 1 240px;min-width:200px;
+}
+.search svg{
+  position:absolute;left:13px;top:50%;transform:translateY(-50%);
+  width:16px;height:16px;stroke:var(--text-faint);fill:none;stroke-width:2;
+  stroke-linecap:round;stroke-linejoin:round;pointer-events:none;
+}
+#q{
+  width:100%;
+  padding:10px 14px 10px 38px;
+  border-radius:11px;
+  border:1px solid var(--line);
+  background:var(--bg-soft);
+  color:var(--text);
+  font:inherit;font-size:14px;
+  outline:none;
+  transition:border-color .15s, box-shadow .15s;
+}
+#q::placeholder{color:var(--text-faint)}
+#q:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+.chips{display:flex;gap:7px;flex-wrap:wrap}
+.chip{
+  border:1px solid var(--line);
+  background:var(--bg-soft);
+  color:var(--text-dim);
+  font:inherit;font-size:13px;font-weight:500;
+  padding:8px 14px;border-radius:999px;
+  cursor:pointer;
+  transition:all .15s;
+  white-space:nowrap;
+}
+.chip:hover{color:var(--text);border-color:var(--text-faint)}
+.chip[aria-pressed="true"]{
+  background:var(--accent);border-color:var(--accent);color:#fff;
+}
+
+/* ---------- sections ---------- */
+section{margin-bottom:52px;scroll-margin-top:80px}
+.sec-head{display:flex;align-items:baseline;gap:12px;margin-bottom:6px}
+.sec-head h2{
+  margin:0;font-size:20px;font-weight:700;letter-spacing:-.02em;
+}
+.sec-count{
+  font-size:12px;color:var(--text-faint);font-variant-numeric:tabular-nums;
+  border:1px solid var(--line);border-radius:999px;padding:1px 9px;
+}
+.sec-desc{margin:0 0 20px;color:var(--text-dim);font-size:14px}
+
+.grid{
+  display:grid;
+  grid-template-columns:repeat(auto-fill,minmax(268px,1fr));
+  gap:14px;
+}
+
+/* ---------- card ---------- */
+.card{
+  position:relative;
+  display:flex;flex-direction:column;
+  gap:8px;
+  background:var(--card);
+  border:1px solid var(--line);
+  border-radius:var(--radius);
+  padding:18px 18px 16px;
+  box-shadow:var(--shadow);
+  transition:transform .18s cubic-bezier(.2,.7,.3,1), border-color .18s, background .18s;
+}
+.card:hover{
+  transform:translateY(-3px);
+  border-color:color-mix(in srgb, var(--accent) 45%, var(--line));
+  background:var(--card-hover);
+}
+.card:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
+.card-top{display:flex;align-items:center;gap:10px}
+.ico{
+  flex:none;
+  width:34px;height:34px;border-radius:10px;
+  display:grid;place-items:center;
+  font-size:17px;line-height:1;
+  background:var(--accent-soft);
+  border:1px solid color-mix(in srgb, var(--accent) 22%, transparent);
+}
+.card h3{margin:0;font-size:15.5px;font-weight:650;letter-spacing:-.01em}
+.card p{margin:0;font-size:13.5px;color:var(--text-dim);flex:1}
+.card-foot{
+  display:flex;align-items:center;justify-content:space-between;gap:10px;
+  margin-top:6px;padding-top:10px;
+  border-top:1px solid var(--line-soft);
+}
+.path{
+  font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  font-size:11.5px;color:var(--text-faint);
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+}
+.arrow{
+  flex:none;color:var(--text-faint);font-size:15px;
+  transition:transform .18s, color .18s;
+}
+.card:hover .arrow{transform:translateX(3px);color:var(--accent)}
+
+/* featured cards get a touch more presence */
+.grid.featured{grid-template-columns:repeat(auto-fill,minmax(300px,1fr))}
+.grid.featured .card{padding:20px}
+.grid.featured .ico{width:38px;height:38px;font-size:19px}
+.grid.featured h3{font-size:16.5px}
+
+/* ---------- collapsible ---------- */
+details.more{
+  border:1px solid var(--line);
+  border-radius:var(--radius);
+  background:var(--bg-soft);
+  overflow:hidden;
+}
+details.more>summary{
+  list-style:none;cursor:pointer;
+  padding:15px 18px;
+  font-size:14px;font-weight:600;
+  display:flex;align-items:center;justify-content:space-between;gap:10px;
+  transition:background .15s;
+}
+details.more>summary::-webkit-details-marker{display:none}
+details.more>summary:hover{background:var(--card)}
+details.more>summary .hint{font-weight:400;color:var(--text-faint);font-size:12.5px}
+details.more[open]>summary{border-bottom:1px solid var(--line-soft)}
+.mini-grid{
+  display:grid;
+  grid-template-columns:repeat(auto-fill,minmax(196px,1fr));
+  gap:2px;
+  padding:10px;
+}
+.mini{
+  display:flex;align-items:center;gap:9px;
+  padding:9px 11px;border-radius:9px;
+  font-size:13.5px;color:var(--text-dim);
+  transition:background .13s,color .13s;
+}
+.mini:hover{background:var(--card);color:var(--text)}
+.mini .m-ico{font-size:13px;opacity:.75;flex:none}
+.mini span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+/* ---------- empty state ---------- */
+#empty{
+  display:none;
+  text-align:center;padding:60px 20px;color:var(--text-faint);
+}
+#empty.on{display:block}
+#empty .big{font-size:34px;margin-bottom:10px}
+
+/* ---------- footer ---------- */
+footer{
+  border-top:1px solid var(--line-soft);
+  padding:32px 0 56px;
+  color:var(--text-faint);font-size:13px;
+  display:flex;flex-wrap:wrap;gap:14px;align-items:center;justify-content:space-between;
+}
+footer a{color:var(--text-dim);border-bottom:1px solid transparent;transition:border-color .15s,color .15s}
+footer a:hover{color:var(--text);border-color:var(--text-faint)}
+.foot-links{display:flex;gap:18px;flex-wrap:wrap}
+
+.hidden{display:none !important}
+@media (prefers-reduced-motion:reduce){
+  *{transition:none !important;animation:none !important}
+}
+</style>
+</head>
 <body>
-    <h1>마담 스터디</h1>
-    <ol>
-        <li>cli 명령어</li>
-        <li>마크다운 문법</li>
-        <li>html 기본</li>
-        <li>github</li>
-    </ol>
-    <p><a href="mirror/index.html">결 · 나를 읽다 (자기이해 AI 앱) 열기 →</a></p>
-    <p><a href="excel-promo/index.html">엑셀 행사 처리기 열기 →</a></p>
-    <p><a href="asmr/index.html">ASMR 사운드 플레이어 열기 →</a></p>
-    <p><a href="cost-calculator/index.html">제품 원가 계산기 열기 →</a></p>
-    <p><a href="smartstore-review/index.html">스마트스토어 리뷰 수집기 열기 →</a></p>
-    <form action="https://formspree.io/gimbany@gmail.com" method="post">
-        <input type="text"><br>
-        <input type="password"><br>
-        <select>
-            <option>
-                1월
-            </option>
-            <option>
-                2월
-            </option>
-            <option>
-                3월
-            </option>
-        </select>
-        <input type="radio" value="남자" name="성별" id="male">
-        <label for="male">남자</label>
-        <input type="radio" value="여자" name="성별" id="female">
-        <label for="female">여자</label> <br>
-        <input type="checkbox" value="운동" name="취미" id="gym">
-        <label for="gym">운동</label>
-        <input type="checkbox" value="영화" name="취미" id="movie">
-        <label for="movie">영화</label>
-        <input type="checkbox" value="독서" name="취미" id="book">
-        <label for="book">독서</label><br>
-        <button type="submit">회원가입</button>
-        <button type="reset">취소</button>
-    </form>
-    <table>
-        <caption>제목을입력하라</caption>
-        <thead>
-            <tr>
-                <td>이름</td>
-                <td>전화번호</td>
-                <td>생일</td>
-            </tr>
-        </thead>
-        <tbody>
-            <tr>
-                <td>김바니</td>
-                <td>010-3214-0211</td>
-                <td>911021</td>
-            </tr>
-             <tr>
-                <td>이연권</td>
-                <td>010-4321-4321</td>
-                <td>921414</td>
-            </tr>
-        </tbody>
-        <tfoot>
-        
-        </tfoot>
-    </table>
-    </body>
+
+<header class="hero">
+  <div class="wrap hero-inner">
+    <div class="eyebrow"><span class="dot"></span> kimbany · works</div>
+    <h1 class="brand">invedory<span class="tld">.com</span></h1>
+    <p class="tagline">
+      커머스 실무 도구부터 AI 실험, 프로토타입, 그리고 옛날 습작까지 —
+      직접 만들어 온 웹 프로젝트를 한곳에 모았습니다.
+    </p>
+    <div class="stats">
+      <div class="stat"><b id="stat-total">0</b> 프로젝트</div>
+      <div class="stat"><b>6</b> 카테고리</div>
+      <div class="stat"><b>2019 →</b> 지금</div>
+    </div>
+  </div>
+</header>
+
+<nav class="controls">
+  <div class="wrap controls-inner">
+    <div class="search">
+      <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+      <input id="q" type="search" placeholder="프로젝트 검색 (예: 계산기, ASMR, veil…)" autocomplete="off" aria-label="프로젝트 검색">
+    </div>
+    <div class="chips" id="chips" role="group" aria-label="카테고리 필터">
+      <button class="chip" data-cat="all" aria-pressed="true">전체</button>
+      <button class="chip" data-cat="tools" aria-pressed="false">커머스 도구</button>
+      <button class="chip" data-cat="ai" aria-pressed="false">AI · 자기이해</button>
+      <button class="chip" data-cat="veil" aria-pressed="false">Veil</button>
+      <button class="chip" data-cat="asmr" aria-pressed="false">ASMR</button>
+      <button class="chip" data-cat="play" aria-pressed="false">놀이</button>
+      <button class="chip" data-cat="study" aria-pressed="false">습작</button>
+    </div>
+  </div>
+</nav>
+
+<main class="wrap">
+
+  <!-- ===== 커머스 도구 ===== -->
+  <section data-cat="tools" id="tools">
+    <div class="sec-head"><h2>커머스 · 업무 도구</h2><span class="sec-count"></span></div>
+    <p class="sec-desc">실제 일하면서 필요해서 만든 것들. 대부분 브라우저에서 바로 돌아갑니다.</p>
+    <div class="grid featured">
+
+      <a class="card" href="cost-calculator/" data-tags="원가 판매가 roas 마진 계산기 커머스 수수료">
+        <div class="card-top"><div class="ico">🧮</div><h3>원가 · 판매가 · ROAS 계산기</h3></div>
+        <p>부자재·수수료·인건비까지 넣어 원가와 마진을 계산하고, 그대로 ROAS 손익까지 이어서 봅니다.</p>
+        <div class="card-foot"><span class="path">/cost-calculator</span><span class="arrow">→</span></div>
+      </a>
+
+      <a class="card" href="excel-promo/" data-tags="엑셀 행사 프로모션 처리 자동화 시트">
+        <div class="card-top"><div class="ico">📊</div><h3>엑셀 행사 처리기</h3></div>
+        <p>행사 엑셀을 업로드하면 필요한 형태로 정리해서 다시 내려받습니다.</p>
+        <div class="card-foot"><span class="path">/excel-promo</span><span class="arrow">→</span></div>
+      </a>
+
+      <a class="card" href="smartstore-review/" data-tags="스마트스토어 리뷰 수집 크롤링 네이버">
+        <div class="card-top"><div class="ico">⭐</div><h3>스마트스토어 리뷰 수집기</h3></div>
+        <p>스마트스토어 상품 리뷰를 긁어와 한 번에 훑어보고 저장합니다.</p>
+        <div class="card-foot"><span class="path">/smartstore-review</span><span class="arrow">→</span></div>
+      </a>
+
+      <a class="card" href="market-research/" data-tags="쇼핑 인사이트 네이버 데이터랩 대시보드 시장조사 트렌드">
+        <div class="card-top"><div class="ico">📈</div><h3>쇼핑 인사이트 대시보드</h3></div>
+        <p>네이버 데이터랩 기반으로 카테고리·키워드 트렌드를 한 화면에서 봅니다.</p>
+        <div class="card-foot"><span class="path">/market-research</span><span class="arrow">→</span></div>
+      </a>
+
+      <a class="card" href="xhs-search/" data-tags="샤오홍슈 xhs 중국 소싱 번역 검색 이미지">
+        <div class="card-top"><div class="ico">🇨🇳</div><h3>샤오홍슈 한국어 검색기</h3></div>
+        <p>한국어 키워드를 자동으로 중국어로 옮겨 샤오홍슈에서 찾고, 같은 제품 이미지를 골라 받습니다.</p>
+        <div class="card-foot"><span class="path">/xhs-search</span><span class="arrow">→</span></div>
+      </a>
+
+      <a class="card" href="blog-media-downloader/" data-tags="블로그 인스타그램 미디어 다운로더 이미지 영상">
+        <div class="card-top"><div class="ico">📥</div><h3>블로그 · 인스타 미디어 다운로더</h3></div>
+        <p>포스트 주소만 넣으면 안에 들어 있는 이미지와 영상을 한 번에 모아 받습니다.</p>
+        <div class="card-foot"><span class="path">/blog-media-downloader</span><span class="arrow">→</span></div>
+      </a>
+
+    </div>
+  </section>
+
+  <!-- ===== AI · 자기이해 ===== -->
+  <section data-cat="ai" id="ai">
+    <div class="sec-head"><h2>AI · 자기이해</h2><span class="sec-count"></span></div>
+    <p class="sec-desc">취향과 감정을 재료 삼아 &lsquo;나&rsquo;를 읽어내는 실험들. Taste OS는 화면 단위로 만들어 온 컨셉 시리즈입니다.</p>
+    <div class="grid featured">
+
+      <a class="card" href="mirror/" data-tags="결 나를 읽다 자기이해 ai 거울 mirror 심리">
+        <div class="card-top"><div class="ico">🪞</div><h3>결 · 나를 읽다</h3></div>
+        <p>질문에 답하다 보면 내 안의 결이 문장으로 돌아오는 자기이해 AI 앱.</p>
+        <div class="card-foot"><span class="path">/mirror</span><span class="arrow">→</span></div>
+      </a>
+
+      <a class="card" href="taste-os/landing/" data-tags="taste os 취향 감정 랜딩 landing 자기이해">
+        <div class="card-top"><div class="ico">🌗</div><h3>Taste OS — 랜딩</h3></div>
+        <p>&ldquo;자신을 알아가는, 가장 조용한 자리&rdquo; — Taste OS 프로젝트의 정문.</p>
+        <div class="card-foot"><span class="path">/taste-os/landing</span><span class="arrow">→</span></div>
+      </a>
+
+      <a class="card" href="taste-os/dashboard/" data-tags="taste os 대시보드 dashboard 집 home">
+        <div class="card-top"><div class="ico">🏠</div><h3>Taste OS — 집</h3></div>
+        <p>기록된 감정과 취향이 모이는 대시보드 화면.</p>
+        <div class="card-foot"><span class="path">/taste-os/dashboard</span><span class="arrow">→</span></div>
+      </a>
+
+      <a class="card" href="taste-os/report/" data-tags="taste os 리포트 report 옻칠한 황혼 결과">
+        <div class="card-top"><div class="ico">📜</div><h3>Taste OS — 리포트</h3></div>
+        <p>&ldquo;옻칠한 황혼&rdquo; — 분석 결과가 하나의 분위기로 이름 붙는 순간.</p>
+        <div class="card-foot"><span class="path">/taste-os/report</span><span class="arrow">→</span></div>
+      </a>
+
+    </div>
+
+    <details class="more" style="margin-top:14px" data-tags="taste os 전체 화면 모음 onboarding upload analysis timeline music quotes images sound share">
+      <summary>Taste OS 나머지 화면 23개 보기 <span class="hint">온보딩부터 공유까지</span></summary>
+      <div class="mini-grid">
+        <a class="mini" href="taste-os/entry/"><span class="m-ico">◦</span><span>들어가기 · Entry</span></a>
+        <a class="mini" href="taste-os/onboarding/"><span class="m-ico">◦</span><span>온보딩</span></a>
+        <a class="mini" href="taste-os/hero/"><span class="m-ico">◦</span><span>히어로</span></a>
+        <a class="mini" href="taste-os/landing-v2/"><span class="m-ico">◦</span><span>랜딩 v2</span></a>
+        <a class="mini" href="taste-os/landing-v3/"><span class="m-ico">◦</span><span>랜딩 v3</span></a>
+        <a class="mini" href="taste-os/upload/"><span class="m-ico">◦</span><span>두기 · 업로드</span></a>
+        <a class="mini" href="taste-os/analysis/"><span class="m-ico">◦</span><span>분석 중</span></a>
+        <a class="mini" href="taste-os/report-reveal/"><span class="m-ico">◦</span><span>리포트 공개</span></a>
+        <a class="mini" href="taste-os/reflection/"><span class="m-ico">◦</span><span>되묻기 · 성찰</span></a>
+        <a class="mini" href="taste-os/daily/"><span class="m-ico">◦</span><span>오늘의 공기</span></a>
+        <a class="mini" href="taste-os/atmosphere/"><span class="m-ico">◦</span><span>머무는 공기</span></a>
+        <a class="mini" href="taste-os/memory/"><span class="m-ico">◦</span><span>감정의 기억</span></a>
+        <a class="mini" href="taste-os/timeline/"><span class="m-ico">◦</span><span>변해온 결</span></a>
+        <a class="mini" href="taste-os/evolution/"><span class="m-ico">◦</span><span>계절의 변화</span></a>
+        <a class="mini" href="taste-os/home/"><span class="m-ico">◦</span><span>조용한 감정의 방</span></a>
+        <a class="mini" href="taste-os/music/"><span class="m-ico">◦</span><span>마음을 닮은 소리</span></a>
+        <a class="mini" href="taste-os/sound/"><span class="m-ico">◦</span><span>감정의 공기 · 사운드</span></a>
+        <a class="mini" href="taste-os/narration/"><span class="m-ico">◦</span><span>조용한 목소리</span></a>
+        <a class="mini" href="taste-os/quotes/"><span class="m-ico">◦</span><span>마음에 머문 문장</span></a>
+        <a class="mini" href="taste-os/images/"><span class="m-ico">◦</span><span>마음에 머문 장면</span></a>
+        <a class="mini" href="taste-os/share/"><span class="m-ico">◦</span><span>보내기</span></a>
+        <a class="mini" href="taste-os/sharing/"><span class="m-ico">◦</span><span>공유 스튜디오</span></a>
+        <a class="mini" href="taste-os/beta/"><span class="m-ico">◦</span><span>베타 신청</span></a>
+      </div>
+    </details>
+  </section>
+
+  <!-- ===== Veil ===== -->
+  <section data-cat="veil" id="veil">
+    <div class="sec-head"><h2>Veil — 익명 · 위장 채팅</h2><span class="sec-count"></span></div>
+    <p class="sec-desc">옆사람 어깨너머를 막는 위장 채팅에서 출발한 시리즈. 매칭, 라이브, 관리자까지 화면별로 만들어 봤습니다.</p>
+    <div class="grid">
+
+      <a class="card" href="veil-chat/" data-tags="veil chat 비밀 채팅 위장 익명">
+        <div class="card-top"><div class="ico">🕶️</div><h3>Veil Chat</h3></div>
+        <p>업무 화면처럼 보이게 위장하는 비밀 채팅. 시나리오 톤으로 대화를 감춥니다.</p>
+        <div class="card-foot"><span class="path">/veil-chat</span><span class="arrow">→</span></div>
+      </a>
+
+      <a class="card" href="veil-live/" data-tags="veil live 익명 매칭 실시간">
+        <div class="card-top"><div class="ico">🔴</div><h3>Veil LIVE</h3></div>
+        <p>실제로 상대를 찾아 연결하는 익명 매칭 화면.</p>
+        <div class="card-foot"><span class="path">/veil-live</span><span class="arrow">→</span></div>
+      </a>
+
+      <a class="card" href="veil-match/" data-tags="veil match 매칭">
+        <div class="card-top"><div class="ico">🔗</div><h3>Veil Match</h3></div>
+        <p>매칭 흐름 프로토타입.</p>
+        <div class="card-foot"><span class="path">/veil-match</span><span class="arrow">→</span></div>
+      </a>
+
+      <a class="card" href="veil-demo/" data-tags="veil demo 데모">
+        <div class="card-top"><div class="ico">▶️</div><h3>Veil Demo</h3></div>
+        <p>전체 컨셉을 훑어보는 데모.</p>
+        <div class="card-foot"><span class="path">/veil-demo</span><span class="arrow">→</span></div>
+      </a>
+
+      <a class="card" href="veil-chat/prototype/" data-tags="veil prototype 프로토타입">
+        <div class="card-top"><div class="ico">🧪</div><h3>Veil 프로토타입</h3></div>
+        <p>초기 인터랙션 실험판.</p>
+        <div class="card-foot"><span class="path">/veil-chat/prototype</span><span class="arrow">→</span></div>
+      </a>
+
+      <a class="card" href="veil-admin/" data-tags="veil admin 관리자">
+        <div class="card-top"><div class="ico">⚙️</div><h3>Veil 관리자</h3></div>
+        <p>운영자용 관리 화면.</p>
+        <div class="card-foot"><span class="path">/veil-admin</span><span class="arrow">→</span></div>
+      </a>
+
+    </div>
+  </section>
+
+  <!-- ===== ASMR ===== -->
+  <section data-cat="asmr" id="asmr">
+    <div class="sec-head"><h2>ASMR</h2><span class="sec-count"></span></div>
+    <p class="sec-desc">소리를 섞고 재생하는 플레이어에서 크리에이터 플랫폼 기획까지.</p>
+    <div class="grid">
+
+      <a class="card" href="asmr/" data-tags="asmr 사운드 플레이어 믹스 백색소음">
+        <div class="card-top"><div class="ico">🎧</div><h3>ASMR 사운드 플레이어</h3></div>
+        <p>여러 소리를 겹쳐 나만의 백색소음 믹스를 만듭니다.</p>
+        <div class="card-foot"><span class="path">/asmr</span><span class="arrow">→</span></div>
+      </a>
+
+      <a class="card" href="asmr-platform/proto/" data-tags="asmr 플랫폼 앱 프로토타입 크리에이터">
+        <div class="card-top"><div class="ico">📱</div><h3>ASMR 앱 프로토타입</h3></div>
+        <p>홈·탐색·미니 플레이어까지 움직이는 인터랙티브 프로토타입.</p>
+        <div class="card-foot"><span class="path">/asmr-platform/proto</span><span class="arrow">→</span></div>
+      </a>
+
+      <a class="card" href="asmr-platform/mockups/" data-tags="asmr 목업 mockup 화면 설계">
+        <div class="card-top"><div class="ico">🖼️</div><h3>ASMR 플랫폼 목업</h3></div>
+        <p>크리에이터 플랫폼 화면을 한눈에 늘어놓은 목업 모음.</p>
+        <div class="card-foot"><span class="path">/asmr-platform/mockups</span><span class="arrow">→</span></div>
+      </a>
+
+    </div>
+  </section>
+
+  <!-- ===== 놀이 ===== -->
+  <section data-cat="play" id="play">
+    <div class="sec-head"><h2>놀이 · 실험</h2><span class="sec-count"></span></div>
+    <p class="sec-desc">쓸모보다 재미가 먼저였던 것들.</p>
+    <div class="grid">
+
+      <a class="card" href="ladder3d/" data-tags="사다리 게임 3d 뽑기 랜덤">
+        <div class="card-top"><div class="ico">🪜</div><h3>3D 입체 사다리 게임</h3></div>
+        <p>돌려 보는 입체 사다리타기. 누가 걸릴지 끝까지 모릅니다.</p>
+        <div class="card-foot"><span class="path">/ladder3d</span><span class="arrow">→</span></div>
+      </a>
+
+      <a class="card" href="random-pop/" data-tags="랜덤 추천 메뉴 영화 책 닉네임 고민">
+        <div class="card-top"><div class="ico">🎲</div><h3>랜덤픽!</h3></div>
+        <p>할일·게임·메뉴·책·영화·간식·노래·닉네임 — 고민될 땐 그냥 랜덤으로.</p>
+        <div class="card-foot"><span class="path">/random-pop</span><span class="arrow">→</span></div>
+      </a>
+
+      <a class="card" href="chinolsong/" data-tags="diss4u 노래 ai 친구 놀리기 랩 디스">
+        <div class="card-top"><div class="ico">🎤</div><h3>Diss4U — AI 친구 놀리는 노래</h3></div>
+        <p>친구 이름만 넣으면 AI가 놀리는 노래를 만들어 줍니다.</p>
+        <div class="card-foot"><span class="path">/chinolsong</span><span class="arrow">→</span></div>
+      </a>
+
+      <a class="card" href="fitness-tamagotchi/" data-tags="운동 다마고치 피트니스 습관 게임">
+        <div class="card-top"><div class="ico">💪</div><h3>운동 다마고치</h3></div>
+        <p>내가 운동해야 펫이 자랍니다. 게으르면 시들해요.</p>
+        <div class="card-foot"><span class="path">/fitness-tamagotchi</span><span class="arrow">→</span></div>
+      </a>
+
+      <a class="card" href="tamagotchi/" data-tags="다마고치 펫 키우기 게임">
+        <div class="card-top"><div class="ico">🥚</div><h3>다마고치 펫</h3></div>
+        <p>먹이고 재우고 놀아 주는 기본형 다마고치.</p>
+        <div class="card-foot"><span class="path">/tamagotchi</span><span class="arrow">→</span></div>
+      </a>
+
+    </div>
+  </section>
+
+  <!-- ===== 습작 ===== -->
+  <section data-cat="study" id="study">
+    <div class="sec-head"><h2>습작 아카이브</h2><span class="sec-count"></span></div>
+    <p class="sec-desc">HTML·CSS를 처음 배우던 2019년의 클론 코딩과 연습 파일들. 지우지 않고 그대로 둡니다.</p>
+    <div class="grid">
+
+      <a class="card" href="Jung_mall/" data-tags="정관장 몰 클론 코딩 쇼핑몰 2019 습작">
+        <div class="card-top"><div class="ico">🛍️</div><h3>정관장 몰 클론</h3></div>
+        <p>쇼핑몰 메인 페이지를 그대로 따라 만들어 본 연습.</p>
+        <div class="card-foot"><span class="path">/Jung_mall</span><span class="arrow">→</span></div>
+      </a>
+
+      <a class="card" href="Tire_pick_clone/" data-tags="타이어픽 클론 코딩 2019 습작">
+        <div class="card-top"><div class="ico">🛞</div><h3>타이어픽 클론</h3></div>
+        <p>레이아웃과 이미지 배치 연습용 클론.</p>
+        <div class="card-foot"><span class="path">/Tire_pick_clone</span><span class="arrow">→</span></div>
+      </a>
+
+    </div>
+
+    <details class="more" style="margin-top:14px" data-tags="css 자바스크립트 연습 study 2019 수업 노트">
+      <summary>연습 파일 더 보기 <span class="hint">CSS · JS 수업 노트</span></summary>
+      <div class="mini-grid">
+        <a class="mini" href="css_Study/study_191007.html"><span class="m-ico">◦</span><span>CSS 연습 (19.10.07)</span></a>
+        <a class="mini" href="day190819/bany190819.html"><span class="m-ico">◦</span><span>HTML 연습 (19.08.19)</span></a>
+        <a class="mini" href="day190819/bany190819_2.html"><span class="m-ico">◦</span><span>HTML 연습 2 (19.08.19)</span></a>
+        <a class="mini" href="day190827/boksbi.html"><span class="m-ico">◦</span><span>레이아웃 연습 (19.08.27)</span></a>
+        <a class="mini" href="javascript/javascript20191202.html"><span class="m-ico">◦</span><span>자바스크립트 연습 (19.12.02)</span></a>
+        <a class="mini" href="a190812.md"><span class="m-ico">◦</span><span>수업 노트 (19.08.12)</span></a>
+      </div>
+    </details>
+  </section>
+
+  <div id="empty">
+    <div class="big">🫥</div>
+    <div>찾는 프로젝트가 없어요. 다른 단어로 검색해 보세요.</div>
+  </div>
+
+</main>
+
+<footer class="wrap">
+  <div>© <span id="year"></span> kimbany · invedory.com</div>
+  <div class="foot-links">
+    <a href="https://github.com/kimbany/kimbany.github.io">GitHub 저장소</a>
+    <a href="mailto:gimbany@gmail.com">gimbany@gmail.com</a>
+  </div>
+</footer>
+
+<script>
+(function () {
+  var sections = Array.prototype.slice.call(document.querySelectorAll('main section'));
+  var chips = Array.prototype.slice.call(document.querySelectorAll('.chip'));
+  var q = document.getElementById('q');
+  var empty = document.getElementById('empty');
+  var activeCat = 'all';
+
+  // total project count (cards + mini links)
+  var totalCards = document.querySelectorAll('.card').length;
+  var totalMini = document.querySelectorAll('.mini').length;
+  document.getElementById('stat-total').textContent = totalCards + totalMini;
+  document.getElementById('year').textContent = new Date().getFullYear();
+
+  // per-section counts
+  sections.forEach(function (s) {
+    var n = s.querySelectorAll('.card').length + s.querySelectorAll('.mini').length;
+    var el = s.querySelector('.sec-count');
+    if (el) el.textContent = n;
+  });
+
+  function textOf(el) {
+    return ((el.textContent || '') + ' ' + (el.getAttribute('data-tags') || '')).toLowerCase();
+  }
+
+  function apply() {
+    var term = q.value.trim().toLowerCase();
+    var anyVisible = false;
+
+    sections.forEach(function (sec) {
+      var catOk = activeCat === 'all' || sec.getAttribute('data-cat') === activeCat;
+      if (!catOk) { sec.classList.add('hidden'); return; }
+
+      var items = Array.prototype.slice.call(sec.querySelectorAll('.card, .mini'));
+      var shown = 0;
+
+      items.forEach(function (item) {
+        var hit = !term || textOf(item).indexOf(term) !== -1;
+        item.classList.toggle('hidden', !hit);
+        if (hit) shown++;
+      });
+
+      // open collapsed groups when a search surfaces something inside them
+      sec.querySelectorAll('details.more').forEach(function (d) {
+        var inner = Array.prototype.slice.call(d.querySelectorAll('.mini'));
+        var innerShown = inner.filter(function (m) { return !m.classList.contains('hidden'); }).length;
+        d.classList.toggle('hidden', term && innerShown === 0);
+        if (term && innerShown > 0) d.open = true;
+        if (!term) d.open = false;
+      });
+
+      sec.classList.toggle('hidden', shown === 0);
+      if (shown > 0) anyVisible = true;
+    });
+
+    empty.classList.toggle('on', !anyVisible);
+  }
+
+  chips.forEach(function (chip) {
+    chip.addEventListener('click', function () {
+      activeCat = chip.getAttribute('data-cat');
+      chips.forEach(function (c) {
+        c.setAttribute('aria-pressed', String(c === chip));
+      });
+      apply();
+    });
+  });
+
+  var t;
+  q.addEventListener('input', function () {
+    clearTimeout(t);
+    t = setTimeout(apply, 90);
+  });
+
+  // "/" focuses search, Esc clears it
+  document.addEventListener('keydown', function (e) {
+    if (e.key === '/' && document.activeElement !== q) {
+      e.preventDefault();
+      q.focus();
+    } else if (e.key === 'Escape' && document.activeElement === q) {
+      q.value = '';
+      apply();
+      q.blur();
+    }
+  });
+
+  apply();
+})();
+</script>
+</body>
 </html>
