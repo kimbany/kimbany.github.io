@@ -516,14 +516,38 @@ function bookmarkletMain() {
       return "";
     }
 
+    /* 마지막 수단 — 항목 안에서 "가장 긴 사람 글"을 찾는다.
+       필드명을 하나도 못 맞혀도 본문은 대개 그 항목에서 제일 긴 문자열이다. */
+    function longestString(root, exclude) {
+      let best = "";
+      const q = [root]; let n = 0;
+      while (q.length && n < 2000) {
+        const c = q.shift(); n++;
+        if (!c || typeof c !== "object") continue;
+        for (const v of Object.values(c)) {
+          if (typeof v === "string") {
+            const s = v.trim();
+            if (s.length <= best.length || s.length < 2 || s === exclude) continue;
+            if (/^https?:/i.test(s)) continue;              // URL
+            if (/^\d{4}[-.\/]\d{2}/.test(s)) continue;       // 날짜
+            if (/^[YN]$/i.test(s) || /^\d+$/.test(s)) continue;
+            if (/^[\w.-]+\*+$/.test(s)) continue;            // 마스킹된 작성자 ID
+            best = s;
+          } else if (v && typeof v === "object") q.push(v);
+        }
+      }
+      return best;
+    }
+
     function normQna(x) {
       const answer =
-        (typeof x.answer === "string" ? x.answer : (x.answer && (x.answer.content || x.answer.answerContent))) ||
-        x.answerContent || x.replyContent || x.commentContent ||
+        (typeof x.answer === "string" ? x.answer : (x.answer && (x.answer.content || x.answer.answerContent || x.answer.text || x.answer.body))) ||
+        x.answerContent || x.replyContent || x.commentContent || x.answerBody ||
         fieldBy(x, /(answer|reply|^ans)/i) || "";
       const question =
         x.question || x.questionContent || x.inquiryContent || x.qnaContent || x.inquiryTitle || x.title ||
-        fieldBy(x, /(question|inquiry|qna|inq|title|content)/i, /(answer|reply|^ans)/i) || "";
+        fieldBy(x, /(question|inquiry|qna|inq|title|content|body|text|subject|memo|desc)/i, /(answer|reply|^ans)/i) ||
+        longestString(x, String(answer).trim()) || "";
       const qDate = x.createDate || x.questionCreateDate || x.registerDate || x.inquiryDate ||
         fieldBy(x, /(date|time|dt$|created|regist|writ)/i, /(answer|reply|^ans)/i) || "";
       // id 도 이름이 제각각(qnaNo, inquirySeq …) — 숫자/문자 식별자처럼 생긴 키를 찾는다
@@ -798,14 +822,24 @@ function bookmarkletMain() {
       return { url: u.toString(), method: req.method || "GET", body: req.body };
     }
 
+    // 문자열이 길면 잘라서 진단에 담기 좋게 만든다
+    function trimSample(arr) {
+      if (!arr || !arr.length) return null;
+      try {
+        return JSON.parse(JSON.stringify(arr, (k, v) =>
+          typeof v === "string" && v.length > 200 ? v.slice(0, 200) + "…" : v));
+      } catch (e) { return null; }
+    }
+
     async function collect(recipe, pickFn, normFn, keyFn, label) {
       const out = [], seen = new Set();
-      let total = 0;
+      let total = 0, rawSample = null;
       for (let p = 1; p <= pages; p++) {
         say(label + " 수집 중… " + p + "/" + pages + " (" + out.length + "건)");
         const r = await run(withPage(recipe, p));
         const arr = r.data && pickFn(r.data);
         if (!arr || !arr.length) break;
+        if (!rawSample) rawSample = arr.slice(0, 3);   // 원본 모양 보존 (진단용)
         total = N(deep(r.data, "totalElements")) || N(deep(r.data, "totalCount")) || total;
         let added = 0;
         for (const item of arr.map(normFn)) {
@@ -817,7 +851,7 @@ function bookmarkletMain() {
         if (total && out.length >= total) break;
         await wait(250); // 연속 호출 간격
       }
-      return { items: out, total: total };
+      return { items: out, total: total, rawSample: rawSample };
     }
 
     /* ══════════ 실행 ══════════ */
@@ -838,6 +872,10 @@ function bookmarkletMain() {
         const r = await collect(recipe, pickReviews, normReview,
           (x) => (x.id || "") + "|" + x.date + "|" + x.content.slice(0, 24), "리뷰");
         reviews = r.items; reviewTotal = r.total;
+        if (reviews.length) {
+          const empty = reviews.filter(x => !x.content).length / reviews.length;
+          if (empty > 0.5) { diag.reviewEmptyPct = Math.round(empty * 100); diag.reviewRawSample = trimSample(r.rawSample); }
+        }
       }
       if (!reviews.length) diag.reviewFailed = true;
     }
@@ -868,7 +906,18 @@ function bookmarkletMain() {
         const r = await collect(recipe, pickQnas, normQna,
           (x) => (x.id || "") + "|" + x.questionDate + "|" + x.question.slice(0, 24), "문의");
         qnas = r.items; qnaTotal = r.total;
-        if (!qnas.length) diag.qnaResult = "none"; // 응답은 왔는데 0건 = 문의 없음
+        if (!qnas.length) {
+          diag.qnaResult = "none"; // 응답은 왔는데 0건 = 문의 없음
+        } else {
+          // 건수는 잡혔는데 본문이 비어 있으면(=필드명을 못 맞혔거나 목록 API가
+          // 내용을 안 주는 경우) 원본 항목을 그대로 담아 원인을 볼 수 있게 한다.
+          const empty = qnas.filter(x => !x.question).length / qnas.length;
+          if (empty > 0.5) {
+            diag.qnaResult = "empty-content";
+            diag.qnaEmptyPct = Math.round(empty * 100);
+            diag.qnaRawSample = trimSample(r.rawSample);
+          }
+        }
       }
       if (!qnas.length && diag.qnaResult === "failed") diag.qnaFailed = true;
     }
@@ -890,7 +939,8 @@ function bookmarkletMain() {
 
     // 일부만 실패해도 조용히 넘어가지 않는다 — 진단 정보를 결과에 같이 담아
     // 수집기 페이지에 붙여넣기만 하면 원인을 볼 수 있게 한다.
-    const partial = (wantReview && diag.reviewFailed) || (wantQna && diag.qnaFailed);
+    const partial = (wantReview && diag.reviewFailed) || (wantQna && diag.qnaFailed) ||
+      diag.qnaResult === "empty-content" || !!diag.reviewRawSample;
     const payload = JSON.stringify({
       source: "bookmarklet",
       via: (diag.capturedReview || diag.capturedQna) ? "capture" : "direct",
@@ -900,7 +950,10 @@ function bookmarkletMain() {
       qnas: qnas, qnaTotal: qnaTotal,
       wanted: { review: wantReview, qna: wantQna, images: wantImages },
       scope: diag.reviewScope || diag.qnaScope || "direct",
-      qnaResult: wantQna ? (qnas.length ? "ok" : (diag.qnaResult || "none")) : undefined,
+      qnaResult: wantQna
+        ? (diag.qnaResult === "empty-content" ? "empty-content"
+           : (qnas.length ? "ok" : (diag.qnaResult || "none")))
+        : undefined,
       diag: partial ? diag : undefined,
       collectedAt: new Date().toISOString(),
     });
@@ -921,9 +974,11 @@ function bookmarkletMain() {
       .filter(Boolean).join("·");
     // 문의가 애초에 없는 상품이면 실패가 아니다 — 그냥 없다고만 알린다
     const noQna = wantQna && !qnas.length && diag.qnaResult === "none";
+    const emptyQna = diag.qnaResult === "empty-content";
     say((ok ? "✅ " + (summary || "수집 결과") + " 복사 완료\n수집기 페이지에 붙여넣기(Ctrl+V)"
             : "⚠ 복사 실패 — 콘솔(F12)의\nssReviews 변수를 사용하세요") +
         (noQna ? "\n\n이 상품에는 문의가 없습니다." : "") +
+        (emptyQna ? "\n\n⚠ 문의 " + qnas.length + "건은 잡혔지만\n본문이 비어 있습니다. 원본 샘플을\n결과에 담았습니다." : "") +
         (missed ? "\n\n⚠ " + missed + "는 못 가져왔습니다.\n원인 정보가 결과에 함께 담겼습니다." : ""));
     bye(missed ? 15000 : 9000);
   })();
@@ -1346,6 +1401,22 @@ function renderDiag() {
     $("diagMsg").textContent = "이 상품에는 등록된 문의가 없습니다. (리뷰 수집에는 영향 없습니다)";
     $("diagPre").textContent = "";
     $("btnCopyDiag").classList.add("hidden");
+    return;
+  }
+
+  // 2) 건수는 잡혔는데 본문이 비어 있는 경우 — 원본 샘플을 보여줘야 고칠 수 있다
+  if (d && (DATA.qnaResult === "empty-content" || d.reviewRawSample)) {
+    sec.classList.remove("hidden");
+    sec.style.borderColor = "#5a3d12";
+    title.textContent = "⚠ 내용이 비어 있습니다";
+    title.style.color = "var(--warn)";
+    $("btnCopyDiag").classList.remove("hidden");
+    const what = DATA.qnaResult === "empty-content" ? "문의" : "리뷰";
+    const pct = DATA.qnaResult === "empty-content" ? d.qnaEmptyPct : d.reviewEmptyPct;
+    $("diagMsg").textContent =
+      `${what}는 잡혔는데 본문의 ${pct}%가 비어 있습니다. 네이버가 쓰는 필드 이름을 못 맞혔거나, ` +
+      `목록 API가 본문을 안 내려주는 경우입니다. 아래 원본 샘플을 복사해 알려주시면 맞춰 고칠 수 있습니다.`;
+    $("diagPre").textContent = JSON.stringify(d, null, 1).slice(0, 20000);
     return;
   }
 
