@@ -181,6 +181,20 @@
       <p id="listInfo" class="muted text-sm mt-2"></p>
     </section>
 
+    <!-- 리뷰 사진 갤러리 -->
+    <section id="gallerySec" class="panel p-4 hidden">
+      <div class="flex items-center justify-between gap-2 mb-3 flex-wrap">
+        <h3 class="font-semibold text-sm">리뷰 사진 <span id="galCount" class="muted font-normal"></span></h3>
+        <div class="flex flex-wrap gap-2">
+          <button id="btnSaveDir" class="btn2 text-sm">폴더에 저장</button>
+          <button id="btnDlAll" class="btn2 text-sm">전부 다운로드</button>
+          <button id="btnCopyUrls" class="btn2 text-sm">URL 목록 복사</button>
+        </div>
+      </div>
+      <div id="gallery" class="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 gap-1.5"></div>
+      <p id="galMsg" class="muted text-sm mt-2">현재 필터에 걸린 리뷰의 사진만 모읍니다.</p>
+    </section>
+
     <!-- 리뷰 목록 -->
     <section id="list" class="space-y-3"></section>
     <button id="btnMore" class="btn2 w-full hidden">더 보기</button>
@@ -318,9 +332,33 @@ function bookmarkletMain() {
       }
       return null;
     }
+    /* 리뷰 사진 — 필드명이 제각각이라 "이미지처럼 생긴 문자열"을 전부 훑는다 */
+    const IMG_RE = /^(https?:)?\/\/[^\s"']+\.(jpg|jpeg|png|gif|webp|bmp)(\?|$)/i;
+    const IMG_CDN = /^(https?:)?\/\/[a-z0-9.-]*phinf\.pstatic\.net\//i;
+    const IMG_SKIP = /(profile|avatar|blank|icon|logo|noimage|no_image)/i;
+    const isImg = (s) => (IMG_RE.test(s) || IMG_CDN.test(s)) && !IMG_SKIP.test(s);
+    function imgsOf(root) {
+      const found = [], q = [root]; let n = 0;
+      while (q.length && n < 5000) {
+        const c = q.shift(); n++;
+        if (!c || typeof c !== "object") continue;
+        for (const v of Object.values(c)) {
+          if (typeof v === "string") { if (isImg(v)) found.push(v); }
+          else if (v && typeof v === "object") q.push(v);
+        }
+      }
+      const out = [], keys = new Set();
+      for (let u of found) {
+        if (u.indexOf("//") === 0) u = "https:" + u;
+        const k = u.split("?")[0];
+        if (keys.has(k)) continue;      // 같은 사진의 리사이즈 변형은 하나로
+        keys.add(k); out.push(u);
+      }
+      return out;
+    }
+
     function norm(r) {
-      const imgs = [].concat(r.attaches || [], r.reviewAttaches || [], r.images || [])
-        .map(a => typeof a === "string" ? a : a && (a.imageUrl || a.url || a.originalUrl)).filter(Boolean);
+      const imgs = imgsOf(r);
       return {
         id: r.id || r.reviewId || r.reviewNo || null,
         score: F(r.reviewScore != null ? r.reviewScore : (r.score != null ? r.score : r.rating)) || 0,
@@ -758,10 +796,117 @@ function applyFilter() {
   const avg = VIEW.reduce((a, r) => a + r.score, 0) / (VIEW.length || 1);
   $("listInfo").textContent = `${VIEW.length}건 표시 (전체 ${DATA.reviews.length}건 중) · 이 조건 평균 ★${avg.toFixed(2)}`;
 
+  renderGallery();
   shown = 0;
   $("list").innerHTML = "";
   renderMore();
 }
+
+/* ═══════════════════════ 사진 갤러리 · 다운로드 ═══════════════════════ */
+let PHOTOS = [];  // [{ url, review }] — 현재 필터에 걸린 리뷰의 사진
+
+function renderGallery() {
+  PHOTOS = [];
+  VIEW.forEach(r => (r.images || []).forEach(u => PHOTOS.push({ url: u, review: r })));
+
+  $("gallerySec").classList.toggle("hidden", !PHOTOS.length);
+  if (!PHOTOS.length) return;
+
+  $("galCount").textContent = `${PHOTOS.length}장 · 리뷰 ${VIEW.filter(r => r.images && r.images.length).length}건`;
+  $("gallery").innerHTML = PHOTOS.slice(0, 200).map((p, i) =>
+    `<a href="${esc(origUrl(p.url))}" target="_blank" rel="noopener" title="★${p.review.score} ${esc(p.review.date)}">
+       <img src="${esc(p.url)}" loading="lazy" alt=""
+            class="w-full aspect-square rounded object-cover bg-[#0e141c] hover:opacity-80"></a>`).join("");
+  $("galMsg").textContent = PHOTOS.length > 200
+    ? `앞의 200장만 미리보기로 표시합니다 (다운로드는 ${PHOTOS.length}장 전부).`
+    : "현재 필터에 걸린 리뷰의 사진만 모읍니다.";
+}
+
+// 네이버 이미지는 ?type=w580 같은 리사이즈 파라미터가 붙는다 → 떼면 원본
+const origUrl = (u) => u.split("?")[0];
+
+// 공개 CORS 프록시 (blog-media-downloader 와 동일 — 각기 막는 도메인이 달라 다양화)
+const IMG_PROXIES = [
+  (u) => `https://api.codetabs.com/v1/proxy/?quest=${encodeURIComponent(u)}`,
+  (u) => `https://corsproxy.io/?${encodeURIComponent(u)}`,
+];
+
+// 네이버 이미지 CDN은 CORS 헤더를 안 줘서 브라우저가 바이트를 못 읽는다.
+// 내 Worker(/img) → 직접 → 공개 프록시 순으로 시도.
+async function fetchImageBlob(url) {
+  const proxy = (localStorage.getItem(LS_PROXY) || "").replace(/\/$/, "");
+  const tries = [];
+  if (proxy) tries.push(`${proxy}/img?url=${encodeURIComponent(origUrl(url))}`);
+  tries.push(origUrl(url), url);
+  for (const make of IMG_PROXIES) tries.push(make(origUrl(url)));
+
+  for (const t of tries) {
+    try {
+      const r = await fetch(t, { mode: "cors" });
+      if (r.ok) {
+        const b = await r.blob();
+        if (b.size > 0 && /^image\//.test(b.type || "image/")) return b;
+      }
+    } catch (e) { /* 다음 후보 */ }
+  }
+  throw new Error("다운로드 실패");
+}
+
+// 파일명은 ASCII 로 — 크롬이 download 속성의 한글 이름을 무시하고
+// 전부 "download" 로 저장해 버리는 경우가 있다 (blog-media-downloader 와 같은 규칙).
+function photoName(p, i) {
+  const ext = (origUrl(p.url).match(/\.(jpg|jpeg|png|gif|webp|bmp)$/i) || [".jpg"])[0].toLowerCase();
+  const n = String(i + 1).padStart(3, "0");
+  const date = (p.review.date || "nodate").replace(/[^\w-]/g, "");
+  return `review${n}_s${Math.round(p.review.score)}_${date}${ext}`;
+}
+
+// 크롬/엣지: 폴더를 골라 그 안에 바로 저장
+$("btnSaveDir").onclick = async () => {
+  if (!window.showDirectoryPicker)
+    return ($("galMsg").textContent = "이 브라우저는 폴더 저장을 지원하지 않습니다. [전부 다운로드]를 쓰세요.");
+  let dir;
+  try { dir = await window.showDirectoryPicker({ mode: "readwrite" }); } catch { return; } // 사용자 취소
+  await runDownload(async (blob, name) => {
+    const h = await dir.getFileHandle(name, { create: true });
+    const w = await h.createWritable();
+    await w.write(blob);
+    await w.close();
+  });
+};
+
+// 어느 브라우저나: 하나씩 순차 다운로드
+$("btnDlAll").onclick = () => runDownload(async (blob, name) => {
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = name;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  await new Promise(r => setTimeout(r, 250)); // 연속 다운로드 차단 회피
+});
+
+async function runDownload(save) {
+  const btns = [$("btnSaveDir"), $("btnDlAll")];
+  btns.forEach(b => (b.disabled = true));
+  let ok = 0, fail = 0;
+  for (let i = 0; i < PHOTOS.length; i++) {
+    $("galMsg").textContent = `다운로드 중 ${i + 1}/${PHOTOS.length} (성공 ${ok}, 실패 ${fail})`;
+    try {
+      await save(await fetchImageBlob(PHOTOS[i].url), photoName(PHOTOS[i], i));
+      ok++;
+    } catch (e) { fail++; }
+  }
+  $("galMsg").textContent = fail
+    ? `완료 — 성공 ${ok}장, 실패 ${fail}장. 실패가 많으면 ⚙설정에 Worker 주소를 넣으면 대부분 해결됩니다.`
+    : `완료 — ${ok}장 저장했습니다.`;
+  btns.forEach(b => (b.disabled = false));
+}
+
+$("btnCopyUrls").onclick = async () => {
+  const text = PHOTOS.map(p => origUrl(p.url)).join("\n");
+  try { await navigator.clipboard.writeText(text); $("galMsg").textContent = `URL ${PHOTOS.length}개를 복사했습니다.`; }
+  catch { $("galMsg").textContent = "복사 실패 — JSON 내보내기를 쓰세요."; }
+};
 
 function renderMore() {
   const slice = VIEW.slice(shown, shown + PAGE_RENDER);
@@ -793,8 +938,11 @@ function reviewCard(r) {
 /* ═══════════════════════ 내보내기 ═══════════════════════ */
 $("btnCsv").onclick = () => {
   if (!VIEW.length) return;
-  const head = ["별점", "작성일", "작성자", "옵션", "내용", "도움됨", "사진수", "판매자답변"];
-  const rows = VIEW.map(r => [r.score, r.date, r.writer, r.option, r.content, r.helpful, (r.images || []).length, r.sellerReply]);
+  // 상품명을 열로 넣어둔다 — 여러 상품 CSV를 엑셀에서 그대로 합칠 수 있게
+  const pname = (DATA.product && DATA.product.name) || "";
+  const head = ["상품명", "별점", "작성일", "작성자", "옵션", "내용", "도움됨", "사진수", "사진URL", "판매자답변"];
+  const rows = VIEW.map(r => [pname, r.score, r.date, r.writer, r.option, r.content, r.helpful,
+    (r.images || []).length, (r.images || []).map(origUrl).join(" "), r.sellerReply]);
   const csv = [head, ...rows].map(row =>
     row.map(v => `"${String(v == null ? "" : v).replace(/"/g, '""')}"`).join(",")).join("\r\n");
   download("﻿" + csv, fileName("csv"), "text/csv;charset=utf-8");
@@ -805,9 +953,10 @@ $("btnJson").onclick = () => {
   download(JSON.stringify({ ...DATA, reviews: VIEW }, null, 2), fileName("json"), "application/json");
 };
 
+// 파일명은 ASCII 로 (한글 이름은 브라우저가 무시하고 "download" 로 저장할 수 있음).
+// 상품명은 CSV의 상품명 열 / JSON의 product 에 그대로 들어간다.
 function fileName(ext) {
-  const n = ((DATA && DATA.product && DATA.product.name) || "리뷰").replace(/[\\/:*?"<>|]/g, "").slice(0, 40);
-  return `${n}_리뷰${VIEW.length}건.${ext}`;
+  return `smartstore_reviews_${VIEW.length}.${ext}`;
 }
 
 function download(text, name, type) {
