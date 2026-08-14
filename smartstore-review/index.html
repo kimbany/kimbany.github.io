@@ -132,6 +132,7 @@
           <span class="muted">사진리뷰 <b id="pPhoto" class="text-[var(--text)]">-</b></span>
           <span class="muted">판매자 답변 <b id="pReply" class="text-[var(--text)]">-</b></span>
         </div>
+        <p id="scopeMsg" class="text-sm mt-1.5 hidden" style="color:var(--warn)"></p>
       </div>
     </section>
 
@@ -168,6 +169,29 @@
       </section>
     </div>
 
+    <!-- 리뷰 사진 갤러리 -->
+    <section id="gallerySec" class="panel p-4 hidden">
+      <div class="flex items-center justify-between gap-2 mb-3 flex-wrap">
+        <h3 class="font-semibold text-sm">리뷰 사진 <span id="galCount" class="muted font-normal"></span></h3>
+        <div class="flex flex-wrap gap-2">
+          <button id="btnSaveDir" class="btn2 text-sm">폴더에 저장</button>
+          <button id="btnDlAll" class="btn2 text-sm">전부 다운로드</button>
+          <button id="btnCopyUrls" class="btn2 text-sm">URL 목록 복사</button>
+        </div>
+      </div>
+      <div id="gallery" class="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 gap-1.5"></div>
+      <p id="galMsg" class="muted text-sm mt-2">현재 필터에 걸린 리뷰의 사진만 모읍니다.</p>
+    </section>
+
+
+    <!-- 탭: 리뷰 / 문의 -->
+    <div id="tabBar" class="flex gap-1 hidden">
+      <button data-tab="review" class="tabBtn btn2 text-sm">리뷰 <span id="tabNReview" class="muted"></span></button>
+      <button data-tab="qna" class="tabBtn btn2 text-sm">문의 <span id="tabNQna" class="muted"></span></button>
+    </div>
+
+    <!-- 리뷰 탭 -->
+    <div id="tabReview" class="space-y-4">
     <!-- 필터 + 내보내기 -->
     <section class="panel p-4 review-only">
       <div class="flex flex-wrap items-center gap-2">
@@ -196,24 +220,14 @@
       <p id="sheetMsg" class="text-sm mt-1" style="color:var(--accent)"></p>
     </section>
 
-    <!-- 리뷰 사진 갤러리 -->
-    <section id="gallerySec" class="panel p-4 hidden">
-      <div class="flex items-center justify-between gap-2 mb-3 flex-wrap">
-        <h3 class="font-semibold text-sm">리뷰 사진 <span id="galCount" class="muted font-normal"></span></h3>
-        <div class="flex flex-wrap gap-2">
-          <button id="btnSaveDir" class="btn2 text-sm">폴더에 저장</button>
-          <button id="btnDlAll" class="btn2 text-sm">전부 다운로드</button>
-          <button id="btnCopyUrls" class="btn2 text-sm">URL 목록 복사</button>
-        </div>
-      </div>
-      <div id="gallery" class="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 gap-1.5"></div>
-      <p id="galMsg" class="muted text-sm mt-2">현재 필터에 걸린 리뷰의 사진만 모읍니다.</p>
-    </section>
-
     <!-- 리뷰 목록 -->
     <section id="list" class="space-y-3 review-only"></section>
     <button id="btnMore" class="btn2 w-full hidden">더 보기</button>
 
+    </div>
+
+    <!-- 문의 탭 -->
+    <div id="tabQna" class="hidden">
     <!-- 상품 문의 (Q&A) -->
     <section id="qnaSec" class="panel p-4 hidden">
       <div class="flex items-center justify-between gap-2 mb-3 flex-wrap">
@@ -230,6 +244,7 @@
       <div id="qnaList" class="space-y-2"></div>
       <p id="qnaMsg" class="muted text-sm mt-2"></p>
     </section>
+    </div>
   </main>
 </div>
 
@@ -424,6 +439,7 @@ function bookmarkletMain() {
       return "";
     }
 
+    // wantImages 는 아래 모드 선택에서 정해진다 (텍스트만 고르면 사진은 건너뛴다)
     function normReview(r) {
       return {
         id: r.id || r.reviewId || r.reviewNo || null,
@@ -432,7 +448,7 @@ function bookmarkletMain() {
         date: String(r.createDate || r.registerDate || r.createdDate || r.writeDate || "").slice(0, 10),
         writer: r.writerMemberId || r.writerId || r.memberId || r.writerNickname || "",
         option: String(r.productOptionContent || r.optionContent || r.combinationOptionName || "").trim(),
-        images: imgsOf(r),
+        images: wantImages ? imgsOf(r) : [],
         helpful: N(r.helpCount || r.likeCount || r.helpfulCount) || 0,
         reviewType: r.reviewType || "",
         sellerReply: replyOf(r),
@@ -567,11 +583,23 @@ function bookmarkletMain() {
     };
 
     /* ══════════ 무엇을 · 얼마나 ══════════ */
-    const what = prompt("무엇을 가져올까요?\n\n1 = 리뷰\n2 = 상품 문의(Q&A)\n3 = 둘 다", "1");
-    if (what === null) { box.remove(); return; }
-    const wantReview = what.indexOf("1") >= 0 || what.indexOf("3") >= 0;
-    const wantQna = what.indexOf("2") >= 0 || what.indexOf("3") >= 0;
-    if (!wantReview && !wantQna) { box.remove(); return; }
+    const what = (prompt(
+      "무엇을 가져올까요?\n\n" +
+      "1 = 리뷰 (텍스트만)\n" +
+      "2 = 리뷰 (사진까지)\n" +
+      "3 = 문의(Q&A)만\n" +
+      "4 = 리뷰(텍스트) + 문의\n" +
+      "5 = 리뷰(사진까지) + 문의", "1") || "").trim();
+    if (!what) { box.remove(); return; }
+    const MODE = {
+      "1": { review: true,  qna: false, images: false },
+      "2": { review: true,  qna: false, images: true  },
+      "3": { review: false, qna: true,  images: false },
+      "4": { review: true,  qna: true,  images: false },
+      "5": { review: true,  qna: true,  images: true  },
+    }[what.charAt(0)];
+    if (!MODE) { say("1~5 중에서 골라주세요."); bye(5000); return; }
+    const wantReview = MODE.review, wantQna = MODE.qna, wantImages = MODE.images;
 
     const ans = prompt("가져올 페이지 수 (1페이지 = 20개)", "5");
     if (ans === null) { box.remove(); return; }
@@ -635,9 +663,19 @@ function bookmarkletMain() {
        주소 이름(review/qna…)으로 거르지 않는다 — 네이버가 어떤 경로를 쓰든
        "응답 모양"이 리뷰/문의면 그게 우리가 찾는 요청이다. */
     async function capture(pickFn, guide, tabRe) {
-      let cap = null;
+      let cap = null;              // 이 상품의 요청 (우선)
+      let loose = null, looseAt = -1, tick = 0;  // 상품 확인이 안 되는 요청 (차선)
       const seen = [];             // 진단용 — 이 창에서 오간 JSON 응답 요약
       const hooked = [];           // 원복할 대상 (동일 출처 iframe 포함)
+
+      // 스토어 전체 리뷰 위젯 등 "다른 상품" 응답을 잡지 않도록,
+      // 요청에 이 상품 번호가 들어 있는지로 우선순위를 매긴다.
+      const isOwn = (u, b) => {
+        const hay = String(u || "") + "|" + (typeof b === "string" ? b : "");
+        return (ids.productNo && hay.indexOf(String(ids.productNo)) >= 0) ||
+               (ids.originProductNo && hay.indexOf(String(ids.originProductNo)) >= 0) ||
+               (ids.channelNo && hay.indexOf(String(ids.channelNo)) >= 0);
+      };
 
       const take = (u, m, b, j) => {
         if (!u || !j || typeof j !== "object") return;
@@ -651,7 +689,10 @@ function bookmarkletMain() {
         }
         if (cap) return;
         try {
-          if (pickFn(j)) cap = { url: new URL(u, location.origin).toString(), method: m, body: typeof b === "string" ? b : null };
+          if (!pickFn(j)) return;
+          const rec = { url: new URL(u, location.origin).toString(), method: m, body: typeof b === "string" ? b : null };
+          if (isOwn(u, b)) cap = rec;
+          else if (!loose) { loose = rec; looseAt = tick; }
         } catch (e) {}
       };
 
@@ -691,15 +732,19 @@ function bookmarkletMain() {
         } catch (e) {}
       }
 
-      try { // 해당 탭 자동 클릭 시도
-        const t = [].slice.call(document.querySelectorAll("a,button,li,span"))
-          .filter(e => tabRe.test((e.textContent || "").trim()) && e.offsetParent);
-        if (t[0]) t[0].click();
-      } catch (e) {}
+      // 자동 클릭은 "보기 탭"에만. '문의하기'·'리뷰쓰기' 같은 동작 버튼을 누르면
+      // 문의 작성창이 열리거나 글이 등록될 수 있다 — 절대 건드리지 않는다.
+      const tab = findTab(tabRe);
+      if (tab) { try { tab.click(); } catch (e) {} }
 
-      const TICKS = 300; // 300 × 300ms = 최대 90초
-      for (let i = 0; i < TICKS && !cap; i++) {
-        if (i % 4 === 0) say(guide + "\n\n대기 중… " + Math.ceil((TICKS - i) * 0.3) + "초");
+      // 탭이 아예 없으면 그 영역이 없는 상품이다. 90초씩 기다리지 않는다.
+      const TICKS = tab ? 300 : 60;   // 90초 / 18초
+      const note = tab ? guide
+        : guide + "\n\n(탭을 찾지 못했습니다 — 있으면 직접 눌러주세요)";
+      for (tick = 0; tick < TICKS && !cap; tick++) {
+        if (tick % 4 === 0) say(note + "\n\n대기 중… " + Math.ceil((TICKS - tick) * 0.3) + "초");
+        // 상품 확인이 안 되는 응답만 잡혔으면 잠깐(6초)만 더 기다렸다가 그걸 쓴다
+        if (loose && tick - looseAt > 20) break;
         await wait(300);
       }
 
@@ -707,7 +752,33 @@ function bookmarkletMain() {
         try { h.w.fetch = h.oF; h.w.XMLHttpRequest.prototype.open = h.OPEN; h.w.XMLHttpRequest.prototype.send = h.SEND; }
         catch (e) {}
       }
-      return { cap: cap, seen: seen };
+      return { cap: cap || loose, scope: cap ? "product" : (loose ? "unverified" : null),
+               seen: seen, tabFound: !!tab };
+    }
+
+    /* 보기 탭만 골라낸다 — 글을 쓰거나 창을 여는 버튼은 후보에서 뺀다 */
+    // '문의'·'구매평' 같은 정상 탭 이름은 남기고, 동작을 일으키는 말만 막는다
+    const ACTION_RE = /(하기|쓰기|작성|등록|신청|신고|톡톡|talk|채팅)/i;
+    function findTab(labelRe) {
+      const els = [].slice.call(document.querySelectorAll('a,button,li,span,div[role="tab"]'));
+      const cands = [];
+      for (const e of els) {
+        const t = (e.textContent || "").trim();
+        if (!t || t.length > 20 || !labelRe.test(t)) continue;
+        if (ACTION_RE.test(t)) continue;          // '문의하기'·'리뷰쓰기' 등 동작 버튼 제외
+        if (!e.offsetParent) continue;            // 화면에 없는 것 제외
+        if (e.tagName === "A") {                  // 다른 페이지로 튀는 링크 제외
+          const href = e.getAttribute("href") || "";
+          if (href && !href.startsWith("#") && !href.startsWith("javascript:")) continue;
+        }
+        let score = 0;
+        if (e.getAttribute && e.getAttribute("role") === "tab") score += 3;
+        if (e.tagName === "A") score += 2;
+        if (/\(?\d+\)?$/.test(t)) score += 1;     // "리뷰 (25)" 처럼 개수가 붙은 것
+        cands.push({ e: e, score: score });
+      }
+      cands.sort((a, b) => b.score - a.score);
+      return cands.length ? cands[0].e : null;
     }
 
     /* 잡은 요청의 페이지 번호만 바꿔가며 반복 */
@@ -758,9 +829,10 @@ function bookmarkletMain() {
       if (!recipe) {
         const c = await capture(pickReviews,
           "기본 주소가 막혔습니다.\n\n페이지에서 [리뷰] 탭을 눌러주세요.\n(이미 열려 있다면 정렬을 바꾸거나\n리뷰 2페이지를 눌러주세요)",
-          /^리뷰/);
+          /^(리뷰|구매평|사용후기|상품평)/);
         recipe = c.cap;
-        if (recipe) diag.capturedReview = recipe; else diag.reviewSeen = c.seen;
+        if (recipe) { diag.capturedReview = recipe; diag.reviewScope = c.scope; }
+        else diag.reviewSeen = c.seen;
       }
       if (recipe) {
         const r = await collect(recipe, pickReviews, normReview,
@@ -775,24 +847,41 @@ function bookmarkletMain() {
       let recipe = await tryDirect(qnaCandidates(), pickQnas);
       if (!recipe) {
         const c = await capture(pickQnas,
-          "이제 [문의] 탭을 눌러주세요.\n(Q&A · 상품문의 · 문의하기)\n\n" +
+          "이제 [문의] 탭을 눌러주세요.\n(Q&A · 상품문의)\n\n" +
           "이미 열려 있다면 2페이지를 누르거나\n탭을 다시 눌러주세요.",
-          /^(문의|Q&A|상품문의|톡톡문의|문의하기)/i);
+          /^(문의|Q&A|Q＆A|상품문의)/i);
         recipe = c.cap;
-        // 못 잡았으면 그 동안 오간 응답 요약을 남긴다 (원인 특정용)
-        if (recipe) diag.capturedQna = recipe; else diag.qnaSeen = c.seen;
+        if (recipe) {
+          diag.capturedQna = recipe;
+          diag.qnaScope = c.scope;
+        } else {
+          diag.qnaSeen = c.seen;
+          diag.qnaTabFound = c.tabFound;
+          // 오간 응답 중 "문의스러운 배열"이 하나도 없었다면 실패가 아니라
+          // 이 상품에 문의가 없는 것으로 본다.
+          const anyQnaish = c.seen.some(s => (s.arrays || []).some(a =>
+            /question|inquiry|qna/i.test((a.itemKeys || []).join(" "))));
+          diag.qnaResult = (!c.tabFound || !anyQnaish) ? "none" : "failed";
+        }
       }
       if (recipe) {
         const r = await collect(recipe, pickQnas, normQna,
           (x) => (x.id || "") + "|" + x.questionDate + "|" + x.question.slice(0, 24), "문의");
         qnas = r.items; qnaTotal = r.total;
+        if (!qnas.length) diag.qnaResult = "none"; // 응답은 왔는데 0건 = 문의 없음
       }
-      if (!qnas.length) diag.qnaFailed = true;
+      if (!qnas.length && diag.qnaResult === "failed") diag.qnaFailed = true;
     }
 
     /* ══════════ 결과 ══════════ */
     if (!reviews.length && !qnas.length) {
       window.ssDiag = JSON.stringify(diag, null, 1);
+      // 문의만 요청했는데 문의가 없는 상품 → 실패가 아니라 그냥 없는 것
+      if (!wantReview && diag.qnaResult === "none") {
+        say("이 상품에는 문의가 없습니다.\n\n수집할 내용이 없어 그대로 종료합니다.");
+        bye(8000);
+        return;
+      }
       try { await navigator.clipboard.writeText(window.ssDiag); } catch (e) {}
       say("가져오지 못했습니다.\n\n진단 정보를 클립보드에 복사했습니다.\n그대로 붙여넣어 알려주시면\n원인을 잡을 수 있습니다.\n(콘솔 변수: ssDiag)");
       bye(20000);
@@ -809,7 +898,9 @@ function bookmarkletMain() {
       total: reviewTotal || product.reviewCount,
       reviews: reviews,
       qnas: qnas, qnaTotal: qnaTotal,
-      wanted: { review: wantReview, qna: wantQna },
+      wanted: { review: wantReview, qna: wantQna, images: wantImages },
+      scope: diag.reviewScope || diag.qnaScope || "direct",
+      qnaResult: wantQna ? (qnas.length ? "ok" : (diag.qnaResult || "none")) : undefined,
       diag: partial ? diag : undefined,
       collectedAt: new Date().toISOString(),
     });
@@ -828,10 +919,13 @@ function bookmarkletMain() {
       .filter(Boolean).join(" · ");
     const missed = [wantReview && diag.reviewFailed ? "리뷰" : "", wantQna && diag.qnaFailed ? "문의" : ""]
       .filter(Boolean).join("·");
-    say((ok ? "✅ " + summary + " 복사 완료\n수집기 페이지에 붙여넣기(Ctrl+V)"
+    // 문의가 애초에 없는 상품이면 실패가 아니다 — 그냥 없다고만 알린다
+    const noQna = wantQna && !qnas.length && diag.qnaResult === "none";
+    say((ok ? "✅ " + (summary || "수집 결과") + " 복사 완료\n수집기 페이지에 붙여넣기(Ctrl+V)"
             : "⚠ 복사 실패 — 콘솔(F12)의\nssReviews 변수를 사용하세요") +
+        (noQna ? "\n\n이 상품에는 문의가 없습니다." : "") +
         (missed ? "\n\n⚠ " + missed + "는 못 가져왔습니다.\n원인 정보가 결과에 함께 담겼습니다." : ""));
-    bye(missed ? 15000 : 8000);
+    bye(missed ? 15000 : 9000);
   })();
 }
 
@@ -886,6 +980,15 @@ function render(data) {
   $("pPhoto").textContent = Math.round(photo / (rs.length || 1) * 100) + "%";
   const replied = rs.filter(r => r.sellerReply).length;
   $("pReply").textContent = `${Math.round(replied / (rs.length || 1) * 100)}% (${replied}건)`;
+  // 사진을 안 가져오는 모드로 수집했으면 0%가 아니라 "미수집"이라고 밝힌다
+  if (data.wanted && data.wanted.images === false) $("pPhoto").textContent = "미수집";
+
+  // 잡은 요청이 이 상품 것인지 확인 못 했으면 알린다 (스토어 전체 리뷰 위젯 등)
+  const badScope = data.scope === "unverified";
+  $("scopeMsg").classList.toggle("hidden", !badScope);
+  if (badScope) $("scopeMsg").textContent =
+    "⚠ 잡은 요청에 이 상품 번호가 없었습니다 — 다른 상품이나 스토어 전체 리뷰가 섞였을 수 있습니다. " +
+    "상품 페이지의 리뷰 탭을 직접 눌러 다시 수집해 보세요.";
 
   renderDist(rs);
   renderTrend(rs);
@@ -895,6 +998,7 @@ function render(data) {
   applyFilter();
   renderQna();
   renderDiag();
+  setupTabs();
   $("result").scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
@@ -1066,8 +1170,8 @@ function renderGallery() {
   PHOTOS = [];
   VIEW.forEach(r => (r.images || []).forEach(u => PHOTOS.push({ url: u, review: r })));
 
-  $("gallerySec").classList.toggle("hidden", !PHOTOS.length);
-  if (!PHOTOS.length) return;
+  if (!PHOTOS.length) { $("gallerySec").classList.add("hidden"); return; }
+  if (!$("tabReview").classList.contains("hidden")) $("gallerySec").classList.remove("hidden");
 
   $("galCount").textContent = `${PHOTOS.length}장 · 리뷰 ${VIEW.filter(r => r.images && r.images.length).length}건`;
   $("gallery").innerHTML = PHOTOS.slice(0, 200).map((p, i) =>
@@ -1192,26 +1296,79 @@ function reviewCard(r) {
   </article>`;
 }
 
+/* ═══════════════════════ 탭 (리뷰 / 문의) ═══════════════════════ */
+function setupTabs() {
+  const nR = (DATA.reviews || []).length, nQ = (DATA.qnas || []).length;
+  $("tabNReview").textContent = nR.toLocaleString();
+  $("tabNQna").textContent = nQ.toLocaleString();
+  $("tabBar").classList.toggle("hidden", !(nR || nQ));
+
+  document.querySelectorAll("#tabBar .tabBtn").forEach(b => {
+    const n = b.dataset.tab === "review" ? nR : nQ;
+    b.disabled = !n;
+    b.style.opacity = n ? "" : ".4";
+    b.style.cursor = n ? "pointer" : "default";
+  });
+  switchTab(nR ? "review" : "qna");
+}
+
+function switchTab(name) {
+  $("tabReview").classList.toggle("hidden", name !== "review");
+  $("tabQna").classList.toggle("hidden", name !== "qna");
+  document.querySelectorAll("#tabBar .tabBtn").forEach(b => {
+    const on = b.dataset.tab === name;
+    b.style.background = on ? "var(--accent)" : "";
+    b.style.color = on ? "#04180c" : "";
+    b.style.fontWeight = on ? "700" : "";
+    b.style.borderColor = on ? "var(--accent)" : "";
+  });
+  // 사진 갤러리는 리뷰 쪽 자료이므로 문의 탭에서는 감춘다
+  $("gallerySec").classList.toggle("hidden", name !== "review" || !PHOTOS.length);
+}
+
+document.querySelectorAll("#tabBar .tabBtn").forEach(b =>
+  b.onclick = () => { if (!b.disabled) switchTab(b.dataset.tab); });
+
 /* ═══════════════════════ 부분 실패 안내 ═══════════════════════ */
 // 리뷰는 됐는데 문의만 실패하는 식으로 조용히 묻히지 않도록,
 // 북마클릿이 담아 보낸 diag 를 그대로 보여주고 복사할 수 있게 한다.
 function renderDiag() {
   const d = DATA && DATA.diag;
   const want = (DATA && DATA.wanted) || {};
+  const sec = $("diagSec"), title = sec.querySelector("h3");
+
+  // 1) 문의가 애초에 없는 상품 — 실패가 아니므로 담담하게 한 줄만
+  if (want.qna && !(DATA.qnas || []).length && DATA.qnaResult === "none") {
+    sec.classList.remove("hidden");
+    sec.style.borderColor = "var(--line)";
+    title.textContent = "상품 문의 없음";
+    title.style.color = "var(--muted)";
+    $("diagMsg").textContent = "이 상품에는 등록된 문의가 없습니다. (리뷰 수집에는 영향 없습니다)";
+    $("diagPre").textContent = "";
+    $("btnCopyDiag").classList.add("hidden");
+    return;
+  }
+
   const missed = [
     want.qna && !(DATA.qnas || []).length ? "상품 문의(Q&A)" : "",
     want.review && !(DATA.reviews || []).length ? "리뷰" : "",
   ].filter(Boolean);
 
-  $("diagSec").classList.toggle("hidden", !d || !missed.length);
+  sec.classList.toggle("hidden", !d || !missed.length);
   if (!d || !missed.length) return;
+
+  // 2) 진짜 실패 — 원인 정보를 보여준다
+  sec.style.borderColor = "#5a3d12";
+  title.textContent = "⚠ 일부를 가져오지 못했습니다";
+  title.style.color = "var(--warn)";
+  $("btnCopyDiag").classList.remove("hidden");
 
   const seen = d.qnaSeen || d.reviewSeen || [];
   $("diagMsg").textContent =
     `${missed.join(" · ")}를 가져오지 못했습니다. ` +
     (seen.length
       ? `탭을 누르는 동안 오간 응답 ${seen.length}건을 기록했습니다 — 아래 내용을 복사해 알려주시면 맞춰 고칠 수 있습니다.`
-      : `그 사이 오간 응답이 하나도 없었습니다. 탭을 누르지 않았거나, 해당 상품에 문의 영역이 없을 수 있습니다.`);
+      : `그 사이 오간 응답이 하나도 없었습니다. 탭을 누르지 않았을 수 있습니다.`);
   $("diagPre").textContent = JSON.stringify(d, null, 1).slice(0, 20000);
 }
 
@@ -1228,8 +1385,13 @@ function qnaAll() { return (DATA && DATA.qnas) || []; }
 
 function renderQna() {
   const all = qnaAll();
-  $("qnaSec").classList.toggle("hidden", !all.length);
-  if (!all.length) return;
+  $("qnaSec").classList.remove("hidden");   // 탭 안에 있으므로 탭이 표시를 맡는다
+  if (!all.length) {
+    $("qnaCount").textContent = "";
+    $("qnaList").innerHTML = '<p class="muted text-sm">등록된 문의가 없습니다.</p>';
+    $("qnaMsg").textContent = "";
+    return;
+  }
 
   const q = $("qnaQ").value.trim().toLowerCase();
   QVIEW = all.filter(x => {
