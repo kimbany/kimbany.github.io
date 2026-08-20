@@ -3,7 +3,7 @@
 일 · 주 · 월 · 년 매출을 한 화면에서 보고, **브랜드 / 채널 / 제품**으로 쪼개 보는 단일 HTML 앱입니다.
 설치 없이 `index.html` 하나면 동작하고, 데이터는 브라우저(localStorage)에만 저장됩니다.
 
-👉 <https://kimbany.github.io/sales-dashboard/>
+👉 <https://invedory.com/sales-report/>
 
 ## 화면 구성
 
