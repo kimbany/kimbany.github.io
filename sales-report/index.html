@@ -3,1456 +3,817 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>매출 대시보드 · 일 / 주 / 월 / 년</title>
+<title>매출 통합 대시보드</title>
+
+<!-- Tailwind CSS (CDN) -->
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  // Tailwind 기본 설정 — 화이트 베이스, 숫자 가독성 우선.
+  // (CDN 로딩 실패/지연 시에도 콘솔 에러가 나지 않도록 존재 여부를 확인)
+  if (window.tailwind) {
+    tailwind.config = {
+      theme: { extend: {
+        fontFamily: { sans: ['Pretendard', 'Apple SD Gothic Neo', 'Malgun Gothic', 'sans-serif'] },
+        colors: { brand: { DEFAULT: '#2f6fed', dark: '#1d5ce0', soft: '#eef4ff' } }
+      } }
+    };
+  }
+</script>
+
+<!--
+  Firebase SDK (compat) — Phase 1: 연결 준비.
+  ※ 실제 firebaseConfig 는 아직 전달 전이라 아래를 주석 처리해 둡니다.
+     설정값을 채워 주석을 풀면 자동으로 Firestore 모드로 전환되고,
+     그 전까지는 브라우저 localStorage 로컬 모드로 동작합니다(데이터 구조 동일).
+
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+-->
+
+<!-- SheetJS / Chart.js 는 Phase 3·8 에서 사용 예정 -->
+
 <style>
-  * { margin: 0; padding: 0; box-sizing: border-box; }
-  :root {
-    --bg: #f4f6f9;
-    --card: #ffffff;
-    --text: #1f2937;
-    --sub: #6b7280;
-    --line: #e5e7eb;
-    --accent: #2f6fed;
-    --accent-dark: #1d5ce0;
-    --soft: #eef4ff;
-    --up: #dc2626;
-    --down: #2563eb;
-  }
-  body {
-    font-family: "Pretendard", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
-    background: var(--bg);
-    color: var(--text);
-    min-height: 100vh;
-    padding: 20px 14px 60px;
-    -webkit-text-size-adjust: 100%;
-  }
-  .wrap { width: 100%; max-width: 1040px; margin: 0 auto; }
-
-  h1 { font-size: 22px; margin-bottom: 4px; }
-  .lead { font-size: 13px; color: var(--sub); margin-bottom: 18px; }
-
-  .card {
-    background: var(--card);
-    border-radius: 16px;
-    padding: 18px 16px;
-    box-shadow: 0 2px 10px rgba(0,0,0,0.06);
-    margin-bottom: 16px;
-  }
-  .card > h2 {
-    font-size: 15px;
-    margin-bottom: 12px;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    flex-wrap: wrap;
-  }
-  .card > h2 .note { font-size: 12px; font-weight: 400; color: var(--sub); }
-
-  /* ---- 상단 탭 ---- */
-  .tabs { display: flex; background: #e9edf3; border-radius: 12px; padding: 4px; margin-bottom: 16px; }
-  .tabs button {
-    flex: 1; padding: 11px 8px; border: none; background: transparent;
-    font-size: 14px; font-weight: 600; color: var(--sub);
-    border-radius: 9px; cursor: pointer;
-  }
-  .tabs button.active { background: #fff; color: var(--accent); box-shadow: 0 1px 4px rgba(0,0,0,0.08); }
-  .tab-panel { display: none; }
-  .tab-panel.active { display: block; }
-
-  /* ---- KPI ---- */
-  .kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
-  .kpi {
-    background: #fff; border: 1px solid var(--line); border-radius: 14px;
-    padding: 14px 12px; cursor: pointer; text-align: left; font: inherit; color: inherit;
-  }
-  .kpi:hover { border-color: var(--accent); }
-  .kpi .k-label { font-size: 12px; color: var(--sub); font-weight: 600; }
-  .kpi .k-value { font-size: 20px; font-weight: 700; margin: 6px 0 2px; letter-spacing: -0.4px; }
-  .kpi .k-sub { font-size: 11px; color: var(--sub); }
-  .kpi .k-diff { font-size: 12px; font-weight: 600; }
-  .k-diff.up { color: var(--up); }
-  .k-diff.down { color: var(--down); }
-  .k-diff.flat { color: var(--sub); }
-  @media (max-width: 700px) {
-    .kpis { grid-template-columns: repeat(2, 1fr); }
-    .kpi .k-value { font-size: 17px; }
-  }
-
-  /* ---- 필터 ---- */
-  .filter-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 10px; }
-  .filter-row:last-child { margin-bottom: 0; }
-  .filter-label { font-size: 12px; font-weight: 700; color: var(--sub); min-width: 46px; }
-  .chips { display: flex; gap: 6px; flex-wrap: wrap; flex: 1; }
-  .chip {
-    padding: 6px 11px; border-radius: 999px; border: 1px solid var(--line);
-    background: #fff; font-size: 13px; color: var(--sub); cursor: pointer;
-  }
-  .chip.on { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
-  .chip.mini { padding: 5px 9px; font-size: 12px; }
-
-  input[type="text"], input[type="number"], input[type="date"], select, textarea {
-    padding: 9px 11px; font-size: 14px; border: 1px solid var(--line);
-    border-radius: 9px; outline: none; background: #fff; color: var(--text);
-    font-family: inherit;
-  }
-  input:focus, select:focus, textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(47,111,237,0.12); }
-  input[type="date"] { min-width: 138px; }
-
-  .btn {
-    padding: 9px 14px; border: none; border-radius: 9px; background: var(--accent);
-    color: #fff; font-size: 14px; font-weight: 600; cursor: pointer; font-family: inherit;
-  }
-  .btn:hover { background: var(--accent-dark); }
-  .btn.ghost { background: #fff; color: var(--sub); border: 1px solid var(--line); }
-  .btn.ghost:hover { background: #f8fafc; color: var(--text); }
-  .btn.danger { background: #fff; color: #dc2626; border: 1px solid #fecaca; }
-  .btn.sm { padding: 6px 10px; font-size: 12px; }
-
-  /* ---- 단위 세그먼트 ---- */
-  .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; background: #fff; }
-  .seg button {
-    padding: 9px 18px; border: none; background: #fff; font-size: 14px;
-    color: var(--sub); cursor: pointer; font-family: inherit; font-weight: 600;
-  }
-  .seg button + button { border-left: 1px solid var(--line); }
-  .seg button.on { background: var(--accent); color: #fff; }
-
-  /* ---- 차트 ---- */
-  .chart-box { position: relative; width: 100%; overflow: hidden; }
-  .chart-box svg { display: block; width: 100%; }
-  .bar { fill: #9fc0ff; cursor: pointer; }
-  .bar:hover { fill: var(--accent); }
-  .bar.sel { fill: var(--accent-dark); }
-  .grid-line { stroke: var(--line); stroke-width: 1; }
-  .axis-text { font-size: 10px; fill: var(--sub); }
-  .tip {
-    position: absolute; pointer-events: none; background: rgba(31,41,55,0.94); color: #fff;
-    font-size: 12px; padding: 7px 10px; border-radius: 8px; white-space: nowrap;
-    transform: translate(-50%, -110%); opacity: 0; transition: opacity .12s; z-index: 5;
-  }
-  .tip.on { opacity: 1; }
-
-  /* ---- 표 ---- */
-  .table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
-  table { width: 100%; border-collapse: collapse; font-size: 13px; }
-  th, td { padding: 9px 8px; text-align: right; white-space: nowrap; }
-  th { font-size: 11px; color: var(--sub); font-weight: 700; border-bottom: 1px solid var(--line); background: #fff; }
-  th:first-child, td:first-child { text-align: left; }
-  tbody tr { border-bottom: 1px solid #f1f3f7; }
-  tbody tr.clickable { cursor: pointer; }
-  tbody tr.clickable:hover { background: #f8fafc; }
-  tbody tr.sel { background: var(--soft); }
-  tfoot td { font-weight: 700; border-top: 2px solid var(--line); padding-top: 11px; }
-  .num { font-variant-numeric: tabular-nums; }
-  .muted { color: var(--sub); }
-  .share-cell { width: 132px; }
-  .share-wrap { display: flex; align-items: center; gap: 7px; }
-  .share-bar { flex: 1; height: 6px; background: #edf1f7; border-radius: 4px; overflow: hidden; }
-  .share-bar > i { display: block; height: 100%; background: var(--accent); border-radius: 4px; }
-  .share-pct { font-size: 11px; color: var(--sub); width: 36px; text-align: right; font-variant-numeric: tabular-nums; }
-
-  .tw { display: inline-flex; align-items: center; gap: 6px; }
-  .caret {
-    width: 16px; height: 16px; flex: 0 0 16px; border: none; background: transparent;
-    color: var(--sub); cursor: pointer; font-size: 11px; line-height: 1; padding: 0;
-  }
-  .caret.hidden { visibility: hidden; }
-  .lv1 { font-weight: 600; }
-  .lv2 td:first-child { padding-left: 26px; color: #374151; }
-  .lv3 td:first-child { padding-left: 48px; }
-  .lv3 { font-size: 12px; color: var(--sub); }
-  .tag {
-    display: inline-block; font-size: 10px; padding: 1px 6px; border-radius: 5px;
-    background: #eef2f7; color: var(--sub); margin-left: 6px; font-weight: 600;
-  }
-
-  .empty { text-align: center; color: var(--sub); font-size: 13px; padding: 26px 10px; }
-  .selbar {
-    display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
-    background: var(--soft); border-radius: 10px; padding: 8px 12px; margin-bottom: 12px; font-size: 13px;
-  }
-  .selbar b { color: var(--accent-dark); }
-
-  /* ---- 입력 ---- */
-  .form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; }
-  .form-grid label { display: block; font-size: 12px; font-weight: 600; color: var(--sub); margin-bottom: 5px; }
-  .form-grid input { width: 100%; }
-  textarea { width: 100%; min-height: 130px; resize: vertical; font-size: 13px; line-height: 1.5; }
-  .hint { font-size: 12px; color: var(--sub); line-height: 1.6; }
-  .hint code { background: #f1f5f9; padding: 1px 5px; border-radius: 4px; font-size: 11px; }
-  .row-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
-  .msg { font-size: 13px; margin-top: 10px; padding: 9px 12px; border-radius: 9px; display: none; }
-  .msg.ok { display: block; background: #ecfdf5; color: #047857; }
-  .msg.err { display: block; background: #fef2f2; color: #b91c1c; }
-  .del-btn { border: none; background: transparent; color: #cbd5e1; cursor: pointer; font-size: 15px; padding: 0 4px; }
-  .del-btn:hover { color: #dc2626; }
+  [x-cloak]{display:none}
+  .tabbtn.active{ color:#2f6fed; border-color:#2f6fed; }
+  .subtab.active{ background:#eef4ff; color:#1d5ce0; font-weight:700; }
+  .num{ font-variant-numeric: tabular-nums; }
+  body{ font-family:'Pretendard','Apple SD Gothic Neo','Malgun Gothic',sans-serif; }
+  /* 모달 애니메이션 */
+  .modal-in{ animation: pop .12s ease-out; }
+  @keyframes pop{ from{ opacity:0; transform:translateY(6px) scale(.98);} to{opacity:1;transform:none;} }
+  input:focus,select:focus,textarea:focus{ outline:none; box-shadow:0 0 0 3px rgba(47,111,237,.15); border-color:#2f6fed; }
 </style>
 </head>
-<body>
-<div class="wrap">
-  <h1>매출 대시보드</h1>
-  <p class="lead">일 · 주 · 월 · 년 매출을 한 화면에서 보고, 브랜드 / 채널 / 제품으로 쪼개 봅니다.</p>
+<body class="bg-slate-50 text-slate-800 min-h-screen">
 
-  <div class="tabs">
-    <button data-tab="dash" class="active">대시보드</button>
-    <button data-tab="input">매출 입력</button>
-    <button data-tab="data">데이터 관리</button>
+<!-- ===== 헤더 ===== -->
+<header class="bg-white border-b border-slate-200 sticky top-0 z-30">
+  <div class="max-w-6xl mx-auto px-4 py-3 flex items-center gap-3 flex-wrap">
+    <div class="flex items-center gap-2 mr-auto">
+      <div class="w-9 h-9 rounded-xl bg-brand flex items-center justify-center text-white text-lg">📊</div>
+      <div>
+        <h1 class="text-lg font-bold leading-tight">매출 통합 대시보드</h1>
+        <p class="text-[11px] text-slate-400 leading-tight">채널별 엑셀을 하나의 기준으로 통합 집계</p>
+      </div>
+    </div>
+
+    <!-- 미처리 알림 배지 -->
+    <button id="badge-review" class="hidden text-xs font-semibold px-2.5 py-1.5 rounded-lg bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100">
+      확인 필요 <span data-n>0</span>건
+    </button>
+    <button id="badge-unmatched" class="hidden text-xs font-semibold px-2.5 py-1.5 rounded-lg bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100">
+      미매칭 <span data-n>0</span>건
+    </button>
+
+    <!-- 데이터 모드 / 계정 -->
+    <span id="mode-badge" class="text-[11px] font-semibold px-2.5 py-1 rounded-full bg-slate-100 text-slate-500">로컬 모드</span>
   </div>
 
-  <!-- ================= 대시보드 ================= -->
-  <div id="tab-dash" class="tab-panel active">
+  <!-- 탭 -->
+  <nav class="max-w-6xl mx-auto px-4 flex gap-1 overflow-x-auto">
+    <button class="tabbtn active whitespace-nowrap px-4 py-2.5 text-sm font-semibold text-slate-500 border-b-2 border-transparent" data-tab="main">메인</button>
+    <button class="tabbtn whitespace-nowrap px-4 py-2.5 text-sm font-semibold text-slate-500 border-b-2 border-transparent" data-tab="sales">매출</button>
+    <button class="tabbtn whitespace-nowrap px-4 py-2.5 text-sm font-semibold text-slate-500 border-b-2 border-transparent" data-tab="upload">데이터 입력</button>
+    <button class="tabbtn whitespace-nowrap px-4 py-2.5 text-sm font-semibold text-slate-500 border-b-2 border-transparent" data-tab="settings">셋팅</button>
+  </nav>
+</header>
 
-    <div class="card" id="onboard" style="display:none">
-      <h2>아직 매출 데이터가 없습니다</h2>
-      <p class="hint">엑셀에서 복사해 붙여넣거나, 샘플 데이터로 화면을 먼저 확인해 보세요.</p>
-      <div class="row-actions">
-        <button class="btn" id="goPaste">엑셀 붙여넣기로 가져오기</button>
-        <button class="btn ghost" id="goSample">샘플 데이터 넣어보기</button>
-      </div>
+<main class="max-w-6xl mx-auto px-4 py-6">
+
+  <!-- ===== 메인 (Phase 7) ===== -->
+  <section data-panel="main" class="tab-panel">
+    <div class="rounded-2xl border border-dashed border-slate-300 bg-white p-10 text-center">
+      <div class="text-4xl mb-3">🏠</div>
+      <h2 class="text-base font-bold mb-1">메인 대시보드</h2>
+      <p class="text-sm text-slate-500 max-w-md mx-auto">당일 총매출 · 브랜드별 · 상품별 집계와 증감률이 여기 표시됩니다. <br><b>Phase 7</b> 에서 구현 예정입니다.</p>
+      <button class="mt-4 text-sm font-semibold text-brand" onclick="goTab('upload')">데이터 입력하러 가기 →</button>
+    </div>
+  </section>
+
+  <!-- ===== 매출 (Phase 8) ===== -->
+  <section data-panel="sales" class="tab-panel hidden">
+    <div class="rounded-2xl border border-dashed border-slate-300 bg-white p-10 text-center">
+      <div class="text-4xl mb-3">📈</div>
+      <h2 class="text-base font-bold mb-1">매출 조회</h2>
+      <p class="text-sm text-slate-500 max-w-md mx-auto">기간 선택 · 채널/브랜드 필터 · 추이 차트 · CSV 내보내기가 여기 들어갑니다. <br><b>Phase 8</b> 에서 구현 예정입니다.</p>
+    </div>
+  </section>
+
+  <!-- ===== 데이터 입력 (Phase 3~5) ===== -->
+  <section data-panel="upload" class="tab-panel hidden">
+    <div class="rounded-2xl border border-dashed border-slate-300 bg-white p-10 text-center">
+      <div class="text-4xl mb-3">📥</div>
+      <h2 class="text-base font-bold mb-1">데이터 입력</h2>
+      <p class="text-sm text-slate-500 max-w-md mx-auto">엑셀/CSV 업로드 → 파싱 → 매칭 미리보기(정상/확인필요/미매칭) → 저장. <br><b>Phase 3~5</b> 에서 구현 예정입니다.</p>
+      <p class="text-xs text-slate-400 mt-3">먼저 <button class="font-semibold text-brand" onclick="goTab('settings')">셋팅</button> 에서 채널·브랜드·상품을 등록해 주세요.</p>
+    </div>
+  </section>
+
+  <!-- ===== 셋팅 (Phase 2 = 이번 구현) ===== -->
+  <section data-panel="settings" class="tab-panel hidden">
+    <!-- 서브탭 -->
+    <div class="flex gap-1.5 mb-5 flex-wrap">
+      <button class="subtab active px-3.5 py-2 rounded-lg text-sm font-semibold text-slate-500 bg-white border border-slate-200" data-sub="channel">채널 관리</button>
+      <button class="subtab px-3.5 py-2 rounded-lg text-sm font-semibold text-slate-500 bg-white border border-slate-200" data-sub="brand">브랜드 관리</button>
+      <button class="subtab px-3.5 py-2 rounded-lg text-sm font-semibold text-slate-500 bg-white border border-slate-200" data-sub="product">상품 관리</button>
+      <button class="subtab px-3.5 py-2 rounded-lg text-sm font-semibold text-slate-500 bg-white border border-slate-200" data-sub="match">매칭 관리</button>
+      <button class="subtab px-3.5 py-2 rounded-lg text-sm font-semibold text-slate-500 bg-white border border-slate-200" data-sub="etc">기타</button>
     </div>
 
-    <div class="card">
-      <h2>한눈에 보기 <span class="note">오늘 기준 · 같은 기간 직전 대비</span></h2>
-      <div class="kpis" id="kpis"></div>
-    </div>
+    <div data-sub-panel="channel" class="sub-panel"></div>
+    <div data-sub-panel="brand" class="sub-panel hidden"></div>
+    <div data-sub-panel="product" class="sub-panel hidden"></div>
+    <div data-sub-panel="match" class="sub-panel hidden"></div>
+    <div data-sub-panel="etc" class="sub-panel hidden"></div>
+  </section>
 
-    <div class="card">
-      <h2>기간 · 필터</h2>
-      <div class="filter-row">
-        <span class="filter-label">단위</span>
-        <div class="seg" id="unitSeg">
-          <button data-unit="day">일</button>
-          <button data-unit="week">주</button>
-          <button data-unit="month" class="on">월</button>
-          <button data-unit="year">년</button>
-        </div>
-        <div class="chips" style="flex:0 0 auto">
-          <button class="chip mini" data-preset="30">최근 30일</button>
-          <button class="chip mini" data-preset="90">최근 3개월</button>
-          <button class="chip mini" data-preset="365">최근 1년</button>
-          <button class="chip mini" data-preset="all">전체</button>
-        </div>
-      </div>
-      <div class="filter-row">
-        <span class="filter-label">범위</span>
-        <input type="date" id="fromDate"> <span class="muted">~</span> <input type="date" id="toDate">
-        <button class="btn ghost sm" id="autoRange">단위에 맞게 자동</button>
-      </div>
-      <div class="filter-row">
-        <span class="filter-label">브랜드</span>
-        <div class="chips" id="brandChips"></div>
-      </div>
-      <div class="filter-row">
-        <span class="filter-label">채널</span>
-        <div class="chips" id="channelChips"></div>
-      </div>
-    </div>
+</main>
 
-    <div class="card">
-      <h2 id="trendTitle">기간별 매출</h2>
-      <div class="chart-box" id="chartBox">
-        <svg id="chart" height="220" role="img" aria-label="기간별 매출 막대 그래프"></svg>
-        <div class="tip" id="tip"></div>
-      </div>
-      <div class="table-scroll" style="margin-top:12px">
-        <table id="periodTable"></table>
-      </div>
-    </div>
-
-    <div class="card">
-      <h2>구분해서 보기</h2>
-      <div id="focusBar"></div>
-      <div class="filter-row">
-        <span class="filter-label">1단계</span>
-        <div class="chips" id="dim1Chips"></div>
-      </div>
-      <div class="filter-row">
-        <span class="filter-label">2단계</span>
-        <div class="chips" id="dim2Chips"></div>
-      </div>
-      <div class="filter-row">
-        <span class="filter-label">제품</span>
-        <div class="chips" id="mergeChips">
-          <button class="chip on" data-merge="1">규격 합쳐서 (사과 n개)</button>
-          <button class="chip" data-merge="0">규격 그대로 (사과 3kg)</button>
-        </div>
-      </div>
-      <div class="table-scroll" style="margin-top:6px">
-        <table id="breakTable"></table>
-      </div>
-      <p class="hint" style="margin-top:10px">▸ 를 눌러 하위 항목을 펼칠 수 있습니다. 제품 행은 <b>사과 3kg / 사과 1kg</b> 같은 규격을 하나로 묶어 <b>사과 n개 n원</b>으로 보여줍니다.</p>
-    </div>
-  </div>
-
-  <!-- ================= 매출 입력 ================= -->
-  <div id="tab-input" class="tab-panel">
-    <div class="card">
-      <h2>한 건씩 입력</h2>
-      <div class="form-grid">
-        <div>
-          <label for="fDate">날짜</label>
-          <input type="date" id="fDate">
-        </div>
-        <div>
-          <label for="fBrand">브랜드</label>
-          <input type="text" id="fBrand" list="brandList" placeholder="예: 바니팜">
-          <datalist id="brandList"></datalist>
-        </div>
-        <div>
-          <label for="fChannel">채널</label>
-          <input type="text" id="fChannel" list="channelList" placeholder="예: 스마트스토어">
-          <datalist id="channelList"></datalist>
-        </div>
-        <div>
-          <label for="fProduct">제품명 (규격 포함)</label>
-          <input type="text" id="fProduct" list="productList" placeholder="예: 사과 3kg">
-          <datalist id="productList"></datalist>
-        </div>
-        <div>
-          <label for="fQty">수량 (개)</label>
-          <input type="number" id="fQty" min="0" step="1" placeholder="1">
-        </div>
-        <div>
-          <label for="fPrice">단가 (원)</label>
-          <input type="number" id="fPrice" min="0" step="1" placeholder="선택">
-        </div>
-        <div>
-          <label for="fAmount">매출액 (원)</label>
-          <input type="number" id="fAmount" min="0" step="1" placeholder="비우면 수량×단가">
-        </div>
-      </div>
-      <div class="row-actions">
-        <button class="btn" id="addRow">추가하기</button>
-        <button class="btn ghost" id="clearForm">입력 초기화</button>
-      </div>
-      <div class="msg" id="addMsg"></div>
-    </div>
-
-    <div class="card">
-      <h2>엑셀 · CSV 붙여넣기 <span class="note">여러 건 한 번에</span></h2>
-      <p class="hint" style="margin-bottom:10px">
-        엑셀에서 표를 복사해 그대로 붙여넣으세요. 첫 줄이 머리글이면 자동으로 열을 찾습니다.<br>
-        인식하는 머리글 &nbsp;·&nbsp; 날짜 <code>날짜 일자 date</code> &nbsp; 브랜드 <code>브랜드 brand</code> &nbsp; 채널 <code>채널 판매처 channel</code>
-        &nbsp; 제품 <code>제품 상품 상품명 product</code> &nbsp; 수량 <code>수량 개수 qty</code> &nbsp; 금액 <code>금액 매출 amount</code> &nbsp; 단가 <code>단가 price</code><br>
-        머리글이 없으면 <code>날짜 · 브랜드 · 채널 · 제품 · 수량 · 금액</code> 순서로 읽습니다.
-      </p>
-      <textarea id="pasteBox" placeholder="날짜	브랜드	채널	제품	수량	금액
-2026-08-19	바니팜	스마트스토어	사과 3kg	4	116000
-2026-08-19	바니팜	쿠팡	사과 1kg	7	73500"></textarea>
-      <div class="row-actions">
-        <button class="btn" id="importBtn">가져오기</button>
-        <button class="btn ghost" id="previewBtn">먼저 확인만</button>
-        <button class="btn ghost" id="sampleBtn">샘플 데이터 채우기</button>
-      </div>
-      <div class="msg" id="importMsg"></div>
-      <div class="table-scroll" style="margin-top:12px"><table id="previewTable"></table></div>
-    </div>
-  </div>
-
-  <!-- ================= 데이터 관리 ================= -->
-  <div id="tab-data" class="tab-panel">
-    <div class="card">
-      <h2>제품 묶음 이름 <span class="note">규격이 달라도 같은 제품으로 묶기</span></h2>
-      <p class="hint" style="margin-bottom:10px">
-        <b>사과 3kg</b>, <b>사과 1kg</b> 처럼 규격만 다른 이름은 자동으로 <b>사과</b> 로 묶입니다.
-        자동으로 잘 안 묶인 것은 아래에서 묶음 이름을 직접 고쳐 주세요.
-      </p>
-      <div class="table-scroll"><table id="aliasTable"></table></div>
-    </div>
-
-    <div class="card">
-      <h2>매출 내역 <span class="note" id="rowCount"></span></h2>
-      <div class="filter-row">
-        <input type="text" id="searchBox" placeholder="브랜드 · 채널 · 제품 검색" style="flex:1;min-width:180px">
-        <button class="btn ghost sm" id="exportBtn">CSV 내보내기</button>
-        <button class="btn danger sm" id="wipeBtn">전체 삭제</button>
-      </div>
-      <div class="table-scroll"><table id="rowsTable"></table></div>
-      <p class="hint" id="rowsMore" style="margin-top:10px"></p>
-    </div>
-
-    <div class="card">
-      <h2>저장 위치</h2>
-      <p class="hint">
-        데이터는 이 브라우저(localStorage)에만 저장됩니다. 서버로 전송되지 않으니 다른 기기에서 보려면
-        CSV 로 내보낸 뒤 그 기기에서 붙여넣기로 가져오세요.
-      </p>
-    </div>
-  </div>
+<!-- ===== 모달 ===== -->
+<div id="modal" class="hidden fixed inset-0 z-50 bg-slate-900/40 flex items-start justify-center p-4 overflow-y-auto">
+  <div id="modal-card" class="modal-in bg-white rounded-2xl shadow-xl w-full max-w-lg my-8"></div>
 </div>
 
+<!-- ===== 토스트 ===== -->
+<div id="toast" class="hidden fixed bottom-5 left-1/2 -translate-x-1/2 z-50 px-4 py-2.5 rounded-xl text-sm font-semibold shadow-lg"></div>
+
 <script>
+/* ============================================================================
+ * 매출 통합 대시보드 — Phase 1~2 (개발 뼈대 + 셋팅 CRUD)
+ *
+ *  - 이 파일은 단일 HTML 로 동작합니다.
+ *  - 데이터 계층(DB)은 Firestore 와 동일한 사고방식(컬렉션/문서ID)으로 설계했고,
+ *    지금은 localStorage 로 동작하는 "로컬 모드" 어댑터를 씁니다.
+ *    나중에 firebaseConfig 를 채우면 같은 인터페이스로 Firestore 로 교체됩니다.
+ * ==========================================================================*/
 (function () {
-  'use strict';
+'use strict';
 
-  var ROWS_KEY = 'sales-dashboard:rows:v1';
-  var ALIAS_KEY = 'sales-dashboard:alias:v1';
-  var $ = function (id) { return document.getElementById(id); };
+/* ---------------------------------------------------------------- 공통 유틸 */
+const $  = (s, r=document) => r.querySelector(s);
+const $$ = (s, r=document) => Array.from(r.querySelectorAll(s));
+const el = (tag, attrs={}, html) => {
+  const n = document.createElement(tag);
+  for (const k in attrs) {
+    if (k === 'class') n.className = attrs[k];
+    else if (k.startsWith('on') && typeof attrs[k] === 'function') n.addEventListener(k.slice(2), attrs[k]);
+    else if (attrs[k] != null) n.setAttribute(k, attrs[k]);
+  }
+  if (html != null) n.innerHTML = html;
+  return n;
+};
+const esc = (s) => String(s==null?'':s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const comma = (n) => (Math.round(Number(n)||0)).toLocaleString('ko-KR');
+const won   = (n) => comma(n) + '원';
+// 짧은 랜덤 ID (Firestore auto-id 대용). prefix 로 컬렉션 구분.
+let _seq = 0;
+function genId(prefix) {
+  _seq = (_seq + 1) % 100000;
+  const rand = Math.floor(performance.now()*1000).toString(36) + _seq.toString(36);
+  return (prefix ? prefix + '_' : '') + rand;
+}
 
-  /* ---------------------------------------------------------------- 유틸 */
-  function comma(n) {
-    n = Math.round(Number(n) || 0);
-    return n.toLocaleString('ko-KR');
-  }
-  function won(n) { return comma(n) + '원'; }
-  function compact(n) {
-    n = Number(n) || 0;
-    var s = n < 0 ? '-' : '';
-    n = Math.abs(n);
-    if (n >= 100000000) return s + trimZero(n / 100000000) + '억';
-    if (n >= 10000) return s + trimZero(n / 10000) + '만';
-    return s + comma(n);
-  }
-  function trimZero(v) {
-    var r = v >= 100 ? v.toFixed(0) : v.toFixed(1);
-    return r.replace(/\.0$/, '');
-  }
-  function pad(n) { return n < 10 ? '0' + n : String(n); }
-  function ymd(d) { return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()); }
-  function parseYmd(s) {
-    var p = String(s).split('-');
-    return new Date(Number(p[0]), Number(p[1]) - 1, Number(p[2]));
-  }
-  function addDays(d, n) { var x = new Date(d.getTime()); x.setDate(x.getDate() + n); return x; }
-  function mondayOf(d) {
-    var x = new Date(d.getFullYear(), d.getMonth(), d.getDate());
-    var w = (x.getDay() + 6) % 7; // 월=0
-    return addDays(x, -w);
-  }
-  var DOW = ['일', '월', '화', '수', '목', '금', '토'];
-  function today() { var n = new Date(); return new Date(n.getFullYear(), n.getMonth(), n.getDate()); }
-  function esc(s) {
-    return String(s).replace(/[&<>"]/g, function (c) {
-      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c];
-    });
-  }
-  function uid() {
-    return Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
-  }
+function toast(msg, type='ok') {
+  const t = $('#toast');
+  t.textContent = msg;
+  t.className = 'fixed bottom-5 left-1/2 -translate-x-1/2 z-50 px-4 py-2.5 rounded-xl text-sm font-semibold shadow-lg ' +
+    (type==='err' ? 'bg-rose-600 text-white' : type==='warn' ? 'bg-amber-500 text-white' : 'bg-slate-800 text-white');
+  t.classList.remove('hidden');
+  clearTimeout(toast._t);
+  toast._t = setTimeout(() => t.classList.add('hidden'), 2400);
+}
 
-  /* 여러 형태의 날짜를 YYYY-MM-DD 로. 못 읽으면 null */
-  function normDate(v) {
-    if (v == null) return null;
-    var s = String(v).trim();
-    if (!s) return null;
-    s = s.split(/[ T]/)[0];
-    var m = s.match(/^(\d{4})[-./년\s]*(\d{1,2})[-./월\s]*(\d{1,2})/);
-    if (m) return m[1] + '-' + pad(Number(m[2])) + '-' + pad(Number(m[3]));
-    m = s.match(/^(\d{4})(\d{2})(\d{2})$/);
-    if (m) return m[1] + '-' + m[2] + '-' + m[3];
-    var d = new Date(s);
-    if (!isNaN(d.getTime())) return ymd(d);
-    return null;
+/* ------------------------------------------------------- 문자열 정규화(6-2) */
+const NOISE = ['정품','무료배송','당일발송','산지직송','특가','본사직영','best','신상','히트','1+1','사은품증정'];
+function normalizeName(s) {
+  let x = String(s||'').toLowerCase();
+  x = x.replace(/\[[^\]]*\]/g, ' ').replace(/\([^)]*\)/g, ' ');   // 대괄호·소괄호 내용 제거
+  NOISE.forEach(w => { x = x.split(w).join(' '); });
+  x = x.replace(/킬로그램|킬로|kg/g, 'kg').replace(/그램/g, 'g');   // 단위 표기 통일
+  x = x.replace(/[^\p{L}\p{N}]+/gu, '');                          // 공백·특수문자 제거
+  return x;
+}
+/* ------------------------------------------------------- 옵션 숫자·단위(6-3) */
+function extractSpec(s) {
+  const m = String(s||'').match(/(\d+(?:\.\d+)?)\s*(kg|g|ml|l|개입|개|입|과|봉|팩|미)/i);
+  if (!m) return null;
+  let unit = m[2].toLowerCase();
+  if (unit === '개입' || unit === '개' || unit === '입' || unit === '과' || unit === '봉' || unit === '팩' || unit === '미') unit = 'ea';
+  return { num: parseFloat(m[1]), unit };
+}
+function sameSpec(a, b) {
+  if (!a && !b) return true;
+  if (!a || !b) return false;
+  return a.num === b.num && a.unit === b.unit;
+}
+
+/* ============================================================================
+ * DB 어댑터 — localStorage 로컬 모드 (Firestore 호환 인터페이스)
+ *   컬렉션: channels, brands, products, productItems, channelMappings,
+ *           uploads, sales, dailyStats
+ *   각 문서는 { id, ... } 형태. put 은 upsert, del 은 완전 삭제.
+ *   ※ 상품/규격/채널은 삭제 대신 active:false 소프트 삭제를 권장(스펙 7).
+ * ==========================================================================*/
+const STORE_KEY = 'saleshub:v2';
+const COLLECTIONS = ['channels','brands','products','productItems','channelMappings','uploads','sales','dailyStats'];
+
+const LocalDB = (function () {
+  let cache = null;
+  function raw() {
+    if (cache) return cache;
+    try { cache = JSON.parse(localStorage.getItem(STORE_KEY)) || {}; }
+    catch (e) { cache = {}; }
+    COLLECTIONS.forEach(c => { if (!cache[c]) cache[c] = {}; });
+    return cache;
   }
-  function normNum(v) {
-    if (v == null) return 0;
-    var s = String(v).replace(/[,\s₩원개]/g, '');
-    var n = parseFloat(s);
-    return isNaN(n) ? 0 : n;
-  }
-
-  /* ------------------------------------------- 제품명 → 규격 뗀 묶음 이름 */
-  var UNITS = '킬로그램|킬로|kg|KG|Kg|g|G|그램|mg|ml|mL|ML|리터|ℓ|L|개입|개|입|구|미|과|팩|봉지|봉|박스|박스입|box|BOX|Box|세트|set|SET|ea|EA|매|병|캔|포|근|톤|인분|호|장|묶음|단|알|되|말|줄|판';
-  var SPEC_RE = new RegExp('\\d+(?:[.,]\\d+)?\\s*(?:' + UNITS + ')', 'g');
-  /* 숫자가 떨어져 나간 뒤 뒤에 홀로 남는 포장 단위 (블루베리 100g 팩 → 블루베리) */
-  var TRAIL = { '팩': 1, '박스': 1, '세트': 1, '봉': 1, '봉지': 1, '묶음': 1, '입': 1, '구': 1, '개': 1, '개입': 1, '낱개': 1, 'set': 1, 'box': 1 };
-
-  function baseName(name) {
-    var s = String(name || '').trim();
-    var out = s
-      .replace(/[[(<{][^\])>}]*[\])>}]/g, ' ')      // [특가] (1+1) 같은 괄호
-      .replace(SPEC_RE, ' ')                        // 3kg, 500g, 10개입
-      .replace(/[x×*]\s*\d+(?:[.,]\d+)?/gi, ' ')    // x2
-      .replace(/\d+\s*[+]\s*\d+/g, ' ')             // 1+1
-      .replace(/[/·,\-_|]+/g, ' ')
-      .replace(/\s+/g, ' ')
-      .trim()
-      .replace(/^[\s-]+|[\s-]+$/g, '');
-    var parts = out.split(' ');
-    while (parts.length > 1 && TRAIL[parts[parts.length - 1].toLowerCase()]) parts.pop();
-    out = parts.join(' ');
-    return out || s;
-  }
-
-  /* ---------------------------------------------------------------- 저장소 */
-  var rows = [];
-  var alias = {};   // { '사과 3kg': '사과' }  사용자가 직접 고친 묶음만
-
-  function load() {
-    try { rows = JSON.parse(localStorage.getItem(ROWS_KEY)) || []; } catch (e) { rows = []; }
-    if (!Array.isArray(rows)) rows = [];
-    try { alias = JSON.parse(localStorage.getItem(ALIAS_KEY)) || {}; } catch (e) { alias = {}; }
-    if (!alias || typeof alias !== 'object') alias = {};
-    rows = rows.filter(function (r) { return r && r.date; });
-    rows.sort(function (a, b) { return a.date < b.date ? 1 : a.date > b.date ? -1 : 0; });
-  }
-  function saveRows() { localStorage.setItem(ROWS_KEY, JSON.stringify(rows)); }
-  function saveAlias() { localStorage.setItem(ALIAS_KEY, JSON.stringify(alias)); }
-
-  function groupOf(product) {
-    var p = String(product || '').trim();
-    return alias[p] || baseName(p) || '(제품 없음)';
-  }
-
-  /* ---------------------------------------------------------------- 상태 */
-  var state = {
-    unit: 'month',
-    from: null,
-    to: null,
-    rangeTouched: false,
-    brands: {},       // 제외한 브랜드 { name: true }
-    channels: {},
-    dim1: 'brand',
-    dim2: 'channel',
-    mergeSpec: true,
-    focus: null,      // 선택한 기간 버킷 key
-    expanded: {},     // 펼친 트리 경로
-    search: ''
+  function flush() { localStorage.setItem(STORE_KEY, JSON.stringify(cache)); }
+  return {
+    mode: 'local',
+    list(coll)      { return Object.values(raw()[coll] || {}); },
+    get(coll, id)   { return (raw()[coll] || {})[id] || null; },
+    put(coll, doc)  {
+      const db = raw();
+      if (!doc.id) doc.id = genId(coll.slice(0,4));
+      doc.updatedAt = Date.now();
+      if (!db[coll][doc.id]) doc.createdAt = Date.now();
+      db[coll][doc.id] = { ...db[coll][doc.id], ...doc };
+      flush();
+      return db[coll][doc.id];
+    },
+    del(coll, id)   { const db = raw(); delete db[coll][id]; flush(); },
+    clearAll()      { cache = {}; COLLECTIONS.forEach(c => cache[c]={}); flush(); },
+    exportAll()     { return JSON.stringify(raw(), null, 2); },
+    importAll(json) {
+      const obj = JSON.parse(json);
+      cache = {};
+      COLLECTIONS.forEach(c => { cache[c] = obj[c] || {}; });
+      flush();
+    }
   };
+})();
 
-  var DIM_LABEL = { brand: '브랜드', channel: '채널', product: '제품', none: '없음' };
+// firebaseConfig 가 채워지면 여기서 FirestoreDB 로 교체 (Phase 후속).
+const DB = LocalDB;
+window.__DB = DB;   // 콘솔 디버깅용
 
-  function dimKey(r, dim) {
-    if (dim === 'brand') return r.brand || '(브랜드 없음)';
-    if (dim === 'channel') return r.channel || '(채널 없음)';
-    if (dim === 'product') return state.mergeSpec ? groupOf(r.product) : (r.product || '(제품 없음)');
-    return '';
+/* ============================================================ 탭/서브탭 네비 */
+let curTab = 'main', curSub = 'channel';
+
+function goTab(name) {
+  curTab = name;
+  $$('.tabbtn').forEach(b => b.classList.toggle('active', b.dataset.tab === name));
+  $$('.tab-panel').forEach(p => p.classList.toggle('hidden', p.dataset.panel !== name));
+  if (name === 'settings') renderSub(curSub);
+}
+window.goTab = goTab;
+
+function renderSub(name) {
+  curSub = name;
+  $$('.subtab').forEach(b => b.classList.toggle('active', b.dataset.sub === name));
+  $$('.sub-panel').forEach(p => p.classList.toggle('hidden', p.dataset.subPanel !== name));
+  const map = { channel: renderChannels, brand: renderBrands, product: renderProducts, match: renderMatch, etc: renderEtc };
+  (map[name] || (()=>{}))();
+}
+
+/* ============================================================ 모달 헬퍼 */
+function openModal(html) {
+  $('#modal-card').innerHTML = html;
+  $('#modal').classList.remove('hidden');
+}
+function closeModal() { $('#modal').classList.add('hidden'); }
+window.closeModal = closeModal;
+$('#modal').addEventListener('click', (e) => { if (e.target.id === 'modal') closeModal(); });
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeModal(); });
+
+// 공통 폼 UI 조각
+const F = {
+  wrap: (title, bodyHtml, footHtml) => `
+    <div class="p-5 border-b border-slate-100 flex items-center justify-between">
+      <h3 class="font-bold">${esc(title)}</h3>
+      <button onclick="closeModal()" class="text-slate-400 hover:text-slate-600 text-xl leading-none">×</button>
+    </div>
+    <div class="p-5 space-y-4 max-h-[65vh] overflow-y-auto">${bodyHtml}</div>
+    <div class="p-4 border-t border-slate-100 flex justify-end gap-2">${footHtml}</div>`,
+  text: (id, label, val='', ph='', extra='') => `
+    <div><label class="block text-xs font-semibold text-slate-500 mb-1.5">${esc(label)}</label>
+    <input id="${id}" ${extra} value="${esc(val)}" placeholder="${esc(ph)}"
+      class="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg"></div>`,
+  num: (id, label, val='', ph='') => `
+    <div><label class="block text-xs font-semibold text-slate-500 mb-1.5">${esc(label)}</label>
+    <input id="${id}" type="number" value="${val===''?'':esc(val)}" placeholder="${esc(ph)}"
+      class="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg"></div>`,
+  sel: (id, label, options, val='') => `
+    <div><label class="block text-xs font-semibold text-slate-500 mb-1.5">${esc(label)}</label>
+    <select id="${id}" class="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg bg-white">
+      ${options.map(o => `<option value="${esc(o.v)}" ${o.v===val?'selected':''}>${esc(o.t)}</option>`).join('')}
+    </select></div>`,
+  toggle: (id, label, on=true) => `
+    <label class="flex items-center justify-between cursor-pointer">
+      <span class="text-xs font-semibold text-slate-500">${esc(label)}</span>
+      <input id="${id}" type="checkbox" ${on?'checked':''} class="w-4 h-4 accent-brand"></label>`,
+  btnPrimary: (label, onclick) => `<button onclick="${onclick}" class="px-4 py-2 text-sm font-semibold rounded-lg bg-brand text-white hover:bg-brand-dark">${esc(label)}</button>`,
+  btnGhost: (label, onclick) => `<button onclick="${onclick}" class="px-4 py-2 text-sm font-semibold rounded-lg bg-white text-slate-500 border border-slate-200 hover:bg-slate-50">${esc(label)}</button>`,
+};
+
+// 공통: 빈 상태 카드
+function emptyCard(icon, title, desc, btnLabel, btnOnclick) {
+  return `<div class="rounded-2xl border border-dashed border-slate-300 bg-white p-10 text-center">
+    <div class="text-3xl mb-2">${icon}</div>
+    <h3 class="font-bold text-sm mb-1">${esc(title)}</h3>
+    <p class="text-sm text-slate-500 mb-4">${desc}</p>
+    ${btnLabel ? F.btnPrimary(btnLabel, btnOnclick) : ''}</div>`;
+}
+// 섹션 헤더(제목 + 추가버튼)
+function sectionHead(title, sub, btnLabel, btnOnclick) {
+  return `<div class="flex items-center justify-between mb-4 flex-wrap gap-2">
+    <div><h2 class="font-bold">${esc(title)}</h2>${sub?`<p class="text-xs text-slate-400 mt-0.5">${esc(sub)}</p>`:''}</div>
+    ${btnLabel ? `<button onclick="${btnOnclick}" class="px-3.5 py-2 text-sm font-semibold rounded-lg bg-brand text-white hover:bg-brand-dark">${esc(btnLabel)}</button>` : ''}
+  </div>`;
+}
+
+/* ============================================================================
+ * (a) 채널 관리
+ * ==========================================================================*/
+const DATE_BASIS = [
+  { v:'orderDate', t:'주문일' }, { v:'payDate', t:'결제일' }, { v:'shipDate', t:'발송일' },
+];
+const COLMAP_FIELDS = [
+  ['orderNo','주문번호'], ['orderDate','주문일(기준일)'], ['productCode','상품코드'], ['productName','상품명'],
+  ['optionCode','옵션코드'], ['optionName','옵션명'], ['qty','수량'], ['amount','판매금액'], ['status','주문상태'],
+];
+
+function renderChannels() {
+  const box = $('[data-sub-panel="channel"]');
+  const list = DB.list('channels');
+  let html = sectionHead('채널 관리', '쿠팡 · 스마트스토어 등 판매 채널과 엑셀 컬럼 매핑을 등록합니다.', '+ 채널 추가', 'openChannelForm()');
+
+  if (!list.length) {
+    html += emptyCard('🛒', '등록된 채널이 없습니다', '먼저 매출 엑셀을 내려받는 채널을 등록하세요.', '+ 채널 추가', 'openChannelForm()');
+    box.innerHTML = html; return;
+  }
+  html += '<div class="grid gap-3">';
+  list.forEach(ch => {
+    const mapped = COLMAP_FIELDS.filter(([k]) => (ch.columnMap||{})[k]).length;
+    const warnName = (!ch.hasProductCode || !ch.hasOptionCode);
+    html += `<div class="bg-white rounded-2xl border border-slate-200 p-4">
+      <div class="flex items-center gap-2 flex-wrap">
+        <span class="font-bold">${esc(ch.name)}</span>
+        <span class="text-xs text-slate-400">${esc(ch.code||'-')}</span>
+        ${ch.active===false ? '<span class="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 text-slate-400">사용안함</span>' : '<span class="text-[10px] px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-600">사용중</span>'}
+        ${warnName ? '<span class="text-[10px] px-1.5 py-0.5 rounded bg-amber-100 text-amber-700">⚠ 이름 기반 매칭</span>' : ''}
+        <div class="ml-auto flex gap-1.5">
+          <button onclick="openChannelForm('${ch.id}')" class="text-xs font-semibold text-brand px-2 py-1 rounded hover:bg-brand-soft">수정</button>
+          <button onclick="delChannel('${ch.id}')" class="text-xs font-semibold text-rose-500 px-2 py-1 rounded hover:bg-rose-50">삭제</button>
+        </div>
+      </div>
+      <div class="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500">
+        <span>기준일: <b class="text-slate-700">${esc((DATE_BASIS.find(d=>d.v===ch.dateBasis)||{}).t || '주문일')}</b></span>
+        <span>컬럼 매핑: <b class="text-slate-700">${mapped}/9</b></span>
+        <span>상품코드 ${ch.hasProductCode?'✅':'❌'} · 옵션코드 ${ch.hasOptionCode?'✅':'❌'}</span>
+        <span>취소상태: ${(ch.cancelStatuses||[]).map(esc).join(', ')||'-'}</span>
+      </div></div>`;
+  });
+  html += '</div>';
+  box.innerHTML = html;
+}
+
+function openChannelForm(id) {
+  const ch = id ? DB.get('channels', id) : { columnMap:{}, hasProductCode:true, hasOptionCode:true, active:true, dateBasis:'orderDate', cancelStatuses:[] };
+  const cm = ch.columnMap || {};
+  const body = `
+    ${F.text('ch-name','채널명', ch.name||'', '예: 쿠팡')}
+    ${F.text('ch-code','채널코드(영문)', ch.code||'', '예: coupang')}
+    ${F.sel('ch-basis','매출 기준일', DATE_BASIS, ch.dateBasis||'orderDate')}
+    ${F.toggle('ch-active','사용 여부', ch.active!==false)}
+    <div class="pt-2 border-t border-slate-100">
+      <p class="text-xs font-bold text-slate-600 mb-1">코드 제공 여부</p>
+      ${F.toggle('ch-hasprod','상품코드 컬럼 있음', ch.hasProductCode!==false)}
+      <div class="h-2"></div>
+      ${F.toggle('ch-hasopt','옵션코드 컬럼 있음', ch.hasOptionCode!==false)}
+      <p class="text-[11px] text-amber-600 mt-1.5">※ 코드가 없으면 이름 기반 대체 매칭으로 동작하며, 채널 목록에 ⚠ 표시가 붙습니다.</p>
+    </div>
+    <div class="pt-2 border-t border-slate-100">
+      <p class="text-xs font-bold text-slate-600 mb-2">엑셀 컬럼 매핑 <span class="font-normal text-slate-400">(채널 파일의 실제 헤더명)</span></p>
+      <div class="grid grid-cols-2 gap-2">
+        ${COLMAP_FIELDS.map(([k,label]) => `<div>
+          <label class="block text-[11px] font-semibold text-slate-500 mb-1">${esc(label)}</label>
+          <input id="cm-${k}" value="${esc(cm[k]||'')}" placeholder="${esc(label)}"
+            class="w-full px-2.5 py-1.5 text-xs border border-slate-200 rounded-lg"></div>`).join('')}
+      </div>
+      <p class="text-[11px] text-slate-400 mt-2">※ 정확한 헤더명은 Phase 3(업로드)에서 파일을 올리면 드롭다운으로 자동 지정됩니다. 지금은 아는 값만 채워두세요.</p>
+    </div>
+    ${F.text('ch-cancel','취소로 간주할 주문상태 (쉼표 구분)', (ch.cancelStatuses||[]).join(', '), '취소, 반품완료, 환불')}
+  `;
+  const foot = F.btnGhost('취소','closeModal()') + F.btnPrimary('저장', `saveChannel('${id||''}')`);
+  openModal(F.wrap(id?'채널 수정':'채널 추가', body, foot));
+}
+window.openChannelForm = openChannelForm;
+
+function saveChannel(id) {
+  const name = $('#ch-name').value.trim();
+  if (!name) { toast('채널명을 입력하세요','err'); return; }
+  const columnMap = {};
+  COLMAP_FIELDS.forEach(([k]) => { const v = $('#cm-'+k).value.trim(); if (v) columnMap[k] = v; });
+  const doc = {
+    id: id || undefined,
+    name,
+    code: $('#ch-code').value.trim(),
+    dateBasis: $('#ch-basis').value,
+    active: $('#ch-active').checked,
+    hasProductCode: $('#ch-hasprod').checked,
+    hasOptionCode: $('#ch-hasopt').checked,
+    columnMap,
+    cancelStatuses: $('#ch-cancel').value.split(',').map(s=>s.trim()).filter(Boolean),
+    headerSignature: (id && DB.get('channels',id)?.headerSignature) || [],
+  };
+  DB.put('channels', doc);
+  closeModal(); renderChannels(); toast('저장했습니다');
+}
+window.saveChannel = saveChannel;
+
+function delChannel(id) {
+  const ch = DB.get('channels', id);
+  const mapped = DB.list('channelMappings').filter(m => m.channelId === id).length;
+  if (!confirm(`채널 "${ch?.name}" 을(를) 삭제할까요?` + (mapped ? `\n연결된 매칭 ${mapped}건도 함께 사라집니다.` : ''))) return;
+  DB.list('channelMappings').filter(m => m.channelId === id).forEach(m => DB.del('channelMappings', m.id));
+  DB.del('channels', id);
+  renderChannels(); toast('삭제했습니다');
+}
+window.delChannel = delChannel;
+
+/* ============================================================================
+ * (b) 브랜드 관리
+ * ==========================================================================*/
+function renderBrands() {
+  const box = $('[data-sub-panel="brand"]');
+  const list = DB.list('brands');
+  const channels = DB.list('channels');
+  let html = sectionHead('브랜드 관리', '상품이 속할 브랜드와, 각 채널에서 취급하는 브랜드를 지정합니다.', '+ 브랜드 추가', 'openBrandForm()');
+
+  if (!list.length) {
+    html += emptyCard('🏷️', '등록된 브랜드가 없습니다', 'ZEAL · Ziwi · 아첨간식 같은 브랜드를 등록하세요.', '+ 브랜드 추가', 'openBrandForm()');
+    box.innerHTML = html; return;
+  }
+  html += '<div class="grid gap-3 sm:grid-cols-2">';
+  list.forEach(b => {
+    const chNames = (b.channelIds||[]).map(cid => (channels.find(c=>c.id===cid)||{}).name).filter(Boolean);
+    const prodCount = DB.list('products').filter(p => p.brandId === b.id && p.active!==false).length;
+    html += `<div class="bg-white rounded-2xl border border-slate-200 p-4">
+      <div class="flex items-center gap-2">
+        <span class="font-bold">${esc(b.name)}</span>
+        ${b.active===false ? '<span class="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 text-slate-400">사용안함</span>' : ''}
+        <div class="ml-auto flex gap-1.5">
+          <button onclick="openBrandForm('${b.id}')" class="text-xs font-semibold text-brand px-2 py-1 rounded hover:bg-brand-soft">수정</button>
+          <button onclick="delBrand('${b.id}')" class="text-xs font-semibold text-rose-500 px-2 py-1 rounded hover:bg-rose-50">삭제</button>
+        </div>
+      </div>
+      <div class="mt-2 text-xs text-slate-500">상품 ${prodCount}개 · 취급채널: ${chNames.length?chNames.map(esc).join(', '):'<span class="text-slate-300">미지정</span>'}</div>
+    </div>`;
+  });
+  html += '</div>';
+  box.innerHTML = html;
+}
+
+function openBrandForm(id) {
+  const b = id ? DB.get('brands', id) : { active:true, channelIds:[] };
+  const channels = DB.list('channels');
+  const chBoxes = channels.length ? channels.map(c => `
+    <label class="flex items-center gap-2 text-sm px-2.5 py-1.5 rounded-lg border border-slate-200 cursor-pointer">
+      <input type="checkbox" class="brand-ch w-4 h-4 accent-brand" value="${c.id}" ${(b.channelIds||[]).includes(c.id)?'checked':''}>
+      ${esc(c.name)}</label>`).join('')
+    : '<p class="text-xs text-slate-400">먼저 채널을 등록하면 여기서 지정할 수 있습니다.</p>';
+  const body = `
+    ${F.text('br-name','브랜드명', b.name||'', '예: 몽프루이')}
+    ${F.toggle('br-active','사용 여부', b.active!==false)}
+    <div class="pt-2 border-t border-slate-100">
+      <p class="text-xs font-bold text-slate-600 mb-2">취급 채널 <span class="font-normal text-slate-400">(선택)</span></p>
+      <div class="flex flex-wrap gap-2">${chBoxes}</div>
+    </div>`;
+  openModal(F.wrap(id?'브랜드 수정':'브랜드 추가', body, F.btnGhost('취소','closeModal()')+F.btnPrimary('저장',`saveBrand('${id||''}')`)));
+}
+window.openBrandForm = openBrandForm;
+
+function saveBrand(id) {
+  const name = $('#br-name').value.trim();
+  if (!name) { toast('브랜드명을 입력하세요','err'); return; }
+  DB.put('brands', {
+    id: id||undefined, name,
+    active: $('#br-active').checked,
+    channelIds: $$('.brand-ch').filter(c=>c.checked).map(c=>c.value),
+  });
+  closeModal(); renderBrands(); toast('저장했습니다');
+}
+window.saveBrand = saveBrand;
+
+function delBrand(id) {
+  const b = DB.get('brands', id);
+  const prods = DB.list('products').filter(p => p.brandId === id);
+  if (prods.length) {
+    if (!confirm(`브랜드 "${b?.name}" 에 상품 ${prods.length}개가 있습니다.\n삭제 대신 "사용안함"으로 바꾸는 것을 권장합니다. 그래도 삭제할까요?`)) return;
+  } else if (!confirm(`브랜드 "${b?.name}" 을(를) 삭제할까요?`)) return;
+  DB.del('brands', id);
+  renderBrands(); toast('삭제했습니다');
+}
+window.delBrand = delBrand;
+
+/* ============================================================================
+ * (c) 상품 관리 — 상품(그룹) + 규격(productItems)
+ * ==========================================================================*/
+const UNIT_TYPES = [{v:'g',t:'g (무게)'},{v:'ml',t:'ml (부피)'},{v:'ea',t:'ea (개수)'}];
+
+function renderProducts() {
+  const box = $('[data-sub-panel="product"]');
+  const brands = DB.list('brands').filter(b => b.active!==false);
+  const products = DB.list('products');
+  let html = sectionHead('상품 관리', '브랜드 › 상품 › 규격(집계 최소 단위) 2단계로 등록합니다.',
+    brands.length ? '+ 상품 추가' : '', brands.length ? 'openProductForm()' : '');
+
+  if (!brands.length) {
+    html += emptyCard('📦', '먼저 브랜드가 필요합니다', '상품은 브랜드에 속합니다. 브랜드 관리에서 먼저 등록하세요.', '브랜드 관리로', "renderSub('brand')");
+    box.innerHTML = html; return;
+  }
+  if (!products.length) {
+    html += emptyCard('📦', '등록된 상품이 없습니다', '청송 꿀사과 같은 상품을 등록하고 그 아래 규격(1kg/3kg)을 추가하세요.', '+ 상품 추가', 'openProductForm()');
+    box.innerHTML = html; return;
   }
 
-  /* ---------------------------------------------------- 기간 버킷 계산 */
-  function bucketKey(dateStr, unit) {
-    if (unit === 'day') return dateStr;
-    if (unit === 'month') return dateStr.slice(0, 7);
-    if (unit === 'year') return dateStr.slice(0, 4);
-    return ymd(mondayOf(parseYmd(dateStr)));  // week
-  }
-  function bucketLabel(key, unit) {
-    if (unit === 'day') {
-      var d = parseYmd(key);
-      return (d.getMonth() + 1) + '/' + d.getDate() + '(' + DOW[d.getDay()] + ')';
-    }
-    if (unit === 'week') {
-      var s = parseYmd(key), e = addDays(s, 6);
-      return (s.getMonth() + 1) + '/' + s.getDate() + '~' + (e.getMonth() + 1) + '/' + e.getDate();
-    }
-    if (unit === 'month') return key.slice(0, 4) + '.' + key.slice(5, 7);
-    return key + '년';
-  }
-  /* from~to 사이의 모든 버킷 키를 빈 구간까지 포함해 순서대로 */
-  function bucketList(from, to, unit) {
-    var out = [], cur;
-    if (unit === 'day') {
-      for (cur = parseYmd(from); ymd(cur) <= to; cur = addDays(cur, 1)) out.push(ymd(cur));
-    } else if (unit === 'week') {
-      for (cur = mondayOf(parseYmd(from)); ymd(cur) <= to; cur = addDays(cur, 7)) out.push(ymd(cur));
-    } else if (unit === 'month') {
-      cur = parseYmd(from); cur.setDate(1);
-      var end = parseYmd(to);
-      while (cur.getFullYear() < end.getFullYear() ||
-             (cur.getFullYear() === end.getFullYear() && cur.getMonth() <= end.getMonth())) {
-        out.push(cur.getFullYear() + '-' + pad(cur.getMonth() + 1));
-        cur.setMonth(cur.getMonth() + 1);
-      }
-    } else {
-      var y1 = Number(from.slice(0, 4)), y2 = Number(to.slice(0, 4));
-      for (var y = y1; y <= y2; y++) out.push(String(y));
-    }
-    if (out.length > 400) out = out.slice(out.length - 400);
-    return out;
-  }
-
-  /* ---------------------------------------------------------------- 집계 */
-  function passFilter(r) {
-    if (state.brands[r.brand || '(브랜드 없음)']) return false;
-    if (state.channels[r.channel || '(채널 없음)']) return false;
-    return true;
-  }
-  function inRange(r) {
-    return (!state.from || r.date >= state.from) && (!state.to || r.date <= state.to);
-  }
-  /* 대시보드 하단(구분해서 보기)에 쓰는 행: 필터 + 범위 + 선택 기간 */
-  function detailRows() {
-    return rows.filter(function (r) {
-      if (!passFilter(r) || !inRange(r)) return false;
-      if (state.focus && bucketKey(r.date, state.unit) !== state.focus) return false;
-      return true;
-    });
-  }
-  function sumRows(list) {
-    var amount = 0, qty = 0;
-    for (var i = 0; i < list.length; i++) { amount += list[i].amount || 0; qty += list[i].qty || 0; }
-    return { amount: amount, qty: qty, count: list.length };
-  }
-  function sumBetween(from, to) {
-    var amount = 0, qty = 0, count = 0;
-    for (var i = 0; i < rows.length; i++) {
-      var r = rows[i];
-      if (r.date < from || r.date > to || !passFilter(r)) continue;
-      amount += r.amount || 0; qty += r.qty || 0; count++;
-    }
-    return { amount: amount, qty: qty, count: count };
-  }
-  function uniqueValues(field) {
-    var seen = {}, out = [];
-    for (var i = 0; i < rows.length; i++) {
-      var v = rows[i][field] || ('(' + (field === 'brand' ? '브랜드' : '채널') + ' 없음)');
-      if (!seen[v]) { seen[v] = 1; out.push(v); }
-    }
-    out.sort();
-    return out;
-  }
-  function dataExtent() {
-    if (!rows.length) return null;
-    var min = rows[0].date, max = rows[0].date;
-    for (var i = 1; i < rows.length; i++) {
-      if (rows[i].date < min) min = rows[i].date;
-      if (rows[i].date > max) max = rows[i].date;
-    }
-    return { min: min, max: max };
-  }
-
-  /* ============================================================ 화면 그리기 */
-
-  /* ---- 1) 오늘/이번주/이번달/올해 요약 ---- */
-  function renderKpis() {
-    var t = today(), ts = ymd(t);
-    var mon = mondayOf(t);
-    var defs = [
-      {
-        label: '오늘', unit: 'day', focus: ts,
-        cur: [ts, ts],
-        prev: [ymd(addDays(t, -1)), ymd(addDays(t, -1))],
-        prevLabel: '어제', sub: (t.getMonth() + 1) + '월 ' + t.getDate() + '일'
-      },
-      {
-        label: '이번 주', unit: 'week', focus: ymd(mon),
-        cur: [ymd(mon), ts],
-        prev: [ymd(addDays(mon, -7)), ymd(addDays(t, -7))],
-        prevLabel: '지난주 같은 요일까지',
-        sub: (mon.getMonth() + 1) + '/' + mon.getDate() + ' ~ 오늘'
-      },
-      {
-        label: '이번 달', unit: 'month', focus: ts.slice(0, 7),
-        cur: [ts.slice(0, 7) + '-01', ts],
-        prev: (function () {
-          var s = new Date(t.getFullYear(), t.getMonth() - 1, 1);
-          var lastDay = new Date(t.getFullYear(), t.getMonth(), 0).getDate();
-          var e = new Date(t.getFullYear(), t.getMonth() - 1, Math.min(t.getDate(), lastDay));
-          return [ymd(s), ymd(e)];
-        })(),
-        prevLabel: '지난달 같은 날짜까지',
-        sub: (t.getMonth() + 1) + '월 1일 ~ 오늘'
-      },
-      {
-        label: '올해', unit: 'year', focus: ts.slice(0, 4),
-        cur: [ts.slice(0, 4) + '-01-01', ts],
-        prev: [(t.getFullYear() - 1) + '-01-01', (t.getFullYear() - 1) + ts.slice(4)],
-        prevLabel: '작년 같은 기간까지',
-        sub: t.getFullYear() + '년 누계'
-      }
-    ];
-
-    var html = defs.map(function (d) {
-      var cur = sumBetween(d.cur[0], d.cur[1]);
-      var prev = sumBetween(d.prev[0], d.prev[1]);
-      var diffHtml;
-      if (prev.amount === 0) {
-        diffHtml = '<span class="k-diff flat">' + (cur.amount ? '신규' : '—') + '</span>';
+  // 브랜드별 그룹핑
+  html += '<div class="space-y-5">';
+  brands.forEach(brand => {
+    const prods = products.filter(p => p.brandId === brand.id);
+    if (!prods.length) return;
+    html += `<div><h3 class="text-xs font-bold text-slate-400 mb-2">${esc(brand.name)}</h3><div class="grid gap-3">`;
+    prods.forEach(p => {
+      const items = DB.list('productItems').filter(it => it.productId === p.id).sort((a,b)=>(a.unitValue||0)-(b.unitValue||0));
+      html += `<div class="bg-white rounded-2xl border border-slate-200 overflow-hidden ${p.active===false?'opacity-60':''}">
+        <div class="p-4 flex items-center gap-2 border-b border-slate-100">
+          <span class="font-bold">${esc(p.name)}</span>
+          ${p.active===false?'<span class="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 text-slate-400">사용안함</span>':''}
+          <span class="text-xs text-slate-400">규격 ${items.length}개</span>
+          <div class="ml-auto flex gap-1.5">
+            <button onclick="openItemForm('${p.id}')" class="text-xs font-semibold text-brand px-2 py-1 rounded hover:bg-brand-soft">+ 규격</button>
+            <button onclick="openProductForm('${p.id}')" class="text-xs font-semibold text-slate-500 px-2 py-1 rounded hover:bg-slate-100">수정</button>
+            <button onclick="delProduct('${p.id}')" class="text-xs font-semibold text-rose-500 px-2 py-1 rounded hover:bg-rose-50">삭제</button>
+          </div>
+        </div>`;
+      if (items.length) {
+        html += '<table class="w-full text-sm"><tbody>';
+        items.forEach(it => {
+          html += `<tr class="border-b border-slate-50 ${it.active===false?'opacity-50':''}">
+            <td class="px-4 py-2 font-semibold">${esc(it.spec)}</td>
+            <td class="px-2 py-2 text-xs text-slate-400">${esc(it.sku||'-')}</td>
+            <td class="px-2 py-2 text-xs text-slate-500 text-right">${it.unitValue?comma(it.unitValue)+esc(it.unitType||''):'-'}</td>
+            <td class="px-2 py-2 text-right num">${it.price?won(it.price):'<span class="text-slate-300">-</span>'}</td>
+            <td class="px-4 py-2 text-right whitespace-nowrap">
+              <button onclick="openItemForm('${p.id}','${it.id}')" class="text-xs text-brand font-semibold mr-1">수정</button>
+              <button onclick="delItem('${it.id}')" class="text-xs text-rose-400 font-semibold">삭제</button>
+            </td></tr>`;
+        });
+        html += '</tbody></table>';
       } else {
-        var rate = (cur.amount - prev.amount) / prev.amount * 100;
-        var cls = rate > 0.05 ? 'up' : (rate < -0.05 ? 'down' : 'flat');
-        var sign = rate > 0 ? '▲ ' : (rate < 0 ? '▼ ' : '― ');
-        diffHtml = '<span class="k-diff ' + cls + '">' + sign + Math.abs(rate).toFixed(rate > -10 && rate < 10 ? 1 : 0) + '%</span>';
+        html += `<div class="px-4 py-3 text-xs text-slate-400">규격이 없습니다. <button onclick="openItemForm('${p.id}')" class="text-brand font-semibold">+ 규격 추가</button></div>`;
       }
-      return '<button class="kpi" data-unit="' + d.unit + '" data-focus="' + esc(d.focus) + '" title="' + esc(d.prevLabel) + ' 대비">' +
-        '<div class="k-label">' + d.label + '</div>' +
-        '<div class="k-value num">' + won(cur.amount) + '</div>' +
-        '<div class="k-sub">' + comma(cur.qty) + '개 · ' + d.sub + '</div>' +
-        '<div style="margin-top:6px">' + diffHtml + ' <span class="k-sub">vs ' + d.prevLabel + '</span></div>' +
-        '</button>';
-    }).join('');
-    $('kpis').innerHTML = html;
+      html += '</div>';
+    });
+    html += '</div></div>';
+  });
+  html += '</div>';
+  box.innerHTML = html;
+}
 
-    Array.prototype.forEach.call($('kpis').querySelectorAll('.kpi'), function (btn) {
-      btn.addEventListener('click', function () {
-        state.unit = btn.dataset.unit;
-        applyAutoRange();
-        state.focus = btn.dataset.focus;
-        state.expanded = {};
-        renderAll();
-        $('trendTitle').scrollIntoView({ behavior: 'smooth', block: 'start' });
+function openProductForm(id) {
+  const p = id ? DB.get('products', id) : { active:true };
+  const brands = DB.list('brands').filter(b => b.active!==false);
+  const body = `
+    ${F.sel('pr-brand','브랜드', brands.map(b=>({v:b.id,t:b.name})), p.brandId||'')}
+    ${F.text('pr-name','상품명', p.name||'', '예: 청송 꿀사과')}
+    ${F.toggle('pr-active','사용 여부', p.active!==false)}
+    <p class="text-[11px] text-slate-400">상품을 저장한 뒤 카드에서 규격(1kg/3kg 등)을 추가할 수 있습니다.</p>`;
+  openModal(F.wrap(id?'상품 수정':'상품 추가', body, F.btnGhost('취소','closeModal()')+F.btnPrimary('저장',`saveProduct('${id||''}')`)));
+}
+window.openProductForm = openProductForm;
+
+function saveProduct(id) {
+  const brandId = $('#pr-brand').value;
+  const name = $('#pr-name').value.trim();
+  if (!brandId) { toast('브랜드를 선택하세요','err'); return; }
+  if (!name) { toast('상품명을 입력하세요','err'); return; }
+  DB.put('products', { id:id||undefined, brandId, name, active:$('#pr-active').checked });
+  closeModal(); renderProducts(); toast('저장했습니다');
+}
+window.saveProduct = saveProduct;
+
+function delProduct(id) {
+  const p = DB.get('products', id);
+  const items = DB.list('productItems').filter(it => it.productId === id);
+  if (!confirm(`상품 "${p?.name}" 과(와) 규격 ${items.length}개를 삭제할까요?\n(과거 매출이 참조 중이면 "사용안함"을 권장)`)) return;
+  items.forEach(it => DB.del('productItems', it.id));
+  DB.del('products', id);
+  renderProducts(); toast('삭제했습니다');
+}
+window.delProduct = delProduct;
+
+function openItemForm(productId, itemId) {
+  const it = itemId ? DB.get('productItems', itemId) : { active:true, unitType:'g' };
+  const p = DB.get('products', productId);
+  const body = `
+    <p class="text-xs text-slate-400">상품 <b class="text-slate-600">${esc(p?.name||'')}</b> 의 규격</p>
+    ${F.text('it-spec','규격명', it.spec||'', '예: 3kg / 12개입')}
+    ${F.text('it-sku','SKU', it.sku||'', '예: MF-APPLE-3KG')}
+    <div class="grid grid-cols-2 gap-3">
+      ${F.sel('it-utype','단위 타입', UNIT_TYPES, it.unitType||'g')}
+      ${F.num('it-uval','단위 값', it.unitValue!=null?it.unitValue:'', '예: 3000')}
+    </div>
+    ${F.num('it-price','정가(원)', it.price!=null?it.price:'', '예: 39000')}
+    ${F.toggle('it-active','사용 여부', it.active!==false)}`;
+  openModal(F.wrap(itemId?'규격 수정':'규격 추가', body, F.btnGhost('취소','closeModal()')+F.btnPrimary('저장',`saveItem('${productId}','${itemId||''}')`)));
+}
+window.openItemForm = openItemForm;
+
+function saveItem(productId, itemId) {
+  const spec = $('#it-spec').value.trim();
+  if (!spec) { toast('규격명을 입력하세요','err'); return; }
+  const p = DB.get('products', productId);
+  DB.put('productItems', {
+    id: itemId||undefined,
+    productId, brandId: p?.brandId || '',
+    spec,
+    sku: $('#it-sku').value.trim(),
+    unitType: $('#it-utype').value,
+    unitValue: $('#it-uval').value!==''? Number($('#it-uval').value) : null,
+    price: $('#it-price').value!==''? Number($('#it-price').value) : null,
+    active: $('#it-active').checked,
+  });
+  closeModal(); renderProducts(); toast('저장했습니다');
+}
+window.saveItem = saveItem;
+
+function delItem(id) {
+  const it = DB.get('productItems', id);
+  if (!confirm(`규격 "${it?.spec}" 을(를) 삭제할까요?`)) return;
+  DB.del('productItems', id);
+  renderProducts(); toast('삭제했습니다');
+}
+window.delItem = delItem;
+
+/* ============================================================================
+ * (d) 매칭 관리 — Phase 6 에서 트리 뷰/재매칭 구현. 지금은 구조만.
+ * ==========================================================================*/
+function renderMatch() {
+  const box = $('[data-sub-panel="match"]');
+  const maps = DB.list('channelMappings');
+  let html = sectionHead('매칭 관리', '채널 상품·옵션 ↔ 내 상품 규격 연결을 관리합니다. (트리 뷰·재매칭은 Phase 6)');
+  if (!maps.length) {
+    html += emptyCard('🔗', '아직 매칭 데이터가 없습니다',
+      '데이터 입력에서 채널 엑셀을 업로드하면 여기에 채널 상품↔내 규격 매핑이 쌓입니다.', '', '');
+  } else {
+    // 채널별 그룹으로 간단 리스트(읽기 전용 프리뷰)
+    const channels = DB.list('channels');
+    html += '<div class="space-y-4">';
+    channels.forEach(ch => {
+      const rows = maps.filter(m => m.channelId === ch.id);
+      if (!rows.length) return;
+      html += `<div class="bg-white rounded-2xl border border-slate-200 p-4">
+        <h3 class="font-bold text-sm mb-2">${esc(ch.name)}</h3>
+        <div class="space-y-1 text-xs">`;
+      rows.forEach(m => {
+        const it = DB.get('productItems', m.productItemId);
+        const badge = m.status==='review' ? '<span class="text-amber-600">⚠ 이름변경</span>'
+          : m.status==='ignored' ? '<span class="text-slate-400">무시됨</span>'
+          : it ? '<span class="text-emerald-600">✅</span>' : '<span class="text-rose-500">❌ 미매칭</span>';
+        html += `<div class="flex items-center gap-2 py-1 border-b border-slate-50">
+          <span class="text-slate-400">${esc(m.channelProductCode||'')}/${esc(m.channelOptionCode||'')}</span>
+          <span>${esc(m.snapOptionName||m.lastSeenOptionName||'')}</span>
+          <span class="ml-auto">${it?esc(it.spec):''} ${badge}</span></div>`;
       });
+      html += '</div></div>';
     });
+    html += '</div>';
   }
+  box.innerHTML = html;
+}
 
-  /* ---- 2) 필터 칩 ---- */
-  function renderChips() {
-    [['brand', 'brandChips', 'brands'], ['channel', 'channelChips', 'channels']].forEach(function (c) {
-      var values = uniqueValues(c[0]);
-      var box = $(c[1]);
-      if (!values.length) { box.innerHTML = '<span class="hint">데이터 없음</span>'; return; }
-      var offMap = state[c[2]];
-      var allOn = values.every(function (v) { return !offMap[v]; });
-      var html = '<button class="chip' + (allOn ? ' on' : '') + '" data-all="1">전체</button>';
-      html += values.map(function (v) {
-        return '<button class="chip' + (offMap[v] ? '' : ' on') + '" data-v="' + esc(v) + '">' + esc(v) + '</button>';
-      }).join('');
-      box.innerHTML = html;
-      Array.prototype.forEach.call(box.querySelectorAll('.chip'), function (chip) {
-        chip.addEventListener('click', function () {
-          if (chip.dataset.all) {
-            state[c[2]] = {};
-          } else {
-            var v = chip.dataset.v;
-            if (offMap[v]) delete offMap[v]; else offMap[v] = true;
-            // 전부 끄면 전체 켜기로 되돌림
-            if (values.every(function (x) { return offMap[x]; })) state[c[2]] = {};
-          }
-          renderAll();
-        });
-      });
-    });
+/* ============================================================================
+ * (e) 기타 — 백업/내보내기, 가져오기, 초기화, 계정
+ * ==========================================================================*/
+function renderEtc() {
+  const box = $('[data-sub-panel="etc"]');
+  const counts = COLLECTIONS.map(c => `${c}: <b class="text-slate-700">${DB.list(c).length}</b>`).join(' · ');
+  box.innerHTML = `
+    ${sectionHead('기타', '데이터 백업 · 복원 · 초기화와 계정 상태')}
+    <div class="grid gap-3">
+      <div class="bg-white rounded-2xl border border-slate-200 p-4">
+        <h3 class="font-bold text-sm mb-1">데이터 백업 / 복원</h3>
+        <p class="text-xs text-slate-400 mb-3">현재 저장된 모든 데이터를 JSON 파일로 내보내거나, 백업 파일에서 복원합니다.</p>
+        <p class="text-[11px] text-slate-400 mb-3">${counts}</p>
+        <div class="flex gap-2 flex-wrap">
+          <button onclick="exportData()" class="px-3.5 py-2 text-sm font-semibold rounded-lg bg-brand text-white hover:bg-brand-dark">JSON 내보내기</button>
+          <label class="px-3.5 py-2 text-sm font-semibold rounded-lg bg-white text-slate-600 border border-slate-200 hover:bg-slate-50 cursor-pointer">
+            JSON 가져오기 <input type="file" accept="application/json,.json" class="hidden" onchange="importData(this)">
+          </label>
+        </div>
+      </div>
+      <div class="bg-white rounded-2xl border border-slate-200 p-4">
+        <h3 class="font-bold text-sm mb-1">계정 / 저장 위치</h3>
+        <p class="text-xs text-slate-500">현재 <b>로컬 모드</b> — 데이터는 이 브라우저(localStorage)에만 저장됩니다.
+        Firebase 설정을 붙이면 Firestore 로 전환되고 여러 기기에서 공유됩니다. (스펙 1·9)</p>
+      </div>
+      <div class="bg-white rounded-2xl border border-rose-200 p-4">
+        <h3 class="font-bold text-sm mb-1 text-rose-600">전체 초기화</h3>
+        <p class="text-xs text-slate-400 mb-3">채널·브랜드·상품·매칭·매출 모든 데이터를 삭제합니다. 되돌릴 수 없습니다.</p>
+        <button onclick="wipeData()" class="px-3.5 py-2 text-sm font-semibold rounded-lg bg-white text-rose-600 border border-rose-200 hover:bg-rose-50">전체 초기화</button>
+      </div>
+    </div>`;
+}
 
-    var seg = $('unitSeg');
-    Array.prototype.forEach.call(seg.querySelectorAll('button'), function (b) {
-      b.classList.toggle('on', b.dataset.unit === state.unit);
-    });
-    Array.prototype.forEach.call($('dim1Chips').querySelectorAll('.chip'), function (b) {
-      b.classList.toggle('on', b.dataset.dim === state.dim1);
-    });
-    Array.prototype.forEach.call($('dim2Chips').querySelectorAll('.chip'), function (b) {
-      b.classList.toggle('on', b.dataset.dim === state.dim2);
-    });
-    Array.prototype.forEach.call($('mergeChips').querySelectorAll('.chip'), function (b) {
-      b.classList.toggle('on', (b.dataset.merge === '1') === state.mergeSpec);
-    });
-    $('fromDate').value = state.from || '';
-    $('toDate').value = state.to || '';
-  }
+function exportData() {
+  const blob = new Blob([DB.exportAll()], { type:'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'saleshub-backup-' + new Date().toISOString().slice(0,10) + '.json';
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(()=>URL.revokeObjectURL(a.href), 1000);
+  toast('백업 파일을 내보냈습니다');
+}
+window.exportData = exportData;
 
-  /* ---- 3) 기간별 매출: 차트 + 표 ---- */
-  var lastSeries = [];
-
-  function buildSeries() {
-    if (!state.from || !state.to || !rows.length) return [];
-    var keys = bucketList(state.from, state.to, state.unit);
-    var map = {};
-    keys.forEach(function (k) { map[k] = { key: k, amount: 0, qty: 0, count: 0 }; });
-    rows.forEach(function (r) {
-      if (!passFilter(r) || !inRange(r)) return;
-      var k = bucketKey(r.date, state.unit);
-      var b = map[k];
-      if (!b) return;
-      b.amount += r.amount || 0; b.qty += r.qty || 0; b.count++;
-    });
-    return keys.map(function (k) { return map[k]; });
-  }
-
-  function renderTrend() {
-    var series = buildSeries();
-    lastSeries = series;
-    var unitName = { day: '일', week: '주', month: '월', year: '연도' }[state.unit];
-    $('trendTitle').innerHTML = unitName + '별 매출 <span class="note">' +
-      (series.length ? series.length + '개 구간 · 막대나 표의 줄을 누르면 그 기간만 아래에서 자세히 봅니다' : '') + '</span>';
-    drawChart(series);
-    drawPeriodTable(series);
-  }
-
-  function drawChart(series) {
-    var box = $('chartBox'), svg = $('chart');
-    var W = Math.max(320, box.clientWidth || 640), H = 220;
-    var padL = 52, padR = 10, padT = 14, padB = 30;
-    svg.setAttribute('width', W);
-    svg.setAttribute('height', H);
-    if (!series.length) { svg.innerHTML = ''; return; }
-
-    var max = 0;
-    series.forEach(function (b) { if (b.amount > max) max = b.amount; });
-    if (max <= 0) max = 1;
-
-    var innerW = W - padL - padR, innerH = H - padT - padB;
-    var step = innerW / series.length;
-    var bw = Math.max(2, Math.min(38, step * 0.68));
-    var parts = [];
-
-    for (var g = 0; g <= 4; g++) {
-      var v = max * g / 4;
-      var y = padT + innerH - innerH * (g / 4);
-      parts.push('<line class="grid-line" x1="' + padL + '" y1="' + y.toFixed(1) + '" x2="' + (W - padR) + '" y2="' + y.toFixed(1) + '"/>');
-      parts.push('<text class="axis-text" x="' + (padL - 6) + '" y="' + (y + 3.5).toFixed(1) + '" text-anchor="end">' + compact(v) + '</text>');
-    }
-
-    var labelEvery = Math.ceil(series.length / Math.max(4, Math.floor(innerW / 62)));
-    series.forEach(function (b, i) {
-      var h = innerH * (b.amount / max);
-      var x = padL + step * i + (step - bw) / 2;
-      var y = padT + innerH - h;
-      var cls = 'bar' + (state.focus === b.key ? ' sel' : '');
-      parts.push('<rect class="' + cls + '" x="' + x.toFixed(1) + '" y="' + y.toFixed(1) +
-        '" width="' + bw.toFixed(1) + '" height="' + Math.max(h, b.amount > 0 ? 1.5 : 0).toFixed(1) +
-        '" rx="2" data-i="' + i + '"><title>' + esc(bucketLabel(b.key, state.unit)) + ' ' + won(b.amount) + '</title></rect>');
-      if (i % labelEvery === 0 || i === series.length - 1) {
-        parts.push('<text class="axis-text" x="' + (padL + step * i + step / 2).toFixed(1) + '" y="' + (H - 10) +
-          '" text-anchor="middle">' + esc(bucketLabel(b.key, state.unit)) + '</text>');
-      }
-    });
-    svg.innerHTML = parts.join('');
-
-    var tip = $('tip');
-    Array.prototype.forEach.call(svg.querySelectorAll('.bar'), function (rect) {
-      rect.addEventListener('mouseenter', function () {
-        var b = series[Number(rect.dataset.i)];
-        tip.innerHTML = bucketLabel(b.key, state.unit) + ' · <b>' + won(b.amount) + '</b> · ' + comma(b.qty) + '개';
-        tip.style.left = (Number(rect.getAttribute('x')) + Number(rect.getAttribute('width')) / 2) + 'px';
-        tip.style.top = Number(rect.getAttribute('y')) + 'px';
-        tip.classList.add('on');
-      });
-      rect.addEventListener('mouseleave', function () { tip.classList.remove('on'); });
-      rect.addEventListener('click', function () {
-        var b = series[Number(rect.dataset.i)];
-        toggleFocus(b.key);
-      });
-    });
-  }
-
-  function drawPeriodTable(series) {
-    var t = $('periodTable');
-    if (!series.length) {
-      t.innerHTML = '<tbody><tr><td class="empty">이 기간에는 매출 데이터가 없습니다</td></tr></tbody>';
-      return;
-    }
-    var total = series.reduce(function (a, b) { return a + b.amount; }, 0);
-    var unitName = { day: '일자', week: '주', month: '월', year: '연도' }[state.unit];
-    var head = '<thead><tr><th>' + unitName + '</th><th>매출</th><th>수량</th><th>건수</th><th>직전 대비</th><th class="share-cell">비중</th></tr></thead>';
-    var body = series.map(function (b, i) {
-      var prev = i > 0 ? series[i - 1].amount : null;
-      var diff = '<span class="muted">—</span>';
-      if (prev !== null && prev !== 0) {
-        var rate = (b.amount - prev) / prev * 100;
-        var cls = rate > 0.05 ? 'up' : (rate < -0.05 ? 'down' : 'flat');
-        diff = '<span class="k-diff ' + cls + '">' + (rate > 0 ? '▲' : rate < 0 ? '▼' : '―') + ' ' + Math.abs(rate).toFixed(0) + '%</span>';
-      } else if (prev === 0 && b.amount > 0) {
-        diff = '<span class="k-diff up">신규</span>';
-      }
-      var share = total ? b.amount / total * 100 : 0;
-      return '<tr class="clickable' + (state.focus === b.key ? ' sel' : '') + '" data-key="' + esc(b.key) + '">' +
-        '<td>' + esc(bucketLabel(b.key, state.unit)) + '</td>' +
-        '<td class="num">' + comma(b.amount) + '</td>' +
-        '<td class="num">' + comma(b.qty) + '</td>' +
-        '<td class="num muted">' + comma(b.count) + '</td>' +
-        '<td>' + diff + '</td>' +
-        '<td class="share-cell"><div class="share-wrap"><div class="share-bar"><i style="width:' +
-          share.toFixed(1) + '%"></i></div><span class="share-pct">' + share.toFixed(1) + '%</span></div></td>' +
-        '</tr>';
-    }).join('');
-    var sumQty = series.reduce(function (a, b) { return a + b.qty; }, 0);
-    var sumCnt = series.reduce(function (a, b) { return a + b.count; }, 0);
-    var foot = '<tfoot><tr><td>합계</td><td class="num">' + comma(total) + '</td><td class="num">' + comma(sumQty) +
-      '</td><td class="num">' + comma(sumCnt) + '</td><td></td><td></td></tr></tfoot>';
-    t.innerHTML = head + '<tbody>' + body + '</tbody>' + foot;
-
-    Array.prototype.forEach.call(t.querySelectorAll('tr.clickable'), function (tr) {
-      tr.addEventListener('click', function () { toggleFocus(tr.dataset.key); });
-    });
-  }
-
-  function toggleFocus(key) {
-    state.focus = state.focus === key ? null : key;
-    state.expanded = {};
-    renderTrend();
-    renderBreak();
-  }
-
-  /* ---- 4) 브랜드 / 채널 / 제품으로 쪼개 보기 ---- */
-  function renderFocusBar() {
-    var box = $('focusBar');
-    if (!state.focus) { box.innerHTML = ''; return; }
-    box.innerHTML = '<div class="selbar">선택한 기간 <b>' + esc(bucketLabel(state.focus, state.unit)) +
-      '</b> 만 보고 있습니다 <button class="btn ghost sm" id="clearFocus">전체 기간으로</button></div>';
-    $('clearFocus').addEventListener('click', function () {
-      state.focus = null; state.expanded = {}; renderTrend(); renderBreak();
-    });
-  }
-
-  function buildTree(list, dims) {
-    var root = { children: {}, amount: 0, qty: 0, count: 0 };
-    list.forEach(function (r) {
-      var node = root;
-      root.amount += r.amount || 0; root.qty += r.qty || 0; root.count++;
-      dims.forEach(function (d) {
-        var k = dimKey(r, d);
-        if (!node.children[k]) {
-          node.children[k] = { key: k, dim: d, children: {}, variants: {}, amount: 0, qty: 0, count: 0 };
-        }
-        node = node.children[k];
-        node.amount += r.amount || 0; node.qty += r.qty || 0; node.count++;
-        if (d === 'product' && state.mergeSpec) {
-          var v = r.product || '(제품 없음)';
-          if (!node.variants[v]) node.variants[v] = { key: v, amount: 0, qty: 0, count: 0 };
-          node.variants[v].amount += r.amount || 0;
-          node.variants[v].qty += r.qty || 0;
-          node.variants[v].count++;
-        }
-      });
-    });
-    return root;
-  }
-  function sortedChildren(node) {
-    return Object.keys(node.children).map(function (k) { return node.children[k]; })
-      .sort(function (a, b) { return b.amount - a.amount; });
-  }
-  function sortedVariants(node) {
-    return Object.keys(node.variants).map(function (k) { return node.variants[k]; })
-      .sort(function (a, b) { return b.amount - a.amount; });
-  }
-  function avgPrice(n) { return n.qty > 0 ? n.amount / n.qty : 0; }
-
-  function renderBreak() {
-    renderFocusBar();
-    var list = detailRows();
-    var t = $('breakTable');
-    if (!list.length) {
-      t.innerHTML = '<tbody><tr><td class="empty">조건에 맞는 매출이 없습니다</td></tr></tbody>';
-      return;
-    }
-    var dims = [state.dim1];
-    if (state.dim2 !== 'none' && state.dim2 !== state.dim1) dims.push(state.dim2);
-    var root = buildTree(list, dims);
-    var total = root.amount;
-
-    var head = '<thead><tr><th>' + dims.map(function (d) { return DIM_LABEL[d]; }).join(' › ') +
-      '</th><th>매출</th><th>수량</th><th>평균단가</th><th class="share-cell">비중</th></tr></thead>';
-
-    var body = [];
-    sortedChildren(root).forEach(function (n1) {
-      pushNode(body, n1, 1, n1.key, total, total);
-    });
-
-    var foot = '<tfoot><tr><td>합계</td><td class="num">' + comma(root.amount) + '</td><td class="num">' +
-      comma(root.qty) + '</td><td class="num muted">' + comma(avgPrice(root)) + '</td><td></td></tr></tfoot>';
-    t.innerHTML = head + '<tbody>' + body.join('') + '</tbody>' + foot;
-
-    Array.prototype.forEach.call(t.querySelectorAll('.caret'), function (btn) {
-      btn.addEventListener('click', function (e) {
-        e.stopPropagation();
-        var p = btn.dataset.path;
-        if (state.expanded[p]) delete state.expanded[p]; else state.expanded[p] = true;
-        renderBreak();
-      });
-    });
-  }
-
-  function pushNode(out, node, level, path, parentTotal, grandTotal) {
-    var kids = sortedChildren(node);
-    var vars = node.dim === 'product' && state.mergeSpec ? sortedVariants(node) : [];
-    var hasKids = kids.length > 0;
-    var hasVars = vars.length > 1;
-    var open = !!state.expanded[path];
-    var share = grandTotal ? node.amount / grandTotal * 100 : 0;
-    var caret = (hasKids || hasVars)
-      ? '<button class="caret" data-path="' + esc(path) + '">' + (open ? '▾' : '▸') + '</button>'
-      : '<span class="caret hidden">·</span>';
-    var extra = '';
-    if (node.dim === 'product' && state.mergeSpec && vars.length > 1) {
-      extra = '<span class="tag">규격 ' + vars.length + '종</span>';
-    }
-    out.push('<tr class="lv' + level + '">' +
-      '<td><span class="tw">' + caret + '<span>' + esc(node.key) + extra + '</span></span></td>' +
-      '<td class="num">' + comma(node.amount) + '</td>' +
-      '<td class="num">' + comma(node.qty) + '개</td>' +
-      '<td class="num muted">' + comma(avgPrice(node)) + '</td>' +
-      '<td class="share-cell"><div class="share-wrap"><div class="share-bar"><i style="width:' +
-      share.toFixed(1) + '%"></i></div><span class="share-pct">' + share.toFixed(1) + '%</span></div></td>' +
-      '</tr>');
-
-    if (!open) return;
-    kids.forEach(function (c) { pushNode(out, c, level + 1, path + ' › ' + c.key, node.amount, grandTotal); });
-    if (!hasKids && hasVars) {
-      vars.forEach(function (v) {
-        var s = node.amount ? v.amount / node.amount * 100 : 0;
-        out.push('<tr class="lv3">' +
-          '<td><span class="tw"><span class="caret hidden">·</span><span>' + esc(v.key) + '</span></span></td>' +
-          '<td class="num">' + comma(v.amount) + '</td>' +
-          '<td class="num">' + comma(v.qty) + '개</td>' +
-          '<td class="num">' + comma(v.qty ? v.amount / v.qty : 0) + '</td>' +
-          '<td class="share-cell"><span class="share-pct" style="width:auto">묶음 내 ' + s.toFixed(0) + '%</span></td>' +
-          '</tr>');
-      });
-    }
-  }
-
-  /* ---- 5) 제품 묶음 이름 편집 ---- */
-  function renderAliasTable() {
-    var groups = {};
-    rows.forEach(function (r) {
-      var raw = (r.product || '(제품 없음)').trim();
-      var g = groupOf(raw);
-      if (!groups[g]) groups[g] = { name: g, variants: {}, amount: 0, qty: 0 };
-      groups[g].variants[raw] = (groups[g].variants[raw] || 0) + (r.qty || 0);
-      groups[g].amount += r.amount || 0;
-      groups[g].qty += r.qty || 0;
-    });
-    var list = Object.keys(groups).map(function (k) { return groups[k]; })
-      .sort(function (a, b) { return b.amount - a.amount; });
-    var t = $('aliasTable');
-    if (!list.length) {
-      t.innerHTML = '<tbody><tr><td class="empty">제품 데이터가 없습니다</td></tr></tbody>';
-      return;
-    }
-    t.innerHTML = '<thead><tr><th>묶음 이름</th><th>포함된 원래 제품명</th><th>수량</th><th>매출</th></tr></thead><tbody>' +
-      list.map(function (g) {
-        var vs = Object.keys(g.variants).sort();
-        return '<tr>' +
-          '<td><input type="text" class="alias-input" data-group="' + esc(g.name) + '" value="' + esc(g.name) + '" style="width:150px"></td>' +
-          '<td class="muted" style="white-space:normal;text-align:left">' + vs.map(esc).join(' · ') + '</td>' +
-          '<td class="num">' + comma(g.qty) + '개</td>' +
-          '<td class="num">' + comma(g.amount) + '</td>' +
-          '</tr>';
-      }).join('') + '</tbody>';
-
-    Array.prototype.forEach.call(t.querySelectorAll('.alias-input'), function (inp) {
-      inp.addEventListener('change', function () {
-        var oldName = inp.dataset.group;
-        var newName = inp.value.trim();
-        if (!newName || newName === oldName) { inp.value = oldName; return; }
-        rows.forEach(function (r) {
-          var raw = (r.product || '(제품 없음)').trim();
-          if (groupOf(raw) === oldName) alias[raw] = newName;
-        });
-        saveAlias();
-        renderAll();
-      });
-    });
-  }
-
-  /* ---- 6) 원본 내역 표 ---- */
-  function renderRowsTable() {
-    var q = state.search.trim().toLowerCase();
-    var list = rows.filter(function (r) {
-      if (!q) return true;
-      return ((r.brand || '') + ' ' + (r.channel || '') + ' ' + (r.product || '')).toLowerCase().indexOf(q) >= 0;
-    });
-    $('rowCount').textContent = comma(rows.length) + '건 저장됨';
-    var t = $('rowsTable');
-    if (!list.length) {
-      t.innerHTML = '<tbody><tr><td class="empty">내역이 없습니다</td></tr></tbody>';
-      $('rowsMore').textContent = '';
-      return;
-    }
-    var shown = list.slice(0, 200);
-    t.innerHTML = '<thead><tr><th>날짜</th><th>브랜드</th><th>채널</th><th>제품</th><th>묶음</th><th>수량</th><th>매출</th><th></th></tr></thead><tbody>' +
-      shown.map(function (r) {
-        return '<tr data-id="' + esc(r.id) + '">' +
-          '<td>' + esc(r.date) + '</td>' +
-          '<td style="text-align:left">' + esc(r.brand || '-') + '</td>' +
-          '<td style="text-align:left">' + esc(r.channel || '-') + '</td>' +
-          '<td style="text-align:left">' + esc(r.product || '-') + '</td>' +
-          '<td style="text-align:left" class="muted">' + esc(groupOf(r.product)) + '</td>' +
-          '<td class="num">' + comma(r.qty) + '</td>' +
-          '<td class="num">' + comma(r.amount) + '</td>' +
-          '<td><button class="del-btn" title="삭제">✕</button></td>' +
-          '</tr>';
-      }).join('') + '</tbody>';
-    $('rowsMore').textContent = list.length > 200 ? '최근 200건만 표시했습니다 (검색으로 좁혀 보세요 · 전체 ' + comma(list.length) + '건)' : '';
-
-    Array.prototype.forEach.call(t.querySelectorAll('.del-btn'), function (btn) {
-      btn.addEventListener('click', function () {
-        var id = btn.closest('tr').dataset.id;
-        rows = rows.filter(function (r) { return r.id !== id; });
-        saveRows();
-        renderAll();
-      });
-    });
-  }
-
-  function renderDatalists() {
-    [['brand', 'brandList'], ['channel', 'channelList'], ['product', 'productList']].forEach(function (c) {
-      var seen = {}, out = [];
-      rows.forEach(function (r) {
-        var v = r[c[0]];
-        if (v && !seen[v]) { seen[v] = 1; out.push(v); }
-      });
-      out.sort();
-      $(c[1]).innerHTML = out.map(function (v) { return '<option value="' + esc(v) + '"></option>'; }).join('');
-    });
-  }
-
-  function renderAll() {
-    $('onboard').style.display = rows.length ? 'none' : 'block';
-    ensureRange();
-    renderKpis();
-    renderChips();
-    renderTrend();
-    renderBreak();
-    renderAliasTable();
-    renderRowsTable();
-    renderDatalists();
-  }
-
-  /* ============================================================ 기간 범위 */
-  function anchorDate() {
-    var ext = dataExtent(), t = ymd(today());
-    if (!ext) return t;
-    return ext.max > t ? ext.max : t;
-  }
-  function applyAutoRange() {
-    var to = anchorDate(), toD = parseYmd(to), from;
-    if (state.unit === 'day') {
-      from = ymd(addDays(toD, -29));
-    } else if (state.unit === 'week') {
-      from = ymd(addDays(mondayOf(toD), -7 * 11));
-    } else if (state.unit === 'month') {
-      var m = new Date(toD.getFullYear(), toD.getMonth() - 11, 1);
-      from = ymd(m);
-    } else {
-      var ext = dataExtent();
-      from = ext ? ext.min : (toD.getFullYear() - 4) + '-01-01';
-    }
-    var ext2 = dataExtent();
-    if (ext2 && from < ext2.min && state.unit !== 'year') { /* 데이터보다 앞서도 그대로 둔다(추이 확인용) */ }
-    state.from = from;
-    state.to = to;
-    state.rangeTouched = false;
-    state.focus = null;
-  }
-  function ensureRange() {
-    if (!state.from || !state.to) applyAutoRange();
-    if (state.from > state.to) { var x = state.from; state.from = state.to; state.to = x; }
-  }
-  function setPreset(days) {
-    var to = anchorDate();
-    if (days === 'all') {
-      var ext = dataExtent();
-      state.from = ext ? ext.min : ymd(addDays(parseYmd(to), -364));
-    } else {
-      state.from = ymd(addDays(parseYmd(to), -(days - 1)));
-    }
-    state.to = to;
-    state.rangeTouched = true;
-    state.focus = null;
-    renderAll();
-  }
-
-  /* ============================================================ 가져오기 */
-  var HEADERS = {
-    date: ['날짜', '일자', '판매일', '주문일', '결제일', 'date', 'day'],
-    brand: ['브랜드', '브랜드명', 'brand'],
-    channel: ['채널', '판매처', '판매채널', '유통채널', 'channel', 'store', 'mall'],
-    product: ['제품', '제품명', '상품', '상품명', '품목', 'product', 'item', 'sku'],
-    qty: ['수량', '개수', '판매수량', 'qty', 'quantity', 'count'],
-    amount: ['금액', '매출', '매출액', '판매금액', '결제금액', 'amount', 'sales', 'revenue', 'total'],
-    price: ['단가', '판매가', '가격', 'price', 'unitprice']
+function importData(input) {
+  const file = input.files[0]; if (!file) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    try {
+      DB.importAll(reader.result);
+      toast('복원했습니다');
+      refreshBadges(); renderSub(curSub);
+    } catch (e) { toast('파일을 읽을 수 없습니다: '+e.message, 'err'); }
+    input.value = '';
   };
-  function headerHit(cell) {
-    var c = String(cell).replace(/\s|_/g, '').toLowerCase();
-    if (!c) return null;
-    for (var key in HEADERS) {
-      for (var i = 0; i < HEADERS[key].length; i++) {
-        if (c === HEADERS[key][i]) return key;
-      }
-    }
-    for (var key2 in HEADERS) {
-      for (var j = 0; j < HEADERS[key2].length; j++) {
-        var h = HEADERS[key2][j];
-        if (h.length > 1 && c.indexOf(h) >= 0) return key2;
-      }
-    }
-    return null;
+  reader.readAsText(file, 'utf-8');
+}
+window.importData = importData;
+
+function wipeData() {
+  if (!confirm('정말 모든 데이터를 삭제할까요? 되돌릴 수 없습니다.')) return;
+  if (!confirm('마지막 확인입니다. 채널·브랜드·상품·매출이 전부 사라집니다.')) return;
+  DB.clearAll();
+  toast('초기화했습니다');
+  refreshBadges(); renderSub(curSub);
+}
+window.wipeData = wipeData;
+
+/* ============================================================ 알림 배지 */
+function refreshBadges() {
+  const review = DB.list('channelMappings').filter(m => m.status === 'review').length;
+  const unmatched = DB.list('sales').filter(s => s.matchStatus === 'unmatched').length;
+  const rb = $('#badge-review'), ub = $('#badge-unmatched');
+  rb.classList.toggle('hidden', !review); rb.querySelector('[data-n]').textContent = review;
+  ub.classList.toggle('hidden', !unmatched); ub.querySelector('[data-n]').textContent = unmatched;
+}
+$('#badge-review').addEventListener('click', () => { goTab('settings'); renderSub('match'); });
+$('#badge-unmatched').addEventListener('click', () => goTab('upload'));
+
+/* ============================================================ 샘플 시드(개발 확인용) */
+function seedSample() {
+  if (DB.list('channels').length || DB.list('brands').length) {
+    if (!confirm('이미 데이터가 있습니다. 샘플을 더 추가할까요?')) return;
   }
-  function parseLine(line, delim) {
-    var out = [], cur = '', q = false;
-    for (var i = 0; i < line.length; i++) {
-      var ch = line[i];
-      if (q) {
-        if (ch === '"') {
-          if (line[i + 1] === '"') { cur += '"'; i++; } else q = false;
-        } else cur += ch;
-      } else if (ch === '"') {
-        q = true;
-      } else if (ch === delim) {
-        out.push(cur); cur = '';
-      } else cur += ch;
-    }
-    out.push(cur);
-    return out.map(function (s) { return s.trim(); });
+  const ch = DB.put('channels', { name:'쿠팡', code:'coupang', dateBasis:'orderDate', active:true,
+    hasProductCode:true, hasOptionCode:true,
+    columnMap:{ orderNo:'주문번호', orderDate:'주문일', productCode:'노출상품ID', productName:'노출상품명',
+      optionCode:'옵션ID', optionName:'등록옵션명', qty:'구매수(수량)', amount:'총 판매금액', status:'주문상태' },
+    cancelStatuses:['취소','반품완료','환불'] });
+  DB.put('channels', { name:'스마트스토어', code:'naver', dateBasis:'payDate', active:true,
+    hasProductCode:true, hasOptionCode:false,
+    columnMap:{ orderNo:'주문번호', orderDate:'결제일', productCode:'상품번호', productName:'상품명', optionName:'옵션정보', qty:'수량', amount:'상품별 총 주문금액', status:'배송상태' },
+    cancelStatuses:['취소','반품'] });
+  const brand = DB.put('brands', { name:'몽프루이', active:true, channelIds:[ch.id] });
+  const prod = DB.put('products', { brandId:brand.id, name:'청송 꿀사과', active:true });
+  [['1kg',1000,10500],['3kg',3000,29000],['5kg',5000,46000]].forEach(([spec,uv,price]) =>
+    DB.put('productItems', { productId:prod.id, brandId:brand.id, spec, sku:'MF-APPLE-'+spec.toUpperCase(), unitType:'g', unitValue:uv, price, active:true }));
+  toast('샘플 데이터를 넣었습니다');
+  refreshBadges(); renderSub(curSub);
+}
+window.seedSample = seedSample;
+
+/* ============================================================ 초기화 */
+function init() {
+  // 탭 클릭
+  $$('.tabbtn').forEach(b => b.addEventListener('click', () => goTab(b.dataset.tab)));
+  $$('.subtab').forEach(b => b.addEventListener('click', () => renderSub(b.dataset.sub)));
+  // 모드 배지
+  $('#mode-badge').textContent = DB.mode === 'local' ? '로컬 모드' : 'Firebase';
+  refreshBadges();
+  goTab('main');
+  // 처음이면 셋팅으로 유도 + 샘플 버튼 노출
+  if (!DB.list('channels').length && !DB.list('brands').length) {
+    const main = $('[data-panel="main"] .rounded-2xl');
+    if (main) main.insertAdjacentHTML('beforeend',
+      '<div class="mt-4"><button onclick="seedSample();goTab(\'settings\')" class="text-sm font-semibold text-slate-500 underline">또는 샘플 데이터로 먼저 둘러보기</button></div>');
   }
-  function parsePaste(text) {
-    var lines = text.replace(/\r\n?/g, '\n').split('\n').filter(function (l) { return l.trim() !== ''; });
-    if (!lines.length) return { rows: [], skipped: 0, mapped: null };
-    var delim = lines[0].indexOf('\t') >= 0 ? '\t' : (lines[0].indexOf(',') >= 0 ? ',' : (lines[0].indexOf(';') >= 0 ? ';' : '\t'));
-    var first = parseLine(lines[0], delim);
+}
+init();
 
-    var map = {}, hits = 0;
-    first.forEach(function (cell, i) {
-      var k = headerHit(cell);
-      if (k && map[k] === undefined) { map[k] = i; hits++; }
-    });
-    var hasHeader = hits >= 2 && !normDate(first[map.date !== undefined ? map.date : 0]);
-    if (!hasHeader) map = { date: 0, brand: 1, channel: 2, product: 3, qty: 4, amount: 5 };
-
-    var out = [], skipped = 0;
-    for (var i = hasHeader ? 1 : 0; i < lines.length; i++) {
-      var c = parseLine(lines[i], delim);
-      var pick = function (k) { return map[k] === undefined ? '' : (c[map[k]] || ''); };
-      var date = normDate(pick('date'));
-      if (!date) { skipped++; continue; }
-      var qty = normNum(pick('qty'));
-      var price = normNum(pick('price'));
-      var amount = normNum(pick('amount'));
-      if (!qty) qty = 1;
-      if (!amount && price) amount = price * qty;
-      out.push({
-        id: uid(),
-        date: date,
-        brand: String(pick('brand')).trim() || '기본',
-        channel: String(pick('channel')).trim() || '기타',
-        product: String(pick('product')).trim() || '기타',
-        qty: qty,
-        amount: Math.round(amount)
-      });
-    }
-    return { rows: out, skipped: skipped, mapped: hasHeader ? map : null };
-  }
-
-  function showPreview(parsed) {
-    var t = $('previewTable');
-    if (!parsed.rows.length) { t.innerHTML = ''; return; }
-    t.innerHTML = '<thead><tr><th>날짜</th><th>브랜드</th><th>채널</th><th>제품</th><th>묶음</th><th>수량</th><th>매출</th></tr></thead><tbody>' +
-      parsed.rows.slice(0, 10).map(function (r) {
-        return '<tr><td>' + esc(r.date) + '</td><td style="text-align:left">' + esc(r.brand) +
-          '</td><td style="text-align:left">' + esc(r.channel) + '</td><td style="text-align:left">' + esc(r.product) +
-          '</td><td style="text-align:left" class="muted">' + esc(groupOf(r.product)) + '</td><td class="num">' + comma(r.qty) +
-          '</td><td class="num">' + comma(r.amount) + '</td></tr>';
-      }).join('') + '</tbody>';
-  }
-  function msg(el, text, ok) {
-    var e = $(el);
-    e.textContent = text;
-    e.className = 'msg ' + (ok ? 'ok' : 'err');
-  }
-
-  /* ============================================================ 내보내기 */
-  function exportCsv() {
-    var head = '날짜,브랜드,채널,제품,수량,매출\n';
-    var body = rows.slice().sort(function (a, b) { return a.date < b.date ? -1 : 1; }).map(function (r) {
-      return [r.date, q(r.brand), q(r.channel), q(r.product), r.qty, r.amount].join(',');
-    }).join('\n');
-    function q(s) {
-      s = String(s == null ? '' : s);
-      return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
-    }
-    var blob = new Blob(['﻿' + head + body], { type: 'text/csv;charset=utf-8;' });
-    var a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = '매출내역_' + ymd(today()) + '.csv';
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    setTimeout(function () { URL.revokeObjectURL(a.href); }, 1000);
-  }
-
-  /* ============================================================ 샘플 */
-  function sampleText() {
-    var seed = 20260820;
-    function rnd() { seed = (seed * 1103515245 + 12345) % 2147483648; return seed / 2147483648; }
-    var brands = ['바니팜', '청과공방', '데일리프룻'];
-    var channels = ['스마트스토어', '쿠팡', '자사몰', '오프라인'];
-    var items = [
-      { p: '사과 3kg', price: 29000, w: 12 },
-      { p: '사과 1kg', price: 10500, w: 9 },
-      { p: '사과 5kg [선물용]', price: 46000, w: 4 },
-      { p: '샤인머스캣 2kg', price: 38000, w: 7 },
-      { p: '샤인머스캣 1kg', price: 21000, w: 5 },
-      { p: '한라봉 3kg', price: 32000, w: 5 },
-      { p: '감귤 5kg', price: 24000, w: 6 },
-      { p: '배 7.5kg', price: 52000, w: 3 }
-    ];
-    var pool = [];
-    items.forEach(function (it) { for (var i = 0; i < it.w; i++) pool.push(it); });
-
-    var lines = ['날짜\t브랜드\t채널\t제품\t수량\t금액'];
-    var end = today();
-    for (var d = 400; d >= 0; d--) {
-      var day = addDays(end, -d);
-      var mon = day.getMonth() + 1;
-      var season = (mon >= 9 && mon <= 12) ? 1.7 : (mon <= 2 ? 1.25 : 0.85);   // 가을·명절 성수기
-      var weekend = (day.getDay() === 0 || day.getDay() === 6) ? 0.7 : 1;
-      var n = Math.round((2 + rnd() * 5) * season * weekend);
-      for (var k = 0; k < n; k++) {
-        var it = pool[Math.floor(rnd() * pool.length)];
-        var qty = 1 + Math.floor(rnd() * 4);
-        var brand = brands[Math.floor(rnd() * brands.length)];
-        var ch = channels[Math.floor(rnd() * channels.length)];
-        var price = Math.round(it.price * (0.94 + rnd() * 0.12) / 100) * 100;
-        lines.push([ymd(day), brand, ch, it.p, qty, price * qty].join('\t'));
-      }
-    }
-    return lines.join('\n');
-  }
-
-  /* ============================================================ 이벤트 */
-  function switchTab(name) {
-    Array.prototype.forEach.call(document.querySelectorAll('.tabs button'), function (b) {
-      b.classList.toggle('active', b.dataset.tab === name);
-    });
-    Array.prototype.forEach.call(document.querySelectorAll('.tab-panel'), function (p) {
-      p.classList.toggle('active', p.id === 'tab-' + name);
-    });
-    if (name === 'dash') drawChart(lastSeries);
-  }
-  Array.prototype.forEach.call(document.querySelectorAll('.tabs button'), function (b) {
-    b.addEventListener('click', function () { switchTab(b.dataset.tab); });
-  });
-
-  Array.prototype.forEach.call($('unitSeg').querySelectorAll('button'), function (b) {
-    b.addEventListener('click', function () {
-      state.unit = b.dataset.unit;
-      state.focus = null;
-      if (!state.rangeTouched) applyAutoRange();
-      renderAll();
-    });
-  });
-  Array.prototype.forEach.call(document.querySelectorAll('[data-preset]'), function (b) {
-    b.addEventListener('click', function () {
-      var p = b.dataset.preset;
-      setPreset(p === 'all' ? 'all' : Number(p));
-    });
-  });
-  $('autoRange').addEventListener('click', function () { applyAutoRange(); renderAll(); });
-  $('fromDate').addEventListener('change', function () {
-    state.from = $('fromDate').value || state.from;
-    state.rangeTouched = true; state.focus = null; renderAll();
-  });
-  $('toDate').addEventListener('change', function () {
-    state.to = $('toDate').value || state.to;
-    state.rangeTouched = true; state.focus = null; renderAll();
-  });
-
-  /* 1·2단계 구분 칩 */
-  (function buildDimChips() {
-    var d1 = ['brand', 'channel', 'product'];
-    $('dim1Chips').innerHTML = d1.map(function (d) {
-      return '<button class="chip" data-dim="' + d + '">' + DIM_LABEL[d] + '</button>';
-    }).join('');
-    $('dim2Chips').innerHTML = ['none'].concat(d1).map(function (d) {
-      return '<button class="chip" data-dim="' + d + '">' + DIM_LABEL[d] + '</button>';
-    }).join('');
-    Array.prototype.forEach.call($('dim1Chips').querySelectorAll('.chip'), function (b) {
-      b.addEventListener('click', function () {
-        state.dim1 = b.dataset.dim;
-        if (state.dim2 === state.dim1) state.dim2 = 'none';
-        state.expanded = {};
-        renderChips(); renderBreak();
-      });
-    });
-    Array.prototype.forEach.call($('dim2Chips').querySelectorAll('.chip'), function (b) {
-      b.addEventListener('click', function () {
-        state.dim2 = b.dataset.dim === state.dim1 ? 'none' : b.dataset.dim;
-        state.expanded = {};
-        renderChips(); renderBreak();
-      });
-    });
-    Array.prototype.forEach.call($('mergeChips').querySelectorAll('.chip'), function (b) {
-      b.addEventListener('click', function () {
-        state.mergeSpec = b.dataset.merge === '1';
-        state.expanded = {};
-        renderChips(); renderBreak();
-      });
-    });
-  })();
-
-  /* 입력 폼 */
-  $('addRow').addEventListener('click', function () {
-    var date = $('fDate').value;
-    if (!date) { msg('addMsg', '날짜를 입력해 주세요.', false); return; }
-    var qty = normNum($('fQty').value) || 1;
-    var price = normNum($('fPrice').value);
-    var amount = normNum($('fAmount').value);
-    if (!amount && price) amount = price * qty;
-    if (!amount) { msg('addMsg', '매출액이나 단가 중 하나는 입력해 주세요.', false); return; }
-    var product = $('fProduct').value.trim() || '기타';
-    rows.unshift({
-      id: uid(),
-      date: date,
-      brand: $('fBrand').value.trim() || '기본',
-      channel: $('fChannel').value.trim() || '기타',
-      product: product,
-      qty: qty,
-      amount: Math.round(amount)
-    });
-    rows.sort(function (a, b) { return a.date < b.date ? 1 : a.date > b.date ? -1 : 0; });
-    saveRows();
-    msg('addMsg', date + ' · ' + product + ' ' + comma(qty) + '개 ' + won(amount) + ' 저장했습니다. (묶음: ' + groupOf(product) + ')', true);
-    $('fQty').value = ''; $('fPrice').value = ''; $('fAmount').value = '';
-    renderAll();
-  });
-  $('clearForm').addEventListener('click', function () {
-    ['fBrand', 'fChannel', 'fProduct', 'fQty', 'fPrice', 'fAmount'].forEach(function (id) { $(id).value = ''; });
-    $('addMsg').className = 'msg';
-  });
-
-  /* 붙여넣기 가져오기 */
-  $('previewBtn').addEventListener('click', function () {
-    var parsed = parsePaste($('pasteBox').value);
-    showPreview(parsed);
-    if (!parsed.rows.length) { msg('importMsg', '읽을 수 있는 줄이 없습니다. 날짜 열이 있는지 확인해 주세요.', false); return; }
-    msg('importMsg', parsed.rows.length + '건을 읽었습니다' +
-      (parsed.skipped ? ' (날짜를 못 읽어 건너뛴 줄 ' + parsed.skipped + '개)' : '') +
-      '. 위 미리보기를 확인한 뒤 [가져오기] 를 누르세요.', true);
-  });
-  $('importBtn').addEventListener('click', function () {
-    var parsed = parsePaste($('pasteBox').value);
-    if (!parsed.rows.length) { msg('importMsg', '읽을 수 있는 줄이 없습니다. 날짜 열이 있는지 확인해 주세요.', false); return; }
-    rows = parsed.rows.concat(rows);
-    rows.sort(function (a, b) { return a.date < b.date ? 1 : a.date > b.date ? -1 : 0; });
-    saveRows();
-    showPreview(parsed);
-    msg('importMsg', parsed.rows.length + '건을 가져왔습니다' +
-      (parsed.skipped ? ' (건너뛴 줄 ' + parsed.skipped + '개)' : '') + '. 대시보드 탭에서 확인하세요.', true);
-    $('pasteBox').value = '';
-    state.rangeTouched = false;
-    applyAutoRange();
-    renderAll();
-  });
-  $('sampleBtn').addEventListener('click', function () {
-    $('pasteBox').value = sampleText();
-    msg('importMsg', '샘플 데이터를 채웠습니다. [가져오기] 를 누르면 화면이 채워집니다.', true);
-  });
-  $('goPaste').addEventListener('click', function () { switchTab('input'); $('pasteBox').focus(); });
-  $('goSample').addEventListener('click', function () {
-    var parsed = parsePaste(sampleText());
-    rows = parsed.rows;
-    saveRows();
-    applyAutoRange();
-    renderAll();
-  });
-
-  /* 데이터 관리 */
-  $('searchBox').addEventListener('input', function () {
-    state.search = $('searchBox').value;
-    renderRowsTable();
-  });
-  $('exportBtn').addEventListener('click', exportCsv);
-  $('wipeBtn').addEventListener('click', function () {
-    if (!rows.length) return;
-    if (!confirm('저장된 매출 ' + comma(rows.length) + '건을 모두 지웁니다. 계속할까요?')) return;
-    rows = [];
-    saveRows();
-    state.from = null; state.to = null; state.focus = null;
-    renderAll();
-  });
-
-  var resizeTimer = null;
-  window.addEventListener('resize', function () {
-    clearTimeout(resizeTimer);
-    resizeTimer = setTimeout(function () { drawChart(lastSeries); }, 120);
-  });
-
-  /* ============================================================ 시작 */
-  load();
-  $('fDate').value = ymd(today());
-  applyAutoRange();
-  renderAll();
 })();
 </script>
 </body>
