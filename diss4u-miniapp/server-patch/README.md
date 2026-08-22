@@ -23,13 +23,14 @@ import { maskProfanity, maskResult, containsProfanity } from './profanity.js';
 3. 기존 `maskProfanity` / `maskResult` 함수 정의(2044줄 근처)를 **지운다.**
    이름이 같아서 import 와 충돌한다.
 
-4. SKU 표를 정한다. 콘솔에 등록한 인앱 상품과 값이 맞아야 한다.
+4. SKU 표를 정한다. 값은 웹의 `CREDIT_PACKS`(server.js 45줄)와 같게 맞춰뒀다.
+   콘솔에 등록한 인앱 상품의 sku 가 다르면 여기를 고친다.
 
 ```js
 const TOSS_IAP_SKUS = {
-  diss4u_credit_10:  { credits: 10,  price: 990 },
-  diss4u_credit_60:  { credits: 60,  price: 4900 },
-  diss4u_credit_150: { credits: 150, price: 9900 },
+  diss4u_credit_10:  { credits: 10,  price: 1000 },  // 1곡
+  diss4u_credit_60:  { credits: 60,  price: 4900 },  // 6곡  (5+1)
+  diss4u_credit_120: { credits: 120, price: 8900 },  // 12곡 (10+2)
 };
 ```
 
