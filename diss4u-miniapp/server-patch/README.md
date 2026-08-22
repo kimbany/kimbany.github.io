@@ -59,20 +59,25 @@ if (path === '/toss/iap/verify' && req.method === 'POST') return tossIapVerify(r
 | `TOSS_CLIENT_ID` | 토스 로그인 | 앱인토스 콘솔 |
 | `TOSS_CLIENT_SECRET` | 토스 로그인 | 앱인토스 콘솔 |
 | `TOSS_LOGIN_DECRYPT_KEY` | 개인정보 복호화(base64) | 신청 후 **이메일**로 수령 |
-| `TOSS_LOGIN_DECRYPT_AAD` | (선택) 복호화 AAD | 아래 주의 참고 |
+| `TOSS_LOGIN_DECRYPT_AAD` | (선택) 복호화 AAD | 값은 `TOSS`. 코드 기본값이라 안 넣어도 됨 |
 | `TOSS_IAP_CERT_PATH` | mTLS 클라이언트 인증서 | 앱인토스 콘솔 |
 | `TOSS_IAP_KEY_PATH` | mTLS 클라이언트 키 | 앱인토스 콘솔 |
 | `TOSS_IAP_CA_PATH` | (선택) CA 체인 | 앱인토스 콘솔 |
 
-## ⚠️ 확인이 필요한 두 가지
+## 복호화 AAD
 
-1. **복호화 AAD 값.** 공식 PHP 예제가 `openssl_decrypt(..., $add)` 로 AAD 를 넘기는데,
-   그 값이 무엇인지 공개 문서에서 확인하지 못했다. 복호화 키를 이메일로 받을 때
-   함께 안내될 가능성이 크다. 값이 있으면 `TOSS_LOGIN_DECRYPT_AAD` 에 넣고,
-   없으면 비워두면 AAD 없이 시도한다. **로그인 복호화가 실패하면 여기부터 볼 것.**
+값은 **`TOSS`** 다. 복호화 키 발급 메일에 키와 나란히 적혀 온다. 공개 문서에는
+안 나와 있어서 한동안 미상이었다. 비밀이 아니라 상수라 `DEFAULT_AAD` 로 코드에
+박아뒀고, 환경변수는 토스가 값을 바꿀 때를 위한 덮어쓰기 용도로만 남겼다.
 
-2. **토큰 발급 API 의 인증 헤더 이름.** `X-Toss-Client-Id` / `X-Toss-Client-Secret`
-   으로 적어두었다. 콘솔에서 키를 받을 때 실제 헤더 이름을 대조할 것.
+구현이 맞는지는 왕복 테스트로 확인했다(`test/toss-decrypt.test.js`).
+암호문 레이아웃(IV 12B + 본문 + tag 16B), AAD 인증, 변조 검출까지 본다.
+
+## ⚠️ 아직 확인이 필요한 것
+
+**토큰 발급 API 의 인증 헤더 이름.** `X-Toss-Client-Id` / `X-Toss-Client-Secret`
+으로 적어두었다. 콘솔에서 `client_id`/`client_secret` 을 받을 때 실제 헤더 이름을
+대조할 것. 여기가 틀리면 토큰 교환에서 401 이 난다.
 
 ## 크레딧 적립 규칙을 건드리지 않은 이유
 

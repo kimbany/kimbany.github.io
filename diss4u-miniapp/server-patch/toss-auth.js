@@ -17,7 +17,7 @@
  *   TOSS_CLIENT_ID          콘솔에서 발급
  *   TOSS_CLIENT_SECRET      콘솔에서 발급
  *   TOSS_LOGIN_DECRYPT_KEY  base64. 신청 후 이메일로 받는다.
- *   TOSS_LOGIN_DECRYPT_AAD  (선택) 복호화 AAD. 아래 주석 참고.
+ *   TOSS_LOGIN_DECRYPT_AAD  (선택) 복호화 AAD. 기본값 'TOSS' — 아래 주석 참고.
  */
 
 import crypto from 'node:crypto';
@@ -29,15 +29,19 @@ const ME_URL = `${API_BASE}/api-partner/v1/apps-in-toss/user/oauth2/login-me`;
 const GCM_TAG_BYTES = 16;
 const GCM_IV_BYTES = 12;
 
+/*
+ * AAD 는 고정 문자열 'TOSS' 다.
+ *
+ * 공개 문서에는 값이 안 나와 있고, 복호화 키를 발급받을 때 오는 메일에 키와 나란히
+ * 적혀 온다. 비밀이 아니라 상수라서 기본값으로 박아둔다. 토스가 나중에 값을 바꾸면
+ * TOSS_LOGIN_DECRYPT_AAD 환경변수로 덮어쓸 수 있다.
+ */
+const DEFAULT_AAD = 'TOSS';
+
 /**
  * 토스가 내려주는 개인정보 복호화.
  *
  * 형식: base64( IV(12B) || ciphertext || tag(16B) ), AES-256-GCM.
- *
- * ⚠️ AAD: 공식 PHP 예제가 openssl_decrypt 의 마지막 인자로 $add 를 넘기는데,
- *    그 값이 무엇인지 공개 문서에서 확인하지 못했다. 복호화 키를 받을 때 함께
- *    안내되는 값일 가능성이 크다. 그래서 환경변수로 빼두고, 없으면 AAD 없이
- *    시도한다. 실기기에서 복호화가 실패하면 여기부터 의심할 것.
  */
 export function decryptField(base64Value, keyBase64, aad) {
   if (!base64Value) return null;
@@ -141,7 +145,7 @@ export function createTossLoginHandler({ send, readBody, admin, getOrCreateUser,
       return send(res, 401, { error: 'no_user_key', message: '토스 사용자 식별에 실패했어요' });
     }
 
-    const aad = process.env.TOSS_LOGIN_DECRYPT_AAD || null;
+    const aad = process.env.TOSS_LOGIN_DECRYPT_AAD || DEFAULT_AAD;
     let email = null;
     let name = null;
     try {

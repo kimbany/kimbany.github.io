@@ -85,7 +85,9 @@ diss4u-miniapp/
 │  ├─ toss-iap.js            POST /toss/iap/verify (mTLS)
 │  ├─ profanity.js           비속어 필터 재작성
 │  └─ README.md              붙이는 방법 · 환경변수
-└─ test/profanity.test.js    45개 케이스
+└─ test/
+   ├─ profanity.test.js     비속어 45개 케이스
+   └─ toss-decrypt.test.js  복호화 왕복·변조검출
 ```
 
 빌드 결과: **`diss4u.ait` 143KB** (dist 448KB, JS gzip 133KB — 대부분 Firebase).
@@ -116,8 +118,11 @@ diss4u-miniapp/
 - [ ] **진단 미니앱을 샌드박스에서 실행** → 영상 생성 가부 확정 (5-1)
   - 되면 `src/screens/video.js` 추가 후 결과 화면에 버튼만 연결
   - 안 되면 서버 렌더링. `/transcode-video` 가 이미 있어 착수점이 있다
-- [ ] `TOSS_LOGIN_DECRYPT_AAD` 실제 값 확인 — **모르면 로그인이 복호화에서 막힌다**
-- [ ] 토큰 발급 API 의 client id/secret **헤더 이름** 대조
+- [x] ~~`TOSS_LOGIN_DECRYPT_AAD` 실제 값 확인~~ → **`TOSS`** 로 확인됨.
+      복호화 키 발급 메일에 함께 온다. 상수라 코드 기본값으로 박았고,
+      구현은 왕복 테스트로 검증했다(`test/toss-decrypt.test.js`)
+- [ ] 토큰 발급 API 의 client id/secret **헤더 이름** 대조 —
+      여기가 틀리면 토큰 교환에서 401 이 난다
 
 ### 콘솔 작업
 
