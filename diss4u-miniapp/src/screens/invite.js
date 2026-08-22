@@ -48,11 +48,6 @@ async function copy(text) {
 }
 
 export function render(root) {
-  const back = el('button', { class: 'back-btn', type: 'button' }, ['← 뒤로']);
-  back.addEventListener('click', () => {
-    if (!nav.back()) nav.reset('input');
-  });
-  root.appendChild(back);
   root.appendChild(el('div', { class: 'section-title', text: '👯 친구 초대' }));
 
   const code = state.refCode;

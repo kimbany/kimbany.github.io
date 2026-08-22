@@ -11,6 +11,8 @@ export const state = {
   creditsEnabled: false,
   costPerSong: COST_PER_SONG,
   refCode: null,
+  /** /me 의 expiringSoon. 홈 화면 배너가 읽는다. */
+  expiringSoon: null,
 
   // 입력 화면에서 고른 값들. 화면을 떠났다 돌아와도 유지된다.
   form: {
@@ -45,6 +47,7 @@ export function setCredits(payload) {
   state.credits = typeof payload.credits === 'number' ? payload.credits : null;
   state.costPerSong = payload.cost || COST_PER_SONG;
   state.refCode = payload.refCode || null;
+  state.expiringSoon = payload.expiringSoon || null;
   if (typeof payload.freeCredits === 'number') state.freeCredits = payload.freeCredits;
   if (typeof payload.paidCredits === 'number') state.paidCredits = payload.paidCredits;
   notify();

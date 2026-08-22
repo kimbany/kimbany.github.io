@@ -95,3 +95,31 @@ export async function logout() {
   await signOut(auth);
   currentUser = null;
 }
+
+/**
+ * 토스 앱에서 이 미니앱의 로그인 연결을 끊었는지 확인한다.
+ *
+ * 체크리스트가 두 가지를 요구한다.
+ *   "토스 앱에서 로그인 연결을 끊은 뒤 미니앱에 다시 접속하면,
+ *    다시 로그인을 요청하는 약관 화면이 노출돼요."
+ *   "토스 앱에서 로그인 연결을 끊으면 사용자 데이터가 미니앱에 남아 있지 않아요."
+ *
+ * Firebase 세션은 토스 연결과 별개로 살아 있어서, 연결을 끊어도 미니앱은
+ * 여전히 로그인 상태로 보인다. 그래서 부팅할 때 한 번 대조해야 한다.
+ *
+ * @returns {Promise<boolean|null>} 연결됨/끊김. 판단할 수 없으면 null.
+ */
+export async function isLinked() {
+  try {
+    if (typeof TossAuth?.isIntegrated?.isSupported === 'function' && !TossAuth.isIntegrated.isSupported()) {
+      // 토스 앱 버전이 낮아 확인할 수 없다. 섣불리 로그아웃시키지 않는다.
+      return null;
+    }
+    const linked = await TossAuth.isIntegrated();
+    // 구버전은 undefined 를 돌려준다 — 이때도 판단하지 않는다.
+    return typeof linked === 'boolean' ? linked : null;
+  } catch {
+    // 토스 로그인을 안 쓰는 미니앱에서 부르면 설정 오류로 던진다. 브라우저도 마찬가지.
+    return null;
+  }
+}

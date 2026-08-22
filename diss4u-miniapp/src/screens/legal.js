@@ -12,11 +12,6 @@ import * as nav from '../lib/nav.js';
 export function render(root, params) {
   const doc = LEGAL_DOCS[params.doc] || LEGAL_DOCS.terms;
 
-  const back = el('button', { class: 'back-btn', type: 'button' }, ['← 뒤로']);
-  back.addEventListener('click', () => {
-    if (!nav.back()) nav.reset('input');
-  });
-  root.appendChild(back);
 
   root.appendChild(
     el('div', { style: 'font-size:22px;font-weight:800;letter-spacing:-0.8px;margin-top:6px' }, [

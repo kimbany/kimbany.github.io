@@ -21,8 +21,8 @@ import { state, setCredits, subscribe } from './state.js';
 import { toast } from './ui/toast.js';
 import * as deeplink from './lib/deeplink.js';
 import { openChargeSheet } from './ui/charge.js';
-import * as expiry from './ui/expiry.js';
 import * as songs from './lib/songs.js';
+import * as shell from './lib/shell.js';
 
 import * as inputScreen from './screens/input.js';
 import * as loadingScreen from './screens/loading.js';
@@ -108,11 +108,14 @@ async function onSignedIn() {
     }
   }
 
-  // 충전 크레딧 소멸이 30일 안이면 알린다. 같은 만료 건은 하루 한 번만.
-  // 공유받은 곡을 보고 있는 중이라면 방해하지 않는다.
-  if (me?.expiringSoon && nav.currentScreen() === 'input') {
-    await expiry.maybeShow(me.expiringSoon, state.user?.uid);
-  }
+  /*
+   * 소멸 임박 안내는 홈 화면 배너가 맡는다(ui/expiry.js). 여기서 바텀시트를 띄우면
+   * "진입 직후 바텀시트 자동 노출" 금지에 걸린다.
+   *
+   * 배너는 /me 응답이 와야 그릴 수 있는데 홈은 그 전에 이미 그려져 있다.
+   * 홈에 머물러 있을 때만 다시 그린다 — 입력값은 state.form 에 있어 날아가지 않는다.
+   */
+  if (me?.expiringSoon && nav.currentScreen() === 'input') nav.reset('input');
 }
 
 /*
@@ -128,11 +131,32 @@ async function openSharedSongIfAny() {
   if (song) nav.push('result', { song });
 }
 
+/*
+ * 토스 앱에서 로그인 연결을 끊었으면 미니앱 세션도 끊는다.
+ *
+ * Firebase 세션은 토스 연결과 따로 살아 있어서, 연결을 끊어도 미니앱만 보면
+ * 여전히 로그인 상태다. 체크리스트가 "연결을 끊으면 사용자 데이터가 남아 있지
+ * 않아요" 를 요구하므로 부팅할 때 한 번 대조한다.
+ *
+ * 판단할 수 없을 때(구버전·브라우저)는 아무것도 하지 않는다. 애매하다고
+ * 로그아웃시키면 멀쩡한 사용자를 쫓아낸다.
+ */
+async function dropSessionIfUnlinked() {
+  if (!auth.getUser()) return;
+  const linked = await auth.isLinked();
+  if (linked !== false) return;
+  songs.invalidateCache();
+  await auth.logout();
+}
+
 async function boot() {
   await env.applySafeArea();
 
   nav.init(document.getElementById('screens'));
   nav.reset('input');
+
+  // 토스 내비바의 뒤로가기/홈 버튼을 내부 화면 스택에 연결한다.
+  shell.connect();
 
   ads.init();
   openSharedSongIfAny();
@@ -145,7 +169,9 @@ async function boot() {
     const onSharedSong = nav.currentScreen() === 'result';
 
     if (user) {
-      onSignedIn();
+      dropSessionIfUnlinked().then(() => {
+        if (auth.getUser()) onSignedIn();
+      });
       // 로그인 게이트를 지우고 폼을 보여준다. 공유받은 곡을 듣는 중이면 그대로 둔다.
       if (!wasSignedIn && !onSharedSong) nav.reset('input');
     } else {

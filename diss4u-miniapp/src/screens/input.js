@@ -15,6 +15,7 @@ import { GENDERS, RELATION_CHIPS, GENRES, VOICES, LANGS } from '../data.js';
 import * as nav from '../lib/nav.js';
 import * as auth from '../lib/auth.js';
 import { openChargeSheet } from '../ui/charge.js';
+import * as expiry from '../ui/expiry.js';
 
 function pillRow(items, selected, onPick) {
   const row = el('div', { class: 'pill-row' });
@@ -79,6 +80,24 @@ export function render(root) {
       ]),
     );
     return;
+  }
+
+  /*
+   * 충전 크레딧 소멸이 임박했으면 알린다.
+   * 배너로 두는 이유는 ui/expiry.js 주석 참고 — 진입 직후 바텀시트는 반려 사유다.
+   */
+  if (state.expiringSoon) {
+    const slot = el('div', {});
+    root.appendChild(slot);
+    expiry.shouldShow(state.expiringSoon, state.user?.uid).then((show) => {
+      if (!show) return;
+      slot.appendChild(
+        expiry.banner(state.expiringSoon, () => {
+          slot.innerHTML = '';
+          expiry.markShown(state.expiringSoon, state.user?.uid);
+        }),
+      );
+    });
   }
 
   /* ===== 입력 폼 ===== */
