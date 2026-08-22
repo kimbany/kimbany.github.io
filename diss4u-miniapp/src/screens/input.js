@@ -266,6 +266,11 @@ export function render(root) {
     }),
   );
 
+  // 결과 화면에서만 들어갈 수 있으면 이전 곡을 다시 듣기가 번거롭다.
+  const listBtn = el('button', { class: 'btn-ghost', type: 'button' }, ['🎵 내가 만든 곡 보기']);
+  listBtn.addEventListener('click', () => nav.push('mylist'));
+  root.appendChild(listBtn);
+
   root.appendChild(
     el('div', { class: 'notice' }, [
       el('div', { class: 'notice-title', text: '🙏 안전하게 즐겨주세요' }),

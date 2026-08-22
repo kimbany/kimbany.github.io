@@ -74,11 +74,14 @@ diss4u-miniapp/
 │  │  ├─ share.js            Share.createLink / sendMessage
 │  │  ├─ files.js            File.saveBase64 (MP3 저장)
 │  │  ├─ storage.js          Storage API (localStorage 폴백)
+│  │  ├─ deeplink.js         진입 URL 파싱 (초대 ref · 공유 곡 id)
 │  │  ├─ api.js              Render 프록시 클라이언트
 │  │  ├─ songs.js            Firestore (스키마 무변경)
 │  │  └─ firebase.js
-│  ├─ screens/               input · loading · result · mylist · legal
-│  ├─ ui/                    dom · toast · modal · charge(결제 시트)
+│  ├─ screens/               input · loading · result · mylist
+│  │                         legal · settings · credits · invite
+│  ├─ ui/                    dom · toast · modal
+│  │                         charge(결제) · coupon(쿠폰) · withdraw(탈퇴)
 │  └─ legal/docs.js          미니앱용 약관·방침 (교정본)
 ├─ server-patch/             proxy/server.js 에 드롭인
 │  ├─ toss-auth.js           POST /toss/login
@@ -141,14 +144,24 @@ diss4u-miniapp/
 
 원본에 있고 미니앱에 아직 없는 것들이다.
 
-- [ ] 크레딧 사용내역 (`/credit-history`) — 모달로
-- [ ] 추천인 코드 / 친구 초대 → `Promotion` · `contactsViral`
+- [x] ~~크레딧 사용내역~~ → `screens/credits.js` (무료/충전 풀 분리 표시)
+- [x] ~~추천인 코드 / 친구 초대~~ → `screens/invite.js`
+      웹의 `diss4u.com/?ref=CODE` 를 `Share.createLink` 의 `intoss://diss4u?ref=CODE` 로 바꿨다.
+      진입 URL 파싱은 `lib/deeplink.js`(`Environment.initialURL`), 귀속은 로그인 직후 자동.
+      토스 연락처 초대(`Promotion.openContactsInvite`)는 콘솔 공유 리워드 moduleId 가
+      있어야 해서 아직 안 붙였다 — 지금은 일반 공유 시트로 동작한다.
+- [x] ~~회원 탈퇴~~ → `ui/withdraw.js` (소멸 크레딧 명시 + 동의 체크 + 탈퇴 후 로그아웃)
+- [x] ~~쿠폰 등록~~ → `ui/coupon.js` (서버와 같은 `[A-Z2-9-]` 문자셋으로 입력 정규화)
+- [x] ~~설정 화면~~ → `screens/settings.js`
+      웹은 `settingsModal` 하나에 다 넣었는데, 바텀시트 안에서 또 바텀시트를 열면
+      뒤로가기가 꼬여서 화면으로 뺐다. 웹에 있던 워커 URL 직접 입력 칸은 뺐다.
+- [ ] 곡 신고 (`/report-song`) — API 래퍼(`api.reportSong`)는 있고 UI 만 없다
 - [ ] 충전 포인트 소멸 임박 안내 (`expiringSoon`)
-- [ ] 곡 신고 (`/report-song`)
-- [ ] 회원 탈퇴 (`/delete-account`)
-- [ ] 쿠폰 등록 (`/redeem-coupon`)
-- [ ] 공유 듣기 페이지(`share.html`) 대응 — 딥링크 `intoss://diss4u/song/{id}` 라우팅
+- [ ] 공유 듣기 페이지(`share.html`) 대응 — `lib/deeplink.js` 의 `songId()` 는 준비됐고,
+      진입 시 해당 곡 화면으로 보내는 라우팅만 남았다
 - [ ] 가사 싱크(`timestampedLyrics`) — 저장은 하고 있으나 표시 안 함
+- [ ] 클립보드 권한 — `Clipboard.setText` 가 권한을 요구하면 `permissions` 에 추가해야 한다.
+      지금은 실패 시 `navigator.clipboard` 로 떨어지게 해뒀다
 
 ### 가격 정책 (5-7)
 

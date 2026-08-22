@@ -110,3 +110,26 @@ export function claimShareReward(songId) {
 export function verifyIapOrder(orderId, sku) {
   return post('/toss/iap/verify', { orderId, sku });
 }
+
+/**
+ * 추천인 코드 귀속. 신규 유저가 첫 곡을 만들면 추천인에게 +10p 가 간다.
+ * 서버가 '이미 귀속됨/이미 곡 만듦/본인 코드' 를 전부 걸러 { ok:false, reason } 으로 답한다.
+ */
+export function claimReferral(ref) {
+  return post('/claim-referral', { ref });
+}
+
+/** 쿠폰 등록. 무료 풀에 적립된다. */
+export function redeemCoupon(code) {
+  return post('/redeem-coupon', { code });
+}
+
+/** 회원 탈퇴. 남은 크레딧은 소멸한다. */
+export function deleteAccount() {
+  return post('/delete-account', {});
+}
+
+/** 곡 신고. */
+export function reportSong(songId, reason) {
+  return post('/report-song', { songId, reason });
+}

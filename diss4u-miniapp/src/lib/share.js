@@ -28,6 +28,21 @@ export async function songLink(songId) {
 }
 
 /**
+ * 초대 링크를 만든다. 실패하면 null — 호출부는 코드만 공유한다.
+ * 이 링크로 들어오면 lib/deeplink.js 가 ref 를 읽어 /claim-referral 로 보낸다.
+ */
+export async function inviteLink(refCode) {
+  if (typeof Share?.createLink !== 'function' || !refCode) return null;
+  try {
+    return await Share.createLink({
+      path: `intoss://diss4u?ref=${encodeURIComponent(refCode)}`,
+    });
+  } catch {
+    return null;
+  }
+}
+
+/**
  * 네이티브 공유 시트를 연다.
  * @returns {Promise<boolean>} 시트를 띄웠으면 true
  */

@@ -19,21 +19,26 @@ import * as iap from './lib/iap.js';
 import * as ads from './lib/ads.js';
 import { state, setCredits, subscribe } from './state.js';
 import { toast } from './ui/toast.js';
+import * as deeplink from './lib/deeplink.js';
 import { openChargeSheet } from './ui/charge.js';
-import { open as openModal, close as closeModal } from './ui/modal.js';
-import { el } from './ui/dom.js';
 
 import * as inputScreen from './screens/input.js';
 import * as loadingScreen from './screens/loading.js';
 import * as resultScreen from './screens/result.js';
 import * as mylistScreen from './screens/mylist.js';
 import * as legalScreen from './screens/legal.js';
+import * as settingsScreen from './screens/settings.js';
+import * as creditsScreen from './screens/credits.js';
+import * as inviteScreen from './screens/invite.js';
 
 nav.register('input', inputScreen.render);
 nav.register('loading', loadingScreen.render);
 nav.register('result', resultScreen.render);
 nav.register('mylist', mylistScreen.render);
 nav.register('legal', legalScreen.render);
+nav.register('settings', settingsScreen.render);
+nav.register('credits', creditsScreen.render);
+nav.register('invite', inviteScreen.render);
 
 const creditChip = document.getElementById('creditChip');
 const creditText = document.getElementById('creditText');
@@ -50,24 +55,7 @@ function renderHeader() {
 
 creditChip.addEventListener('click', () => openChargeSheet());
 
-settingsBtn.addEventListener('click', () => {
-  const cancel = el('button', { class: 'btn-secondary', type: 'button' }, ['취소']);
-  cancel.addEventListener('click', () => closeModal());
-
-  const confirm = el('button', { class: 'btn-secondary btn-danger', type: 'button' }, ['로그아웃']);
-  confirm.addEventListener('click', async () => {
-    confirm.disabled = true;
-    await auth.logout();
-    closeModal();
-    toast('로그아웃했어요.');
-  });
-
-  openModal({
-    title: '설정',
-    subtitle: '로그아웃하면 만든 곡은 다시 로그인할 때 그대로 보여요.',
-    body: [el('div', { class: 'modal-actions' }, [cancel, confirm])],
-  });
-});
+settingsBtn.addEventListener('click', () => nav.push('settings'));
 
 for (const btn of document.querySelectorAll('[data-legal]')) {
   btn.addEventListener('click', () => nav.push('legal', { doc: btn.dataset.legal }));
@@ -84,8 +72,27 @@ async function refreshCredits() {
   }
 }
 
+/*
+ * 초대 링크로 들어왔으면 추천인을 귀속시킨다.
+ *
+ * 서버가 '이미 귀속됨 / 이미 곡을 만든 유저 / 본인 코드' 를 전부 걸러 내므로
+ * 클라이언트는 조건 없이 한 번 보내고 결과만 본다. 실패해도 조용히 넘긴다 —
+ * 초대가 아니라 로그인이 주 목적인 흐름이라 여기서 사용자를 막을 이유가 없다.
+ */
+async function claimReferralIfAny() {
+  const ref = deeplink.referralCode();
+  if (!ref) return;
+  try {
+    const res = await api.claimReferral(ref);
+    if (res?.ok) toast('친구 추천이 등록됐어요! 첫 곡을 만들면 친구에게 보상이 가요 🎁', 3200);
+  } catch {
+    /* 다음 실행에서 다시 시도된다 — initialURL 은 진입 URL 이라 유지된다. */
+  }
+}
+
 async function onSignedIn() {
   await refreshCredits();
+  await claimReferralIfAny();
 
   // 결제는 됐는데 지급이 안 끝난 주문을 복구한다.
   if (iap.isSupported()) {
