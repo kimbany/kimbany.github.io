@@ -8,6 +8,8 @@
 import {
   collection,
   addDoc,
+  doc,
+  getDoc,
   query,
   where,
   orderBy,
@@ -51,6 +53,29 @@ export async function save(song) {
     return ref.id;
   } catch {
     // 저장 실패가 곡 재생을 막지는 않는다. 결과 화면은 그대로 보여준다.
+    return null;
+  }
+}
+
+/**
+ * 곡 하나를 id 로 가져온다. 공유 링크(intoss://diss4u/song/{id})로 들어왔을 때 쓴다.
+ *
+ * 로그인하지 않은 사람도 공유받은 곡은 들을 수 있어야 해서 인증을 요구하지 않는다.
+ * 보안 규칙이 막으면 null 이 돌아오고, 호출부는 홈으로 보낸다.
+ */
+export async function getById(id) {
+  if (!id) return null;
+  try {
+    const snap = await getDoc(doc(db, 'songs', id));
+    if (!snap.exists()) return null;
+    const data = snap.data();
+    if (data.blocked) return null; // 신고로 차단된 곡은 열지 않는다.
+    return {
+      id: snap.id,
+      ...data,
+      createdAt: data.createdAt?.toDate?.() ?? null,
+    };
+  } catch {
     return null;
   }
 }

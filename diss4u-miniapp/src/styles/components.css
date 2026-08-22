@@ -652,3 +652,31 @@
   color: var(--text-dimmer);
   line-height: 1.8;
 }
+
+/* ===== 싱크 가사 =====
+   활성 줄을 상자 안에서만 스크롤하므로 높이를 고정하고 자체 스크롤을 준다.
+   페이지가 같이 튀면 재생 중에 화면이 계속 움직여서 못 쓴다. */
+.lyrics-synced {
+  max-height: 46vh;
+  overflow-y: auto;
+  scroll-behavior: smooth;
+  -webkit-overflow-scrolling: touch;
+}
+.lyric-line {
+  padding: 5px 0;
+  color: var(--text-dimmer);
+  transition: color 0.2s ease;
+}
+.lyric-line.active {
+  color: var(--text);
+  font-weight: 700;
+}
+.lyric-word {
+  transition: color 0.12s ease;
+}
+.lyric-line.active .lyric-word.done {
+  color: var(--text-dim);
+}
+.lyric-line.active .lyric-word.on {
+  color: var(--brand-strong);
+}

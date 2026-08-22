@@ -16,7 +16,14 @@ const routes = new Map();
 const stack = [];
 let mountEl = null;
 let current = null;
+let disposeCurrent = null;
 
+/**
+ * 화면을 등록한다.
+ *
+ * render 가 함수를 돌려주면 그 화면을 떠날 때 호출한다. 싱크 가사처럼 rAF 나
+ * 이벤트를 구독하는 화면은 여기서 풀어야 다음 화면까지 계속 돌아가지 않는다.
+ */
 export function register(name, render) {
   routes.set(name, render);
 }
@@ -29,13 +36,24 @@ function paint(name, params) {
   const render = routes.get(name);
   if (!render) throw new Error(`등록되지 않은 화면: ${name}`);
 
+  // 이전 화면이 잡고 있던 구독을 먼저 푼다.
+  if (disposeCurrent) {
+    try {
+      disposeCurrent();
+    } catch {
+      // 정리 실패가 화면 전환을 막으면 안 된다.
+    }
+    disposeCurrent = null;
+  }
+
   // 결과 화면을 벗어나면 재생을 멈춘다. 원본과 같은 규칙인데,
   // 오디오 엘리먼트가 화면 밖에 살아 있으므로 여기서 명시적으로 끊어야 한다.
   if (current === 'result' && name !== 'result') audio.stop();
 
   mountEl.innerHTML = '';
   current = name;
-  render(mountEl, params || {});
+  const dispose = render(mountEl, params || {});
+  disposeCurrent = typeof dispose === 'function' ? dispose : null;
   window.scrollTo(0, 0);
 }
 

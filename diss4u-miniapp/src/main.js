@@ -21,6 +21,8 @@ import { state, setCredits, subscribe } from './state.js';
 import { toast } from './ui/toast.js';
 import * as deeplink from './lib/deeplink.js';
 import { openChargeSheet } from './ui/charge.js';
+import * as expiry from './ui/expiry.js';
+import * as songs from './lib/songs.js';
 
 import * as inputScreen from './screens/input.js';
 import * as loadingScreen from './screens/loading.js';
@@ -64,11 +66,14 @@ for (const btn of document.querySelectorAll('[data-legal]')) {
 subscribe(renderHeader);
 
 async function refreshCredits() {
-  if (!state.user) return;
+  if (!state.user) return null;
   try {
-    setCredits(await api.fetchMe());
+    const me = await api.fetchMe();
+    setCredits(me);
+    return me;
   } catch {
     // 콜드스타트로 Render 가 깨어나는 중일 수 있다. 잔액은 다음 기회에 채운다.
+    return null;
   }
 }
 
@@ -91,7 +96,7 @@ async function claimReferralIfAny() {
 }
 
 async function onSignedIn() {
-  await refreshCredits();
+  const me = await refreshCredits();
   await claimReferralIfAny();
 
   // 결제는 됐는데 지급이 안 끝난 주문을 복구한다.
@@ -102,6 +107,25 @@ async function onSignedIn() {
       toast(`이전 결제 ${recovered}건의 크레딧을 지급했어요.`);
     }
   }
+
+  // 충전 크레딧 소멸이 30일 안이면 알린다. 같은 만료 건은 하루 한 번만.
+  // 공유받은 곡을 보고 있는 중이라면 방해하지 않는다.
+  if (me?.expiringSoon && nav.currentScreen() === 'input') {
+    await expiry.maybeShow(me.expiringSoon, state.user?.uid);
+  }
+}
+
+/*
+ * 공유 링크(intoss://diss4u/song/{id})로 들어왔으면 그 곡을 바로 연다.
+ *
+ * 로그인하지 않아도 들을 수 있어야 한다 — 웹의 share.html 이 하던 역할이다.
+ * 곡을 못 찾거나 보안 규칙이 막으면 조용히 홈에 머문다.
+ */
+async function openSharedSongIfAny() {
+  const id = deeplink.songId();
+  if (!id) return;
+  const song = await songs.getById(id);
+  if (song) nav.push('result', { song });
 }
 
 async function boot() {
@@ -111,20 +135,23 @@ async function boot() {
   nav.reset('input');
 
   ads.init();
+  openSharedSongIfAny();
 
   auth.onUserChanged((user) => {
     const wasSignedIn = !!state.user;
     state.user = user;
     renderHeader();
 
+    const onSharedSong = nav.currentScreen() === 'result';
+
     if (user) {
       onSignedIn();
-      // 로그인 게이트를 지우고 폼을 보여준다.
-      if (!wasSignedIn) nav.reset('input');
+      // 로그인 게이트를 지우고 폼을 보여준다. 공유받은 곡을 듣는 중이면 그대로 둔다.
+      if (!wasSignedIn && !onSharedSong) nav.reset('input');
     } else {
       state.credits = null;
       state.creditsEnabled = false;
-      nav.reset('input');
+      if (!onSharedSong) nav.reset('input');
     }
   });
 }

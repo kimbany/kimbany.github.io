@@ -8,6 +8,10 @@
  *    src/screens/video.js 를 추가하고 이 화면에 버튼만 달면 된다.
  *
  * 공유 리워드(+2크레딧, 곡당 1회)는 서버 /share-reward 가 중복을 막는다.
+ *
+ * 가사는 타임스탬프가 있으면 재생에 맞춰 하이라이트한다(ui/lyrics.js).
+ * 그 뷰가 rAF 를 구독하므로 render 가 정리 함수를 돌려주고, nav 가 화면을
+ * 떠날 때 호출한다.
  */
 
 import { el } from '../ui/dom.js';
@@ -19,6 +23,8 @@ import * as nav from '../lib/nav.js';
 import * as share from '../lib/share.js';
 import * as files from '../lib/files.js';
 import * as api from '../lib/api.js';
+import * as lyricsView from '../ui/lyrics.js';
+import { openReportSheet } from '../ui/report.js';
 
 export function render(root, params) {
   const song = params.song || state.currentSong;
@@ -46,8 +52,12 @@ export function render(root, params) {
     audio.mount(wrap);
   }
 
-  root.appendChild(el('div', { class: 'section-title', text: '가사' }));
-  root.appendChild(el('div', { class: 'lyrics-box', text: song.lyrics || '' }));
+  const hasSync = !!song.timestampedLyrics?.lines?.length && !!song.audioUrl;
+  root.appendChild(
+    el('div', { class: 'section-title', text: hasSync ? '가사 (재생에 맞춰 따라가요)' : '가사' }),
+  );
+  const lyrics = lyricsView.create(song);
+  root.appendChild(lyrics.node);
 
   if (song.keywords) {
     root.appendChild(el('div', { class: 'section-title', text: '🎯 놀릴 포인트' }));
@@ -112,4 +122,15 @@ export function render(root, params) {
   const listBtn = el('button', { class: 'btn-ghost', type: 'button' }, ['🎵 내가 만든 곡 보기']);
   listBtn.addEventListener('click', () => nav.push('mylist'));
   root.appendChild(listBtn);
+
+  // 신고는 눈에 잘 띄지 않게 두되, 없으면 안 된다(약관 제10조 · 심사 항목).
+  const reportBtn = el('button', {
+    class: 'btn-ghost',
+    type: 'button',
+    style: 'font-size:12px;color:var(--text-dimmer)',
+  }, ['🚩 이 노래 신고하기']);
+  reportBtn.addEventListener('click', () => openReportSheet(song));
+  root.appendChild(reportBtn);
+
+  return lyrics.dispose;
 }

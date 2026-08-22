@@ -88,6 +88,67 @@ export function suspend() {
   };
 }
 
+/**
+ * 재생 위치가 바뀔 때마다 호출한다. 해제 함수를 돌려준다.
+ *
+ * timeupdate 는 브라우저마다 4~15Hz 로 들쭉날쭉해서 가사 싱크에는 성기다.
+ * 그래서 재생 중에는 rAF 로 갱신하고, timeupdate 는 seek·정지 같은 이벤트를
+ * 놓치지 않기 위한 보조로만 쓴다.
+ */
+export function subscribeTime(handler) {
+  const node = element();
+  let raf = 0;
+  let stopped = false;
+
+  const tick = () => {
+    if (stopped) return;
+    handler(node.currentTime || 0);
+    raf = requestAnimationFrame(tick);
+  };
+
+  const start = () => {
+    if (stopped || raf) return;
+    raf = requestAnimationFrame(tick);
+  };
+  const stop = () => {
+    if (!raf) return;
+    cancelAnimationFrame(raf);
+    raf = 0;
+  };
+  const once = () => handler(node.currentTime || 0);
+
+  node.addEventListener('play', start);
+  node.addEventListener('playing', start);
+  node.addEventListener('pause', stop);
+  node.addEventListener('ended', stop);
+  node.addEventListener('seeked', once);
+  node.addEventListener('timeupdate', once);
+
+  if (!node.paused) start();
+  once();
+
+  return function unsubscribe() {
+    stopped = true;
+    stop();
+    node.removeEventListener('play', start);
+    node.removeEventListener('playing', start);
+    node.removeEventListener('pause', stop);
+    node.removeEventListener('ended', stop);
+    node.removeEventListener('seeked', once);
+    node.removeEventListener('timeupdate', once);
+  };
+}
+
+/** 재생 위치를 옮긴다. 가사 줄을 눌러 그 지점부터 듣게 할 때 쓴다. */
+export function seek(seconds) {
+  if (!el) return;
+  try {
+    el.currentTime = Math.max(0, seconds);
+  } catch {
+    // 메타데이터 로드 전이면 던진다. 사용자가 다시 누르면 된다.
+  }
+}
+
 /** 진행 중인 suspend 가 있는지. 테스트와 진단용. */
 export function isSuspended() {
   return suspendCount > 0;

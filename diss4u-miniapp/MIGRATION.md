@@ -155,11 +155,16 @@ diss4u-miniapp/
 - [x] ~~설정 화면~~ → `screens/settings.js`
       웹은 `settingsModal` 하나에 다 넣었는데, 바텀시트 안에서 또 바텀시트를 열면
       뒤로가기가 꼬여서 화면으로 뺐다. 웹에 있던 워커 URL 직접 입력 칸은 뺐다.
-- [ ] 곡 신고 (`/report-song`) — API 래퍼(`api.reportSong`)는 있고 UI 만 없다
-- [ ] 충전 포인트 소멸 임박 안내 (`expiringSoon`)
-- [ ] 공유 듣기 페이지(`share.html`) 대응 — `lib/deeplink.js` 의 `songId()` 는 준비됐고,
-      진입 시 해당 곡 화면으로 보내는 라우팅만 남았다
-- [ ] 가사 싱크(`timestampedLyrics`) — 저장은 하고 있으나 표시 안 함
+- [x] ~~곡 신고~~ → `ui/report.js` (결과 화면 하단). 약관 제10조를 굴리는 창구이고
+      심사에서도 이용자 신고 수단을 본다. 로그인 없이도 신고할 수 있다
+- [x] ~~충전 포인트 소멸 임박 안내~~ → `ui/expiry.js`
+      같은 만료 건은 하루 한 번만. 홈 화면일 때만 띄워 공유 청취를 방해하지 않는다
+- [x] ~~공유 듣기 대응~~ → `intoss://diss4u/song/{id}` 로 들어오면 그 곡을 바로 연다.
+      로그인 없이도 들린다(웹 `share.html` 이 하던 역할). 차단된 곡은 열지 않는다
+- [x] ~~가사 싱크~~ → `ui/lyrics.js`
+      웹은 `timestampedLyrics` 를 영상 캔버스 렌더링에만 썼는데, 같은 데이터로
+      재생 화면에 노래방식 하이라이트를 붙였다. 줄을 누르면 그 지점부터 듣는다.
+      타임스탬프가 없는 옛 곡은 평문으로 떨어진다
 - [ ] 클립보드 권한 — `Clipboard.setText` 가 권한을 요구하면 `permissions` 에 추가해야 한다.
       지금은 실패 시 `navigator.clipboard` 로 떨어지게 해뒀다
 
