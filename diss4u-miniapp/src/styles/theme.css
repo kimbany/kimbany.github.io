@@ -1,0 +1,62 @@
+/*
+ * 라이트 테마 토큰.
+ *
+ * 원본 diss4u.com 은 전면 다크(--bg:#0d0d10)였다. 비게임 심사 체크리스트의
+ * "미니앱 테마는 라이트 모드로 구현돼 있어요" 조항 때문에 라이트로 뒤집었다.
+ * 원본의 라임(#d4ff3a)은 흰 배경에서 대비가 1.3:1 수준이라 본문·버튼에 못 쓴다.
+ * 그래서 강조색을 보라(#7A5CFF)로 옮기고, 라임은 어두운 면 위 배지에만 남겼다.
+ */
+:root {
+  color-scheme: light;
+
+  --bg: #F5F6FA;
+  --bg-card: #FFFFFF;
+  --bg-card-2: #EFF1F7;
+  --bg-sunken: #F0F2F8;
+
+  --brand: #7A5CFF;
+  --brand-strong: #5B3AF0;
+  --brand-soft: #EFEBFF;
+  --brand-ink: #FFFFFF;
+
+  --lime: #D4FF3A;
+  --lime-ink: #2A3300;
+
+  --pink: #FF6FB5;
+  --purple: #9B7BFF;
+  --cyan: #2BB3E0;
+  --orange: #F09033;
+
+  --text: #14141A;
+  --text-dim: #5B5B6B;
+  --text-dimmer: #8A8A9A;
+
+  --border: #E3E5EF;
+  --border-strong: #CFD2E2;
+
+  --danger: #E0304A;
+  --danger-soft: #FDECEF;
+  --ok: #12A150;
+
+  --radius-sm: 12px;
+  --radius-md: 18px;
+  --radius-lg: 24px;
+  --radius-xl: 32px;
+
+  --shadow-card: 0 1px 2px rgba(20, 20, 26, .04), 0 8px 24px rgba(20, 20, 26, .06);
+  --shadow-pop: 0 12px 40px rgba(20, 20, 26, .16);
+
+  /* getSafeAreaInsets() 결과를 main.js가 여기에 덮어쓴다. env()는 폴백. */
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+/*
+ * 사용자가 OS를 다크로 두어도 미니앱은 라이트를 유지해야 한다.
+ * color-scheme:light 만으로는 폼 컨트롤만 잡히므로 배경/글자색을 못박는다.
+ */
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: light;
+  }
+}

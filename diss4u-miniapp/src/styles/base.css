@@ -1,0 +1,62 @@
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  -webkit-tap-highlight-color: transparent;
+}
+
+html,
+body {
+  background: var(--bg);
+  color: var(--text);
+}
+
+body {
+  font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo',
+    'Malgun Gothic', sans-serif;
+  line-height: 1.5;
+  overflow-x: hidden;
+  /*
+   * 제스처 확대·축소 비활성 (체크리스트: 지도처럼 꼭 필요한 경우 제외).
+   * viewport meta 의 user-scalable=no 는 iOS 10+ 에서 무시되므로
+   * touch-action 으로 핀치를 실제로 막는다.
+   */
+  touch-action: pan-x pan-y;
+  -webkit-text-size-adjust: 100%;
+}
+
+.app {
+  max-width: 480px;
+  margin: 0 auto;
+  padding: calc(var(--safe-top) + 12px) 20px calc(var(--safe-bottom) + 48px);
+}
+
+.screen {
+  display: none;
+}
+.screen.active {
+  display: block;
+}
+
+.section-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-dim);
+  letter-spacing: -0.2px;
+  margin: 24px 0 10px;
+}
+
+a {
+  color: var(--brand-strong);
+}
+
+/* 접근성: 애니메이션을 줄이도록 설정한 사용자는 정지 상태로 본다. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}
