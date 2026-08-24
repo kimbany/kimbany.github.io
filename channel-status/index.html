@@ -1,0 +1,1876 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>채널별 상품 판매상태 모니터링</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Pretendard", "Malgun Gothic", sans-serif; }
+  /* 매트릭스 표는 가로로 길어서 상품코드 열과 헤더를 고정해야 읽힌다 */
+  .고정열 { position: sticky; left: 0; z-index: 2; }
+  .고정헤더 { position: sticky; top: 0; z-index: 3; }
+  .고정모서리 { position: sticky; left: 0; top: 0; z-index: 4; }
+  [hidden] { display: none !important; }
+  .탭활성 { color: #0f172a; border-color: #0f172a; font-weight: 600; }
+</style>
+</head>
+<body class="bg-slate-50 text-slate-800">
+
+<!-- ─────────────────────────── 헤더 ─────────────────────────── -->
+<header class="bg-white border-b border-slate-200">
+  <div class="max-w-[1400px] mx-auto px-5 py-3 flex items-center gap-4 flex-wrap">
+    <h1 class="text-lg font-bold tracking-tight">채널별 상품 판매상태 모니터링</h1>
+    <span class="text-xs text-slate-400" id="오늘날짜"></span>
+    <div class="ml-auto flex items-center gap-2 text-xs">
+      <span id="저장위치배지" class="px-2 py-1 rounded bg-slate-100 text-slate-600"></span>
+      <button id="버튼-스냅샷업로드" class="px-3 py-1.5 rounded bg-slate-900 text-white hover:bg-slate-700">CSV 상태 업로드</button>
+    </div>
+  </div>
+  <nav class="max-w-[1400px] mx-auto px-5 flex gap-1 text-sm">
+    <button data-화면="데일리" class="탭 px-4 py-2.5 border-b-2 border-transparent text-slate-500 hover:text-slate-800">데일리 판매 현황</button>
+    <button data-화면="변동"   class="탭 px-4 py-2.5 border-b-2 border-transparent text-slate-500 hover:text-slate-800">변동 현황</button>
+    <button data-화면="채널"   class="탭 px-4 py-2.5 border-b-2 border-transparent text-slate-500 hover:text-slate-800">채널 현황</button>
+    <button data-화면="설정"   class="탭 px-4 py-2.5 border-b-2 border-transparent text-slate-500 hover:text-slate-800">설정</button>
+  </nav>
+</header>
+
+<main class="max-w-[1400px] mx-auto px-5 py-6">
+
+<!-- ═══════════════════ 1. 데일리 판매 현황 ═══════════════════ -->
+<section id="화면-데일리" class="화면 space-y-6">
+  <div id="예약알림영역"></div>
+
+  <div class="grid grid-cols-2 md:grid-cols-5 gap-3" id="요약카드영역"></div>
+
+  <div class="bg-white rounded-lg border border-slate-200">
+    <div class="px-5 py-3 border-b border-slate-100 flex items-center gap-3">
+      <h2 class="font-semibold">오늘 변동된 제품</h2>
+      <span id="오늘변동수" class="text-xs text-slate-400"></span>
+      <span class="ml-auto text-xs text-slate-400">상품코드 기준 · 변동 없는 제품은 표시하지 않습니다</span>
+    </div>
+    <div id="오늘변동목록" class="divide-y divide-slate-100"></div>
+  </div>
+</section>
+
+<!-- ═══════════════════ 2. 변동 현황 ═══════════════════ -->
+<section id="화면-변동" class="화면 space-y-4" hidden>
+  <div class="bg-white rounded-lg border border-slate-200 px-5 py-4 flex flex-wrap items-end gap-4">
+    <label class="text-sm">
+      <span class="block text-xs text-slate-500 mb-1">비교 기준일</span>
+      <input type="date" id="변동-이전일" class="border border-slate-300 rounded px-2 py-1.5 text-sm">
+    </label>
+    <span class="pb-2 text-slate-400">→</span>
+    <label class="text-sm">
+      <span class="block text-xs text-slate-500 mb-1">비교 대상일</span>
+      <input type="date" id="변동-현재일" class="border border-slate-300 rounded px-2 py-1.5 text-sm">
+    </label>
+    <button id="변동-어제오늘" class="px-3 py-1.5 text-sm rounded border border-slate-300 hover:bg-slate-50">어제 vs 오늘</button>
+    <div class="ml-auto flex flex-wrap gap-1" id="변동-유형필터"></div>
+  </div>
+  <div id="변동-결과" class="space-y-4"></div>
+</section>
+
+<!-- ═══════════════════ 3. 채널 현황 ═══════════════════ -->
+<section id="화면-채널" class="화면 space-y-4" hidden>
+  <div class="flex gap-1 text-sm border-b border-slate-200">
+    <button data-하위="현황" class="하위탭 px-4 py-2 border-b-2 border-transparent text-slate-500">채널별 현황</button>
+    <button data-하위="예약" class="하위탭 px-4 py-2 border-b-2 border-transparent text-slate-500">예약</button>
+  </div>
+
+  <!-- (1) 채널별 현황 -->
+  <div id="하위-현황" class="space-y-4">
+    <div class="bg-white rounded-lg border border-slate-200 px-5 py-4 space-y-3">
+      <div class="flex flex-wrap items-end gap-3">
+        <label class="text-sm">
+          <span class="block text-xs text-slate-500 mb-1">시작일</span>
+          <input type="date" id="현황-시작일" class="border border-slate-300 rounded px-2 py-1.5 text-sm">
+        </label>
+        <label class="text-sm">
+          <span class="block text-xs text-slate-500 mb-1">종료일</span>
+          <input type="date" id="현황-종료일" class="border border-slate-300 rounded px-2 py-1.5 text-sm">
+        </label>
+        <button data-빠른="어제" class="빠른날짜 px-3 py-1.5 text-sm rounded border border-slate-300 hover:bg-slate-50">어제</button>
+        <button data-빠른="오늘" class="빠른날짜 px-3 py-1.5 text-sm rounded border border-slate-300 hover:bg-slate-50">오늘</button>
+        <button data-빠른="7일" class="빠른날짜 px-3 py-1.5 text-sm rounded border border-slate-300 hover:bg-slate-50">최근 7일</button>
+      </div>
+      <div class="flex flex-wrap items-end gap-3 pt-3 border-t border-slate-100">
+        <label class="text-sm">
+          <span class="block text-xs text-slate-500 mb-1">보기</span>
+          <select id="현황-채널선택" class="border border-slate-300 rounded px-2 py-1.5 text-sm"></select>
+        </label>
+        <label class="text-sm flex-1 min-w-[200px]">
+          <span class="block text-xs text-slate-500 mb-1">상품코드 · 상품명 검색</span>
+          <input type="search" id="현황-검색" placeholder="MF-APL" class="w-full border border-slate-300 rounded px-2 py-1.5 text-sm">
+        </label>
+        <label class="text-sm">
+          <span class="block text-xs text-slate-500 mb-1">상태 필터</span>
+          <select id="현황-상태필터" class="border border-slate-300 rounded px-2 py-1.5 text-sm">
+            <option value="">전체</option>
+            <option value="판매중">판매중</option>
+            <option value="판매중지">판매중지</option>
+            <option value="품절">품절</option>
+            <option value="미등록">미등록</option>
+          </select>
+        </label>
+        <button id="현황-모두펼치기" class="px-3 py-1.5 text-sm rounded border border-slate-300 hover:bg-slate-50">모두 펼치기</button>
+        <button id="현황-모두접기" class="px-3 py-1.5 text-sm rounded border border-slate-300 hover:bg-slate-50">모두 접기</button>
+      </div>
+    </div>
+    <div class="bg-white rounded-lg border border-slate-200 overflow-auto max-h-[70vh]">
+      <table class="text-sm border-collapse w-full" id="현황표"></table>
+    </div>
+  </div>
+
+  <!-- (2) 예약 -->
+  <div id="하위-예약" class="grid lg:grid-cols-[380px_1fr] gap-4" hidden>
+    <div class="bg-white rounded-lg border border-slate-200 p-5 space-y-3 h-fit">
+      <h3 class="font-semibold text-sm" id="예약폼제목">예약 등록</h3>
+      <p class="text-xs text-slate-500 leading-relaxed bg-amber-50 border border-amber-200 rounded p-2">
+        예약은 <b>체크리스트</b>입니다. 날짜가 되면 데일리 화면 상단에 띄워줄 뿐,
+        채널에 자동 반영하지 않습니다. 실제 반영은 직접 하셔야 합니다.
+      </p>
+      <label class="block text-sm">
+        <span class="block text-xs text-slate-500 mb-1">자체상품코드</span>
+        <input list="상품코드목록" id="예약-상품코드" class="w-full border border-slate-300 rounded px-2 py-1.5 text-sm" placeholder="검색 또는 선택">
+        <datalist id="상품코드목록"></datalist>
+      </label>
+      <div class="text-sm">
+        <span class="block text-xs text-slate-500 mb-1">채널 (복수 선택)</span>
+        <div class="flex items-center gap-2 mb-1">
+          <button id="예약-전체채널" class="text-xs px-2 py-1 rounded border border-slate-300">전체 선택</button>
+          <button id="예약-채널해제" class="text-xs px-2 py-1 rounded border border-slate-300">해제</button>
+        </div>
+        <div id="예약-채널목록" class="grid grid-cols-2 gap-1 max-h-40 overflow-auto border border-slate-200 rounded p-2"></div>
+      </div>
+      <label class="block text-sm">
+        <span class="block text-xs text-slate-500 mb-1">예약일</span>
+        <input type="date" id="예약-일자" class="w-full border border-slate-300 rounded px-2 py-1.5 text-sm">
+      </label>
+      <label class="block text-sm">
+        <span class="block text-xs text-slate-500 mb-1">변경할 상태</span>
+        <select id="예약-상태" class="w-full border border-slate-300 rounded px-2 py-1.5 text-sm">
+          <option>판매중</option><option>판매중지</option><option>품절</option>
+        </select>
+      </label>
+      <label class="block text-sm">
+        <span class="block text-xs text-slate-500 mb-1">메모 (선택)</span>
+        <input type="text" id="예약-메모" class="w-full border border-slate-300 rounded px-2 py-1.5 text-sm">
+      </label>
+      <div class="flex gap-2">
+        <button id="예약-저장" class="flex-1 px-3 py-2 rounded bg-slate-900 text-white text-sm hover:bg-slate-700">저장</button>
+        <button id="예약-취소" class="px-3 py-2 rounded border border-slate-300 text-sm" hidden>취소</button>
+      </div>
+    </div>
+    <div class="bg-white rounded-lg border border-slate-200">
+      <div class="px-5 py-3 border-b border-slate-100 flex items-center gap-3">
+        <h3 class="font-semibold text-sm">예약 목록</h3>
+        <label class="ml-auto text-xs text-slate-500 flex items-center gap-1">
+          <input type="checkbox" id="예약-지난것도"> 지난 예약 포함
+        </label>
+      </div>
+      <div id="예약목록" class="divide-y divide-slate-100"></div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════ 4. 설정 ═══════════════════ -->
+<section id="화면-설정" class="화면 space-y-4" hidden>
+  <div class="flex flex-wrap gap-1 text-sm border-b border-slate-200">
+    <button data-설정="채널" class="설정탭 px-4 py-2 border-b-2 border-transparent text-slate-500">채널 관리</button>
+    <button data-설정="상품" class="설정탭 px-4 py-2 border-b-2 border-transparent text-slate-500">상품 마스터</button>
+    <button data-설정="매핑" class="설정탭 px-4 py-2 border-b-2 border-transparent text-slate-500">채널 상품ID 매핑</button>
+    <button data-설정="수집" class="설정탭 px-4 py-2 border-b-2 border-transparent text-slate-500">데이터 수집</button>
+    <button data-설정="기타" class="설정탭 px-4 py-2 border-b-2 border-transparent text-slate-500">기타</button>
+  </div>
+  <div id="설정-채널" class="설정화면"></div>
+  <div id="설정-상품" class="설정화면" hidden></div>
+  <div id="설정-매핑" class="설정화면" hidden></div>
+  <div id="설정-수집" class="설정화면" hidden></div>
+  <div id="설정-기타" class="설정화면" hidden></div>
+</section>
+
+</main>
+
+<!-- 모달 -->
+<div id="모달" class="fixed inset-0 bg-black/40 items-center justify-center p-4 z-50" hidden>
+  <div class="bg-white rounded-lg max-w-2xl w-full max-h-[85vh] overflow-auto">
+    <div class="px-5 py-3 border-b border-slate-100 flex items-center">
+      <h3 id="모달제목" class="font-semibold"></h3>
+      <button id="모달닫기" class="ml-auto text-slate-400 hover:text-slate-700 text-xl leading-none">&times;</button>
+    </div>
+    <div id="모달본문" class="p-5"></div>
+  </div>
+</div>
+
+<div id="토스트" class="fixed bottom-5 left-1/2 -translate-x-1/2 z-50 space-y-2"></div>
+
+<script>
+/* ═══════════════════════════════════════════════════════════════
+   상수
+   ═══════════════════════════════════════════════════════════════ */
+
+/** 내부 상태는 이 4개뿐이다. 저장소에 다른 값이 들어가면 안 된다. */
+const 상태값 = ['판매중', '판매중지', '품절', '미등록'];
+
+const 상태색 = {
+  '판매중':   'text-emerald-700 bg-emerald-50 border-emerald-200',
+  '판매중지': 'text-rose-700 bg-rose-50 border-rose-200',
+  '품절':     'text-amber-700 bg-amber-50 border-amber-200',
+  '미등록':   'text-slate-400 bg-slate-50 border-slate-200',
+  '미매핑':   'text-fuchsia-700 bg-fuchsia-50 border-fuchsia-200',
+};
+
+const 변동유형 = {
+  빠짐:   { 표기: '빠짐',   설명: '판매중 → 판매중지·품절', 색: 'text-rose-700 bg-rose-50 border-rose-200',       점: 'bg-rose-500' },
+  살아남: { 표기: '살아남', 설명: '판매중지·품절 → 판매중', 색: 'text-emerald-700 bg-emerald-50 border-emerald-200', 점: 'bg-emerald-500' },
+  신규:   { 표기: '신규',   설명: '미등록 → 등록됨',        색: 'text-sky-700 bg-sky-50 border-sky-200',           점: 'bg-sky-500' },
+  해지:   { 표기: '해지',   설명: '등록됨 → 미등록',        색: 'text-slate-600 bg-slate-100 border-slate-300',    점: 'bg-slate-400' },
+  전환:   { 표기: '전환',   설명: '판매중지 ↔ 품절',        색: 'text-violet-700 bg-violet-50 border-violet-200',  점: 'bg-violet-500' },
+};
+
+/** 채널 원문 표기를 내부 4상태로 접는 기본 매핑. 채널별로 설정에서 덮어쓸 수 있다. */
+const 기본상태매핑 = {
+  '판매중': '판매중', '정상판매': '판매중', '승인완료': '판매중', '판매': '판매중',
+  'SALE': '판매중', 'ONSALE': '판매중', 'SELLING': '판매중', 'ON': '판매중', 'Y': '판매중',
+  '판매중지': '판매중지', '판매종료': '판매중지', '판매안함': '판매중지', '미진열': '판매중지',
+  '중지': '판매중지', '숨김': '판매중지',
+  'SUSPENSION': '판매중지', 'CLOSE': '판매중지', 'STOP': '판매중지', 'OFF': '판매중지', 'N': '판매중지',
+  '품절': '품절', '재고없음': '품절', '일시품절': '품절', '재고소진': '품절',
+  'OUTOFSTOCK': '품절', 'SOLDOUT': '품절', 'OUT_OF_STOCK': '품절',
+  '미등록': '미등록', '없음': '미등록', '-': '미등록',
+};
+
+/** 스펙에 적힌 10개 채널. 설정에서 추가·삭제할 수 있다. */
+const 기본채널 = [
+  { 채널키: 'ss_mo',    표기: '스스_MO',       플랫폼: '스마트스토어',   계정구분: 'MO', 정렬순서: 1 },
+  { 채널키: 'ss_gy',    표기: '스스_GY',       플랫폼: '스마트스토어',   계정구분: 'GY', 정렬순서: 2 },
+  { 채널키: 'st11',     표기: '11번가',        플랫폼: '11번가',        계정구분: '',   정렬순서: 3 },
+  { 채널키: 'ssg',      표기: 'SSG',           플랫폼: 'SSG',           계정구분: '',   정렬순서: 4 },
+  { 채널키: 'auction',  표기: '옥션',          플랫폼: '옥션',          계정구분: '',   정렬순서: 5 },
+  { 채널키: 'gmarket',  표기: '지마켓',        플랫폼: '지마켓',        계정구분: '',   정렬순서: 6 },
+  { 채널키: 'kakao_mo',표기: '카카오_MO',      플랫폼: '카카오',        계정구분: 'MO', 정렬순서: 7 },
+  { 채널키: 'kakao_gy', 표기: '카카오_GY',     플랫폼: '카카오',        계정구분: 'GY', 정렬순서: 8 },
+  { 채널키: 'toss_gy',  표기: '토스_GY',       플랫폼: '토스',          계정구분: 'GY', 정렬순서: 9 },
+  { 채널키: 'ali',      표기: '알리익스프레스', 플랫폼: '알리익스프레스', 계정구분: '',   정렬순서: 10 },
+];
+
+/* ═══════════════════════════════════════════════════════════════
+   날짜 — 전부 KST 기준. toISOString().slice(0,10) 을 직접 쓰지 않는다.
+   ═══════════════════════════════════════════════════════════════ */
+
+const KST차이 = 9 * 3600 * 1000;
+
+/** KST 기준 오늘(또는 N일 전후)의 YYYY-MM-DD */
+function 오늘KST(일수차 = 0) {
+  return new Date(Date.now() + KST차이 + 일수차 * 86400000).toISOString().slice(0, 10);
+}
+
+/**
+ * KST 기준 현재 시각 HHmmss — 회차 문서 ID 로 쓴다.
+ * 분 단위로 두면 같은 분에 두 번 올렸을 때 앞의 회차가 소리 없이 덮인다.
+ */
+function 지금시각KST() {
+  return new Date(Date.now() + KST차이).toISOString().slice(11, 19).replace(/:/g, '');
+}
+
+/** 'YYYY-MM-DD' 에서 N일 이동 */
+function 날짜이동(날짜, 일수) {
+  return new Date(Date.parse(`${날짜}T00:00:00Z`) + 일수 * 86400000).toISOString().slice(0, 10);
+}
+
+/** 두 날짜 사이의 일수 (뒤 - 앞) */
+function 날짜차이(앞, 뒤) {
+  return Math.round((Date.parse(`${뒤}T00:00:00Z`) - Date.parse(`${앞}T00:00:00Z`)) / 86400000);
+}
+
+/** 시작~종료 사이 날짜 배열. 역순으로 주면 뒤집어 처리한다. */
+function 날짜범위(시작, 종료) {
+  if (시작 > 종료) [시작, 종료] = [종료, 시작];
+  const 목록 = [];
+  for (let d = 시작; d <= 종료; d = 날짜이동(d, 1)) 목록.push(d);
+  return 목록;
+}
+
+const 월일표기 = (날짜) => `${Number(날짜.slice(5, 7))}월 ${Number(날짜.slice(8, 10))}일`;
+
+/* ═══════════════════════════════════════════════════════════════
+   저장소 — Firestore 와 같은 (컬렉션, 문서ID) 인터페이스.
+   지금은 localStorage 로컬 모드. firebaseConfig 를 채우면 같은 호출로 Firestore 로 간다.
+   ═══════════════════════════════════════════════════════════════ */
+
+const 저장키 = '채널상태:v1';
+// const firebaseConfig = { apiKey: '...', projectId: '...' };  // ← 채우면 Firestore 모드
+
+const 저장소 = {
+  캐시: null,
+
+  전체로드() {
+    if (this.캐시) return this.캐시;
+    try {
+      this.캐시 = JSON.parse(localStorage.getItem(저장키)) ?? {};
+    } catch {
+      this.캐시 = {};
+    }
+    for (const 이름 of ['상품', '채널', '스냅샷', '회차', '변동', '예약', '설정']) {
+      this.캐시[이름] ??= {};
+    }
+    return this.캐시;
+  },
+
+  저장() {
+    try {
+      localStorage.setItem(저장키, JSON.stringify(this.캐시));
+    } catch (err) {
+      // 로컬 모드는 5MB 안팎이 한계라, 넘치면 알리고 오래된 회차부터 지우게 안내한다
+      토스트('저장 공간이 가득 찼습니다. 설정 › 기타에서 오래된 회차를 정리하세요.', '경고');
+      console.error(err);
+    }
+  },
+
+  목록(컬렉션) { return Object.entries(this.전체로드()[컬렉션] ?? {}); },
+  읽기(컬렉션, 문서ID) { return this.전체로드()[컬렉션]?.[문서ID] ?? null; },
+  쓰기(컬렉션, 문서ID, 값) {
+    const D = this.전체로드();
+    D[컬렉션] ??= {};
+    D[컬렉션][문서ID] = 값;
+    this.저장();
+    return 값;
+  },
+  삭제(컬렉션, 문서ID) {
+    const D = this.전체로드();
+    delete D[컬렉션]?.[문서ID];
+    this.저장();
+  },
+};
+
+/* ═══════════════════════════════════════════════════════════════
+   데이터 접근
+   ═══════════════════════════════════════════════════════════════ */
+
+/** 활성 채널을 정렬순서대로 */
+function 채널목록(활성만 = true) {
+  return 저장소.목록('채널')
+    .map(([채널키, 값]) => ({ 채널키, ...값 }))
+    .filter((c) => !활성만 || c.활성여부 !== false)
+    .sort((a, b) => (a.정렬순서 ?? 99) - (b.정렬순서 ?? 99));
+}
+
+/** 사용중인 상품을 코드순으로 */
+function 상품목록(사용중만 = true) {
+  return 저장소.목록('상품')
+    .map(([상품코드, 값]) => ({ 상품코드, ...값 }))
+    .filter((p) => !사용중만 || p.사용여부 !== false)
+    .sort((a, b) => a.상품코드.localeCompare(b.상품코드));
+}
+
+const 설정읽기 = (키, 기본값) => 저장소.읽기('설정', 키) ?? 기본값;
+const 설정쓰기 = (키, 값) => 저장소.쓰기('설정', 키, 값);
+
+/**
+ * 그 채널에 상품이 등록되어 있는가.
+ * 미등록은 저장된 값이 아니라 '채널별상품ID 부재' 로 판정한다.
+ */
+function 등록됨(상품, 채널키) {
+  const ID = 상품?.채널별상품ID?.[채널키];
+  return ID !== undefined && ID !== null && String(ID).trim() !== '';
+}
+
+/**
+ * 특정 날짜의 상태 맵을 채운 형태로 돌려준다.
+ * 스냅샷에 값이 없으면 등록 여부를 보고 미등록 / 직전 상태 승계를 판단한다.
+ */
+function 상태맵(날짜, { 승계 = true } = {}) {
+  const 상품들 = 상품목록();
+  const 채널들 = 채널목록();
+  const 스냅 = 저장소.읽기('스냅샷', 날짜)?.상태 ?? null;
+
+  // 그날 스냅샷이 없으면 가장 가까운 이전 스냅샷을 이어 쓴다.
+  // 수집을 건너뛴 날에 전 상품이 갑자기 '미등록' 으로 보이는 것을 막기 위해서다.
+  let 기준 = 스냅;
+  if (!기준 && 승계) {
+    const 이전날짜 = 저장소.목록('스냅샷').map(([d]) => d).filter((d) => d < 날짜).sort().pop();
+    기준 = 이전날짜 ? 저장소.읽기('스냅샷', 이전날짜)?.상태 ?? null : null;
+  }
+
+  const 결과 = {};
+  for (const 상품 of 상품들) {
+    결과[상품.상품코드] = {};
+    for (const 채널 of 채널들) {
+      if (!등록됨(상품, 채널.채널키)) { 결과[상품.상품코드][채널.채널키] = '미등록'; continue; }
+      결과[상품.상품코드][채널.채널키] = 기준?.[상품.상품코드]?.[채널.채널키] ?? '미등록';
+    }
+  }
+  return { 상태: 결과, 실측: Boolean(스냅) };
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   상태 매핑 — 채널 원문을 내부 4상태로 접는다
+   ═══════════════════════════════════════════════════════════════ */
+
+/**
+ * 매핑에 없는 원문은 추측하지 않고 null 을 준다.
+ * 잘못 추측한 상태는 변동 알림을 통째로 오염시키기 때문에, 모르면 모른다고 두는 편이 낫다.
+ */
+function 상태정규화(원문, 채널키) {
+  const 값 = String(원문 ?? '').trim();
+  if (!값) return null;
+  if (상태값.includes(값)) return 값;
+
+  const 채널매핑 = 저장소.읽기('채널', 채널키)?.상태매핑 ?? {};
+  const 후보 = 채널매핑[값] ?? 채널매핑[값.toUpperCase()]
+            ?? 기본상태매핑[값] ?? 기본상태매핑[값.toUpperCase()];
+  return 상태값.includes(후보) ? 후보 : null;
+}
+
+/** 미매핑 원문을 모아 둔다. 설정 화면에서 사용자가 4상태 중 하나로 지정하게 한다. */
+function 미매핑기록(채널키, 원문) {
+  const 목록 = 설정읽기('미매핑', {});
+  목록[채널키] ??= {};
+  목록[채널키][원문] = (목록[채널키][원문] ?? 0) + 1;
+  설정쓰기('미매핑', 목록);
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   변동 계산 — 수집 시점에 미리 계산해 변동/{날짜} 에 쌓는다
+   ═══════════════════════════════════════════════════════════════ */
+
+/** 두 상태의 관계를 변동 유형으로 분류한다 */
+function 유형판정(이전, 현재) {
+  if (이전 === 현재) return null;
+  if (이전 === '미등록') return '신규';
+  if (현재 === '미등록') return '해지';
+  if (현재 === '판매중') return '살아남';
+  if (이전 === '판매중') return '빠짐';
+  return '전환';
+}
+
+/** 상태 맵 두 개를 비교해 변동 목록을 만든다 */
+function 변동계산(이전맵, 현재맵) {
+  const 목록 = [];
+  for (const [상품코드, 채널상태] of Object.entries(현재맵)) {
+    for (const [채널키, 현재] of Object.entries(채널상태)) {
+      const 이전 = 이전맵?.[상품코드]?.[채널키] ?? '미등록';
+      const 유형 = 유형판정(이전, 현재);
+      if (유형) 목록.push({ 상품코드, 채널키, 이전상태: 이전, 현재상태: 현재, 유형 });
+    }
+  }
+  return 목록;
+}
+
+/**
+ * 스냅샷 저장 — 하루 여러 번 돌아도 안전하게.
+ * 회차는 서브컬렉션(회차/{날짜}/{HHmm})에 따로 쌓고, 날짜 문서는 마지막 상태만 유지한다.
+ * 날짜 문서 안에 회차를 배열로 쌓으면 수집 횟수에 비례해 문서가 커져 결국 한도에 부딪힌다.
+ */
+function 스냅샷저장(날짜, 상태, { 입력방식 = 'CSV' } = {}) {
+  // 비교 대상은 '같은 날 직전 회차' 가 있으면 그것, 없으면 '전날 대표 스냅샷'
+  const 회차들 = 저장소.읽기('회차', 날짜) ?? {};
+
+  // 같은 초에 두 번 저장해도 회차를 잃지 않도록 뒤에 번호를 붙인다 (문자열 정렬 순서는 유지된다)
+  let 시각 = 지금시각KST();
+  for (let n = 2; 회차들[시각]; n++) 시각 = `${지금시각KST()}_${n}`;
+  const 직전회차 = Object.keys(회차들).sort().pop();
+  const 이전맵 = 직전회차
+    ? 회차들[직전회차].상태
+    : (저장소.읽기('스냅샷', 날짜이동(날짜, -1))?.상태 ?? 상태맵(날짜이동(날짜, -1)).상태);
+
+  const 변동 = 변동계산(이전맵, 상태).map((v) => ({ ...v, 시각 }));
+
+  회차들[시각] = { 수집시각: new Date().toISOString(), 입력방식, 상태 };
+  저장소.쓰기('회차', 날짜, 회차들);
+  저장소.쓰기('스냅샷', 날짜, {
+    수집시각: new Date().toISOString(),
+    회차수: Object.keys(회차들).length,
+    입력방식,
+    상태,
+  });
+
+  const 기존변동 = 저장소.읽기('변동', 날짜)?.목록 ?? [];
+  저장소.쓰기('변동', 날짜, { 목록: [...기존변동, ...변동] });
+
+  return 변동;
+}
+
+/** 어느 날짜의 변동 목록 (미리 계산된 것) */
+const 변동목록 = (날짜) => 저장소.읽기('변동', 날짜)?.목록 ?? [];
+</script>
+
+<script>
+/* ═══════════════════════════════════════════════════════════════
+   공용 UI
+   ═══════════════════════════════════════════════════════════════ */
+
+const $ = (선택자) => document.querySelector(선택자);
+const $$ = (선택자) => [...document.querySelectorAll(선택자)];
+
+/** 사용자 입력이 그대로 HTML 에 들어가지 않도록 항상 이걸 거친다 */
+function 안전(문자열) {
+  return String(문자열 ?? '').replace(/[&<>"']/g, (c) =>
+    ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+function 토스트(메시지, 종류 = '알림') {
+  const 색 = 종류 === '경고' ? 'bg-rose-600' : 종류 === '성공' ? 'bg-emerald-600' : 'bg-slate-800';
+  const 요소 = document.createElement('div');
+  요소.className = `${색} text-white text-sm px-4 py-2 rounded shadow-lg`;
+  요소.textContent = 메시지;
+  $('#토스트').append(요소);
+  setTimeout(() => 요소.remove(), 3200);
+}
+
+function 모달열기(제목, 본문HTML) {
+  $('#모달제목').textContent = 제목;
+  $('#모달본문').innerHTML = 본문HTML;
+  $('#모달').hidden = false;
+  $('#모달').style.display = 'flex';
+}
+function 모달닫기() { $('#모달').hidden = true; $('#모달').style.display = 'none'; }
+
+/** 상태 배지 — 상태별 글자색을 다르게 해서 표에서 스캔이 되게 한다 */
+function 상태배지(상태, 크게 = false) {
+  const 색 = 상태색[상태] ?? 상태색['미매핑'];
+  const 크기 = 크게 ? 'text-xs px-2 py-0.5' : 'text-[11px] px-1.5 py-0.5';
+  return `<span class="inline-block ${크기} rounded border ${색} whitespace-nowrap">${안전(상태)}</span>`;
+}
+
+const 채널표기 = (채널키) => 저장소.읽기('채널', 채널키)?.표기 ?? 채널키;
+const 상품명 = (상품코드) => 저장소.읽기('상품', 상품코드)?.상품명 ?? '';
+
+/* ═══════════════════════════════════════════════════════════════
+   CSV
+   ═══════════════════════════════════════════════════════════════ */
+
+/** 따옴표로 감싼 값과 BOM 을 처리하는 최소 파서 */
+function CSV파싱(원문) {
+  const 문자열 = 원문.replace(/^﻿/, '').replace(/\r\n?/g, '\n');
+  const 행들 = [];
+  let 행 = [], 값 = '', 따옴표안 = false;
+
+  for (let i = 0; i < 문자열.length; i++) {
+    const 문자 = 문자열[i];
+    if (따옴표안) {
+      if (문자 === '"') {
+        if (문자열[i + 1] === '"') { 값 += '"'; i++; } else 따옴표안 = false;
+      } else 값 += 문자;
+    } else if (문자 === '"') 따옴표안 = true;
+    else if (문자 === ',') { 행.push(값); 값 = ''; }
+    else if (문자 === '\n') { 행.push(값); 행들.push(행); 행 = []; 값 = ''; }
+    else 값 += 문자;
+  }
+  행.push(값);
+  행들.push(행);
+
+  return 행들
+    .map((r) => r.map((c) => c.trim()))
+    .filter((r) => r.some((c) => c !== ''));
+}
+
+/** 헤더 문자열을 채널키로 해석한다. 채널키 그대로여도, 화면 표기(스스_MO)여도 받는다. */
+function 헤더를채널키로(헤더) {
+  const 값 = String(헤더).trim();
+  const 채널들 = 채널목록(false);
+  return 채널들.find((c) => c.채널키 === 값)?.채널키
+      ?? 채널들.find((c) => c.표기 === 값)?.채널키
+      ?? null;
+}
+
+const 상품코드헤더 = ['자체상품코드', '상품코드', 'code', 'sku'];
+const 상태헤더 = ['상태', '판매상태', 'status'];
+const 채널헤더 = ['채널', '채널키', 'channel'];
+
+/**
+ * 상태 CSV 를 읽어 상태 맵으로 만든다. 두 가지 모양을 모두 받는다.
+ *
+ *   가로형: 자체상품코드, 스스_MO, 스스_GY, 11번가 ...   (셀러가 손으로 관리하기 편한 모양)
+ *   세로형: 자체상품코드, 채널, 상태                      (시스템이 뽑아주는 모양)
+ */
+function 상태CSV해석(행들) {
+  const 헤더 = 행들[0].map((h) => h.trim());
+  const 본문 = 행들.slice(1);
+  const 코드칸 = 헤더.findIndex((h) => 상품코드헤더.includes(h.toLowerCase()) || 상품코드헤더.includes(h));
+  if (코드칸 < 0) throw new Error('첫 줄에 "자체상품코드" 열이 필요합니다.');
+
+  const 채널칸 = 헤더.findIndex((h) => 채널헤더.includes(h));
+  const 상태칸 = 헤더.findIndex((h) => 상태헤더.includes(h.toLowerCase()) || 상태헤더.includes(h));
+  const 세로형 = 채널칸 >= 0 && 상태칸 >= 0;
+
+  const 상태 = {};
+  const 모르는상품 = new Set();
+  const 모르는채널 = new Set();
+  let 미매핑 = 0;
+  let 반영 = 0;
+
+  const 채우기 = (상품코드, 채널키, 원문) => {
+    if (!저장소.읽기('상품', 상품코드)) { 모르는상품.add(상품코드); return; }
+    if (!채널키) return;
+    const 값 = 상태정규화(원문, 채널키);
+    if (!값) { 미매핑기록(채널키, 원문); 미매핑++; return; }
+    상태[상품코드] ??= {};
+    상태[상품코드][채널키] = 값;
+    반영++;
+  };
+
+  for (const 행 of 본문) {
+    const 상품코드 = 행[코드칸]?.trim();
+    if (!상품코드) continue;
+    if (세로형) {
+      const 채널키 = 헤더를채널키로(행[채널칸]);
+      if (!채널키) { 모르는채널.add(행[채널칸]); continue; }
+      채우기(상품코드, 채널키, 행[상태칸]);
+    } else {
+      헤더.forEach((칸이름, i) => {
+        if (i === 코드칸 || !행[i]) return;
+        const 채널키 = 헤더를채널키로(칸이름);
+        if (!채널키) { 모르는채널.add(칸이름); return; }
+        채우기(상품코드, 채널키, 행[i]);
+      });
+    }
+  }
+
+  return { 상태, 반영, 미매핑, 모르는상품: [...모르는상품], 모르는채널: [...모르는채널] };
+}
+
+/**
+ * CSV 는 사람이 손으로 만드는 파일이라 빠진 칸이 흔하다.
+ * 올린 값만 갈아끼우고 나머지는 기존 상태를 유지해야, 한 채널만 올렸을 때
+ * 나머지 채널이 통째로 미등록으로 뒤집히는 사고가 나지 않는다.
+ */
+function 상태병합(날짜, 올린상태) {
+  const 기존 = 상태맵(날짜).상태;
+  const 결과 = {};
+  for (const 상품 of 상품목록()) {
+    const 코드 = 상품.상품코드;
+    결과[코드] = {};
+    for (const 채널 of 채널목록()) {
+      const 키 = 채널.채널키;
+      if (!등록됨(상품, 키)) { 결과[코드][키] = '미등록'; continue; }
+      결과[코드][키] = 올린상태[코드]?.[키] ?? 기존[코드]?.[키] ?? '미등록';
+    }
+  }
+  return 결과;
+}
+
+/**
+ * 파일 선택 대화상자를 띄우고 텍스트를 돌려준다.
+ * input 을 DOM 에 붙였다가 지운다 — 떼어놓은 채로는 change 이벤트가 잡히지 않는 경우가 있다.
+ */
+function 파일읽기(확장자 = '.csv') {
+  return new Promise((결정) => {
+    const 입력 = document.createElement('input');
+    입력.type = 'file';
+    입력.accept = 확장자;
+    입력.style.display = 'none';
+    document.body.append(입력);
+
+    let 끝났나 = false;
+    const 끝내기 = (값) => { if (끝났나) return; 끝났나 = true; 입력.remove(); 결정(값); };
+    // 선택 없이 닫아도 약속이 매달려 있지 않도록 취소를 받아둔다
+    입력.oncancel = () => 끝내기(null);
+    입력.onchange = () => {
+      const 파일 = 입력.files?.[0];
+      if (!파일) return 끝내기(null);
+      const 리더 = new FileReader();
+      리더.onload = () => 끝내기(리더.result);
+      리더.onerror = () => 끝내기(null);
+      리더.readAsText(파일, 'utf-8');
+    };
+    입력.click();
+  });
+}
+
+function 파일내려받기(파일명, 내용) {
+  const 주소 = URL.createObjectURL(new Blob(['﻿' + 내용], { type: 'text/csv;charset=utf-8' }));
+  const 링크 = document.createElement('a');
+  링크.href = 주소; 링크.download = 파일명; 링크.click();
+  URL.revokeObjectURL(주소);
+}
+</script>
+
+<script>
+/* ═══════════════════════════════════════════════════════════════
+   화면 1 — 데일리 판매 현황
+   ═══════════════════════════════════════════════════════════════ */
+
+function 데일리그리기() {
+  예약알림그리기();
+  요약카드그리기();
+  오늘변동그리기();
+}
+
+/**
+ * 예약 알림 — 예약일 7일 전부터 노출한다.
+ * 자동 반영이 아니라 "그날 내가 직접 채널에 들어가서 바꿔야 한다"는 것을 잊지 않기 위한 체크리스트다.
+ */
+function 예약알림그리기() {
+  const 오늘 = 오늘KST();
+  const 전체 = 저장소.목록('예약').map(([id, v]) => ({ id, ...v })).filter((e) => !e.완료여부);
+  const 임박 = 전체.filter((e) => { const d = 날짜차이(오늘, e.예약일자); return d >= 0 && d <= 7; })
+                   .sort((a, b) => a.예약일자.localeCompare(b.예약일자));
+  const 지남 = 전체.filter((e) => e.예약일자 < 오늘).sort((a, b) => b.예약일자.localeCompare(a.예약일자));
+
+  if (!임박.length && !지남.length) {
+    $('#예약알림영역').innerHTML = '';
+    return;
+  }
+
+  const 카드 = (예약, 지난것) => {
+    const 남은일 = 날짜차이(오늘, 예약.예약일자);
+    const 디데이 = 지난것 ? `${-남은일}일 지남` : 남은일 === 0 ? 'D-day' : `D-${남은일}`;
+    const 강조 = 지난것 ? 'bg-rose-100 text-rose-700'
+              : 남은일 === 0 ? 'bg-slate-900 text-white'
+              : 남은일 <= 3 ? 'bg-amber-100 text-amber-800' : 'bg-slate-100 text-slate-600';
+    const 채널들 = (예약.채널목록 ?? []).map(채널표기).join(', ') || '전체';
+    return `
+      <div class="flex items-center gap-3 px-4 py-2.5 text-sm">
+        <span class="px-2 py-0.5 rounded text-xs font-semibold ${강조} whitespace-nowrap">${디데이}</span>
+        <span class="text-xs text-slate-400 whitespace-nowrap">${월일표기(예약.예약일자)}</span>
+        <span class="font-mono text-xs">${안전(예약.상품코드)}</span>
+        <span class="text-slate-400 text-xs truncate max-w-[160px]">${안전(상품명(예약.상품코드))}</span>
+        <span class="text-xs text-slate-500 truncate">${안전(채널들)}</span>
+        ${상태배지(예약.변경할상태)}
+        ${예약.메모 ? `<span class="text-xs text-slate-400 truncate">${안전(예약.메모)}</span>` : ''}
+        <button data-예약완료="${예약.id}" class="ml-auto text-xs px-2 py-1 rounded border border-slate-300 hover:bg-white whitespace-nowrap">반영함</button>
+      </div>`;
+  };
+
+  $('#예약알림영역').innerHTML = `
+    ${지남.length ? `
+      <div class="bg-rose-50 border border-rose-200 rounded-lg mb-3">
+        <div class="px-4 py-2 text-xs font-semibold text-rose-700 border-b border-rose-200">
+          기한이 지난 예약 ${지남.length}건 — 아직 반영 처리하지 않았습니다
+        </div>
+        <div class="divide-y divide-rose-100">${지남.map((e) => 카드(e, true)).join('')}</div>
+      </div>` : ''}
+    ${임박.length ? `
+      <div class="bg-white border border-slate-200 rounded-lg">
+        <div class="px-4 py-2 text-xs font-semibold text-slate-600 border-b border-slate-100 flex items-center gap-2">
+          예약 알림 ${임박.length}건
+          <span class="font-normal text-slate-400">채널에 직접 반영해야 합니다 — 자동 반영되지 않습니다</span>
+        </div>
+        <div class="divide-y divide-slate-100">${임박.map((e) => 카드(e, false)).join('')}</div>
+      </div>` : ''}`;
+
+  $$('[data-예약완료]').forEach((버튼) => {
+    버튼.onclick = () => {
+      const 예약 = 저장소.읽기('예약', 버튼.dataset.예약완료);
+      저장소.쓰기('예약', 버튼.dataset.예약완료, { ...예약, 완료여부: true, 완료일: 오늘KST() });
+      토스트('반영 처리했습니다.', '성공');
+      데일리그리기();
+    };
+  });
+}
+
+/** 오늘 기준 상태 분포 + 변동 건수 */
+function 요약카드그리기() {
+  const { 상태, 실측 } = 상태맵(오늘KST());
+  const 세기 = Object.fromEntries(상태값.map((s) => [s, 0]));
+  for (const 채널상태 of Object.values(상태)) {
+    for (const 값 of Object.values(채널상태)) 세기[값] = (세기[값] ?? 0) + 1;
+  }
+  const 변동수 = 변동목록(오늘KST()).length;
+
+  const 카드 = (제목, 값, 색, 부제 = '') => `
+    <div class="bg-white rounded-lg border border-slate-200 px-4 py-3">
+      <div class="text-xs text-slate-500">${제목}</div>
+      <div class="text-2xl font-bold ${색} mt-0.5">${값}</div>
+      ${부제 ? `<div class="text-[11px] text-slate-400 mt-0.5">${부제}</div>` : ''}
+    </div>`;
+
+  $('#요약카드영역').innerHTML = [
+    카드('오늘 변동', 변동수, 변동수 ? 'text-slate-900' : 'text-slate-300', 실측 ? '' : '오늘 수집 기록 없음'),
+    카드('판매중', 세기['판매중'], 'text-emerald-600'),
+    카드('판매중지', 세기['판매중지'], 'text-rose-600'),
+    카드('품절', 세기['품절'], 'text-amber-600'),
+    카드('미등록', 세기['미등록'], 'text-slate-400'),
+  ].join('');
+}
+
+/** 오늘 변동된 자체상품코드만. 변동 없는 제품은 아예 표시하지 않는다. */
+function 오늘변동그리기() {
+  const 변동 = 변동목록(오늘KST());
+  $('#오늘변동수').textContent = 변동.length ? `${변동.length}건` : '';
+
+  if (!변동.length) {
+    $('#오늘변동목록').innerHTML = `
+      <div class="px-5 py-12 text-center text-sm text-slate-400">
+        오늘 변동된 제품이 없습니다.
+        <div class="text-xs mt-1">상단 &lsquo;CSV 상태 업로드&rsquo; 로 오늘 상태를 올리면 여기에 변동이 잡힙니다.</div>
+      </div>`;
+    return;
+  }
+
+  // 상품코드 기준으로 묶는다 (채널 기준 보기는 '변동 현황' 화면이 담당)
+  const 묶음 = new Map();
+  for (const 항목 of 변동) {
+    if (!묶음.has(항목.상품코드)) 묶음.set(항목.상품코드, []);
+    묶음.get(항목.상품코드).push(항목);
+  }
+
+  $('#오늘변동목록').innerHTML = [...묶음.entries()].map(([상품코드, 항목들]) => `
+    <div class="px-5 py-3">
+      <div class="flex items-baseline gap-2 mb-2">
+        <span class="font-mono text-sm font-semibold">${안전(상품코드)}</span>
+        <span class="text-xs text-slate-400">${안전(상품명(상품코드))}</span>
+        <span class="text-xs text-slate-300 ml-auto">${항목들.length}개 채널</span>
+      </div>
+      <div class="space-y-1 pl-1">
+        ${항목들.map((항목) => `
+          <div class="flex items-center gap-2 text-sm">
+            <span class="w-1.5 h-1.5 rounded-full ${변동유형[항목.유형].점}"></span>
+            <span class="w-28 text-xs text-slate-600 truncate">${안전(채널표기(항목.채널키))}</span>
+            ${상태배지(항목.이전상태)}
+            <span class="text-slate-300 text-xs">→</span>
+            ${상태배지(항목.현재상태)}
+            <span class="text-[11px] text-slate-400 ml-2">${안전(변동유형[항목.유형].표기)}</span>
+            ${항목.시각 ? `<span class="text-[11px] text-slate-300 ml-auto">${항목.시각.slice(0, 2)}:${항목.시각.slice(2, 4)}</span>` : ''}
+          </div>`).join('')}
+      </div>
+    </div>`).join('');
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   화면 2 — 변동 현황 (채널 기준)
+   ═══════════════════════════════════════════════════════════════ */
+
+const 변동필터 = new Set(Object.keys(변동유형));
+
+function 변동화면그리기() {
+  $('#변동-유형필터').innerHTML = Object.entries(변동유형).map(([키, 값]) => `
+    <button data-유형="${키}" class="유형칩 text-xs px-2.5 py-1 rounded border ${변동필터.has(키) ? 값.색 : 'text-slate-400 bg-white border-slate-200'}"
+            title="${안전(값.설명)}">${값.표기}</button>`).join('');
+
+  $$('.유형칩').forEach((칩) => {
+    칩.onclick = () => {
+      const 키 = 칩.dataset.유형;
+      변동필터.has(키) ? 변동필터.delete(키) : 변동필터.add(키);
+      변동화면그리기();
+    };
+  });
+
+  const 이전일 = $('#변동-이전일').value;
+  const 현재일 = $('#변동-현재일').value;
+  if (!이전일 || !현재일) return;
+
+  const 변동 = 변동계산(상태맵(이전일).상태, 상태맵(현재일).상태)
+    .filter((v) => 변동필터.has(v.유형));
+
+  if (!변동.length) {
+    $('#변동-결과').innerHTML = `
+      <div class="bg-white rounded-lg border border-slate-200 px-5 py-12 text-center text-sm text-slate-400">
+        ${월일표기(이전일)} → ${월일표기(현재일)} 사이 변동이 없습니다.
+      </div>`;
+    return;
+  }
+
+  // 이 화면은 채널 기준이다 (상품 기준 보기는 '데일리 판매 현황' 이 담당)
+  const 채널별 = new Map();
+  for (const 항목 of 변동) {
+    if (!채널별.has(항목.채널키)) 채널별.set(항목.채널키, []);
+    채널별.get(항목.채널키).push(항목);
+  }
+
+  const 정렬 = 채널목록().map((c) => c.채널키);
+  const 순서 = [...채널별.keys()].sort((a, b) => 정렬.indexOf(a) - 정렬.indexOf(b));
+
+  $('#변동-결과').innerHTML = `
+    <div class="text-xs text-slate-500 px-1">
+      ${월일표기(이전일)} → ${월일표기(현재일)} · 총 ${변동.length}건 · ${순서.length}개 채널
+    </div>
+    ${순서.map((채널키) => {
+      const 항목들 = 채널별.get(채널키);
+      return `
+      <div class="bg-white rounded-lg border border-slate-200">
+        <div class="px-5 py-2.5 border-b border-slate-100 flex items-center gap-2">
+          <span class="font-semibold text-sm">${안전(채널표기(채널키))}</span>
+          <span class="text-xs text-slate-400">${항목들.length}건</span>
+        </div>
+        <div class="divide-y divide-slate-50">
+          ${항목들.map((항목) => `
+            <div class="px-5 py-2 flex items-center gap-2 text-sm">
+              <span class="w-1.5 h-1.5 rounded-full ${변동유형[항목.유형].점}"></span>
+              <span class="font-mono text-xs w-52 truncate">${안전(항목.상품코드)}</span>
+              <span class="text-xs text-slate-400 flex-1 truncate">${안전(상품명(항목.상품코드))}</span>
+              ${상태배지(항목.이전상태)}
+              <span class="text-slate-300 text-xs">→</span>
+              ${상태배지(항목.현재상태)}
+              <span class="text-[11px] px-1.5 py-0.5 rounded border ${변동유형[항목.유형].색} ml-1">${변동유형[항목.유형].표기}</span>
+            </div>`).join('')}
+        </div>
+      </div>`;
+    }).join('')}`;
+}
+</script>
+
+<script>
+/* ═══════════════════════════════════════════════════════════════
+   화면 3-(1) — 채널별 현황 매트릭스
+   ═══════════════════════════════════════════════════════════════ */
+
+const 접힌상품 = new Set();
+const 최대날짜수 = 31;
+
+function 현황그리기() {
+  const 시작 = $('#현황-시작일').value;
+  const 종료 = $('#현황-종료일').value;
+  if (!시작 || !종료) return;
+
+  let 날짜들 = 날짜범위(시작, 종료);
+  const 잘림 = 날짜들.length > 최대날짜수;
+  if (잘림) 날짜들 = 날짜들.slice(-최대날짜수);
+
+  // 날짜별 상태 맵을 한 번씩만 계산한다 (셀마다 다시 계산하면 금방 느려진다)
+  const 맵캐시 = Object.fromEntries(날짜들.map((d) => [d, 상태맵(d)]));
+
+  const 선택채널 = $('#현황-채널선택').value;
+  const 대상채널 = 선택채널 ? 채널목록().filter((c) => c.채널키 === 선택채널) : 채널목록();
+  const 검색어 = $('#현황-검색').value.trim().toLowerCase();
+  const 상태필터 = $('#현황-상태필터').value;
+
+  const 상품들 = 상품목록().filter((상품) =>
+    !검색어 || 상품.상품코드.toLowerCase().includes(검색어) || (상품.상품명 ?? '').toLowerCase().includes(검색어));
+
+  /** 상태 필터가 걸리면, 기간 안에 그 상태가 한 번이라도 나온 채널 행만 남긴다 */
+  const 통과 = (상품코드, 채널키) => !상태필터
+    || 날짜들.some((d) => 맵캐시[d].상태[상품코드]?.[채널키] === 상태필터);
+
+  const 보일상품 = 상품들
+    .map((상품) => ({ 상품, 채널들: 대상채널.filter((c) => 통과(상품.상품코드, c.채널키)) }))
+    .filter((행) => 행.채널들.length);
+
+  const 헤더 = `
+    <thead>
+      <tr class="bg-slate-100 text-xs text-slate-600">
+        <th class="고정모서리 bg-slate-100 text-left px-3 py-2 border-b border-r border-slate-200 min-w-[210px]">자체상품코드</th>
+        <th class="고정헤더 bg-slate-100 text-left px-3 py-2 border-b border-r border-slate-200 min-w-[110px]">채널</th>
+        ${날짜들.map((d) => `
+          <th class="고정헤더 bg-slate-100 px-3 py-2 border-b border-slate-200 whitespace-nowrap font-medium
+                     ${맵캐시[d].실측 ? '' : 'text-slate-400'}">
+            ${월일표기(d)}${맵캐시[d].실측 ? '' : '<span class="block text-[10px] font-normal">미수집</span>'}
+          </th>`).join('')}
+      </tr>
+    </thead>`;
+
+  if (!보일상품.length) {
+    $('#현황표').innerHTML = `${헤더}<tbody><tr><td colspan="${날짜들.length + 2}"
+      class="px-5 py-12 text-center text-sm text-slate-400">조건에 맞는 제품이 없습니다.</td></tr></tbody>`;
+    return;
+  }
+
+  const 몸통 = 보일상품.map(({ 상품, 채널들 }) => {
+    const 접힘 = 접힌상품.has(상품.상품코드);
+    const 그룹행 = `
+      <tr class="bg-white border-t-2 border-slate-200">
+        <td class="고정열 bg-white px-3 py-2 border-r border-slate-200" rowspan="${접힘 ? 1 : 채널들.length + 1}">
+          <button data-접기="${안전(상품.상품코드)}" class="flex items-start gap-1.5 text-left w-full group">
+            <span class="text-slate-400 mt-0.5 text-xs">${접힘 ? '▸' : '▾'}</span>
+            <span>
+              <span class="font-mono text-xs font-semibold block group-hover:underline">${안전(상품.상품코드)}</span>
+              <span class="text-[11px] text-slate-400">${안전(상품.상품명 ?? '')}</span>
+            </span>
+          </button>
+        </td>
+        ${접힘 ? `<td class="px-3 py-2 text-xs text-slate-400" colspan="${날짜들.length + 1}">채널 ${채널들.length}개 접힘</td>` : `<td class="border-r border-slate-200"></td>${날짜들.map(() => '<td></td>').join('')}`}
+      </tr>`;
+
+    if (접힘) return 그룹행;
+
+    const 채널행들 = 채널들.map((채널) => `
+      <tr class="hover:bg-slate-50">
+        <td class="px-3 py-1.5 text-xs text-slate-600 border-r border-slate-200 whitespace-nowrap">${안전(채널.표기)}</td>
+        ${날짜들.map((d) => {
+          const 값 = 맵캐시[d].상태[상품.상품코드]?.[채널.채널키] ?? '미등록';
+          return `<td class="px-2 py-1.5 text-center ${맵캐시[d].실측 ? '' : 'opacity-50'}">${상태배지(값)}</td>`;
+        }).join('')}
+      </tr>`).join('');
+
+    return 그룹행 + 채널행들;
+  }).join('');
+
+  $('#현황표').innerHTML = `${헤더}<tbody>${몸통}</tbody>`;
+
+  $$('[data-접기]').forEach((버튼) => {
+    버튼.onclick = () => {
+      const 코드 = 버튼.dataset.접기;
+      접힌상품.has(코드) ? 접힌상품.delete(코드) : 접힌상품.add(코드);
+      현황그리기();
+    };
+  });
+
+  if (잘림) 토스트(`기간이 길어 최근 ${최대날짜수}일만 표시합니다.`, '경고');
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   화면 3-(2) — 예약
+   ═══════════════════════════════════════════════════════════════ */
+
+let 수정중예약ID = null;
+
+function 예약폼그리기() {
+  $('#상품코드목록').innerHTML = 상품목록()
+    .map((p) => `<option value="${안전(p.상품코드)}">${안전(p.상품명 ?? '')}</option>`).join('');
+  $('#예약-채널목록').innerHTML = 채널목록().map((c) => `
+    <label class="flex items-center gap-1.5 text-xs">
+      <input type="checkbox" class="예약채널" value="${c.채널키}"> ${안전(c.표기)}
+    </label>`).join('');
+  if (!$('#예약-일자').value) $('#예약-일자').value = 오늘KST();
+}
+
+function 예약목록그리기() {
+  const 지난것포함 = $('#예약-지난것도').checked;
+  const 오늘 = 오늘KST();
+  const 목록 = 저장소.목록('예약').map(([id, v]) => ({ id, ...v }))
+    .filter((e) => 지난것포함 || (!e.완료여부 && e.예약일자 >= 오늘))
+    .sort((a, b) => a.예약일자.localeCompare(b.예약일자));
+
+  if (!목록.length) {
+    $('#예약목록').innerHTML = '<div class="px-5 py-12 text-center text-sm text-slate-400">등록된 예약이 없습니다.</div>';
+    return;
+  }
+
+  $('#예약목록').innerHTML = 목록.map((예약) => {
+    const 지남 = !예약.완료여부 && 예약.예약일자 < 오늘;
+    const 채널들 = (예약.채널목록 ?? []).map(채널표기).join(', ') || '전체';
+    return `
+      <div class="px-5 py-3 flex items-center gap-3 text-sm ${예약.완료여부 ? 'opacity-50' : ''}">
+        <span class="text-xs w-20 ${지남 ? 'text-rose-600 font-semibold' : 'text-slate-500'}">${안전(예약.예약일자)}</span>
+        <span class="font-mono text-xs w-48 truncate">${안전(예약.상품코드)}</span>
+        <span class="text-xs text-slate-500 flex-1 truncate" title="${안전(채널들)}">${안전(채널들)}</span>
+        ${상태배지(예약.변경할상태)}
+        ${예약.메모 ? `<span class="text-xs text-slate-400 truncate max-w-[140px]">${안전(예약.메모)}</span>` : ''}
+        ${예약.완료여부 ? '<span class="text-[11px] text-emerald-600">완료</span>'
+                       : 지남 ? '<span class="text-[11px] text-rose-600">기한 지남</span>' : ''}
+        <button data-예약수정="${예약.id}" class="text-xs px-2 py-1 rounded border border-slate-300 hover:bg-slate-50">수정</button>
+        <button data-예약삭제="${예약.id}" class="text-xs px-2 py-1 rounded border border-slate-300 text-rose-600 hover:bg-rose-50">삭제</button>
+      </div>`;
+  }).join('');
+
+  $$('[data-예약수정]').forEach((버튼) => { 버튼.onclick = () => 예약수정시작(버튼.dataset.예약수정); });
+  $$('[data-예약삭제]').forEach((버튼) => {
+    버튼.onclick = () => {
+      if (!confirm('이 예약을 삭제할까요?')) return;
+      저장소.삭제('예약', 버튼.dataset.예약삭제);
+      예약목록그리기(); 데일리그리기();
+      토스트('삭제했습니다.');
+    };
+  });
+}
+
+function 예약수정시작(id) {
+  const 예약 = 저장소.읽기('예약', id);
+  if (!예약) return;
+  수정중예약ID = id;
+  $('#예약폼제목').textContent = '예약 수정';
+  $('#예약-상품코드').value = 예약.상품코드;
+  $('#예약-일자').value = 예약.예약일자;
+  $('#예약-상태').value = 예약.변경할상태;
+  $('#예약-메모').value = 예약.메모 ?? '';
+  $$('.예약채널').forEach((칸) => { 칸.checked = (예약.채널목록 ?? []).includes(칸.value); });
+  $('#예약-취소').hidden = false;
+  $('#예약-상품코드').scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
+function 예약폼초기화() {
+  수정중예약ID = null;
+  $('#예약폼제목').textContent = '예약 등록';
+  $('#예약-상품코드').value = '';
+  $('#예약-메모').value = '';
+  $('#예약-일자').value = 오늘KST();
+  $$('.예약채널').forEach((칸) => { 칸.checked = false; });
+  $('#예약-취소').hidden = true;
+}
+
+function 예약저장() {
+  const 상품코드 = $('#예약-상품코드').value.trim();
+  const 채널들 = $$('.예약채널').filter((칸) => 칸.checked).map((칸) => 칸.value);
+  const 예약일자 = $('#예약-일자').value;
+
+  if (!상품코드) return 토스트('자체상품코드를 선택하세요.', '경고');
+  if (!저장소.읽기('상품', 상품코드)) return 토스트('상품 마스터에 없는 코드입니다.', '경고');
+  if (!채널들.length) return 토스트('채널을 하나 이상 선택하세요.', '경고');
+  if (!예약일자) return 토스트('예약일을 선택하세요.', '경고');
+
+  const id = 수정중예약ID ?? `예약${Date.now()}`;
+  저장소.쓰기('예약', id, {
+    상품코드,
+    채널목록: 채널들,
+    예약일자,
+    변경할상태: $('#예약-상태').value,
+    메모: $('#예약-메모').value.trim(),
+    완료여부: 수정중예약ID ? (저장소.읽기('예약', id)?.완료여부 ?? false) : false,
+    생성일: 수정중예약ID ? (저장소.읽기('예약', id)?.생성일 ?? 오늘KST()) : 오늘KST(),
+  });
+
+  토스트(수정중예약ID ? '수정했습니다.' : '예약을 등록했습니다.', '성공');
+  예약폼초기화();
+  예약목록그리기();
+  데일리그리기();
+}
+</script>
+
+<script>
+/* ═══════════════════════════════════════════════════════════════
+   화면 4 — 설정
+   ═══════════════════════════════════════════════════════════════ */
+
+const 상자 = (제목, 본문, 설명 = '') => `
+  <div class="bg-white rounded-lg border border-slate-200">
+    <div class="px-5 py-3 border-b border-slate-100">
+      <h3 class="font-semibold text-sm">${제목}</h3>
+      ${설명 ? `<p class="text-xs text-slate-500 mt-1">${설명}</p>` : ''}
+    </div>
+    <div class="p-5">${본문}</div>
+  </div>`;
+
+/* ── 채널 관리 ─────────────────────────────────────────────── */
+function 설정채널그리기() {
+  const 채널들 = 채널목록(false);
+  const 미매핑 = 설정읽기('미매핑', {});
+  const 미매핑건수 = Object.values(미매핑).reduce((s, o) => s + Object.keys(o).length, 0);
+
+  const 표 = `
+    <table class="w-full text-sm">
+      <thead><tr class="text-xs text-slate-500 border-b border-slate-200">
+        <th class="text-left py-2">표기</th><th class="text-left">채널키</th><th class="text-left">플랫폼</th>
+        <th class="text-left">계정</th><th class="text-center">순서</th><th class="text-center">활성</th><th></th>
+      </tr></thead>
+      <tbody>
+        ${채널들.map((c) => `
+          <tr class="border-b border-slate-50">
+            <td class="py-2 font-medium">${안전(c.표기)}</td>
+            <td class="font-mono text-xs text-slate-500">${안전(c.채널키)}</td>
+            <td class="text-xs text-slate-600">${안전(c.플랫폼 ?? '')}</td>
+            <td class="text-xs text-slate-600">${안전(c.계정구분 ?? '')}</td>
+            <td class="text-center text-xs">${c.정렬순서 ?? ''}</td>
+            <td class="text-center">
+              <input type="checkbox" class="채널활성" data-키="${c.채널키}" ${c.활성여부 !== false ? 'checked' : ''}>
+            </td>
+            <td class="text-right">
+              <button data-채널매핑="${c.채널키}" class="text-xs px-2 py-1 rounded border border-slate-300">상태매핑</button>
+              <button data-채널삭제="${c.채널키}" class="text-xs px-2 py-1 rounded border border-slate-300 text-rose-600">삭제</button>
+            </td>
+          </tr>`).join('')}
+      </tbody>
+    </table>`;
+
+  const 추가폼 = `
+    <div class="mt-4 pt-4 border-t border-slate-100 grid grid-cols-2 md:grid-cols-5 gap-2 items-end">
+      <label class="text-xs">표기<input id="새채널-표기" class="w-full border border-slate-300 rounded px-2 py-1.5 text-sm mt-1" placeholder="스스_XX"></label>
+      <label class="text-xs">채널키(영문)<input id="새채널-키" class="w-full border border-slate-300 rounded px-2 py-1.5 text-sm mt-1" placeholder="ss_xx"></label>
+      <label class="text-xs">플랫폼<input id="새채널-플랫폼" class="w-full border border-slate-300 rounded px-2 py-1.5 text-sm mt-1"></label>
+      <label class="text-xs">계정구분<input id="새채널-계정" class="w-full border border-slate-300 rounded px-2 py-1.5 text-sm mt-1"></label>
+      <button id="새채널-추가" class="px-3 py-2 rounded bg-slate-900 text-white text-sm">채널 추가</button>
+    </div>`;
+
+  const 미매핑박스 = 미매핑건수 ? 상자(
+    `미매핑 상태값 <span class="text-fuchsia-600">${미매핑건수}건</span>`,
+    Object.entries(미매핑).map(([채널키, 값들]) => `
+      <div class="mb-3">
+        <div class="text-xs font-semibold text-slate-600 mb-1">${안전(채널표기(채널키))}</div>
+        ${Object.entries(값들).map(([원문, 횟수]) => `
+          <div class="flex items-center gap-2 text-sm py-1">
+            <span class="px-2 py-0.5 rounded border ${상태색['미매핑']} text-xs">${안전(원문)}</span>
+            <span class="text-xs text-slate-400">${횟수}회</span>
+            <select class="미매핑지정 border border-slate-300 rounded px-2 py-1 text-xs ml-auto"
+                    data-채널="${채널키}" data-원문="${안전(원문)}">
+              <option value="">지정 안 함</option>
+              ${상태값.map((s) => `<option value="${s}">${s}</option>`).join('')}
+            </select>
+          </div>`).join('')}
+      </div>`).join(''),
+    '업로드된 값 중 4가지 내부 상태로 해석하지 못한 것들입니다. 추측하지 않고 남겨두었으니 직접 지정하세요.',
+  ) : '';
+
+  $('#설정-채널').innerHTML = `
+    <div class="space-y-4">
+      ${상자('채널 목록', 표 + 추가폼, '같은 플랫폼이라도 계정이 다르면 별개 채널입니다. 채널키는 영문 소문자로 쓰세요.')}
+      ${미매핑박스}
+    </div>`;
+
+  $$('.채널활성').forEach((칸) => {
+    칸.onchange = () => {
+      const 값 = 저장소.읽기('채널', 칸.dataset.키);
+      저장소.쓰기('채널', 칸.dataset.키, { ...값, 활성여부: 칸.checked });
+      전체다시그리기();
+    };
+  });
+  $$('[data-채널삭제]').forEach((버튼) => {
+    버튼.onclick = () => {
+      if (!confirm(`채널 "${채널표기(버튼.dataset.채널삭제)}" 을 삭제할까요?\n과거 스냅샷의 값은 남지만 화면에서 사라집니다.`)) return;
+      저장소.삭제('채널', 버튼.dataset.채널삭제);
+      전체다시그리기();
+      토스트('삭제했습니다.');
+    };
+  });
+  $$('[data-채널매핑]').forEach((버튼) => { 버튼.onclick = () => 상태매핑편집(버튼.dataset.채널매핑); });
+  $$('.미매핑지정').forEach((선택) => {
+    선택.onchange = () => {
+      if (!선택.value) return;
+      const { 채널: 채널키, 원문 } = 선택.dataset;
+      const 채널 = 저장소.읽기('채널', 채널키) ?? {};
+      저장소.쓰기('채널', 채널키, { ...채널, 상태매핑: { ...(채널.상태매핑 ?? {}), [원문]: 선택.value } });
+      const 미매핑 = 설정읽기('미매핑', {});
+      delete 미매핑[채널키]?.[원문];
+      if (미매핑[채널키] && !Object.keys(미매핑[채널키]).length) delete 미매핑[채널키];
+      설정쓰기('미매핑', 미매핑);
+      토스트(`"${원문}" → ${선택.value} 로 매핑했습니다.`, '성공');
+      설정채널그리기();
+    };
+  });
+  $('#새채널-추가').onclick = () => {
+    const 채널키 = $('#새채널-키').value.trim();
+    const 표기 = $('#새채널-표기').value.trim();
+    if (!/^[a-z0-9_]+$/.test(채널키)) return 토스트('채널키는 영문 소문자·숫자·밑줄만 씁니다.', '경고');
+    if (!표기) return 토스트('표기를 입력하세요.', '경고');
+    if (저장소.읽기('채널', 채널키)) return 토스트('이미 있는 채널키입니다.', '경고');
+    저장소.쓰기('채널', 채널키, {
+      표기, 플랫폼: $('#새채널-플랫폼').value.trim(), 계정구분: $('#새채널-계정').value.trim(),
+      활성여부: true, 정렬순서: 채널목록(false).length + 1, 상태매핑: {},
+    });
+    전체다시그리기();
+    토스트('채널을 추가했습니다.', '성공');
+  };
+}
+
+function 상태매핑편집(채널키) {
+  const 채널 = 저장소.읽기('채널', 채널키) ?? {};
+  const 매핑 = 채널.상태매핑 ?? {};
+  모달열기(`${채널표기(채널키)} · 상태 매핑`, `
+    <p class="text-xs text-slate-500 mb-3">
+      이 채널이 쓰는 표기를 내부 4상태로 접습니다. 한 줄에 <code>원문=내부상태</code> 형식으로 씁니다.<br>
+      비워두면 기본 매핑만 적용됩니다.
+    </p>
+    <textarea id="매핑입력" rows="10" class="w-full border border-slate-300 rounded p-2 text-sm font-mono"
+      placeholder="판매종료=판매중지&#10;재고소진=품절">${안전(Object.entries(매핑).map(([k, v]) => `${k}=${v}`).join('\n'))}</textarea>
+    <div class="mt-3 flex gap-2">
+      <button id="매핑저장" class="px-3 py-2 rounded bg-slate-900 text-white text-sm">저장</button>
+      <button id="매핑취소" class="px-3 py-2 rounded border border-slate-300 text-sm">취소</button>
+    </div>`);
+
+  $('#매핑저장').onclick = () => {
+    const 새매핑 = {};
+    let 오류 = null;
+    for (const 줄 of $('#매핑입력').value.split('\n')) {
+      const 정리 = 줄.trim();
+      if (!정리) continue;
+      const [원문, 상태] = 정리.split('=').map((s) => s.trim());
+      if (!원문 || !상태값.includes(상태)) { 오류 = 정리; break; }
+      새매핑[원문] = 상태;
+    }
+    if (오류) return 토스트(`"${오류}" — 내부상태는 ${상태값.join('/')} 중 하나여야 합니다.`, '경고');
+    저장소.쓰기('채널', 채널키, { ...채널, 상태매핑: 새매핑 });
+    모달닫기(); 설정채널그리기();
+    토스트('매핑을 저장했습니다.', '성공');
+  };
+  $('#매핑취소').onclick = 모달닫기;
+}
+
+/* ── 상품 마스터 ────────────────────────────────────────────── */
+function 설정상품그리기() {
+  const 상품들 = 상품목록(false);
+  $('#설정-상품').innerHTML = 상자('자체상품코드 마스터', `
+    <div class="flex flex-wrap gap-2 mb-4">
+      <button id="상품-추가" class="px-3 py-2 rounded bg-slate-900 text-white text-sm">상품 추가</button>
+      <button id="상품-CSV업로드" class="px-3 py-2 rounded border border-slate-300 text-sm">CSV 일괄 업로드</button>
+      <button id="상품-양식" class="px-3 py-2 rounded border border-slate-300 text-sm">양식 내려받기</button>
+      <button id="상품-내보내기" class="px-3 py-2 rounded border border-slate-300 text-sm ml-auto">현재 목록 내보내기</button>
+    </div>
+    <table class="w-full text-sm">
+      <thead><tr class="text-xs text-slate-500 border-b border-slate-200">
+        <th class="text-left py-2">자체상품코드</th><th class="text-left">상품명</th>
+        <th class="text-center">등록 채널</th><th class="text-center">사용</th><th></th>
+      </tr></thead>
+      <tbody>
+        ${상품들.length ? 상품들.map((p) => `
+          <tr class="border-b border-slate-50">
+            <td class="py-2 font-mono text-xs">${안전(p.상품코드)}</td>
+            <td class="text-sm">${안전(p.상품명 ?? '')}</td>
+            <td class="text-center text-xs text-slate-500">${Object.values(p.채널별상품ID ?? {}).filter(Boolean).length} / ${채널목록().length}</td>
+            <td class="text-center"><input type="checkbox" class="상품사용" data-코드="${안전(p.상품코드)}" ${p.사용여부 !== false ? 'checked' : ''}></td>
+            <td class="text-right">
+              <button data-상품수정="${안전(p.상품코드)}" class="text-xs px-2 py-1 rounded border border-slate-300">수정</button>
+              <button data-상품삭제="${안전(p.상품코드)}" class="text-xs px-2 py-1 rounded border border-slate-300 text-rose-600">삭제</button>
+            </td>
+          </tr>`).join('')
+        : '<tr><td colspan="5" class="py-10 text-center text-sm text-slate-400">등록된 상품이 없습니다. CSV 로 한 번에 올리는 게 빠릅니다.</td></tr>'}
+      </tbody>
+    </table>`, `${상품들.length}개 등록됨`);
+
+  $('#상품-추가').onclick = () => 상품편집();
+  $$('[data-상품수정]').forEach((b) => { b.onclick = () => 상품편집(b.dataset.상품수정); });
+  $$('[data-상품삭제]').forEach((b) => {
+    b.onclick = () => {
+      if (!confirm(`"${b.dataset.상품삭제}" 을 삭제할까요?`)) return;
+      저장소.삭제('상품', b.dataset.상품삭제);
+      전체다시그리기(); 토스트('삭제했습니다.');
+    };
+  });
+  $$('.상품사용').forEach((칸) => {
+    칸.onchange = () => {
+      const 값 = 저장소.읽기('상품', 칸.dataset.코드);
+      저장소.쓰기('상품', 칸.dataset.코드, { ...값, 사용여부: 칸.checked });
+      전체다시그리기();
+    };
+  });
+  $('#상품-CSV업로드').onclick = 상품CSV올리기;
+  $('#상품-양식').onclick = () => {
+    const 헤더 = ['자체상품코드', '상품명', ...채널목록().map((c) => c.채널키)];
+    파일내려받기('상품마스터_양식.csv', `${헤더.join(',')}\nMF-APL-G-3000G-0712,유기농 사과 3kg,${채널목록().map(() => '').join(',')}\n`);
+  };
+  $('#상품-내보내기').onclick = () => {
+    const 채널들 = 채널목록();
+    const 줄들 = [['자체상품코드', '상품명', ...채널들.map((c) => c.채널키)].join(',')];
+    for (const p of 상품목록(false)) {
+      줄들.push([p.상품코드, `"${(p.상품명 ?? '').replace(/"/g, '""')}"`,
+        ...채널들.map((c) => p.채널별상품ID?.[c.채널키] ?? '')].join(','));
+    }
+    파일내려받기(`상품마스터_${오늘KST()}.csv`, 줄들.join('\n'));
+  };
+}
+
+function 상품편집(상품코드 = null) {
+  const 기존 = 상품코드 ? 저장소.읽기('상품', 상품코드) : null;
+  모달열기(상품코드 ? '상품 수정' : '상품 추가', `
+    <div class="space-y-3">
+      <label class="block text-sm">자체상품코드
+        <input id="편집-코드" class="w-full border border-slate-300 rounded px-2 py-1.5 mt-1 font-mono text-sm"
+               value="${안전(상품코드 ?? '')}" ${상품코드 ? 'readonly' : ''} placeholder="MF-APL-G-3000G-0712">
+      </label>
+      <label class="block text-sm">상품명
+        <input id="편집-이름" class="w-full border border-slate-300 rounded px-2 py-1.5 mt-1 text-sm" value="${안전(기존?.상품명 ?? '')}">
+      </label>
+      <div>
+        <div class="text-sm mb-1">채널별 상품ID <span class="text-xs text-slate-400">— 비우면 그 채널은 미등록</span></div>
+        <div class="grid grid-cols-2 gap-2">
+          ${채널목록().map((c) => `
+            <label class="text-xs">${안전(c.표기)}
+              <input class="편집-매핑 w-full border border-slate-300 rounded px-2 py-1 mt-0.5 text-sm"
+                     data-키="${c.채널키}" value="${안전(기존?.채널별상품ID?.[c.채널키] ?? '')}">
+            </label>`).join('')}
+        </div>
+      </div>
+      <div class="flex gap-2 pt-2">
+        <button id="편집-저장" class="px-3 py-2 rounded bg-slate-900 text-white text-sm">저장</button>
+        <button id="편집-취소" class="px-3 py-2 rounded border border-slate-300 text-sm">취소</button>
+      </div>
+    </div>`);
+
+  $('#편집-저장').onclick = () => {
+    const 코드 = $('#편집-코드').value.trim();
+    if (!코드) return 토스트('자체상품코드를 입력하세요.', '경고');
+    if (!상품코드 && 저장소.읽기('상품', 코드)) return 토스트('이미 있는 코드입니다.', '경고');
+    const 매핑 = {};
+    $$('.편집-매핑').forEach((칸) => { if (칸.value.trim()) 매핑[칸.dataset.키] = 칸.value.trim(); });
+    저장소.쓰기('상품', 코드, {
+      상품명: $('#편집-이름').value.trim(),
+      채널별상품ID: 매핑,
+      사용여부: 기존?.사용여부 ?? true,
+    });
+    모달닫기(); 전체다시그리기();
+    토스트('저장했습니다.', '성공');
+  };
+  $('#편집-취소').onclick = 모달닫기;
+}
+
+async function 상품CSV올리기() {
+  const 원문 = await 파일읽기();
+  if (!원문) return;
+  try {
+    const 행들 = CSV파싱(원문);
+    const 헤더 = 행들[0];
+    const 코드칸 = 헤더.findIndex((h) => 상품코드헤더.includes(h) || 상품코드헤더.includes(h.toLowerCase()));
+    const 이름칸 = 헤더.findIndex((h) => ['상품명', 'name'].includes(h.toLowerCase()) || h === '상품명');
+    if (코드칸 < 0) throw new Error('첫 줄에 "자체상품코드" 열이 필요합니다.');
+
+    let 추가 = 0, 수정 = 0;
+    for (const 행 of 행들.slice(1)) {
+      const 코드 = 행[코드칸]?.trim();
+      if (!코드) continue;
+      const 기존 = 저장소.읽기('상품', 코드);
+      const 매핑 = { ...(기존?.채널별상품ID ?? {}) };
+      헤더.forEach((칸이름, i) => {
+        const 채널키 = 헤더를채널키로(칸이름);
+        if (채널키 && 행[i]?.trim()) 매핑[채널키] = 행[i].trim();
+      });
+      저장소.쓰기('상품', 코드, {
+        상품명: 이름칸 >= 0 ? (행[이름칸] ?? '') : (기존?.상품명 ?? ''),
+        채널별상품ID: 매핑,
+        사용여부: 기존?.사용여부 ?? true,
+      });
+      기존 ? 수정++ : 추가++;
+    }
+    전체다시그리기();
+    토스트(`상품 ${추가}건 추가 · ${수정}건 갱신했습니다.`, '성공');
+  } catch (err) {
+    토스트(err.message, '경고');
+  }
+}
+
+/* ── 채널 상품ID 매핑 ──────────────────────────────────────── */
+function 설정매핑그리기() {
+  const 채널들 = 채널목록();
+  const 상품들 = 상품목록(false);
+  $('#설정-매핑').innerHTML = 상자('자체상품코드 ↔ 채널별 상품ID', `
+    <p class="text-xs text-slate-500 mb-3">칸이 비어 있으면 그 채널에는 <b>미등록</b>으로 봅니다. 값을 고치면 바로 저장됩니다.</p>
+    <div class="overflow-auto max-h-[60vh]">
+      <table class="text-sm border-collapse">
+        <thead><tr class="bg-slate-100 text-xs">
+          <th class="고정모서리 bg-slate-100 text-left px-3 py-2 border-b border-r border-slate-200">자체상품코드</th>
+          ${채널들.map((c) => `<th class="고정헤더 bg-slate-100 px-3 py-2 border-b border-slate-200 whitespace-nowrap">${안전(c.표기)}</th>`).join('')}
+        </tr></thead>
+        <tbody>
+          ${상품들.map((p) => `
+            <tr>
+              <td class="고정열 bg-white px-3 py-1 border-r border-b border-slate-100 font-mono text-xs whitespace-nowrap">${안전(p.상품코드)}</td>
+              ${채널들.map((c) => `
+                <td class="border-b border-slate-100 p-0">
+                  <input class="매핑칸 w-32 px-2 py-1 text-xs border-0 focus:bg-sky-50 outline-none"
+                         data-코드="${안전(p.상품코드)}" data-채널="${c.채널키}"
+                         value="${안전(p.채널별상품ID?.[c.채널키] ?? '')}">
+                </td>`).join('')}
+            </tr>`).join('')}
+        </tbody>
+      </table>
+    </div>`);
+
+  $$('.매핑칸').forEach((칸) => {
+    칸.onchange = () => {
+      const 상품 = 저장소.읽기('상품', 칸.dataset.코드);
+      const 매핑 = { ...(상품.채널별상품ID ?? {}) };
+      칸.value.trim() ? 매핑[칸.dataset.채널] = 칸.value.trim() : delete 매핑[칸.dataset.채널];
+      저장소.쓰기('상품', 칸.dataset.코드, { ...상품, 채널별상품ID: 매핑 });
+      토스트('저장했습니다.');
+    };
+  });
+}
+</script>
+
+<script>
+/* ── 데이터 수집 ────────────────────────────────────────────── */
+
+/**
+ * 플랫폼별 API 자동수집 가능 여부. 조사 결과를 화면에 그대로 붙여둔다.
+ * 절반 이상이 막혀 있어서, CSV 업로드가 임시방편이 아니라 주력 입력 경로다.
+ */
+const API사정 = {
+  '스마트스토어':    { 등급: '가능',   색: 'text-emerald-700 bg-emerald-50', 메모: '커머스API센터. 호출 IP 사전 등록 필요' },
+  '11번가':         { 등급: '가능',   색: 'text-emerald-700 bg-emerald-50', 메모: '셀러오피스 오픈API 키. 응답 XML' },
+  '옥션':           { 등급: '신청 후', 색: 'text-amber-700 bg-amber-50',    메모: 'ESM+ 마스터ID 생성 후 이용신청' },
+  '지마켓':         { 등급: '신청 후', 색: 'text-amber-700 bg-amber-50',    메모: 'ESM+ 마스터ID 생성 후 이용신청' },
+  '토스':           { 등급: '신청 후', 색: 'text-amber-700 bg-amber-50',    메모: "셀러센터 '내 연동 키' 발급" },
+  'SSG':            { 등급: '승인 필요', 색: 'text-orange-700 bg-orange-50', 메모: '파트너오피스 API 신청·승인' },
+  '카카오':         { 등급: '어려움',  색: 'text-rose-700 bg-rose-50',      메모: '전 판매자 대상 아님 — 심사 선정' },
+  '알리익스프레스':  { 등급: '어려움',  색: 'text-rose-700 bg-rose-50',      메모: 'Open Platform 앱 심사. 통상 솔루션사 경유' },
+};
+
+function 설정수집그리기() {
+  const 채널들 = 채널목록(false);
+  const 스냅샷수 = 저장소.목록('스냅샷').length;
+  const 최근 = 저장소.목록('스냅샷').map(([d]) => d).sort().pop();
+
+  $('#설정-수집').innerHTML = `
+    <div class="space-y-4">
+      ${상자('CSV 상태 업로드', `
+        <div class="flex flex-wrap gap-2 mb-3">
+          <button id="수집-업로드" class="px-3 py-2 rounded bg-slate-900 text-white text-sm">CSV 올리기</button>
+          <button id="수집-양식가로" class="px-3 py-2 rounded border border-slate-300 text-sm">가로형 양식</button>
+          <button id="수집-양식세로" class="px-3 py-2 rounded border border-slate-300 text-sm">세로형 양식</button>
+        </div>
+        <div class="text-xs text-slate-500 space-y-2">
+          <p>두 가지 모양을 모두 받습니다. 어느 쪽이든 첫 줄에 <code class="bg-slate-100 px-1">자체상품코드</code> 열이 있어야 합니다.</p>
+          <pre class="bg-slate-50 border border-slate-200 rounded p-2 overflow-auto">가로형 — 자체상품코드, 스스_MO, 스스_GY, 11번가 ...
+세로형 — 자체상품코드, 채널, 상태</pre>
+          <p><b>올린 칸만 갱신하고 나머지는 기존 상태를 유지합니다.</b>
+             한 채널만 올렸을 때 나머지 채널이 통째로 미등록으로 뒤집히지 않게 하기 위해서입니다.</p>
+        </div>`,
+        `저장된 스냅샷 ${스냅샷수}일치${최근 ? ` · 최근 ${최근}` : ''}`)}
+
+      ${상자('수집 시각', `
+        <div class="flex flex-wrap items-end gap-3">
+          <label class="text-sm">매일
+            <input type="time" id="수집-시각" value="${안전(설정읽기('수집시각', '09:00'))}"
+                   class="border border-slate-300 rounded px-2 py-1.5 text-sm ml-1">
+          </label>
+          <button id="수집-시각저장" class="px-3 py-2 rounded border border-slate-300 text-sm">저장</button>
+          <p class="text-xs text-slate-500 basis-full">
+            6단계에서 Cloudflare Worker 의 Cron Trigger 가 이 시각에 돕니다.
+            지금은 값만 저장되고 실제로 돌지 않습니다.
+          </p>
+        </div>`)}
+
+      ${상자('채널별 API 연동 사정', `
+        <table class="w-full text-sm">
+          <thead><tr class="text-xs text-slate-500 border-b border-slate-200">
+            <th class="text-left py-2">채널</th><th class="text-left">자동수집</th><th class="text-left">메모</th>
+          </tr></thead>
+          <tbody>
+            ${채널들.map((c) => {
+              const 사정 = API사정[c.플랫폼] ?? { 등급: '미확인', 색: 'text-slate-600 bg-slate-100', 메모: '' };
+              return `<tr class="border-b border-slate-50">
+                <td class="py-2">${안전(c.표기)}</td>
+                <td><span class="text-xs px-2 py-0.5 rounded ${사정.색}">${사정.등급}</span></td>
+                <td class="text-xs text-slate-500">${안전(사정.메모)}</td>
+              </tr>`;
+            }).join('')}
+          </tbody>
+        </table>`,
+        '10개 중 절반 이상이 승인·심사 관문에 걸려 있습니다. 막힌 채널은 CSV 로 채웁니다.')}
+
+      ${상자('API 인증정보', `
+        <div class="bg-rose-50 border border-rose-200 rounded p-3 text-xs text-rose-800 mb-3">
+          <b>API 키·시크릿을 이 화면에 저장하지 않습니다.</b>
+          이 대시보드는 GitHub Pages 위의 정적 페이지라, 브라우저에 들어간 값은 곧 공개된 값입니다.
+          시크릿은 Cloudflare Worker 의 Secret 에 두고, 대시보드는 Worker 만 호출합니다.
+        </div>
+        <p class="text-xs text-slate-500 mb-2">Worker 에 넣을 명령입니다. 터미널에서 <code class="bg-slate-100 px-1">worker/</code> 안에 실행하세요.</p>
+        <pre class="bg-slate-900 text-slate-100 rounded p-3 text-xs overflow-auto">${채널들
+          .filter((c) => ['가능', '신청 후'].includes(API사정[c.플랫폼]?.등급))
+          .map((c) => `wrangler secret put ${c.채널키.toUpperCase()}_KEY\nwrangler secret put ${c.채널키.toUpperCase()}_SECRET`)
+          .join('\n') || '# 아직 자동수집 가능한 채널이 없습니다'}</pre>`)}
+    </div>`;
+
+  $('#수집-업로드').onclick = 상태CSV올리기;
+  $('#수집-시각저장').onclick = () => { 설정쓰기('수집시각', $('#수집-시각').value); 토스트('저장했습니다.', '성공'); };
+  $('#수집-양식가로').onclick = () => {
+    const 채널들2 = 채널목록();
+    파일내려받기('상태_가로형_양식.csv',
+      `자체상품코드,${채널들2.map((c) => c.표기).join(',')}\n` +
+      상품목록().slice(0, 3).map((p) => `${p.상품코드},${채널들2.map(() => '판매중').join(',')}`).join('\n') + '\n');
+  };
+  $('#수집-양식세로').onclick = () => {
+    파일내려받기('상태_세로형_양식.csv',
+      '자체상품코드,채널,상태\n' +
+      상품목록().slice(0, 3).flatMap((p) => 채널목록().slice(0, 3).map((c) => `${p.상품코드},${c.표기},판매중`)).join('\n') + '\n');
+  };
+}
+
+/** CSV 를 읽어 오늘 스냅샷으로 저장한다. 저장 전에 무엇이 바뀌는지 먼저 보여준다. */
+async function 상태CSV올리기() {
+  if (!상품목록().length) return 토스트('먼저 상품 마스터를 등록하세요.', '경고');
+  const 원문 = await 파일읽기();
+  if (!원문) return;
+
+  let 결과;
+  try { 결과 = 상태CSV해석(CSV파싱(원문)); }
+  catch (err) { return 토스트(err.message, '경고'); }
+
+  const 대상날짜 = 오늘KST();
+  const 병합 = 상태병합(대상날짜, 결과.상태);
+  const 미리보기 = 변동계산(상태맵(대상날짜).상태, 병합);
+
+  모달열기('CSV 업로드 확인', `
+    <div class="space-y-3 text-sm">
+      <div class="grid grid-cols-2 gap-2 text-xs">
+        <div class="bg-slate-50 rounded p-2">반영될 값 <b class="text-slate-900">${결과.반영}</b>칸</div>
+        <div class="bg-slate-50 rounded p-2">예상 변동 <b class="text-slate-900">${미리보기.length}</b>건</div>
+        ${결과.미매핑 ? `<div class="bg-fuchsia-50 rounded p-2 text-fuchsia-700">해석 못한 값 <b>${결과.미매핑}</b>개 — 설정 › 채널에서 지정</div>` : ''}
+        ${결과.모르는상품.length ? `<div class="bg-amber-50 rounded p-2 text-amber-800">마스터에 없는 코드 <b>${결과.모르는상품.length}</b>개 — 건너뜀</div>` : ''}
+        ${결과.모르는채널.length ? `<div class="bg-amber-50 rounded p-2 text-amber-800">모르는 채널 열 <b>${안전(결과.모르는채널.join(', '))}</b> — 건너뜀</div>` : ''}
+      </div>
+      <label class="block text-xs">적용 날짜
+        <input type="date" id="업로드-날짜" value="${대상날짜}" class="border border-slate-300 rounded px-2 py-1 ml-2 text-sm">
+      </label>
+      ${미리보기.length ? `
+        <div class="border border-slate-200 rounded max-h-56 overflow-auto divide-y divide-slate-50">
+          ${미리보기.slice(0, 60).map((v) => `
+            <div class="px-3 py-1.5 flex items-center gap-2 text-xs">
+              <span class="w-1.5 h-1.5 rounded-full ${변동유형[v.유형].점}"></span>
+              <span class="font-mono w-44 truncate">${안전(v.상품코드)}</span>
+              <span class="w-24 truncate text-slate-500">${안전(채널표기(v.채널키))}</span>
+              ${상태배지(v.이전상태)}<span class="text-slate-300">→</span>${상태배지(v.현재상태)}
+            </div>`).join('')}
+          ${미리보기.length > 60 ? `<div class="px-3 py-1.5 text-xs text-slate-400">외 ${미리보기.length - 60}건</div>` : ''}
+        </div>` : '<p class="text-xs text-slate-400">기존 상태와 같습니다. 변동이 없습니다.</p>'}
+      <div class="flex gap-2 pt-1">
+        <button id="업로드-확정" class="px-3 py-2 rounded bg-slate-900 text-white text-sm">이대로 저장</button>
+        <button id="업로드-취소" class="px-3 py-2 rounded border border-slate-300 text-sm">취소</button>
+      </div>
+    </div>`);
+
+  $('#업로드-확정').onclick = () => {
+    const 날짜 = $('#업로드-날짜').value || 대상날짜;
+    // 날짜를 바꿨다면 그 날짜 기준으로 다시 병합해야 한다
+    const 최종 = 날짜 === 대상날짜 ? 병합 : 상태병합(날짜, 결과.상태);
+    const 변동 = 스냅샷저장(날짜, 최종, { 입력방식: 'CSV' });
+    모달닫기(); 전체다시그리기();
+    토스트(`${날짜} 스냅샷 저장 · 변동 ${변동.length}건`, '성공');
+  };
+  $('#업로드-취소').onclick = 모달닫기;
+}
+
+/* ── 기타 ──────────────────────────────────────────────────── */
+function 설정기타그리기() {
+  const D = 저장소.전체로드();
+  const 용량 = (JSON.stringify(D).length / 1024).toFixed(0);
+  const 회차수 = Object.values(D.회차 ?? {}).reduce((s, o) => s + Object.keys(o).length, 0);
+
+  $('#설정-기타').innerHTML = `
+    <div class="space-y-4">
+      ${상자('저장 위치', `
+        <p class="text-sm">현재 <b>로컬 모드</b> — 이 브라우저에만 저장됩니다 (localStorage <code>${저장키}</code>).</p>
+        <p class="text-xs text-slate-500 mt-2">
+          사용 중 약 <b>${용량}KB</b> · 스냅샷 ${Object.keys(D.스냅샷 ?? {}).length}일 · 회차 ${회차수}건.
+          로컬 모드는 5MB 안팎이 한계입니다. 다른 기기와 공유하려면 아래 백업을 쓰거나
+          <code>index.html</code> 상단의 <code>firebaseConfig</code> 를 채워 Firestore 로 전환하세요.
+        </p>`)}
+      ${상자('백업 / 복원', `
+        <div class="flex flex-wrap gap-2">
+          <button id="기타-백업" class="px-3 py-2 rounded border border-slate-300 text-sm">JSON 내보내기</button>
+          <button id="기타-복원" class="px-3 py-2 rounded border border-slate-300 text-sm">JSON 가져오기</button>
+        </div>`)}
+      ${상자('보관 정리', `
+        <div class="flex flex-wrap items-end gap-3">
+          <label class="text-sm">보관일수
+            <input type="number" id="기타-보관일수" value="${설정읽기('보관일수', 90)}" min="7"
+                   class="w-24 border border-slate-300 rounded px-2 py-1.5 text-sm ml-1">
+          </label>
+          <button id="기타-정리" class="px-3 py-2 rounded border border-slate-300 text-sm">오래된 회차 정리</button>
+          <p class="text-xs text-slate-500 basis-full">
+            보관일수를 넘긴 <b>회차</b>만 지웁니다. 날짜별 대표 스냅샷은 남기므로 과거 조회는 그대로 됩니다.
+          </p>
+        </div>`)}
+      ${상자('초기화', `
+        <div class="flex flex-wrap gap-2">
+          <button id="기타-데모" class="px-3 py-2 rounded border border-slate-300 text-sm">데모 데이터 채우기</button>
+          <button id="기타-전체삭제" class="px-3 py-2 rounded border border-rose-300 text-rose-600 text-sm">전체 초기화</button>
+        </div>
+        <p class="text-xs text-slate-500 mt-2">데모 데이터는 화면을 확인해보기 위한 가짜 값입니다. 실제 운영 전에 전체 초기화하세요.</p>`)}
+    </div>`;
+
+  $('#기타-백업').onclick = () => {
+    const 주소 = URL.createObjectURL(new Blob([JSON.stringify(저장소.전체로드(), null, 2)], { type: 'application/json' }));
+    const 링크 = document.createElement('a');
+    링크.href = 주소; 링크.download = `채널상태_백업_${오늘KST()}.json`; 링크.click();
+    URL.revokeObjectURL(주소);
+  };
+  $('#기타-복원').onclick = async () => {
+    const 원문 = await 파일읽기('.json');
+    if (!원문) return;
+    if (!confirm('현재 데이터를 덮어씁니다. 진행할까요?')) return;
+    try {
+      저장소.캐시 = JSON.parse(원문);
+      저장소.저장();
+      전체다시그리기();
+      토스트('복원했습니다.', '성공');
+    } catch { 토스트('JSON 을 읽지 못했습니다.', '경고'); }
+  };
+  $('#기타-정리').onclick = () => {
+    const 보관일수 = Number($('#기타-보관일수').value) || 90;
+    설정쓰기('보관일수', 보관일수);
+    const 기준 = 오늘KST(-보관일수);
+    const D2 = 저장소.전체로드();
+    let 지움 = 0;
+    for (const 날짜 of Object.keys(D2.회차 ?? {})) {
+      if (날짜 < 기준) { 지움 += Object.keys(D2.회차[날짜]).length; delete D2.회차[날짜]; }
+    }
+    저장소.저장(); 설정기타그리기();
+    토스트(`회차 ${지움}건을 정리했습니다.`, '성공');
+  };
+  $('#기타-데모').onclick = () => { 데모채우기(); 전체다시그리기(); 토스트('데모 데이터를 채웠습니다.', '성공'); };
+  $('#기타-전체삭제').onclick = () => {
+    if (!confirm('모든 데이터를 지웁니다. 되돌릴 수 없습니다. 진행할까요?')) return;
+    localStorage.removeItem(저장키);
+    저장소.캐시 = null;
+    채널초기화();
+    // 표시를 남기지 않으면 다음 새로고침 때 시작()이 '빈 저장소' 로 보고 데모를 다시 채운다
+    설정쓰기('자동데모완료', true);
+    전체다시그리기();
+    토스트('초기화했습니다. 설정 › 상품 마스터에서 자체상품코드를 등록하세요.');
+  };
+}
+</script>
+
+<script>
+/* ═══════════════════════════════════════════════════════════════
+   초기화 · 화면 전환
+   ═══════════════════════════════════════════════════════════════ */
+
+/** 채널이 하나도 없으면 스펙의 10개 채널을 심는다 */
+function 채널초기화() {
+  if (채널목록(false).length) return;
+  for (const c of 기본채널) {
+    const { 채널키, ...나머지 } = c;
+    저장소.쓰기('채널', 채널키, { ...나머지, 활성여부: true, 상태매핑: {} });
+  }
+}
+
+let 현재화면 = '데일리';
+let 현재하위 = '현황';
+let 현재설정 = '채널';
+
+function 화면전환(이름) {
+  현재화면 = 이름;
+  $$('.화면').forEach((요소) => { 요소.hidden = 요소.id !== `화면-${이름}`; });
+  $$('.탭').forEach((탭) => 탭.classList.toggle('탭활성', 탭.dataset.화면 === 이름));
+  전체다시그리기();
+}
+
+function 하위전환(이름) {
+  현재하위 = 이름;
+  $('#하위-현황').hidden = 이름 !== '현황';
+  $('#하위-예약').hidden = 이름 !== '예약';
+  $$('.하위탭').forEach((탭) => 탭.classList.toggle('탭활성', 탭.dataset.하위 === 이름));
+  전체다시그리기();
+}
+
+function 설정전환(이름) {
+  현재설정 = 이름;
+  $$('.설정화면').forEach((요소) => { 요소.hidden = 요소.id !== `설정-${이름}`; });
+  $$('.설정탭').forEach((탭) => 탭.classList.toggle('탭활성', 탭.dataset.설정 === 이름));
+  전체다시그리기();
+}
+
+/** 보고 있는 화면만 다시 그린다 */
+function 전체다시그리기() {
+  $('#저장위치배지').textContent = `로컬 모드 · 상품 ${상품목록(false).length} · 채널 ${채널목록().length}`;
+  $('#오늘날짜').textContent = `${오늘KST()} (KST)`;
+  $('#현황-채널선택').innerHTML = `<option value="">통합 — 전체 채널</option>` +
+    채널목록().map((c) => `<option value="${c.채널키}">${안전(c.표기)}</option>`).join('');
+  $('#현황-채널선택').value = 현황선택채널;
+
+  if (현재화면 === '데일리') 데일리그리기();
+  if (현재화면 === '변동') 변동화면그리기();
+  if (현재화면 === '채널') {
+    if (현재하위 === '현황') 현황그리기();
+    else { 예약폼그리기(); 예약목록그리기(); }
+  }
+  if (현재화면 === '설정') {
+    ({ 채널: 설정채널그리기, 상품: 설정상품그리기, 매핑: 설정매핑그리기, 수집: 설정수집그리기, 기타: 설정기타그리기 })[현재설정]();
+  }
+}
+
+let 현황선택채널 = '';
+
+function 이벤트묶기() {
+  $$('.탭').forEach((탭) => { 탭.onclick = () => 화면전환(탭.dataset.화면); });
+  $$('.하위탭').forEach((탭) => { 탭.onclick = () => 하위전환(탭.dataset.하위); });
+  $$('.설정탭').forEach((탭) => { 탭.onclick = () => 설정전환(탭.dataset.설정); });
+
+  $('#버튼-스냅샷업로드').onclick = 상태CSV올리기;
+  $('#모달닫기').onclick = 모달닫기;
+  $('#모달').onclick = (e) => { if (e.target.id === '모달') 모달닫기(); };
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') 모달닫기(); });
+
+  // 변동 현황
+  $('#변동-이전일').onchange = 변동화면그리기;
+  $('#변동-현재일').onchange = 변동화면그리기;
+  $('#변동-어제오늘').onclick = () => {
+    $('#변동-이전일').value = 오늘KST(-1);
+    $('#변동-현재일').value = 오늘KST();
+    변동화면그리기();
+  };
+
+  // 채널별 현황
+  $('#현황-시작일').onchange = 현황그리기;
+  $('#현황-종료일').onchange = 현황그리기;
+  $('#현황-검색').oninput = 현황그리기;
+  $('#현황-상태필터').onchange = 현황그리기;
+  $('#현황-채널선택').onchange = (e) => { 현황선택채널 = e.target.value; 현황그리기(); };
+  $$('.빠른날짜').forEach((버튼) => {
+    버튼.onclick = () => {
+      const 종류 = 버튼.dataset.빠른;
+      const 시작 = 종류 === '어제' ? 오늘KST(-1) : 종류 === '오늘' ? 오늘KST() : 오늘KST(-6);
+      const 종료 = 종류 === '어제' ? 오늘KST(-1) : 오늘KST();
+      $('#현황-시작일').value = 시작;
+      $('#현황-종료일').value = 종료;
+      현황그리기();
+    };
+  });
+  $('#현황-모두펼치기').onclick = () => { 접힌상품.clear(); 현황그리기(); };
+  $('#현황-모두접기').onclick = () => { 상품목록().forEach((p) => 접힌상품.add(p.상품코드)); 현황그리기(); };
+
+  // 예약
+  $('#예약-저장').onclick = 예약저장;
+  $('#예약-취소').onclick = 예약폼초기화;
+  $('#예약-지난것도').onchange = 예약목록그리기;
+  $('#예약-전체채널').onclick = () => $$('.예약채널').forEach((칸) => { 칸.checked = true; });
+  $('#예약-채널해제').onclick = () => $$('.예약채널').forEach((칸) => { 칸.checked = false; });
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   데모 데이터 — 화면을 확인해보기 위한 가짜 값
+   ═══════════════════════════════════════════════════════════════ */
+
+function 데모채우기() {
+  const 품목 = [
+    ['APL', '유기농 사과', 'G', ['3000G', '5000G']],
+    ['AMG', '아망추 감귤', 'H', ['0800G', '1500G']],
+    ['PER', '신고배', 'G', ['4000G']],
+    ['GRP', '샤인머스캣', 'P', ['2000G', '4000G']],
+    ['TOM', '대추방울토마토', 'T', ['1000G', '2000G']],
+    ['STR', '설향딸기', 'S', ['0500G', '1000G']],
+  ];
+  const 채널들 = 채널목록();
+  const 코드들 = [];
+
+  품목.forEach(([약어, 이름, 등급, 규격들], 상품순번) => {
+    규격들.forEach((규격, 규격순번) => {
+      const 코드 = `MF-${약어}-${등급}-${규격}-0${712 + 상품순번 * 11 + 규격순번}`;
+      const 매핑 = {};
+      채널들.forEach((c, i) => {
+        // 일부 채널에는 일부러 등록을 비워 '미등록' 이 어떻게 보이는지 확인할 수 있게 한다
+        if ((상품순번 + 규격순번 + i) % 7 !== 0) 매핑[c.채널키] = `${c.채널키.toUpperCase()}${100000 + 상품순번 * 137 + 규격순번 * 31 + i}`;
+      });
+      저장소.쓰기('상품', 코드, { 상품명: `${이름} ${Number(규격.slice(0, 4))}g`, 채널별상품ID: 매핑, 사용여부: true });
+      코드들.push(코드);
+    });
+  });
+
+  // 최근 7일치 스냅샷. 날짜가 갈수록 몇 칸씩 상태가 바뀌게 해서 변동 화면이 비어 보이지 않게 한다.
+  let 이전맵 = null;
+  for (let 일수 = 6; 일수 >= 0; 일수--) {
+    const 날짜 = 오늘KST(-일수);
+    const 상태 = {};
+    코드들.forEach((코드, 상품순번) => {
+      상태[코드] = {};
+      const 상품 = 저장소.읽기('상품', 코드);
+      채널들.forEach((c, i) => {
+        if (!등록됨(상품, c.채널키)) { 상태[코드][c.채널키] = '미등록'; return; }
+        const 씨앗 = (상품순번 * 13 + i * 7 + (6 - 일수) * 5) % 23;
+        상태[코드][c.채널키] = 씨앗 === 3 ? '품절' : 씨앗 === 8 ? '판매중지' : '판매중';
+      });
+    });
+
+    const 변동 = 이전맵 ? 변동계산(이전맵, 상태).map((v) => ({ ...v, 시각: '090000' })) : [];
+    저장소.쓰기('회차', 날짜, { '090000': { 수집시각: `${날짜}T00:00:00.000Z`, 입력방식: '데모', 상태 } });
+    저장소.쓰기('스냅샷', 날짜, { 수집시각: `${날짜}T00:00:00.000Z`, 회차수: 1, 입력방식: '데모', 상태 });
+    저장소.쓰기('변동', 날짜, { 목록: 변동 });
+    이전맵 = 상태;
+  }
+
+  // 예약 예시 — D-day 표시가 어떻게 보이는지 확인용
+  저장소.쓰기('예약', '데모예약1', {
+    상품코드: 코드들[0], 채널목록: [채널들[0]?.채널키, 채널들[2]?.채널키].filter(Boolean),
+    예약일자: 오늘KST(2), 변경할상태: '품절', 메모: '재고 소진 예정', 완료여부: false, 생성일: 오늘KST(),
+  });
+  저장소.쓰기('예약', '데모예약2', {
+    상품코드: 코드들[3] ?? 코드들[0], 채널목록: 채널들.map((c) => c.채널키),
+    예약일자: 오늘KST(-2), 변경할상태: '판매중', 메모: '시즌 재개', 완료여부: false, 생성일: 오늘KST(-5),
+  });
+  설정쓰기('자동데모완료', true);
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   시작
+   ═══════════════════════════════════════════════════════════════ */
+
+(function 시작() {
+  채널초기화();
+
+  // 처음 열었을 때 빈 화면만 보이면 뭘 해야 할지 알기 어려우니 데모를 한 번 채운다
+  if (!상품목록(false).length && !설정읽기('자동데모완료', false)) 데모채우기();
+
+  $('#변동-이전일').value = 오늘KST(-1);
+  $('#변동-현재일').value = 오늘KST();
+  $('#현황-시작일').value = 오늘KST(-6);
+  $('#현황-종료일').value = 오늘KST();
+  $('#예약-일자').value = 오늘KST();
+
+  이벤트묶기();
+  하위전환('현황');
+  설정전환('채널');
+  화면전환('데일리');
+})();
+</script>
+</body>
+</html>
