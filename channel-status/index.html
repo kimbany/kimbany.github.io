@@ -961,7 +961,7 @@ function 현황그리기() {
     const 접힘 = 접힌상품.has(상품.상품코드);
     const 그룹행 = `
       <tr class="bg-white border-t-2 border-slate-200">
-        <td class="고정열 bg-white px-3 py-2 border-r border-slate-200" rowspan="${접힘 ? 1 : 채널들.length + 1}">
+        <td class="고정열 bg-white px-3 py-2 border-r border-slate-200 align-top" rowspan="${접힘 ? 1 : 채널들.length + 1}">
           <button data-접기="${안전(상품.상품코드)}" class="flex items-start gap-1.5 text-left w-full group">
             <span class="text-slate-400 mt-0.5 text-xs">${접힘 ? '▸' : '▾'}</span>
             <span>
