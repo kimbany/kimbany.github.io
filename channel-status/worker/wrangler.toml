@@ -1,0 +1,13 @@
+name = "channel-status-proxy"
+main = "index.js"
+compatibility_date = "2026-08-01"
+
+# 대시보드의 설정 › 데이터 수집 › '수집 시각' 과 맞춰 둘 것.
+# cron 은 UTC 기준이다. KST 09:00 = UTC 00:00
+[triggers]
+crons = ["0 0 * * *"]
+
+# 시크릿은 여기에 쓰지 않는다. 아래처럼 넣는다.
+#   wrangler secret put 수집키
+#   wrangler secret put SS_MO_KEY
+#   wrangler secret put SS_MO_SECRET

@@ -1,0 +1,6 @@
+node_modules/
+.env
+data/raw/
+data/daily/
+data/latest.json
+data/.cafe24-token.json
