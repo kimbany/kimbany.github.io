@@ -1,0 +1,770 @@
+{
+  "generatedAt": "2026-08-24T03:08:13.503Z",
+  "range": {
+    "from": "2026-08-23",
+    "to": "2026-08-24"
+  },
+  "total": {
+    "channels": 6,
+    "collected": 6,
+    "failed": 0,
+    "products": 24,
+    "options": 60,
+    "orderCount": 60,
+    "quantity": 180,
+    "amount": 5531000,
+    "canceledAmount": 150000
+  },
+  "channels": [
+    {
+      "channel": "coupang",
+      "label": "쿠팡",
+      "ok": true,
+      "error": null,
+      "products": 4,
+      "optionsTotal": 10,
+      "orderCount": 10,
+      "quantity": 30,
+      "amount": 971000,
+      "canceledCount": 1,
+      "canceledAmount": 25000,
+      "options": [
+        {
+          "productId": "coupang-RED",
+          "productName": "레드향 프리미엄",
+          "optionId": "coupang-RED-1",
+          "optionName": "5kg",
+          "optionCode": "RED-1",
+          "quantity": 5,
+          "amount": 180000,
+          "canceledQuantity": 0,
+          "canceledAmount": 0
+        },
+        {
+          "productId": "coupang-HAL",
+          "productName": "한라봉 선물세트",
+          "optionId": "coupang-HAL-2",
+          "optionName": "10kg (30~35과)",
+          "optionCode": "HAL-2",
+          "quantity": 4,
+          "amount": 164000,
+          "canceledQuantity": 0,
+          "canceledAmount": 0
+        },
+        {
+          "productId": "coupang-GAM",
+          "productName": "제주 감귤 가정용",
+          "optionId": "coupang-GAM-1",
+          "optionName": "5kg",
+          "optionCode": "GAM-1",
+          "quantity": 5,
+          "amount": 160000,
+          "canceledQuantity": 0,
+          "canceledAmount": 0
+        },
+        {
+          "productId": "coupang-CHN",
+          "productName": "천혜향 실속형",
+          "optionId": "coupang-CHN-1",
+          "optionName": "4kg (12~16과)",
+          "optionCode": "CHN-1",
+          "quantity": 4,
+          "amount": 136000,
+          "canceledQuantity": 0,
+          "canceledAmount": 0
+        },
+        {
+          "productId": "coupang-GAM",
+          "productName": "제주 감귤 가정용",
+          "optionId": "coupang-GAM-2",
+          "optionName": "10kg",
+          "optionCode": "GAM-2",
+          "quantity": 3,
+          "amount": 129000,
+          "canceledQuantity": 0,
+          "canceledAmount": 0
+        },
+        {
+          "productId": "coupang-HAL",
+          "productName": "한라봉 선물세트",
+          "optionId": "coupang-HAL-0",
+          "optionName": "3kg (9~12과)",
+          "optionCode": "HAL-0",
+          "quantity": 3,
+          "amount": 57000,
+          "canceledQuantity": 0,
+          "canceledAmount": 0
+        },
+        {
+          "productId": "coupang-RED",
+          "productName": "레드향 프리미엄",
+          "optionId": "coupang-RED-0",
+          "optionName": "3kg",
+          "optionCode": "RED-0",
+          "quantity": 2,
+          "amount": 50000,
+          "canceledQuantity": 1,
+          "canceledAmount": 25000
+        },
+        {
+          "productId": "coupang-GAM",
+          "productName": "제주 감귤 가정용",
+          "optionId": "coupang-GAM-0",
+          "optionName": "3kg",
+          "optionCode": "GAM-0",
+          "quantity": 2,
+          "amount": 42000,
+          "canceledQuantity": 0,
+          "canceledAmount": 0
+        },
+        {
+          "productId": "coupang-HAL",
+          "productName": "한라봉 선물세트",
+          "optionId": "coupang-HAL-1",
+          "optionName": "5kg (15~18과)",
+          "optionCode": "HAL-1",
+          "quantity": 1,
+          "amount": 30000,
+          "canceledQuantity": 0,
+          "canceledAmount": 0
+        },
+        {
+          "productId": "coupang-CHN",
+          "productName": "천혜향 실속형",
+          "optionId": "coupang-CHN-0",
+          "optionName": "2kg (6~8과)",
+          "optionCode": "CHN-0",
+          "quantity": 1,
+          "amount": 23000,
+          "canceledQuantity": 0,
+          "canceledAmount": 0
+        }
+      ]
+    },
+    {
+      "channel": "smartstore",
+      "label": "스마트스토어",
+      "ok": true,
+      "error": null,
+      "products": 4,
+      "optionsTotal": 10,
+      "orderCount": 10,
+      "quantity": 30,
+      "amount": 858000,
+      "canceledCount": 1,
+      "canceledAmount": 25000,
+      "options": [
+        {
+          "productId": "smartstore-RED",
+          "productName": "레드향 프리미엄",
+          "optionId": "smartstore-RED-0",
+          "optionName": "3kg",
+          "optionCode": "RED-0",
+          "quantity": 5,
+          "amount": 125000,
+          "canceledQuantity": 1,
+          "canceledAmount": 25000
+        },
+        {
+          "productId": "smartstore-HAL",
+          "productName": "한라봉 선물세트",
+          "optionId": "smartstore-HAL-1",
+          "optionName": "5kg (15~18과)",
+          "optionCode": "HAL-1",
+          "quantity": 4,
+          "amount": 120000,
+          "canceledQuantity": 0,
+          "canceledAmount": 0
+        },
+        {
+          "productId": "smartstore-RED",
+          "productName": "레드향 프리미엄",
+          "optionId": "smartstore-RED-1",
+          "optionName": "5kg",
+          "optionCode": "RED-1",
+          "quantity": 3,
+          "amount": 108000,
+          "canceledQuantity": 0,
+          "canceledAmount": 0
+        },
+        {
+          "productId": "smartstore-GAM",
+          "productName": "제주 감귤 가정용",
+          "optionId": "smartstore-GAM-0",
+          "optionName": "3kg",
+          "optionCode": "GAM-0",
+          "quantity": 5,
+          "amount": 105000,
+          "canceledQuantity": 0,
+          "canceledAmount": 0
+        },
+        {
+          "productId": "smartstore-GAM",
+          "productName": "제주 감귤 가정용",
+          "optionId": "smartstore-GAM-1",
+          "optionName": "5kg",
+          "optionCode": "GAM-1",
+          "quantity": 3,
+          "amount": 96000,
+          "canceledQuantity": 0,
+          "canceledAmount": 0
+        },
+        {
+          "productId": "smartstore-CHN",
+          "productName": "천혜향 실속형",
+          "optionId": "smartstore-CHN-0",
+          "optionName": "2kg (6~8과)",
+          "optionCode": "CHN-0",
+          "quantity": 4,
+          "amount": 92000,
+          "canceledQuantity": 0,
+          "canceledAmount": 0
+        },
+        {
+          "productId": "smartstore-HAL",
+          "productName": "한라봉 선물세트",
+          "optionId": "smartstore-HAL-2",
+          "optionName": "10kg (30~35과)",
+          "optionCode": "HAL-2",
+          "quantity": 2,
+          "amount": 82000,
+          "canceledQuantity": 0,
+          "canceledAmount": 0
+        },
+        {
+          "productId": "smartstore-CHN",
+          "productName": "천혜향 실속형",
+          "optionId": "smartstore-CHN-1",
+          "optionName": "4kg (12~16과)",
+          "optionCode": "CHN-1",
+          "quantity": 2,
+          "amount": 68000,
+          "canceledQuantity": 0,
+          "canceledAmount": 0
+        },
+        {
+          "productId": "smartstore-GAM",
+          "productName": "제주 감귤 가정용",
+          "optionId": "smartstore-GAM-2",
+          "optionName": "10kg",
+          "optionCode": "GAM-2",
+          "quantity": 1,
+          "amount": 43000,
+          "canceledQuantity": 0,
+          "canceledAmount": 0
+        },
+        {
+          "productId": "smartstore-HAL",
+          "productName": "한라봉 선물세트",
+          "optionId": "smartstore-HAL-0",
+          "optionName": "3kg (9~12과)",
+          "optionCode": "HAL-0",
+          "quantity": 1,
+          "amount": 19000,
+          "canceledQuantity": 0,
+          "canceledAmount": 0
+        }
+      ]
+    },
+    {
+      "channel": "elevenst",
+      "label": "11번가",
+      "ok": true,
+      "error": null,
+      "products": 4,
+      "optionsTotal": 10,
+      "orderCount": 10,
+      "quantity": 30,
+      "amount": 935000,
+      "canceledCount": 1,
+      "canceledAmount": 25000,
+      "options": [
+        {
+          "productId": "elevenst-HAL",
+          "productName": "한라봉 선물세트",
+          "optionId": "elevenst-HAL-2",
+          "optionName": "10kg (30~35과)",
+          "optionCode": "HAL-2",
+          "quantity": 5,
+          "amount": 205000,
+          "canceledQuantity": 0,
+          "canceledAmount": 0
+        },
+        {
+          "productId": "elevenst-GAM",
+          "productName": "제주 감귤 가정용",
+          "optionId": "elevenst-GAM-2",
+          "optionName": "10kg",
+          "optionCode": "GAM-2",
+          "quantity": 4,
+          "amount": 172000,
+          "canceledQuantity": 0,
+          "canceledAmount": 0
+        },
+        {
+          "productId": "elevenst-CHN",
+          "productName": "천혜향 실속형",
+          "optionId": "elevenst-CHN-1",
+          "optionName": "4kg (12~16과)",
+          "optionCode": "CHN-1",
+          "quantity": 5,
+          "amount": 170000,
+          "canceledQuantity": 0,
+          "canceledAmount": 0
+        },
+        {
+          "productId": "elevenst-HAL",
+          "productName": "한라봉 선물세트",
+          "optionId": "elevenst-HAL-0",
+          "optionName": "3kg (9~12과)",
+          "optionCode": "HAL-0",
+          "quantity": 4,
+          "amount": 76000,
+          "canceledQuantity": 0,
+          "canceledAmount": 0
+        },
+        {
+          "productId": "elevenst-RED",
+          "productName": "레드향 프리미엄",
+          "optionId": "elevenst-RED-0",
+          "optionName": "3kg",
+          "optionCode": "RED-0",
+          "quantity": 3,
+          "amount": 75000,
+          "canceledQuantity": 1,
+          "canceledAmount": 25000
+        },
+        {
+          "productId": "elevenst-GAM",
+          "productName": "제주 감귤 가정용",
+          "optionId": "elevenst-GAM-0",
+          "optionName": "3kg",
+          "optionCode": "GAM-0",
+          "quantity": 3,
+          "amount": 63000,
+          "canceledQuantity": 0,
+          "canceledAmount": 0
+        },
+        {
+          "productId": "elevenst-HAL",
+          "productName": "한라봉 선물세트",
+          "optionId": "elevenst-HAL-1",
+          "optionName": "5kg (15~18과)",
+          "optionCode": "HAL-1",
+          "quantity": 2,
+          "amount": 60000,
+          "canceledQuantity": 0,
+          "canceledAmount": 0
+        },
+        {
+          "productId": "elevenst-CHN",
+          "productName": "천혜향 실속형",
+          "optionId": "elevenst-CHN-0",
+          "optionName": "2kg (6~8과)",
+          "optionCode": "CHN-0",
+          "quantity": 2,
+          "amount": 46000,
+          "canceledQuantity": 0,
+          "canceledAmount": 0
+        },
+        {
+          "productId": "elevenst-RED",
+          "productName": "레드향 프리미엄",
+          "optionId": "elevenst-RED-1",
+          "optionName": "5kg",
+          "optionCode": "RED-1",
+          "quantity": 1,
+          "amount": 36000,
+          "canceledQuantity": 0,
+          "canceledAmount": 0
+        },
+        {
+          "productId": "elevenst-GAM",
+          "productName": "제주 감귤 가정용",
+          "optionId": "elevenst-GAM-1",
+          "optionName": "5kg",
+          "optionCode": "GAM-1",
+          "quantity": 1,
+          "amount": 32000,
+          "canceledQuantity": 0,
+          "canceledAmount": 0
+        }
+      ]
+    },
+    {
+      "channel": "cafe24",
+      "label": "자사몰(카페24)",
+      "ok": true,
+      "error": null,
+      "products": 4,
+      "optionsTotal": 10,
+      "orderCount": 10,
+      "quantity": 30,
+      "amount": 971000,
+      "canceledCount": 1,
+      "canceledAmount": 25000,
+      "options": [
+        {
+          "productId": "cafe24-RED",
+          "productName": "레드향 프리미엄",
+          "optionId": "cafe24-RED-1",
+          "optionName": "5kg",
+          "optionCode": "RED-1",
+          "quantity": 5,
+          "amount": 180000,
+          "canceledQuantity": 0,
+          "canceledAmount": 0
+        },
+        {
+          "productId": "cafe24-HAL",
+          "productName": "한라봉 선물세트",
+          "optionId": "cafe24-HAL-2",
+          "optionName": "10kg (30~35과)",
+          "optionCode": "HAL-2",
+          "quantity": 4,
+          "amount": 164000,
+          "canceledQuantity": 0,
+          "canceledAmount": 0
+        },
+        {
+          "productId": "cafe24-GAM",
+          "productName": "제주 감귤 가정용",
+          "optionId": "cafe24-GAM-1",
+          "optionName": "5kg",
+          "optionCode": "GAM-1",
+          "quantity": 5,
+          "amount": 160000,
+          "canceledQuantity": 0,
+          "canceledAmount": 0
+        },
+        {
+          "productId": "cafe24-CHN",
+          "productName": "천혜향 실속형",
+          "optionId": "cafe24-CHN-1",
+          "optionName": "4kg (12~16과)",
+          "optionCode": "CHN-1",
+          "quantity": 4,
+          "amount": 136000,
+          "canceledQuantity": 0,
+          "canceledAmount": 0
+        },
+        {
+          "productId": "cafe24-GAM",
+          "productName": "제주 감귤 가정용",
+          "optionId": "cafe24-GAM-2",
+          "optionName": "10kg",
+          "optionCode": "GAM-2",
+          "quantity": 3,
+          "amount": 129000,
+          "canceledQuantity": 0,
+          "canceledAmount": 0
+        },
+        {
+          "productId": "cafe24-HAL",
+          "productName": "한라봉 선물세트",
+          "optionId": "cafe24-HAL-0",
+          "optionName": "3kg (9~12과)",
+          "optionCode": "HAL-0",
+          "quantity": 3,
+          "amount": 57000,
+          "canceledQuantity": 0,
+          "canceledAmount": 0
+        },
+        {
+          "productId": "cafe24-RED",
+          "productName": "레드향 프리미엄",
+          "optionId": "cafe24-RED-0",
+          "optionName": "3kg",
+          "optionCode": "RED-0",
+          "quantity": 2,
+          "amount": 50000,
+          "canceledQuantity": 1,
+          "canceledAmount": 25000
+        },
+        {
+          "productId": "cafe24-GAM",
+          "productName": "제주 감귤 가정용",
+          "optionId": "cafe24-GAM-0",
+          "optionName": "3kg",
+          "optionCode": "GAM-0",
+          "quantity": 2,
+          "amount": 42000,
+          "canceledQuantity": 0,
+          "canceledAmount": 0
+        },
+        {
+          "productId": "cafe24-HAL",
+          "productName": "한라봉 선물세트",
+          "optionId": "cafe24-HAL-1",
+          "optionName": "5kg (15~18과)",
+          "optionCode": "HAL-1",
+          "quantity": 1,
+          "amount": 30000,
+          "canceledQuantity": 0,
+          "canceledAmount": 0
+        },
+        {
+          "productId": "cafe24-CHN",
+          "productName": "천혜향 실속형",
+          "optionId": "cafe24-CHN-0",
+          "optionName": "2kg (6~8과)",
+          "optionCode": "CHN-0",
+          "quantity": 1,
+          "amount": 23000,
+          "canceledQuantity": 0,
+          "canceledAmount": 0
+        }
+      ]
+    },
+    {
+      "channel": "esm",
+      "label": "옥션 & 지마켓",
+      "ok": true,
+      "error": null,
+      "products": 4,
+      "optionsTotal": 10,
+      "orderCount": 10,
+      "quantity": 30,
+      "amount": 864000,
+      "canceledCount": 1,
+      "canceledAmount": 25000,
+      "options": [
+        {
+          "productId": "esm-GAM",
+          "productName": "제주 감귤 가정용",
+          "optionId": "esm-GAM-2",
+          "optionName": "10kg",
+          "optionCode": "GAM-2",
+          "quantity": 5,
+          "amount": 215000,
+          "canceledQuantity": 0,
+          "canceledAmount": 0
+        },
+        {
+          "productId": "esm-RED",
+          "productName": "레드향 프리미엄",
+          "optionId": "esm-RED-0",
+          "optionName": "3kg",
+          "optionCode": "RED-0",
+          "quantity": 4,
+          "amount": 100000,
+          "canceledQuantity": 1,
+          "canceledAmount": 25000
+        },
+        {
+          "productId": "esm-HAL",
+          "productName": "한라봉 선물세트",
+          "optionId": "esm-HAL-0",
+          "optionName": "3kg (9~12과)",
+          "optionCode": "HAL-0",
+          "quantity": 5,
+          "amount": 95000,
+          "canceledQuantity": 0,
+          "canceledAmount": 0
+        },
+        {
+          "productId": "esm-HAL",
+          "productName": "한라봉 선물세트",
+          "optionId": "esm-HAL-1",
+          "optionName": "5kg (15~18과)",
+          "optionCode": "HAL-1",
+          "quantity": 3,
+          "amount": 90000,
+          "canceledQuantity": 0,
+          "canceledAmount": 0
+        },
+        {
+          "productId": "esm-GAM",
+          "productName": "제주 감귤 가정용",
+          "optionId": "esm-GAM-0",
+          "optionName": "3kg",
+          "optionCode": "GAM-0",
+          "quantity": 4,
+          "amount": 84000,
+          "canceledQuantity": 0,
+          "canceledAmount": 0
+        },
+        {
+          "productId": "esm-RED",
+          "productName": "레드향 프리미엄",
+          "optionId": "esm-RED-1",
+          "optionName": "5kg",
+          "optionCode": "RED-1",
+          "quantity": 2,
+          "amount": 72000,
+          "canceledQuantity": 0,
+          "canceledAmount": 0
+        },
+        {
+          "productId": "esm-CHN",
+          "productName": "천혜향 실속형",
+          "optionId": "esm-CHN-0",
+          "optionName": "2kg (6~8과)",
+          "optionCode": "CHN-0",
+          "quantity": 3,
+          "amount": 69000,
+          "canceledQuantity": 0,
+          "canceledAmount": 0
+        },
+        {
+          "productId": "esm-GAM",
+          "productName": "제주 감귤 가정용",
+          "optionId": "esm-GAM-1",
+          "optionName": "5kg",
+          "optionCode": "GAM-1",
+          "quantity": 2,
+          "amount": 64000,
+          "canceledQuantity": 0,
+          "canceledAmount": 0
+        },
+        {
+          "productId": "esm-HAL",
+          "productName": "한라봉 선물세트",
+          "optionId": "esm-HAL-2",
+          "optionName": "10kg (30~35과)",
+          "optionCode": "HAL-2",
+          "quantity": 1,
+          "amount": 41000,
+          "canceledQuantity": 0,
+          "canceledAmount": 0
+        },
+        {
+          "productId": "esm-CHN",
+          "productName": "천혜향 실속형",
+          "optionId": "esm-CHN-1",
+          "optionName": "4kg (12~16과)",
+          "optionCode": "CHN-1",
+          "quantity": 1,
+          "amount": 34000,
+          "canceledQuantity": 0,
+          "canceledAmount": 0
+        }
+      ]
+    },
+    {
+      "channel": "toss",
+      "label": "토스쇼핑",
+      "ok": true,
+      "error": null,
+      "products": 4,
+      "optionsTotal": 10,
+      "orderCount": 10,
+      "quantity": 30,
+      "amount": 932000,
+      "canceledCount": 1,
+      "canceledAmount": 25000,
+      "options": [
+        {
+          "productId": "toss-HAL",
+          "productName": "한라봉 선물세트",
+          "optionId": "toss-HAL-1",
+          "optionName": "5kg (15~18과)",
+          "optionCode": "HAL-1",
+          "quantity": 5,
+          "amount": 150000,
+          "canceledQuantity": 0,
+          "canceledAmount": 0
+        },
+        {
+          "productId": "toss-RED",
+          "productName": "레드향 프리미엄",
+          "optionId": "toss-RED-1",
+          "optionName": "5kg",
+          "optionCode": "RED-1",
+          "quantity": 4,
+          "amount": 144000,
+          "canceledQuantity": 0,
+          "canceledAmount": 0
+        },
+        {
+          "productId": "toss-GAM",
+          "productName": "제주 감귤 가정용",
+          "optionId": "toss-GAM-1",
+          "optionName": "5kg",
+          "optionCode": "GAM-1",
+          "quantity": 4,
+          "amount": 128000,
+          "canceledQuantity": 0,
+          "canceledAmount": 0
+        },
+        {
+          "productId": "toss-HAL",
+          "productName": "한라봉 선물세트",
+          "optionId": "toss-HAL-2",
+          "optionName": "10kg (30~35과)",
+          "optionCode": "HAL-2",
+          "quantity": 3,
+          "amount": 123000,
+          "canceledQuantity": 0,
+          "canceledAmount": 0
+        },
+        {
+          "productId": "toss-CHN",
+          "productName": "천혜향 실속형",
+          "optionId": "toss-CHN-0",
+          "optionName": "2kg (6~8과)",
+          "optionCode": "CHN-0",
+          "quantity": 5,
+          "amount": 115000,
+          "canceledQuantity": 0,
+          "canceledAmount": 0
+        },
+        {
+          "productId": "toss-CHN",
+          "productName": "천혜향 실속형",
+          "optionId": "toss-CHN-1",
+          "optionName": "4kg (12~16과)",
+          "optionCode": "CHN-1",
+          "quantity": 3,
+          "amount": 102000,
+          "canceledQuantity": 0,
+          "canceledAmount": 0
+        },
+        {
+          "productId": "toss-GAM",
+          "productName": "제주 감귤 가정용",
+          "optionId": "toss-GAM-2",
+          "optionName": "10kg",
+          "optionCode": "GAM-2",
+          "quantity": 2,
+          "amount": 86000,
+          "canceledQuantity": 0,
+          "canceledAmount": 0
+        },
+        {
+          "productId": "toss-HAL",
+          "productName": "한라봉 선물세트",
+          "optionId": "toss-HAL-0",
+          "optionName": "3kg (9~12과)",
+          "optionCode": "HAL-0",
+          "quantity": 2,
+          "amount": 38000,
+          "canceledQuantity": 0,
+          "canceledAmount": 0
+        },
+        {
+          "productId": "toss-RED",
+          "productName": "레드향 프리미엄",
+          "optionId": "toss-RED-0",
+          "optionName": "3kg",
+          "optionCode": "RED-0",
+          "quantity": 1,
+          "amount": 25000,
+          "canceledQuantity": 1,
+          "canceledAmount": 25000
+        },
+        {
+          "productId": "toss-GAM",
+          "productName": "제주 감귤 가정용",
+          "optionId": "toss-GAM-0",
+          "optionName": "3kg",
+          "optionCode": "GAM-0",
+          "quantity": 1,
+          "amount": 21000,
+          "canceledQuantity": 0,
+          "canceledAmount": 0
+        }
+      ]
+    }
+  ]
+}

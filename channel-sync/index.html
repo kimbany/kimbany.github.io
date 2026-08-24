@@ -1,0 +1,262 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>채널 일일 현황 · channel-sync</title>
+<style>
+  :root {
+    color-scheme: light;
+    --surface-0: #f6f6f4;
+    --surface-1: #fcfcfb;
+    --border:    #e2e1dc;
+    --border-strong: #cfcec8;
+    --text-primary:   #0b0b0b;
+    --text-secondary: #52514e;
+    --text-muted:     #85837c;
+    --accent:  #2a78d6;
+    --accent-soft: #2a78d61f;
+    --good:    #008300;
+    --warning: #eda100;
+    --critical:#e34948;
+    --radius: 10px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      color-scheme: dark;
+      --surface-0: #121211;
+      --surface-1: #1a1a19;
+      --border:    #2e2e2c;
+      --border-strong: #43423f;
+      --text-primary:   #ffffff;
+      --text-secondary: #c3c2b7;
+      --text-muted:     #8d8b82;
+      --accent:  #3987e5;
+      --accent-soft: #3987e52e;
+      --good:    #3fa03f;
+      --warning: #c98500;
+      --critical:#e66767;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 28px 20px 64px;
+    background: var(--surface-0); color: var(--text-primary);
+    font: 14px/1.55 -apple-system, BlinkMacSystemFont, "Pretendard", "Apple SD Gothic Neo",
+          "Malgun Gothic", system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 1120px; margin: 0 auto; }
+
+  header { display: flex; flex-wrap: wrap; gap: 12px; align-items: baseline; justify-content: space-between; margin-bottom: 22px; }
+  h1 { font-size: 19px; font-weight: 640; margin: 0; letter-spacing: -0.01em; }
+  .meta { color: var(--text-muted); font-size: 12.5px; font-variant-numeric: tabular-nums; }
+  .meta b { color: var(--text-secondary); font-weight: 560; }
+
+  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(178px, 1fr)); gap: 12px; margin-bottom: 26px; }
+  .tile { background: var(--surface-1); border: 1px solid var(--border); border-radius: var(--radius); padding: 15px 16px; }
+  .tile .k { color: var(--text-secondary); font-size: 12.5px; margin-bottom: 7px; }
+  .tile .v { font-size: 25px; font-weight: 620; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+  .tile .v small { font-size: 14px; font-weight: 500; color: var(--text-muted); margin-left: 3px; }
+  .tile.neg .v { color: var(--critical); }
+
+  section { background: var(--surface-1); border: 1px solid var(--border); border-radius: var(--radius); margin-bottom: 22px; overflow: hidden; }
+  .head { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: space-between; padding: 14px 16px; border-bottom: 1px solid var(--border); }
+  .head h2 { font-size: 14px; font-weight: 600; margin: 0; }
+  .controls { display: flex; gap: 8px; flex-wrap: wrap; }
+  input[type=search], select {
+    font: inherit; font-size: 13px; padding: 6px 9px; border-radius: 7px;
+    border: 1px solid var(--border-strong); background: var(--surface-0); color: var(--text-primary);
+  }
+  input[type=search] { min-width: 190px; }
+
+  table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+  .scroll { overflow-x: auto; }
+  th, td { padding: 9px 12px; text-align: left; border-bottom: 1px solid var(--border); white-space: nowrap; }
+  th { font-size: 12px; font-weight: 560; color: var(--text-secondary); background: var(--surface-0); position: sticky; top: 0; }
+  tbody tr:last-child td { border-bottom: none; }
+  tbody tr:hover td { background: var(--accent-soft); }
+  td.num, th.num { text-align: right; }
+  td.name { white-space: normal; min-width: 190px; }
+  .sub { color: var(--text-muted); font-size: 12px; }
+
+  /* 매출 크기는 한 계열이라 단일 색상 막대로만 표현한다 — 채널 구분은 이름이 한다. */
+  /* 숫자와 같은 오른쪽 기준선에 붙여 왼쪽으로 자라게 한다 — 자라는 쪽만 둥글다. */
+  .bar { display: block; height: 5px; border-radius: 3px 0 0 3px; background: var(--accent); min-width: 2px; margin: 5px 0 0 auto; }
+  .barcell { min-width: 130px; }
+
+  .pill { display: inline-flex; align-items: center; gap: 5px; font-size: 11.5px; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--border-strong); color: var(--text-secondary); }
+  .pill::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+  .pill.ok { color: var(--good); }
+  .pill.skip { color: var(--warning); }
+  .pill.err { color: var(--critical); }
+
+  .empty { padding: 40px 16px; text-align: center; color: var(--text-muted); }
+  .note { font-size: 12.5px; color: var(--text-muted); }
+  .note code { background: var(--surface-1); border: 1px solid var(--border); border-radius: 5px; padding: 1px 5px; font-size: 12px; }
+  button.link { font: inherit; font-size: 12.5px; background: none; border: none; color: var(--accent); cursor: pointer; padding: 0; text-decoration: underline; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <h1>채널 일일 현황</h1>
+      <div class="meta" id="meta">불러오는 중…</div>
+    </div>
+    <div class="controls">
+      <input type="file" id="file" accept="application/json" hidden>
+      <button class="link" id="pick">다른 날짜 파일 열기</button>
+    </div>
+  </header>
+
+  <div class="tiles" id="tiles"></div>
+
+  <section>
+    <div class="head"><h2>채널별</h2><span class="note" id="chanNote"></span></div>
+    <div class="scroll"><table id="chanTable">
+      <thead><tr>
+        <th>채널</th><th>상태</th>
+        <th class="num">상품</th><th class="num">옵션</th>
+        <th class="num">주문</th><th class="num">수량</th>
+        <th class="num barcell">매출</th><th class="num">취소</th>
+      </tr></thead>
+      <tbody></tbody>
+    </table></div>
+  </section>
+
+  <section>
+    <div class="head">
+      <h2>옵션별</h2>
+      <div class="controls">
+        <input type="search" id="q" placeholder="상품 · 옵션 · 코드 검색">
+        <select id="chanFilter"><option value="">전체 채널</option></select>
+        <select id="sort">
+          <option value="amount">매출순</option>
+          <option value="quantity">수량순</option>
+          <option value="canceled">취소순</option>
+        </select>
+      </div>
+    </div>
+    <div class="scroll"><table id="optTable">
+      <thead><tr>
+        <th>채널</th><th>상품 / 옵션</th><th>옵션코드</th>
+        <th class="num">수량</th><th class="num barcell">매출</th><th class="num">취소</th>
+      </tr></thead>
+      <tbody></tbody>
+    </table></div>
+  </section>
+
+  <p class="note">
+    데이터는 <code>node src/run.js</code> 가 만드는 <code>data/latest.json</code> 입니다.
+    파일이 없으면 <code>data/sample.json</code>(목 데이터)을 보여줍니다.
+  </p>
+</div>
+
+<script type="module">
+const won = (n) => `${Math.round(n).toLocaleString('ko-KR')}`;
+const el = (id) => document.getElementById(id);
+
+let snapshot = null;
+
+async function load() {
+  for (const path of ['./data/latest.json', './data/sample.json']) {
+    try {
+      const res = await fetch(path, { cache: 'no-store' });
+      if (!res.ok) continue;
+      render(await res.json(), path.endsWith('sample.json') ? '샘플' : null);
+      return;
+    } catch { /* file:// 로 열었거나 아직 수집 전 */ }
+  }
+  el('meta').textContent = '데이터 없음 — 수집기를 한 번 실행하거나 JSON 파일을 직접 열어 주세요.';
+}
+
+function render(data, tag) {
+  snapshot = data;
+  const t = data.total;
+  const collected = new Date(data.generatedAt).toLocaleString('ko-KR', { dateStyle: 'medium', timeStyle: 'short' });
+  el('meta').innerHTML = `<b>${data.range.from} ~ ${data.range.to}</b> · 수집 ${collected}`
+    + ` · 채널 ${t.collected}/${t.channels}${tag ? ` · ${tag}` : ''}`;
+
+  el('tiles').innerHTML = [
+    ['매출', `${won(t.amount)}<small>원</small>`, ''],
+    ['주문', `${t.orderCount.toLocaleString('ko-KR')}<small>건</small>`, ''],
+    ['판매수량', `${t.quantity.toLocaleString('ko-KR')}<small>개</small>`, ''],
+    ['취소', `${won(t.canceledAmount)}<small>원</small>`, t.canceledAmount > 0 ? 'neg' : ''],
+    ['상품 / 옵션', `${t.products}<small>/ ${t.options}</small>`, ''],
+  ].map(([k, v, cls]) => `<div class="tile ${cls}"><div class="k">${k}</div><div class="v">${v}</div></div>`).join('');
+
+  const maxChan = Math.max(1, ...data.channels.map((c) => c.amount));
+  el('chanTable').tBodies[0].innerHTML = data.channels.map((c) => {
+    const state = c.ok ? '<span class="pill ok">수집</span>'
+      : (c.error ?? '').includes('필요') || (c.error ?? '').includes('미설정')
+        ? `<span class="pill skip" title="${esc(c.error)}">대기</span>`
+        : `<span class="pill err" title="${esc(c.error ?? '')}">실패</span>`;
+    if (!c.ok) {
+      return `<tr><td>${esc(c.label)}</td><td>${state}</td>
+        <td class="num sub" colspan="6">${esc(c.error ?? '')}</td></tr>`;
+    }
+    return `<tr>
+      <td>${esc(c.label)}</td><td>${state}</td>
+      <td class="num">${c.products}</td><td class="num">${c.optionsTotal}</td>
+      <td class="num">${c.orderCount}</td><td class="num">${c.quantity}</td>
+      <td class="num barcell">${won(c.amount)}<span class="bar" style="width:${(c.amount / maxChan * 100).toFixed(1)}%"></span></td>
+      <td class="num">${c.canceledAmount ? won(c.canceledAmount) : '–'}</td>
+    </tr>`;
+  }).join('');
+
+  const failed = data.channels.filter((c) => !c.ok);
+  el('chanNote').textContent = failed.length ? `${failed.length}개 채널 미수집` : '';
+
+  el('chanFilter').innerHTML = '<option value="">전체 채널</option>'
+    + data.channels.filter((c) => c.ok).map((c) => `<option value="${esc(c.channel)}">${esc(c.label)}</option>`).join('');
+
+  renderOptions();
+}
+
+function renderOptions() {
+  if (!snapshot) return;
+  const q = el('q').value.trim().toLowerCase();
+  const chan = el('chanFilter').value;
+  const sortKey = el('sort').value;
+
+  const rows = snapshot.channels
+    .filter((c) => c.ok && (!chan || c.channel === chan))
+    .flatMap((c) => c.options.map((o) => ({ ...o, label: c.label })))
+    .filter((o) => !q || `${o.productName} ${o.optionName} ${o.optionCode}`.toLowerCase().includes(q))
+    .sort((a, b) => (sortKey === 'canceled' ? b.canceledAmount - a.canceledAmount : b[sortKey] - a[sortKey]));
+
+  const max = Math.max(1, ...rows.map((r) => r.amount));
+  const body = el('optTable').tBodies[0];
+  if (!rows.length) {
+    body.innerHTML = '<tr><td colspan="6" class="empty">해당하는 옵션이 없습니다.</td></tr>';
+    return;
+  }
+  body.innerHTML = rows.slice(0, 300).map((o) => `<tr>
+    <td class="sub">${esc(o.label)}</td>
+    <td class="name">${esc(o.productName)}<div class="sub">${esc(o.optionName || '(단일)')}</div></td>
+    <td class="sub">${esc(o.optionCode || '–')}</td>
+    <td class="num">${o.quantity}</td>
+    <td class="num barcell">${won(o.amount)}<span class="bar" style="width:${(o.amount / max * 100).toFixed(1)}%"></span></td>
+    <td class="num">${o.canceledAmount ? won(o.canceledAmount) : '–'}</td>
+  </tr>`).join('')
+  + (rows.length > 300 ? `<tr><td colspan="6" class="sub">…외 ${rows.length - 300}건 (검색으로 좁혀 보세요)</td></tr>` : '');
+}
+
+function esc(s) {
+  return String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+}
+
+el('q').addEventListener('input', renderOptions);
+el('chanFilter').addEventListener('change', renderOptions);
+el('sort').addEventListener('change', renderOptions);
+el('pick').addEventListener('click', () => el('file').click());
+el('file').addEventListener('change', async (e) => {
+  const file = e.target.files?.[0];
+  if (file) render(JSON.parse(await file.text()), file.name);
+});
+
+load();
+</script>
+</body>
+</html>

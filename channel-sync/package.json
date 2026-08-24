@@ -1,0 +1,16 @@
+{
+  "name": "channel-sync",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "판매 채널 일일 현황 수집기 — 상품/옵션 목록과 주문(옵션 단위)을 채널 API로 당겨 정규화 저장",
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "sync": "node src/run.js",
+    "sync:mock": "node src/run.js --mock",
+    "serve": "npx --yes http-server . -p 8080 -c-1"
+  },
+  "dependencies": {
+    "bcryptjs": "^2.4.3"
+  }
+}
