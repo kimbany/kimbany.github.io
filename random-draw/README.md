@@ -3,7 +3,7 @@
 참가자와 응모 횟수를 설정하고 무작위로 당첨자를 뽑는 단일 페이지 앱입니다.
 빌드 도구·외부 라이브러리 없이 `index.html` 하나로 동작합니다.
 
-열기: <https://kimbany.com/random-draw/>
+열기: <https://invedory.com/random-draw/>
 
 ## 화면
 
