@@ -1,0 +1,580 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>랜덤 뽑기</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 24px 14px 60px;
+    font-family: "Pretendard", "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif;
+    background: #f4f6fa; color: #1f2937;
+  }
+  .랩 { max-width: 720px; margin: 0 auto; }
+
+  h1 { font-size: 25px; font-weight: 800; margin: 0 0 4px; letter-spacing: -.02em; }
+  .부제 { font-size: 13.5px; color: #6b7280; margin: 0 0 20px; }
+
+  /* 탭 */
+  .탭바 { display: flex; gap: 6px; background: #e8ecf3; padding: 5px; border-radius: 12px; margin-bottom: 18px; }
+  .탭 {
+    flex: 1; padding: 10px 8px; font-size: 15px; font-weight: 700; color: #5b6472;
+    background: none; border: none; border-radius: 9px; cursor: pointer;
+  }
+  .탭:hover { color: #1f2937; }
+  .탭.활성 { background: #fff; color: #2f6fed; box-shadow: 0 1px 3px rgba(0,0,0,.08); }
+
+  .화면 { display: none; }
+  .화면.활성 { display: block; }
+
+  /* 카드 */
+  .카드 {
+    background: #fff; border: 1px solid #e5e9f0; border-radius: 14px;
+    padding: 18px; margin-bottom: 14px;
+  }
+  .카드제목 { font-size: 15px; font-weight: 800; margin: 0 0 12px; }
+  .설명 { font-size: 12.5px; color: #8b93a1; margin: 6px 0 0; line-height: 1.55; }
+
+  /* 입력 · 버튼 */
+  .inp {
+    padding: 9px 12px; font-size: 15px; border: 1px solid #d8dde5; border-radius: 9px;
+    background: #fff; color: #1f2937; outline: none; width: 100%;
+  }
+  .inp:focus { border-color: #2f6fed; box-shadow: 0 0 0 3px rgba(47,111,237,.12); }
+  .lbl { display: block; font-size: 13px; font-weight: 700; color: #374151; margin-bottom: 6px; }
+  .btn {
+    padding: 9px 14px; font-size: 14px; font-weight: 700; border-radius: 9px;
+    border: 1px solid #d8dde5; background: #fff; color: #374151; cursor: pointer; white-space: nowrap;
+  }
+  .btn:hover { background: #f6f8fb; }
+  .btn:disabled { opacity: .45; cursor: not-allowed; }
+  .btn-main { background: #2f6fed; border-color: #2f6fed; color: #fff; }
+  .btn-main:hover:not(:disabled) { background: #1d5ce0; }
+  .btn-del { color: #dc2626; border-color: #f3c9c9; padding: 9px 12px; }
+  .btn-del:hover { background: #fef2f2; }
+  .btn-sm { padding: 6px 11px; font-size: 13px; }
+
+  /* 참가자 줄 */
+  .줄목록 { display: flex; flex-direction: column; gap: 8px; }
+  .줄 { display: flex; gap: 8px; align-items: center; }
+  .줄 .번호 {
+    width: 26px; flex: none; text-align: right; font-size: 12.5px;
+    color: #9ca3af; font-variant-numeric: tabular-nums;
+  }
+  .줄 .이름칸 { flex: 1; min-width: 0; }
+  .줄 .수량칸 { width: 74px; flex: none; text-align: center; font-variant-numeric: tabular-nums; }
+  .줄 .수량칸.강조 { border-color: #f0a500; background: #fffaf0; font-weight: 700; color: #b45309; }
+
+  .버튼줄 { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
+
+  /* 요약 */
+  .요약 { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 14px; }
+  .칩 {
+    font-size: 12.5px; font-weight: 700; padding: 6px 11px; border-radius: 999px;
+    background: #eef2f7; color: #4b5563;
+  }
+  .칩.경고 { background: #fef2f2; color: #b91c1c; }
+
+  /* 확률표 */
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  th, td { padding: 8px 6px; border-bottom: 1px solid #eef1f6; text-align: left; }
+  th { font-size: 12px; color: #8b93a1; font-weight: 700; }
+  td.수 { text-align: right; font-variant-numeric: tabular-nums; }
+  .막대 { height: 6px; border-radius: 99px; background: #2f6fed; min-width: 3px; }
+  .막대바탕 { background: #eef2f7; border-radius: 99px; width: 100%; }
+
+  /* 추첨 */
+  .룰렛 {
+    min-height: 92px; display: flex; align-items: center; justify-content: center;
+    font-size: 30px; font-weight: 800; letter-spacing: -.02em; color: #2f6fed;
+    background: #f8fafc; border: 2px dashed #d8dde5; border-radius: 14px; padding: 16px;
+    text-align: center; word-break: break-all;
+  }
+  .룰렛.대기 { font-size: 16px; font-weight: 600; color: #9ca3af; }
+
+  .당첨목록 { display: flex; flex-direction: column; gap: 9px; margin-top: 14px; }
+  .당첨 {
+    display: flex; align-items: center; gap: 11px; padding: 12px 14px;
+    background: linear-gradient(135deg, #fff9e6, #fff);
+    border: 1px solid #f4dfa0; border-radius: 12px;
+    animation: 등장 .35s ease both;
+  }
+  .당첨 .등수 {
+    width: 30px; height: 30px; flex: none; display: flex; align-items: center; justify-content: center;
+    border-radius: 50%; background: #f0a500; color: #fff; font-size: 13px; font-weight: 800;
+  }
+  .당첨 .이름 { flex: 1; font-size: 17px; font-weight: 800; word-break: break-all; }
+  .당첨 .확률 { font-size: 12px; color: #a1793a; font-variant-numeric: tabular-nums; }
+  @keyframes 등장 { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+
+  .안내 {
+    padding: 11px 13px; border-radius: 10px; font-size: 13.5px; line-height: 1.6;
+    background: #eef4ff; color: #1e40af; border: 1px solid #d6e3ff;
+  }
+  .안내.빨강 { background: #fef2f2; color: #b91c1c; border-color: #f6d5d5; }
+
+  @media (max-width: 480px) {
+    .룰렛 { font-size: 24px; }
+    .줄 .수량칸 { width: 62px; }
+  }
+</style>
+</head>
+<body>
+<div class="랩">
+
+  <h1>🎲 랜덤 뽑기</h1>
+  <p class="부제">참가자와 응모 횟수를 설정하고 무작위로 당첨자를 뽑습니다.</p>
+
+  <div class="탭바">
+    <button class="탭 활성" data-탭="설정">⚙️ 뽑기 설정</button>
+    <button class="탭" data-탭="추첨">🎯 뽑기 추첨</button>
+  </div>
+
+  <!-- ───────── 뽑기 설정 ───────── -->
+  <section class="화면 활성" id="화면-설정">
+
+    <div class="카드">
+      <h2 class="카드제목">뽑을 인원</h2>
+      <div style="display:flex; gap:8px; align-items:center;">
+        <input type="number" id="뽑을수" class="inp" min="1" step="1" value="1" style="width:110px;">
+        <span style="font-size:14px; color:#6b7280;">명을 뽑습니다</span>
+      </div>
+      <p class="설명">한 번 당첨된 참가자는 다시 뽑히지 않습니다(중복 당첨 없음).</p>
+    </div>
+
+    <div class="카드">
+      <h2 class="카드제목">참가자 목록</h2>
+      <div class="줄" style="margin-bottom:8px;">
+        <span class="번호"></span>
+        <span class="이름칸 lbl" style="margin:0;">아이디 또는 이름</span>
+        <span class="수량칸 lbl" style="margin:0;">응모 수</span>
+        <span style="width:40px; flex:none;"></span>
+      </div>
+
+      <div class="줄목록" id="줄목록"></div>
+
+      <div class="버튼줄">
+        <button class="btn btn-main btn-sm" id="추가">+ 입력란 추가</button>
+        <button class="btn btn-sm" id="다섯추가">+ 5칸 추가</button>
+        <button class="btn btn-del btn-sm" id="빈칸정리">빈칸 삭제</button>
+        <button class="btn btn-del btn-sm" id="전체삭제">전체 삭제</button>
+      </div>
+
+      <p class="설명">
+        <b>응모 수</b>는 기본 1입니다. 2를 넣으면 그 아이디가 2개로 들어가서 당첨 확률이 2배가 됩니다.
+      </p>
+
+      <div class="요약" id="요약"></div>
+    </div>
+
+    <div class="카드">
+      <h2 class="카드제목">당첨 확률 미리보기</h2>
+      <div id="확률표"></div>
+    </div>
+
+  </section>
+
+  <!-- ───────── 뽑기 추첨 ───────── -->
+  <section class="화면" id="화면-추첨">
+
+    <div class="카드">
+      <div class="요약" id="추첨요약" style="margin:0 0 14px;"></div>
+      <div class="룰렛 대기" id="룰렛">뽑기 버튼을 눌러주세요</div>
+      <div class="버튼줄">
+        <button class="btn btn-main" id="뽑기" style="flex:1; padding:12px;">🎲 뽑기 시작</button>
+        <button class="btn" id="다시">다시 뽑기</button>
+      </div>
+      <div id="경고" style="margin-top:12px;"></div>
+    </div>
+
+    <div class="카드" id="결과카드" style="display:none;">
+      <h2 class="카드제목">🎉 당첨자</h2>
+      <div class="당첨목록" id="당첨목록"></div>
+      <div class="버튼줄">
+        <button class="btn btn-sm" id="복사">결과 복사</button>
+      </div>
+    </div>
+
+  </section>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  var 저장키 = "random-draw:설정";
+  var 참가자 = [];      // { 이름, 응모수 }
+  var 추첨중 = false;
+  var 타이머 = null;
+
+  var $ = function (id) { return document.getElementById(id); };
+
+  /* ── 탭 ── */
+  document.querySelectorAll(".탭").forEach(function (버튼) {
+    버튼.addEventListener("click", function () {
+      document.querySelectorAll(".탭").forEach(function (b) { b.classList.remove("활성"); });
+      document.querySelectorAll(".화면").forEach(function (s) { s.classList.remove("활성"); });
+      버튼.classList.add("활성");
+      $("화면-" + 버튼.dataset.탭).classList.add("활성");
+      if (버튼.dataset.탭 === "추첨") 추첨요약그리기();
+    });
+  });
+
+  /* ── 저장 / 불러오기 ── */
+  function 저장() {
+    try {
+      localStorage.setItem(저장키, JSON.stringify({
+        뽑을수: $("뽑을수").value,
+        참가자: 참가자
+      }));
+    } catch (e) { /* 저장 실패는 무시 */ }
+  }
+
+  function 불러오기() {
+    try {
+      var 원본 = localStorage.getItem(저장키);
+      if (!원본) return false;
+      var 값 = JSON.parse(원본);
+      if (!값 || !Array.isArray(값.참가자) || !값.참가자.length) return false;
+      참가자 = 값.참가자.map(function (p) {
+        return { 이름: String(p.이름 || ""), 응모수: 정수(p.응모수, 1) };
+      });
+      if (값.뽑을수) $("뽑을수").value = 값.뽑을수;
+      return true;
+    } catch (e) { return false; }
+  }
+
+  function 정수(값, 기본) {
+    var n = parseInt(값, 10);
+    if (isNaN(n) || n < 1) return 기본;
+    return Math.min(n, 9999);
+  }
+
+  /* ── 참가자 목록 그리기 ── */
+  function 목록그리기() {
+    var 목록 = $("줄목록");
+    목록.innerHTML = "";
+
+    참가자.forEach(function (참가, i) {
+      var 줄 = document.createElement("div");
+      줄.className = "줄";
+
+      var 번호 = document.createElement("span");
+      번호.className = "번호";
+      번호.textContent = (i + 1);
+
+      var 이름 = document.createElement("input");
+      이름.type = "text";
+      이름.className = "inp 이름칸";
+      이름.placeholder = "아이디 또는 이름";
+      이름.value = 참가.이름;
+      이름.addEventListener("input", function () {
+        참가자[i].이름 = 이름.value;
+        요약그리기(); 확률표그리기(); 저장();
+      });
+      이름.addEventListener("keydown", function (e) {
+        if (e.key === "Enter") { e.preventDefault(); 줄추가(i + 1); }
+      });
+
+      var 수량 = document.createElement("input");
+      수량.type = "number";
+      수량.min = "1";
+      수량.step = "1";
+      수량.className = "inp 수량칸" + (참가.응모수 > 1 ? " 강조" : "");
+      수량.value = 참가.응모수;
+      수량.title = "응모 수 — 2면 이름이 2개로 들어가 확률이 2배";
+      수량.addEventListener("input", function () {
+        참가자[i].응모수 = 정수(수량.value, 1);
+        수량.classList.toggle("강조", 참가자[i].응모수 > 1);
+        요약그리기(); 확률표그리기(); 저장();
+      });
+      수량.addEventListener("blur", function () { 수량.value = 참가자[i].응모수; });
+
+      var 삭제 = document.createElement("button");
+      삭제.className = "btn btn-del";
+      삭제.textContent = "✕";
+      삭제.title = "이 입력란 삭제";
+      삭제.style.flex = "none";
+      삭제.addEventListener("click", function () { 줄삭제(i); });
+
+      줄.appendChild(번호);
+      줄.appendChild(이름);
+      줄.appendChild(수량);
+      줄.appendChild(삭제);
+      목록.appendChild(줄);
+    });
+
+    요약그리기();
+    확률표그리기();
+  }
+
+  function 줄추가(위치) {
+    var 새줄 = { 이름: "", 응모수: 1 };
+    if (typeof 위치 === "number") 참가자.splice(위치, 0, 새줄);
+    else 참가자.push(새줄);
+    목록그리기();
+    저장();
+    var 칸들 = document.querySelectorAll("#줄목록 .이름칸");
+    var 대상 = 칸들[typeof 위치 === "number" ? 위치 : 칸들.length - 1];
+    if (대상) 대상.focus();
+  }
+
+  function 줄삭제(i) {
+    참가자.splice(i, 1);
+    if (!참가자.length) 참가자.push({ 이름: "", 응모수: 1 });
+    목록그리기();
+    저장();
+  }
+
+  /* ── 유효 참가자 / 응모권 ── */
+  function 유효참가자() {
+    return 참가자
+      .map(function (p) { return { 이름: (p.이름 || "").trim(), 응모수: 정수(p.응모수, 1) }; })
+      .filter(function (p) { return p.이름 !== ""; });
+  }
+
+  function 총응모수(목록) {
+    return 목록.reduce(function (합, p) { return 합 + p.응모수; }, 0);
+  }
+
+  function 중복이름(목록) {
+    var 본것 = {}, 겹침 = [];
+    목록.forEach(function (p) {
+      if (본것[p.이름]) { if (겹침.indexOf(p.이름) < 0) 겹침.push(p.이름); }
+      else 본것[p.이름] = true;
+    });
+    return 겹침;
+  }
+
+  /* ── 요약 ── */
+  function 요약그리기() {
+    var 목록 = 유효참가자();
+    var 뽑을수 = 정수($("뽑을수").value, 1);
+    var 칩들 = [
+      "참가자 " + 목록.length + "명",
+      "총 응모 " + 총응모수(목록) + "장",
+      "뽑을 인원 " + 뽑을수 + "명"
+    ];
+    var 겹침 = 중복이름(목록);
+    var html = 칩들.map(function (t) { return '<span class="칩">' + 이스케이프(t) + "</span>"; }).join("");
+    if (뽑을수 > 목록.length) {
+      html += '<span class="칩 경고">참가자보다 뽑을 인원이 많습니다</span>';
+    }
+    if (겹침.length) {
+      html += '<span class="칩 경고">이름 중복: ' + 이스케이프(겹침.join(", ")) + "</span>";
+    }
+    $("요약").innerHTML = html;
+  }
+
+  /* ── 확률표 ── */
+  function 확률표그리기() {
+    var 목록 = 유효참가자();
+    var 총 = 총응모수(목록);
+    if (!목록.length) {
+      $("확률표").innerHTML = '<p class="설명">아이디 또는 이름을 입력하면 확률이 계산됩니다.</p>';
+      return;
+    }
+    var 최대 = Math.max.apply(null, 목록.map(function (p) { return p.응모수; }));
+    var 행 = 목록.map(function (p) {
+      var 비율 = 총 ? (p.응모수 / 총 * 100) : 0;
+      return "<tr>" +
+        "<td>" + 이스케이프(p.이름) + "</td>" +
+        '<td class="수">' + p.응모수 + "장</td>" +
+        '<td class="수">' + 비율.toFixed(1) + "%</td>" +
+        '<td style="width:36%;"><div class="막대바탕"><div class="막대" style="width:' +
+          (p.응모수 / 최대 * 100).toFixed(1) + '%"></div></div></td>' +
+        "</tr>";
+    }).join("");
+
+    $("확률표").innerHTML =
+      "<table><thead><tr><th>아이디 · 이름</th><th class='수'>응모</th>" +
+      "<th class='수'>1명 뽑을 때</th><th></th></tr></thead><tbody>" + 행 + "</tbody></table>" +
+      '<p class="설명">‘1명 뽑을 때’ 기준 확률입니다. 여러 명을 뽑으면 실제 당첨 확률은 이보다 높아집니다.</p>';
+  }
+
+  /* ── 추첨 화면 ── */
+  function 추첨요약그리기() {
+    var 목록 = 유효참가자();
+    var 뽑을수 = 정수($("뽑을수").value, 1);
+    $("추첨요약").innerHTML =
+      '<span class="칩">참가자 ' + 목록.length + '명</span>' +
+      '<span class="칩">총 응모 ' + 총응모수(목록) + '장</span>' +
+      '<span class="칩">' + 뽑을수 + '명 추첨</span>';
+
+    var 경고 = $("경고");
+    if (!목록.length) {
+      경고.innerHTML = '<div class="안내 빨강">뽑기 설정에서 아이디 또는 이름을 먼저 입력해 주세요.</div>';
+      $("뽑기").disabled = true;
+    } else if (뽑을수 > 목록.length) {
+      경고.innerHTML = '<div class="안내">참가자가 ' + 목록.length + '명뿐이라 ' + 목록.length +
+        '명만 뽑습니다.</div>';
+      $("뽑기").disabled = false;
+    } else {
+      경고.innerHTML = "";
+      $("뽑기").disabled = false;
+    }
+  }
+
+  /* ── 난수: 편향 없는 정수 ── */
+  function 난수(상한) { // 0 이상 상한 미만
+    if (window.crypto && window.crypto.getRandomValues) {
+      var 한계 = Math.floor(4294967296 / 상한) * 상한;
+      var 통 = new Uint32Array(1);
+      do { window.crypto.getRandomValues(통); } while (통[0] >= 한계);
+      return 통[0] % 상한;
+    }
+    return Math.floor(Math.random() * 상한);
+  }
+
+  /* ── 추첨 실행 ── */
+  function 추첨하기() {
+    if (추첨중) return;
+    var 목록 = 유효참가자();
+    if (!목록.length) return;
+
+    var 뽑을수 = Math.min(정수($("뽑을수").value, 1), 목록.length);
+
+    // 응모 수만큼 응모권을 만든다 — 2면 이름이 2장 들어간다
+    var 응모권 = [];
+    목록.forEach(function (p, i) {
+      for (var k = 0; k < p.응모수; k++) 응모권.push(i);
+    });
+
+    // 한 번 뽑힌 참가자의 응모권은 전부 빼고 다음을 뽑는다 (중복 당첨 없음)
+    var 총 = 총응모수(목록);
+    var 당첨 = [];
+    var 남은 = 응모권.slice();
+    for (var n = 0; n < 뽑을수 && 남은.length; n++) {
+      var 뽑힌 = 남은[난수(남은.length)];
+      당첨.push({
+        이름: 목록[뽑힌].이름,
+        응모수: 목록[뽑힌].응모수,
+        확률: 총 ? (목록[뽑힌].응모수 / 총 * 100) : 0
+      });
+      남은 = 남은.filter(function (idx) { return idx !== 뽑힌; });
+      총 -= 목록[뽑힌].응모수;
+    }
+
+    연출(목록, 당첨);
+  }
+
+  function 연출(목록, 당첨) {
+    추첨중 = true;
+    $("뽑기").disabled = true;
+    $("다시").disabled = true;
+    $("결과카드").style.display = "none";
+    $("당첨목록").innerHTML = "";
+
+    var 룰렛 = $("룰렛");
+    룰렛.classList.remove("대기");
+
+    var 남은시간 = 1600;
+    var 간격 = 55;
+    var 흐른시간 = 0;
+
+    타이머 = setInterval(function () {
+      룰렛.textContent = 목록[난수(목록.length)].이름;
+      흐른시간 += 간격;
+      if (흐른시간 >= 남은시간) {
+        clearInterval(타이머);
+        타이머 = null;
+        결과보이기(당첨);
+      }
+    }, 간격);
+  }
+
+  function 결과보이기(당첨) {
+    var 룰렛 = $("룰렛");
+    룰렛.textContent = 당첨.length === 1
+      ? "🎉 " + 당첨[0].이름
+      : "🎉 " + 당첨.length + "명 당첨!";
+
+    var 상자 = $("당첨목록");
+    상자.innerHTML = "";
+    당첨.forEach(function (c, i) {
+      var 줄 = document.createElement("div");
+      줄.className = "당첨";
+      줄.style.animationDelay = (i * 0.09) + "s";
+      줄.innerHTML =
+        '<span class="등수">' + (i + 1) + "</span>" +
+        '<span class="이름">' + 이스케이프(c.이름) + "</span>" +
+        '<span class="확률">응모 ' + c.응모수 + "장 · " + c.확률.toFixed(1) + "%</span>";
+      상자.appendChild(줄);
+    });
+    $("결과카드").style.display = "";
+
+    추첨중 = false;
+    $("뽑기").disabled = false;
+    $("다시").disabled = false;
+    $("뽑기").textContent = "🎲 다시 뽑기";
+  }
+
+  function 초기화() {
+    if (타이머) { clearInterval(타이머); 타이머 = null; }
+    추첨중 = false;
+    var 룰렛 = $("룰렛");
+    룰렛.textContent = "뽑기 버튼을 눌러주세요";
+    룰렛.classList.add("대기");
+    $("결과카드").style.display = "none";
+    $("당첨목록").innerHTML = "";
+    $("뽑기").textContent = "🎲 뽑기 시작";
+    추첨요약그리기();
+  }
+
+  function 이스케이프(글) {
+    return String(글).replace(/[&<>"']/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+    });
+  }
+
+  /* ── 이벤트 연결 ── */
+  $("추가").addEventListener("click", function () { 줄추가(); });
+  $("다섯추가").addEventListener("click", function () {
+    for (var i = 0; i < 5; i++) 참가자.push({ 이름: "", 응모수: 1 });
+    목록그리기(); 저장();
+  });
+  $("빈칸정리").addEventListener("click", function () {
+    참가자 = 참가자.filter(function (p) { return (p.이름 || "").trim() !== ""; });
+    if (!참가자.length) 참가자.push({ 이름: "", 응모수: 1 });
+    목록그리기(); 저장();
+  });
+  $("전체삭제").addEventListener("click", function () {
+    if (!confirm("참가자를 전부 지울까요?")) return;
+    참가자 = [{ 이름: "", 응모수: 1 }];
+    목록그리기(); 저장();
+  });
+  $("뽑을수").addEventListener("input", function () { 요약그리기(); 저장(); });
+  $("뽑을수").addEventListener("blur", function () {
+    $("뽑을수").value = 정수($("뽑을수").value, 1);
+    요약그리기(); 저장();
+  });
+  $("뽑기").addEventListener("click", 추첨하기);
+  $("다시").addEventListener("click", 초기화);
+  $("복사").addEventListener("click", function () {
+    var 글 = Array.prototype.map.call($("당첨목록").children, function (줄, i) {
+      return (i + 1) + ". " + 줄.querySelector(".이름").textContent;
+    }).join("\n");
+    var 버튼 = $("복사");
+    function 알림() { 버튼.textContent = "복사됨 ✓"; setTimeout(function () { 버튼.textContent = "결과 복사"; }, 1500); }
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(글).then(알림, function () { prompt("복사하세요", 글); });
+    } else {
+      prompt("복사하세요", 글);
+    }
+  });
+
+  /* ── 시작 ── */
+  if (!불러오기()) {
+    참가자 = [
+      { 이름: "", 응모수: 1 },
+      { 이름: "", 응모수: 1 },
+      { 이름: "", 응모수: 1 }
+    ];
+  }
+  목록그리기();
+  추첨요약그리기();
+})();
+</script>
+</body>
+</html>
