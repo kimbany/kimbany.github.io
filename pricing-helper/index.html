@@ -19,6 +19,8 @@
   }
   .inp:focus { border-color: #2f6fed; box-shadow: 0 0 0 3px rgba(47,111,237,.12); }
   .inp:disabled { background: #f3f4f6; color: #9ca3af; }
+  .코드칸 { text-transform: uppercase; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: .02em; }
+  .코드값 { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: .01em; }
   .lbl { display: block; font-size: 13px; font-weight: 700; color: #374151; margin-bottom: 5px; }
   .btn {
     padding: 9px 14px; font-size: 14px; font-weight: 700; border-radius: 9px;
@@ -79,6 +81,11 @@
       <div class="대메뉴">판매가</div>
       <button class="메뉴버튼 중메뉴" data-화면="원가계산">원가 계산</button>
       <button class="메뉴버튼 중메뉴" data-화면="판매가계산">판매가 계산</button>
+
+      <div class="대메뉴">제품코드</div>
+      <button class="메뉴버튼 중메뉴" data-화면="제품코드목록">제품코드 목록</button>
+      <button class="메뉴버튼 중메뉴" data-화면="제품코드생성">제품코드 생성</button>
+      <button class="메뉴버튼 중메뉴" data-화면="분류">분류</button>
 
       <div class="대메뉴">채널 기본설정</div>
       <button class="메뉴버튼 중메뉴" data-화면="채널설정">채널 목록</button>
@@ -172,6 +179,12 @@
     </header>
 
     <div class="bg-white rounded-2xl border border-slate-200 p-5 space-y-4">
+      <div id="제품코드불러오기영역" class="hidden">
+        <label class="lbl" for="제품코드불러오기">제품코드 불러오기</label>
+        <select id="제품코드불러오기" class="inp"></select>
+        <p class="text-[12px] text-slate-500 mt-1.5">고르면 제품명 · 무게·수량 · 입수량이 자동으로 채워집니다.</p>
+      </div>
+
       <div>
         <label class="lbl" for="제품명">제품명 <span class="text-red-500">*</span></label>
         <input id="제품명" class="inp" type="text" placeholder="예: 유기농 사과 2kg">
@@ -233,6 +246,227 @@
     <div id="결과영역" class="mt-6"></div>
   </section>
 
+  <!-- ============ 제품코드 › 분류 ============ -->
+  <section id="화면-분류" class="화면">
+    <header class="mb-5">
+      <h2 class="text-xl font-extrabold">분류</h2>
+      <p class="text-sm text-slate-500 mt-1">제품코드를 조합할 재료를 등록해 둡니다. 여기에 등록한 값만 제품코드 생성에서 고를 수 있습니다.</p>
+    </header>
+
+    <!-- 1) 대분류 생성 -->
+    <div class="bg-white rounded-2xl border border-slate-200 p-5 mb-3">
+      <h3 class="font-extrabold text-[15px] mb-3">대분류 생성</h3>
+      <div class="grid sm:grid-cols-2 gap-3">
+        <div>
+          <label class="lbl" for="대분류명입력">대분류명</label>
+          <input id="대분류명입력" class="inp" type="text" placeholder="예: 포도">
+        </div>
+        <div>
+          <label class="lbl" for="대분류코드입력">대분류 코드</label>
+          <input id="대분류코드입력" class="inp 코드칸" type="text" maxlength="10" placeholder="예: GP">
+        </div>
+        <div>
+          <label class="lbl" for="옵션분류명입력">옵션분류명</label>
+          <input id="옵션분류명입력" class="inp" type="text" placeholder="예: 샤인머스캣">
+        </div>
+        <div>
+          <label class="lbl" for="옵션분류코드입력">옵션분류 코드</label>
+          <input id="옵션분류코드입력" class="inp 코드칸" type="text" maxlength="10" placeholder="예: SH">
+        </div>
+      </div>
+      <p class="text-[12px] text-slate-500 mt-2">
+        대분류와 옵션분류는 한 세트로 묶여 등록됩니다. 코드는 대문자로 저장됩니다.<br>
+        대분류명·대분류 코드를 고치면 <b>그 대분류에 달린 옵션분류가 모두 함께</b> 바뀝니다.
+      </p>
+      <div class="mt-3 flex gap-2">
+        <button id="대분류저장버튼" class="btn btn-main" type="button">대분류 생성</button>
+        <button id="대분류취소버튼" class="btn hidden" type="button">수정 취소</button>
+      </div>
+    </div>
+    <div id="대분류목록" class="mb-7"></div>
+
+    <!-- 2) 중량·수량 생성 -->
+    <div class="bg-white rounded-2xl border border-slate-200 p-5 mb-3">
+      <h3 class="font-extrabold text-[15px] mb-3">중량·수량 생성</h3>
+      <div class="flex gap-2 items-start">
+        <div class="flex-1">
+          <label class="lbl" for="중량값입력">숫자</label>
+          <input id="중량값입력" class="inp" type="number" min="0" step="1" placeholder="예: 2000">
+        </div>
+        <div style="width:120px">
+          <label class="lbl" for="중량단위입력">단위</label>
+          <select id="중량단위입력" class="inp">
+            <option value="G">G</option>
+            <option value="EA">EA</option>
+          </select>
+        </div>
+      </div>
+      <p id="중량환산안내" class="text-[12px] text-slate-500 mt-2">무게는 G 단위로 넣습니다. 2kg 이면 2000 G 입니다.</p>
+      <div class="mt-3 flex gap-2">
+        <button id="중량저장버튼" class="btn btn-main" type="button">중량·수량 생성</button>
+        <button id="중량취소버튼" class="btn hidden" type="button">수정 취소</button>
+      </div>
+    </div>
+    <div id="중량목록" class="mb-7"></div>
+
+    <!-- 3) 입수량 생성 -->
+    <div class="bg-white rounded-2xl border border-slate-200 p-5 mb-3">
+      <h3 class="font-extrabold text-[15px] mb-3">입수량 생성</h3>
+      <div class="flex items-end gap-2">
+        <div class="flex-1">
+          <label class="lbl" for="입수량최소입력">최소</label>
+          <input id="입수량최소입력" class="inp" type="number" min="0" max="99" step="1" placeholder="2">
+        </div>
+        <span class="text-slate-400 text-sm pb-2.5 shrink-0">개 ~</span>
+        <div class="flex-1">
+          <label class="lbl" for="입수량최대입력">최대</label>
+          <input id="입수량최대입력" class="inp" type="number" min="0" max="99" step="1" placeholder="3">
+        </div>
+        <span class="text-slate-400 text-sm pb-2.5 shrink-0">개</span>
+      </div>
+      <p class="text-[12px] text-slate-500 mt-2">코드에는 두 자리씩 붙습니다. 2개~3개 → <span class="코드값 font-bold">0203</span> · 10개~12개 → <span class="코드값 font-bold">1012</span> (0~99)</p>
+      <div class="mt-3 flex gap-2">
+        <button id="입수량저장버튼" class="btn btn-main" type="button">입수량 생성</button>
+        <button id="입수량취소버튼" class="btn hidden" type="button">수정 취소</button>
+      </div>
+    </div>
+    <div id="입수량목록" class="mb-7"></div>
+
+    <!-- 4) 브랜드 생성 -->
+    <div class="bg-white rounded-2xl border border-slate-200 p-5 mb-3">
+      <h3 class="font-extrabold text-[15px] mb-3">브랜드 생성</h3>
+      <div class="grid sm:grid-cols-2 gap-3">
+        <div>
+          <label class="lbl" for="분류브랜드명입력">브랜드명</label>
+          <input id="분류브랜드명입력" class="inp" type="text" placeholder="예: 마담팜">
+        </div>
+        <div>
+          <label class="lbl" for="분류브랜드코드입력">브랜드 코드</label>
+          <input id="분류브랜드코드입력" class="inp 코드칸" type="text" maxlength="10" placeholder="예: MO">
+        </div>
+      </div>
+      <p class="text-[12px] text-slate-500 mt-2">
+        <b>「자사 브랜드 › 브랜드」와 같은 목록입니다.</b> 여기서 등록하면 그쪽에도 함께 등록되고, 포장비는 그 화면에서 넣습니다.
+      </p>
+      <div class="mt-3 flex gap-2">
+        <button id="분류브랜드저장버튼" class="btn btn-main" type="button">브랜드 생성</button>
+        <button id="분류브랜드취소버튼" class="btn hidden" type="button">수정 취소</button>
+      </div>
+    </div>
+    <div id="분류브랜드목록"></div>
+  </section>
+
+  <!-- ============ 제품코드 › 제품코드 생성 ============ -->
+  <section id="화면-제품코드생성" class="화면">
+    <header class="mb-5">
+      <h2 class="text-xl font-extrabold">제품코드 생성</h2>
+      <p class="text-sm text-slate-500 mt-1">
+        분류에 등록된 값을 골라 제품코드를 만듭니다. 만든 코드는 <b>제품코드 목록</b>에서 볼 수 있습니다.
+      </p>
+    </header>
+
+    <div class="bg-white rounded-2xl border border-slate-200 p-5 space-y-4">
+      <div id="코드생성수정중" class="hidden rounded-xl bg-amber-50 border border-amber-200 px-4 py-2.5 text-[13px] text-amber-800"></div>
+
+      <div class="grid sm:grid-cols-2 gap-4">
+        <div>
+          <label class="lbl" for="코드브랜드선택">브랜드</label>
+          <select id="코드브랜드선택" class="inp"></select>
+        </div>
+        <div>
+          <label class="lbl" for="코드대분류선택">대분류</label>
+          <select id="코드대분류선택" class="inp"></select>
+        </div>
+        <div>
+          <label class="lbl" for="코드옵션분류선택">옵션분류</label>
+          <select id="코드옵션분류선택" class="inp"></select>
+          <p class="text-[12px] text-slate-500 mt-1.5">선택한 대분류에 묶인 옵션분류만 나옵니다.</p>
+        </div>
+        <div>
+          <label class="lbl" for="코드중량선택">중량·수량</label>
+          <select id="코드중량선택" class="inp"></select>
+        </div>
+        <div>
+          <label class="lbl" for="코드입수량선택">입수량</label>
+          <select id="코드입수량선택" class="inp"></select>
+        </div>
+      </div>
+
+      <div class="rounded-xl bg-slate-50 border border-slate-200 px-4 py-4">
+        <div class="text-[12px] font-bold text-slate-500 mb-2">
+          코드 순서 &nbsp;브랜드 - 대분류 - 옵션분류 - 중량·수량 - 입수량
+        </div>
+        <div class="grid sm:grid-cols-2 gap-3">
+          <div>
+            <div class="text-[12px] text-slate-500">구분형코드</div>
+            <div id="미리보기구분형" class="코드값 text-[19px] font-extrabold text-blue-700 break-all">—</div>
+          </div>
+          <div>
+            <div class="text-[12px] text-slate-500">연속형코드</div>
+            <div id="미리보기연속형" class="코드값 text-[19px] font-extrabold text-slate-700 break-all">—</div>
+          </div>
+        </div>
+      </div>
+
+      <div id="코드생성오류" class="hidden rounded-xl bg-red-50 border border-red-100 px-4 py-3 text-[13.5px] text-red-700"></div>
+
+      <div class="flex gap-2">
+        <button id="코드저장버튼" class="btn btn-main" type="button">제품코드 저장</button>
+        <button id="코드생성취소버튼" class="btn hidden" type="button">수정 취소</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 제품코드 › 제품코드 목록 ============ -->
+  <section id="화면-제품코드목록" class="화면">
+    <header class="mb-5">
+      <h2 class="text-xl font-extrabold">제품코드 목록</h2>
+      <p class="text-sm text-slate-500 mt-1">생성된 제품코드를 검색하고 복사합니다. 구분형·연속형을 각각 복사할 수 있습니다.</p>
+    </header>
+
+    <div class="bg-white rounded-2xl border border-slate-200 p-5 mb-4 space-y-4">
+      <div>
+        <label class="lbl">분류로 검색</label>
+        <div class="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
+          <select id="필터제품분류" class="inp"></select>
+          <select id="필터중량" class="inp"></select>
+          <select id="필터브랜드" class="inp"></select>
+          <select id="필터입수량" class="inp"></select>
+        </div>
+        <p class="text-[12px] text-slate-500 mt-1.5">여러 개를 고르면 조건을 모두 만족하는 것만 나옵니다.</p>
+      </div>
+
+      <div>
+        <label class="lbl" for="키워드검색">키워드로 검색</label>
+        <input id="키워드검색" class="inp" type="text" placeholder="분류명 · 코드 · 옵션분류 · 브랜드 어디에든 걸리면 검색됩니다">
+      </div>
+
+      <div class="flex flex-wrap items-center gap-2">
+        <span class="text-[13px] font-bold text-slate-500">정렬</span>
+        <button class="btn btn-sm" type="button" data-정렬="코드">제품코드</button>
+        <button class="btn btn-sm" type="button" data-정렬="생성일">생성 날짜</button>
+        <button id="필터초기화버튼" class="btn btn-sm ml-auto" type="button">검색 초기화</button>
+      </div>
+    </div>
+
+    <div class="bg-white rounded-2xl border border-slate-200 px-4 py-3 mb-3 flex flex-wrap items-center gap-x-3 gap-y-2">
+      <label class="flex items-center gap-2 text-[13.5px] font-bold cursor-pointer">
+        <input id="전체선택" type="checkbox" class="w-4 h-4">
+        전체 선택
+      </label>
+      <span id="선택개수" class="text-[13px] text-slate-500">0개 선택</span>
+      <div class="flex items-center gap-2 ml-auto">
+        <select id="복사형태" class="inp" style="width:auto;padding:7px 10px;font-size:13px">
+          <option value="구분형">구분형코드로 복사</option>
+          <option value="연속형">연속형코드로 복사</option>
+        </select>
+        <button id="선택복사버튼" class="btn btn-sm btn-main" type="button">선택 복사</button>
+      </div>
+    </div>
+
+    <div id="제품코드목록"></div>
+  </section>
+
   <!-- ============ 채널 기본설정 ============ -->
   <section id="화면-채널설정" class="화면">
     <header class="mb-5">
@@ -279,10 +513,15 @@
     </header>
 
     <div class="bg-white rounded-2xl border border-slate-200 p-5 mb-5">
-      <div class="grid sm:grid-cols-2 gap-3">
+      <div class="grid sm:grid-cols-3 gap-3">
         <div>
           <label class="lbl" for="브랜드명입력">브랜드명</label>
           <input id="브랜드명입력" class="inp" type="text" placeholder="예: 마담팜">
+        </div>
+        <div>
+          <label class="lbl" for="브랜드코드입력">브랜드 코드</label>
+          <input id="브랜드코드입력" class="inp 코드칸" type="text" maxlength="10" placeholder="예: MO">
+          <p class="text-[12px] text-slate-500 mt-1.5">제품코드에 쓰입니다. 대문자로 저장됩니다.</p>
         </div>
         <div>
           <label class="lbl" for="포장비입력">포장비 (원) <span class="vat">VAT 포함</span></label>
@@ -349,7 +588,7 @@ const 파이어베이스설정 = null;
 // };
 
 const 컬렉션 = 'pricing_helper';                    // 문서 ID 는 ASCII 로 둔다 (인코딩 사고 방지)
-const 문서키 = { 채널: 'channels', 브랜드: 'brands', 택배: 'shipping' };
+const 문서키 = { 채널: 'channels', 브랜드: 'brands', 택배: 'shipping', 분류: 'categories', 제품코드: 'product_codes' };
 const 로컬키 = 'pricing_helper_v1';
 
 /* ===================================================================
@@ -358,7 +597,7 @@ const 로컬키 = 'pricing_helper_v1';
 const 저장소 = {
   모드: '로컬',
   db: null,
-  캐시: { 채널: [], 브랜드: [], 택배: [], 기본택배ID: '' },
+  캐시: { 채널: [], 브랜드: [], 택배: [], 기본택배ID: '', 대분류: [], 중량: [], 입수량: [], 제품코드: [] },
 
   async 초기화() {
     if (파이어베이스설정 && 파이어베이스설정.projectId) {
@@ -380,11 +619,17 @@ const 저장소 = {
         const 문서 = await this.db.collection(컬렉션).doc(문서키[키]).get();
         return 문서.exists ? 문서.data() : {};
       };
-      const [채널문서, 브랜드문서, 택배문서] = await Promise.all([읽기('채널'), 읽기('브랜드'), 읽기('택배')]);
+      const [채널문서, 브랜드문서, 택배문서, 분류문서, 제품코드문서] = await Promise.all([
+        읽기('채널'), 읽기('브랜드'), 읽기('택배'), 읽기('분류'), 읽기('제품코드'),
+      ]);
       this.캐시.채널 = 채널문서.목록 ?? [];
       this.캐시.브랜드 = 브랜드문서.목록 ?? [];
       this.캐시.택배 = 택배문서.목록 ?? [];
       this.캐시.기본택배ID = 택배문서.기본택배ID ?? '';
+      this.캐시.대분류 = 분류문서.대분류 ?? [];
+      this.캐시.중량 = 분류문서.중량 ?? [];
+      this.캐시.입수량 = 분류문서.입수량 ?? [];
+      this.캐시.제품코드 = 제품코드문서.목록 ?? [];
     } else {
       let 원본 = {};
       try { 원본 = JSON.parse(localStorage.getItem(로컬키)) ?? {}; } catch { 원본 = {}; }
@@ -392,20 +637,34 @@ const 저장소 = {
       this.캐시.브랜드 = 원본.브랜드 ?? [];
       this.캐시.택배 = 원본.택배 ?? [];
       this.캐시.기본택배ID = 원본.기본택배ID ?? '';
+      this.캐시.대분류 = 원본.대분류 ?? [];
+      this.캐시.중량 = 원본.중량 ?? [];
+      this.캐시.입수량 = 원본.입수량 ?? [];
+      this.캐시.제품코드 = 원본.제품코드 ?? [];
     }
+    // 제품코드 기능이 생기기 전에 등록한 브랜드에는 브랜드코드가 없다. 빈 값으로 채워 둔다.
+    for (const 브랜드 of this.캐시.브랜드) 브랜드.브랜드코드 ??= '';
     return this.캐시;
   },
 
-  // 종류 = '채널' | '브랜드' | '택배'
+  // 종류 = '채널' | '브랜드' | '택배' | '분류' | '제품코드'
+  // '분류' 문서 하나에 대분류 · 중량 · 입수량 세 목록이 함께 들어간다.
   async 저장(종류) {
     if (this.모드 === 'Firestore') {
-      const 본문 = { 목록: this.캐시[종류] };
-      if (종류 === '택배') 본문.기본택배ID = this.캐시.기본택배ID;
+      let 본문;
+      if (종류 === '분류') {
+        본문 = { 대분류: this.캐시.대분류, 중량: this.캐시.중량, 입수량: this.캐시.입수량 };
+      } else {
+        본문 = { 목록: this.캐시[종류] };
+        if (종류 === '택배') 본문.기본택배ID = this.캐시.기본택배ID;
+      }
       await this.db.collection(컬렉션).doc(문서키[종류]).set(본문);
     } else {
       localStorage.setItem(로컬키, JSON.stringify({
         채널: this.캐시.채널, 브랜드: this.캐시.브랜드,
         택배: this.캐시.택배, 기본택배ID: this.캐시.기본택배ID,
+        대분류: this.캐시.대분류, 중량: this.캐시.중량,
+        입수량: this.캐시.입수량, 제품코드: this.캐시.제품코드,
       }));
     }
   },
@@ -493,12 +752,33 @@ document.querySelectorAll('.메뉴버튼').forEach((버튼) => {
 });
 
 /* ===================================================================
-   4. 자사 브랜드 › 브랜드 CRUD
+   4. 브랜드 CRUD
+   「자사 브랜드 › 브랜드」와 「제품코드 › 분류 › 브랜드 생성」이 같은 목록을 쓴다.
+   어느 화면에서 등록하든 같은 브랜드 한 줄이 되고, 포장비는 자사 브랜드 화면에서 넣는다.
    =================================================================== */
-let 수정중브랜드ID = null;
+let 수정중브랜드ID = null;       // 자사 브랜드 화면에서 수정 중인 브랜드
+let 수정중분류브랜드ID = null;   // 분류 화면에서 수정 중인 브랜드
 
 function 브랜드찾기(id) {
   return 저장소.캐시.브랜드.find((브랜드) => 브랜드.id === id) ?? null;
+}
+
+/** 코드는 앞뒤 공백을 떼고 대문자로 통일한다. 대소문자만 다른 코드가 둘 생기지 않게. */
+function 코드정규화(값) {
+  return String(값 ?? '').trim().toUpperCase();
+}
+
+function 코드없음배지() {
+  return '<span class="text-[11px] font-bold text-amber-700 bg-amber-50 rounded-full px-2 py-0.5">코드 없음</span>';
+}
+
+/** 브랜드가 바뀌면 브랜드를 참조하는 화면을 모두 다시 그린다. */
+function 브랜드다시그리기() {
+  브랜드목록그리기();
+  분류브랜드목록그리기();
+  채널브랜드드롭다운그리기();
+  채널목록그리기();
+  제품코드화면다시그리기();
 }
 
 function 브랜드목록그리기() {
@@ -511,7 +791,10 @@ function 브랜드목록그리기() {
   대상.innerHTML = '<div class="space-y-2">' + 목록.map((브랜드) => `
     <div class="bg-white rounded-xl border border-slate-200 px-4 py-3 flex items-center justify-between gap-3">
       <div class="min-w-0">
-        <div class="font-bold truncate">${html이스케이프(브랜드.브랜드명)}</div>
+        <div class="font-bold truncate">
+          ${html이스케이프(브랜드.브랜드명)}
+          ${브랜드.브랜드코드 ? '<span class="코드값 ml-1 text-[13px] text-slate-500">' + html이스케이프(브랜드.브랜드코드) + '</span>' : 코드없음배지()}
+        </div>
         <div class="text-[13px] text-slate-500 tabular-nums">포장비 ${원표시(브랜드.포장비)} ${VAT배지()}</div>
       </div>
       <div class="flex gap-2 shrink-0">
@@ -521,49 +804,105 @@ function 브랜드목록그리기() {
     </div>`).join('') + '</div>';
 }
 
-async function 브랜드저장() {
-  const 이름칸 = document.getElementById('브랜드명입력');
-  const 포장비칸 = document.getElementById('포장비입력');
+function 분류브랜드목록그리기() {
+  const 대상 = document.getElementById('분류브랜드목록');
+  const 목록 = 저장소.캐시.브랜드;
+  if (목록.length === 0) {
+    대상.innerHTML = 빈안내('등록된 브랜드가 없습니다.');
+    return;
+  }
+  대상.innerHTML = '<div class="space-y-2">' + 목록.map((브랜드) => `
+    <div class="bg-white rounded-xl border border-slate-200 px-4 py-3 flex items-center justify-between gap-3">
+      <div class="min-w-0">
+        <div class="font-bold truncate">${html이스케이프(브랜드.브랜드명)}</div>
+        <div class="text-[13px] text-slate-500">
+          ${브랜드.브랜드코드 ? '<span class="코드값">' + html이스케이프(브랜드.브랜드코드) + '</span>' : 코드없음배지()}
+        </div>
+      </div>
+      <div class="flex gap-2 shrink-0">
+        <button class="btn btn-sm" data-분류브랜드수정="${브랜드.id}">수정</button>
+        <button class="btn btn-sm btn-del" data-분류브랜드삭제="${브랜드.id}">삭제</button>
+      </div>
+    </div>`).join('') + '</div>';
+}
+
+/**
+ * 두 화면의 브랜드 저장을 한 곳에서 처리한다.
+ * 설정.코드필수 = 분류 화면(코드를 만들려고 등록하는 자리)에서만 true.
+ */
+async function 브랜드공통저장(설정) {
+  const 이름칸 = document.getElementById(설정.이름칸);
+  const 코드칸 = document.getElementById(설정.코드칸);
   const 이름 = 이름칸.value.trim();
   if (!이름) { alert('브랜드명을 입력해 주세요.'); 이름칸.focus(); return; }
 
-  const 포장비 = Math.max(0, 숫자로(포장비칸.value));
-  if (수정중브랜드ID) {
-    const 대상 = 브랜드찾기(수정중브랜드ID);
-    if (대상) { 대상.브랜드명 = 이름; 대상.포장비 = 포장비; }
+  const 코드 = 코드정규화(코드칸.value);
+  if (설정.코드필수 && !코드) { alert('브랜드 코드를 입력해 주세요.'); 코드칸.focus(); return; }
+
+  const 수정ID = 설정.수정ID();
+  const 코드중복 = 코드 && 저장소.캐시.브랜드.some((브랜드) => 브랜드.브랜드코드 === 코드 && 브랜드.id !== 수정ID);
+  if (코드중복) { alert(`브랜드 코드 ${코드} 는 이미 다른 브랜드가 쓰고 있습니다.`); 코드칸.focus(); return; }
+
+  if (수정ID) {
+    const 대상 = 브랜드찾기(수정ID);
+    if (대상) {
+      대상.브랜드명 = 이름;
+      대상.브랜드코드 = 코드;
+      if (설정.포장비칸) 대상.포장비 = Math.max(0, 숫자로(document.getElementById(설정.포장비칸).value));
+    }
   } else {
-    저장소.캐시.브랜드.push({ id: 새ID('b'), 브랜드명: 이름, 포장비 });
+    저장소.캐시.브랜드.push({
+      id: 새ID('b'),
+      브랜드명: 이름,
+      브랜드코드: 코드,
+      포장비: 설정.포장비칸 ? Math.max(0, 숫자로(document.getElementById(설정.포장비칸).value)) : 0,
+    });
   }
   await 저장소.저장('브랜드');
-  브랜드입력초기화();
-  브랜드목록그리기();
-  채널브랜드드롭다운그리기();
-  채널목록그리기();
+  설정.초기화();
+  브랜드다시그리기();
 }
 
 function 브랜드입력초기화() {
   수정중브랜드ID = null;
   document.getElementById('브랜드명입력').value = '';
+  document.getElementById('브랜드코드입력').value = '';
   document.getElementById('포장비입력').value = '';
   document.getElementById('브랜드저장버튼').textContent = '브랜드 추가';
   document.getElementById('브랜드취소버튼').classList.add('hidden');
 }
 
+function 분류브랜드입력초기화() {
+  수정중분류브랜드ID = null;
+  document.getElementById('분류브랜드명입력').value = '';
+  document.getElementById('분류브랜드코드입력').value = '';
+  document.getElementById('분류브랜드저장버튼').textContent = '브랜드 생성';
+  document.getElementById('분류브랜드취소버튼').classList.add('hidden');
+}
+
 async function 브랜드삭제(id) {
   const 연결채널 = 저장소.캐시.채널.filter((채널) => 채널.브랜드ID === id);
-  const 경고 = 연결채널.length
-    ? `\n\n이 브랜드에 연결된 채널 ${연결채널.length}개(${연결채널.map((채널) => 채널.채널명).join(', ')})의 연결이 끊깁니다.`
-    : '';
+  const 연결코드 = 저장소.캐시.제품코드.filter((코드) => 코드.브랜드ID === id);
+  let 경고 = '';
+  if (연결채널.length) {
+    경고 += `\n\n이 브랜드에 연결된 채널 ${연결채널.length}개(${연결채널.map((채널) => 채널.채널명).join(', ')})의 연결이 끊깁니다.`;
+  }
+  if (연결코드.length) {
+    경고 += `\n\n이 브랜드로 만든 제품코드 ${연결코드.length}건이 「브랜드 삭제됨」으로 표시됩니다.`;
+  }
   if (!confirm('이 브랜드를 삭제할까요?' + 경고)) return;
+
   저장소.캐시.브랜드 = 저장소.캐시.브랜드.filter((브랜드) => 브랜드.id !== id);
   await 저장소.저장('브랜드');
   if (수정중브랜드ID === id) 브랜드입력초기화();
-  브랜드목록그리기();
-  채널브랜드드롭다운그리기();
-  채널목록그리기();
+  if (수정중분류브랜드ID === id) 분류브랜드입력초기화();
+  브랜드다시그리기();
 }
 
-document.getElementById('브랜드저장버튼').addEventListener('click', 브랜드저장);
+document.getElementById('브랜드저장버튼').addEventListener('click', () => 브랜드공통저장({
+  이름칸: '브랜드명입력', 코드칸: '브랜드코드입력', 포장비칸: '포장비입력',
+  코드필수: false, 수정ID: () => 수정중브랜드ID, 초기화: 브랜드입력초기화,
+}));
 document.getElementById('브랜드취소버튼').addEventListener('click', 브랜드입력초기화);
 document.getElementById('브랜드목록').addEventListener('click', (사건) => {
   const 수정 = 사건.target.closest('[data-브랜드수정]');
@@ -573,12 +912,34 @@ document.getElementById('브랜드목록').addEventListener('click', (사건) =>
     if (!대상) return;
     수정중브랜드ID = 대상.id;
     document.getElementById('브랜드명입력').value = 대상.브랜드명;
+    document.getElementById('브랜드코드입력').value = 대상.브랜드코드 ?? '';
     document.getElementById('포장비입력').value = 대상.포장비;
     document.getElementById('브랜드저장버튼').textContent = '수정 저장';
     document.getElementById('브랜드취소버튼').classList.remove('hidden');
     document.getElementById('브랜드명입력').focus();
   }
   if (삭제) 브랜드삭제(삭제.dataset.브랜드삭제);
+});
+
+document.getElementById('분류브랜드저장버튼').addEventListener('click', () => 브랜드공통저장({
+  이름칸: '분류브랜드명입력', 코드칸: '분류브랜드코드입력', 포장비칸: null,
+  코드필수: true, 수정ID: () => 수정중분류브랜드ID, 초기화: 분류브랜드입력초기화,
+}));
+document.getElementById('분류브랜드취소버튼').addEventListener('click', 분류브랜드입력초기화);
+document.getElementById('분류브랜드목록').addEventListener('click', (사건) => {
+  const 수정 = 사건.target.closest('[data-분류브랜드수정]');
+  const 삭제 = 사건.target.closest('[data-분류브랜드삭제]');
+  if (수정) {
+    const 대상 = 브랜드찾기(수정.dataset.분류브랜드수정);
+    if (!대상) return;
+    수정중분류브랜드ID = 대상.id;
+    document.getElementById('분류브랜드명입력').value = 대상.브랜드명;
+    document.getElementById('분류브랜드코드입력').value = 대상.브랜드코드 ?? '';
+    document.getElementById('분류브랜드저장버튼').textContent = '수정 저장';
+    document.getElementById('분류브랜드취소버튼').classList.remove('hidden');
+    document.getElementById('분류브랜드명입력').focus();
+  }
+  if (삭제) 브랜드삭제(삭제.dataset.분류브랜드삭제);
 });
 
 /* ===================================================================
@@ -1127,7 +1488,868 @@ document.getElementById('초기화버튼').addEventListener('click', () => {
 });
 
 /* ===================================================================
-   11. 시작
+   11. 제품코드 › 분류 — 대분류 · 중량·수량 · 입수량
+   대분류와 옵션분류는 한 세트로 한 줄에 저장한다.
+   같은 대분류코드를 쓰는 줄이 여러 개면 그 대분류에 옵션분류가 여러 개 달린 것이다.
+   =================================================================== */
+let 수정중대분류ID = null;
+let 수정중중량ID = null;
+let 수정중입수량ID = null;
+
+function 대분류찾기(id) { return 저장소.캐시.대분류.find((줄) => 줄.id === id) ?? null; }
+function 중량찾기(id) { return 저장소.캐시.중량.find((줄) => 줄.id === id) ?? null; }
+function 입수량찾기(id) { return 저장소.캐시.입수량.find((줄) => 줄.id === id) ?? null; }
+
+/** 중량·수량 코드 조각. 2000 + G → "2000G" */
+function 중량코드(중량) { return `${중량.값}${중량.단위}`; }
+
+/** 중량·수량 표기. G 는 kg 환산을 덧붙여 읽기 쉽게 한다. */
+function 중량표기(중량) {
+  const 숫자 = 중량.값.toLocaleString('ko-KR');
+  if (중량.단위 !== 'G') return `${숫자} EA`;
+  return 중량.값 >= 1000 ? `${숫자} G (${중량.값 / 1000}kg)` : `${숫자} G`;
+}
+
+/** 입수량 코드 조각. 2~3 → "0203" (두 자리씩, 0~99) */
+function 입수량코드(입수량) {
+  const 두자리 = (숫자) => String(숫자).padStart(2, '0');
+  return 두자리(입수량.최소) + 두자리(입수량.최대);
+}
+
+function 입수량표기(입수량) { return `${입수량.최소}개 ~ ${입수량.최대}개`; }
+
+function 분류다시그리기() {
+  대분류목록그리기();
+  중량목록그리기();
+  입수량목록그리기();
+  제품코드화면다시그리기();
+}
+
+/* ── 대분류 ─────────────────────────────────────────────────── */
+function 대분류목록그리기() {
+  const 대상 = document.getElementById('대분류목록');
+  const 목록 = 저장소.캐시.대분류;
+  if (목록.length === 0) {
+    대상.innerHTML = 빈안내('등록된 대분류가 없습니다.');
+    return;
+  }
+  // 같은 대분류코드끼리 묶어서 보여준다
+  const 묶음 = new Map();
+  for (const 줄 of 목록) {
+    if (!묶음.has(줄.대분류코드)) 묶음.set(줄.대분류코드, { 대분류명: 줄.대분류명, 옵션들: [] });
+    묶음.get(줄.대분류코드).옵션들.push(줄);
+  }
+
+  대상.innerHTML = '<div class="space-y-2">' + [...묶음.entries()].map(([코드, 묶은것]) => `
+    <div class="bg-white rounded-xl border border-slate-200 overflow-hidden">
+      <div class="px-4 py-2.5 bg-slate-50 border-b border-slate-200 flex items-baseline gap-2">
+        <span class="font-extrabold">${html이스케이프(묶은것.대분류명)}</span>
+        <span class="코드값 text-[13px] text-slate-500">${html이스케이프(코드)}</span>
+        <span class="text-[12px] text-slate-400 ml-auto">옵션분류 ${묶은것.옵션들.length}개</span>
+      </div>
+      ${묶은것.옵션들.map((줄) => `
+        <div class="px-4 py-2.5 flex items-center justify-between gap-3 border-b border-slate-100 last:border-b-0">
+          <div class="min-w-0">
+            <span class="font-bold text-[14px]">${html이스케이프(줄.옵션분류명)}</span>
+            <span class="코드값 text-[13px] text-slate-500 ml-1.5">${html이스케이프(줄.옵션분류코드)}</span>
+          </div>
+          <div class="flex gap-2 shrink-0">
+            <button class="btn btn-sm" data-대분류수정="${줄.id}">수정</button>
+            <button class="btn btn-sm btn-del" data-대분류삭제="${줄.id}">삭제</button>
+          </div>
+        </div>`).join('')}
+    </div>`).join('') + '</div>';
+}
+
+async function 대분류저장() {
+  const 대분류명 = document.getElementById('대분류명입력').value.trim();
+  const 대분류코드 = 코드정규화(document.getElementById('대분류코드입력').value);
+  const 옵션분류명 = document.getElementById('옵션분류명입력').value.trim();
+  const 옵션분류코드 = 코드정규화(document.getElementById('옵션분류코드입력').value);
+
+  if (!대분류명) { alert('대분류명을 입력해 주세요.'); return; }
+  if (!대분류코드) { alert('대분류 코드를 입력해 주세요.'); return; }
+  if (!옵션분류명) { alert('옵션분류명을 입력해 주세요.'); return; }
+  if (!옵션분류코드) { alert('옵션분류 코드를 입력해 주세요.'); return; }
+
+  // 같은 대분류코드가 다른 이름으로 등록되어 있으면 막는다. 코드 하나에 이름 하나여야 한다.
+  const 이름충돌 = 저장소.캐시.대분류.find(
+    (줄) => 줄.대분류코드 === 대분류코드 && 줄.대분류명 !== 대분류명 && 줄.id !== 수정중대분류ID);
+  if (이름충돌) {
+    alert(`대분류 코드 ${대분류코드} 는 이미 「${이름충돌.대분류명}」 으로 쓰이고 있습니다.\n같은 코드에는 같은 대분류명을 써 주세요.`);
+    return;
+  }
+
+  const 조합중복 = 저장소.캐시.대분류.find(
+    (줄) => 줄.대분류코드 === 대분류코드 && 줄.옵션분류코드 === 옵션분류코드 && 줄.id !== 수정중대분류ID);
+  if (조합중복) {
+    alert(`${대분류코드} - ${옵션분류코드} 조합은 이미 「${조합중복.대분류명} › ${조합중복.옵션분류명}」 으로 등록되어 있습니다.`);
+    return;
+  }
+
+  if (수정중대분류ID) {
+    const 대상 = 대분류찾기(수정중대분류ID);
+    if (!대상) return;
+    // 대분류명·대분류코드는 대분류 전체의 속성이다.
+    // 한 줄에서 고치면 그 대분류에 달린 옵션분류가 모두 함께 따라간다.
+    const 옛대분류코드 = 대상.대분류코드;
+    const 함께움직일줄 = 저장소.캐시.대분류.filter(
+      (줄) => 줄.대분류코드 === 옛대분류코드 && 줄.id !== 대상.id);
+
+    if (대분류코드 !== 옛대분류코드) {
+      // 옮겨갈 자리에 같은 옵션분류 코드가 이미 있으면 조합이 겹친다
+      const 충돌 = 함께움직일줄.find((줄) => 저장소.캐시.대분류.some(
+        (다른) => 다른.대분류코드 === 대분류코드 && 다른.옵션분류코드 === 줄.옵션분류코드 && 다른.id !== 줄.id));
+      if (충돌) {
+        alert(`대분류 코드를 ${대분류코드} 로 바꾸면 함께 옮겨가는 「${충돌.옵션분류명}」(${충돌.옵션분류코드}) 이 기존 항목과 겹칩니다.`);
+        return;
+      }
+    }
+
+    Object.assign(대상, { 대분류명, 대분류코드, 옵션분류명, 옵션분류코드 });
+    for (const 줄 of 함께움직일줄) {
+      줄.대분류명 = 대분류명;
+      줄.대분류코드 = 대분류코드;
+    }
+  } else {
+    저장소.캐시.대분류.push({ id: 새ID('g'), 대분류명, 대분류코드, 옵션분류명, 옵션분류코드 });
+  }
+
+  await 저장소.저장('분류');
+  await 제품코드전체재계산();
+  대분류입력초기화();
+  분류다시그리기();
+}
+
+function 대분류입력초기화() {
+  수정중대분류ID = null;
+  ['대분류명입력', '대분류코드입력', '옵션분류명입력', '옵션분류코드입력'].forEach((칸) => {
+    document.getElementById(칸).value = '';
+  });
+  document.getElementById('대분류저장버튼').textContent = '대분류 생성';
+  document.getElementById('대분류취소버튼').classList.add('hidden');
+}
+
+async function 대분류삭제(id) {
+  const 쓰는코드 = 저장소.캐시.제품코드.filter((코드) => 코드.분류ID === id).length;
+  const 경고 = 쓰는코드 ? `\n\n이 분류로 만든 제품코드 ${쓰는코드}건이 「분류 삭제됨」으로 표시됩니다.` : '';
+  if (!confirm('이 옵션분류를 삭제할까요?' + 경고)) return;
+  저장소.캐시.대분류 = 저장소.캐시.대분류.filter((줄) => 줄.id !== id);
+  await 저장소.저장('분류');
+  if (수정중대분류ID === id) 대분류입력초기화();
+  분류다시그리기();
+}
+
+document.getElementById('대분류저장버튼').addEventListener('click', 대분류저장);
+document.getElementById('대분류취소버튼').addEventListener('click', 대분류입력초기화);
+document.getElementById('대분류목록').addEventListener('click', (사건) => {
+  const 수정 = 사건.target.closest('[data-대분류수정]');
+  const 삭제 = 사건.target.closest('[data-대분류삭제]');
+  if (수정) {
+    const 대상 = 대분류찾기(수정.dataset.대분류수정);
+    if (!대상) return;
+    수정중대분류ID = 대상.id;
+    document.getElementById('대분류명입력').value = 대상.대분류명;
+    document.getElementById('대분류코드입력').value = 대상.대분류코드;
+    document.getElementById('옵션분류명입력').value = 대상.옵션분류명;
+    document.getElementById('옵션분류코드입력').value = 대상.옵션분류코드;
+    document.getElementById('대분류저장버튼').textContent = '수정 저장';
+    document.getElementById('대분류취소버튼').classList.remove('hidden');
+    document.getElementById('대분류명입력').focus();
+  }
+  if (삭제) 대분류삭제(삭제.dataset.대분류삭제);
+});
+
+/* ── 중량·수량 ──────────────────────────────────────────────── */
+function 중량목록그리기() {
+  const 대상 = document.getElementById('중량목록');
+  const 목록 = 저장소.캐시.중량;
+  if (목록.length === 0) {
+    대상.innerHTML = 빈안내('등록된 중량·수량이 없습니다.');
+    return;
+  }
+  대상.innerHTML = '<div class="space-y-2">' + 목록.map((중량) => `
+    <div class="bg-white rounded-xl border border-slate-200 px-4 py-3 flex items-center justify-between gap-3">
+      <div class="min-w-0">
+        <div class="font-bold tabular-nums">${html이스케이프(중량표기(중량))}</div>
+        <div class="코드값 text-[13px] text-slate-500">${html이스케이프(중량코드(중량))}</div>
+      </div>
+      <div class="flex gap-2 shrink-0">
+        <button class="btn btn-sm" data-중량수정="${중량.id}">수정</button>
+        <button class="btn btn-sm btn-del" data-중량삭제="${중량.id}">삭제</button>
+      </div>
+    </div>`).join('') + '</div>';
+}
+
+async function 중량저장() {
+  const 값 = Math.floor(숫자로(document.getElementById('중량값입력').value));
+  const 단위 = document.getElementById('중량단위입력').value;
+  if (값 <= 0) { alert('숫자를 1 이상으로 입력해 주세요.'); return; }
+
+  const 중복 = 저장소.캐시.중량.find((중량) => 중량.값 === 값 && 중량.단위 === 단위 && 중량.id !== 수정중중량ID);
+  if (중복) { alert(`${중량코드(중복)} 는 이미 등록되어 있습니다.`); return; }
+
+  if (수정중중량ID) {
+    const 대상 = 중량찾기(수정중중량ID);
+    if (대상) Object.assign(대상, { 값, 단위 });
+  } else {
+    저장소.캐시.중량.push({ id: 새ID('w'), 값, 단위 });
+  }
+  await 저장소.저장('분류');
+  await 제품코드전체재계산();
+  중량입력초기화();
+  분류다시그리기();
+}
+
+function 중량입력초기화() {
+  수정중중량ID = null;
+  document.getElementById('중량값입력').value = '';
+  document.getElementById('중량단위입력').value = 'G';
+  document.getElementById('중량저장버튼').textContent = '중량·수량 생성';
+  document.getElementById('중량취소버튼').classList.add('hidden');
+  중량환산안내갱신();
+}
+
+async function 중량삭제(id) {
+  const 쓰는코드 = 저장소.캐시.제품코드.filter((코드) => 코드.중량ID === id).length;
+  const 경고 = 쓰는코드 ? `\n\n이 중량·수량으로 만든 제품코드 ${쓰는코드}건이 「중량 삭제됨」으로 표시됩니다.` : '';
+  if (!confirm('이 중량·수량을 삭제할까요?' + 경고)) return;
+  저장소.캐시.중량 = 저장소.캐시.중량.filter((중량) => 중량.id !== id);
+  await 저장소.저장('분류');
+  if (수정중중량ID === id) 중량입력초기화();
+  분류다시그리기();
+}
+
+/** 입력 중인 값이 코드에서 어떻게 보일지 바로 알려준다. */
+function 중량환산안내갱신() {
+  const 값 = Math.floor(숫자로(document.getElementById('중량값입력').value));
+  const 단위 = document.getElementById('중량단위입력').value;
+  const 안내 = document.getElementById('중량환산안내');
+  if (값 <= 0) {
+    안내.textContent = 단위 === 'G'
+      ? '무게는 G 단위로 넣습니다. 2kg 이면 2000 G 입니다.'
+      : '개수는 EA 로 넣습니다.';
+    return;
+  }
+  안내.innerHTML = `코드에는 <span class="코드값 font-bold">${html이스케이프(중량코드({ 값, 단위 }))}</span> 로 들어갑니다`
+    + (단위 === 'G' && 값 >= 1000 ? ` · ${값 / 1000}kg` : '');
+}
+
+document.getElementById('중량저장버튼').addEventListener('click', 중량저장);
+document.getElementById('중량취소버튼').addEventListener('click', 중량입력초기화);
+document.getElementById('중량값입력').addEventListener('input', 중량환산안내갱신);
+document.getElementById('중량단위입력').addEventListener('change', 중량환산안내갱신);
+document.getElementById('중량목록').addEventListener('click', (사건) => {
+  const 수정 = 사건.target.closest('[data-중량수정]');
+  const 삭제 = 사건.target.closest('[data-중량삭제]');
+  if (수정) {
+    const 대상 = 중량찾기(수정.dataset.중량수정);
+    if (!대상) return;
+    수정중중량ID = 대상.id;
+    document.getElementById('중량값입력').value = 대상.값;
+    document.getElementById('중량단위입력').value = 대상.단위;
+    document.getElementById('중량저장버튼').textContent = '수정 저장';
+    document.getElementById('중량취소버튼').classList.remove('hidden');
+    중량환산안내갱신();
+    document.getElementById('중량값입력').focus();
+  }
+  if (삭제) 중량삭제(삭제.dataset.중량삭제);
+});
+
+/* ── 입수량 ─────────────────────────────────────────────────── */
+function 입수량목록그리기() {
+  const 대상 = document.getElementById('입수량목록');
+  const 목록 = 저장소.캐시.입수량;
+  if (목록.length === 0) {
+    대상.innerHTML = 빈안내('등록된 입수량이 없습니다.');
+    return;
+  }
+  대상.innerHTML = '<div class="space-y-2">' + 목록.map((입수량) => `
+    <div class="bg-white rounded-xl border border-slate-200 px-4 py-3 flex items-center justify-between gap-3">
+      <div class="min-w-0">
+        <div class="font-bold tabular-nums">${html이스케이프(입수량표기(입수량))}</div>
+        <div class="코드값 text-[13px] text-slate-500">${html이스케이프(입수량코드(입수량))}</div>
+      </div>
+      <div class="flex gap-2 shrink-0">
+        <button class="btn btn-sm" data-입수량수정="${입수량.id}">수정</button>
+        <button class="btn btn-sm btn-del" data-입수량삭제="${입수량.id}">삭제</button>
+      </div>
+    </div>`).join('') + '</div>';
+}
+
+async function 입수량저장() {
+  const 최소 = Math.floor(숫자로(document.getElementById('입수량최소입력').value));
+  const 최대 = Math.floor(숫자로(document.getElementById('입수량최대입력').value));
+  if (최소 < 0 || 최대 < 0 || 최소 > 99 || 최대 > 99) {
+    alert('입수량은 0 ~ 99 사이로 입력해 주세요. 코드에 두 자리씩 들어갑니다.');
+    return;
+  }
+  if (최소 > 최대) { alert('최소가 최대보다 큽니다.'); return; }
+
+  const 중복 = 저장소.캐시.입수량.find(
+    (입수량) => 입수량.최소 === 최소 && 입수량.최대 === 최대 && 입수량.id !== 수정중입수량ID);
+  if (중복) { alert(`${입수량표기(중복)} (${입수량코드(중복)}) 는 이미 등록되어 있습니다.`); return; }
+
+  if (수정중입수량ID) {
+    const 대상 = 입수량찾기(수정중입수량ID);
+    if (대상) Object.assign(대상, { 최소, 최대 });
+  } else {
+    저장소.캐시.입수량.push({ id: 새ID('q'), 최소, 최대 });
+  }
+  await 저장소.저장('분류');
+  await 제품코드전체재계산();
+  입수량입력초기화();
+  분류다시그리기();
+}
+
+function 입수량입력초기화() {
+  수정중입수량ID = null;
+  document.getElementById('입수량최소입력').value = '';
+  document.getElementById('입수량최대입력').value = '';
+  document.getElementById('입수량저장버튼').textContent = '입수량 생성';
+  document.getElementById('입수량취소버튼').classList.add('hidden');
+}
+
+async function 입수량삭제(id) {
+  const 쓰는코드 = 저장소.캐시.제품코드.filter((코드) => 코드.입수량ID === id).length;
+  const 경고 = 쓰는코드 ? `\n\n이 입수량으로 만든 제품코드 ${쓰는코드}건이 「입수량 삭제됨」으로 표시됩니다.` : '';
+  if (!confirm('이 입수량을 삭제할까요?' + 경고)) return;
+  저장소.캐시.입수량 = 저장소.캐시.입수량.filter((입수량) => 입수량.id !== id);
+  await 저장소.저장('분류');
+  if (수정중입수량ID === id) 입수량입력초기화();
+  분류다시그리기();
+}
+
+document.getElementById('입수량저장버튼').addEventListener('click', 입수량저장);
+document.getElementById('입수량취소버튼').addEventListener('click', 입수량입력초기화);
+document.getElementById('입수량목록').addEventListener('click', (사건) => {
+  const 수정 = 사건.target.closest('[data-입수량수정]');
+  const 삭제 = 사건.target.closest('[data-입수량삭제]');
+  if (수정) {
+    const 대상 = 입수량찾기(수정.dataset.입수량수정);
+    if (!대상) return;
+    수정중입수량ID = 대상.id;
+    document.getElementById('입수량최소입력').value = 대상.최소;
+    document.getElementById('입수량최대입력').value = 대상.최대;
+    document.getElementById('입수량저장버튼').textContent = '수정 저장';
+    document.getElementById('입수량취소버튼').classList.remove('hidden');
+    document.getElementById('입수량최소입력').focus();
+  }
+  if (삭제) 입수량삭제(삭제.dataset.입수량삭제);
+});
+
+/* ===================================================================
+   12. 제품코드 › 제품코드 생성
+   코드 순서 — 브랜드 - 대분류 - 옵션분류 - 중량·수량 - 입수량
+   =================================================================== */
+let 수정중제품코드ID = null;
+
+/** 재료 4개를 코드 두 형태로 조합한다. 하나라도 없으면 null. */
+function 코드조합(브랜드, 분류, 중량, 입수량) {
+  if (!브랜드?.브랜드코드 || !분류 || !중량 || !입수량) return null;
+  const 조각 = [브랜드.브랜드코드, 분류.대분류코드, 분류.옵션분류코드, 중량코드(중량), 입수량코드(입수량)];
+  return { 구분형: 조각.join('-'), 연속형: 조각.join('') };
+}
+
+/** 제품코드 한 건이 참조하는 재료를 모아 준다. 지워진 것은 null 로 온다. */
+function 코드재료(코드) {
+  return {
+    브랜드: 브랜드찾기(코드.브랜드ID),
+    분류: 대분류찾기(코드.분류ID),
+    중량: 중량찾기(코드.중량ID),
+    입수량: 입수량찾기(코드.입수량ID),
+  };
+}
+
+/**
+ * 분류나 브랜드의 코드가 바뀌면 그 재료로 만든 제품코드도 같이 바뀌어야 한다.
+ * 참조가 살아 있는 건만 다시 계산하고, 바뀐 건수를 돌려준다.
+ */
+async function 제품코드전체재계산() {
+  let 바뀐건수 = 0;
+  for (const 코드 of 저장소.캐시.제품코드) {
+    const 재료 = 코드재료(코드);
+    const 새코드 = 코드조합(재료.브랜드, 재료.분류, 재료.중량, 재료.입수량);
+    if (!새코드) continue;
+    if (코드.구분형코드 !== 새코드.구분형 || 코드.연속형코드 !== 새코드.연속형) {
+      코드.구분형코드 = 새코드.구분형;
+      코드.연속형코드 = 새코드.연속형;
+      바뀐건수 += 1;
+    }
+  }
+  if (바뀐건수) {
+    await 저장소.저장('제품코드');
+    토스트(`분류가 바뀌어 제품코드 ${바뀐건수}건을 다시 계산했습니다.`);
+  }
+  return 바뀐건수;
+}
+
+/** 대분류코드 기준으로 대분류를 중복 없이 뽑는다. */
+function 대분류종류() {
+  const 묶음 = new Map();
+  for (const 줄 of 저장소.캐시.대분류) {
+    if (!묶음.has(줄.대분류코드)) 묶음.set(줄.대분류코드, { 대분류코드: 줄.대분류코드, 대분류명: 줄.대분류명 });
+  }
+  return [...묶음.values()];
+}
+
+function 코드생성드롭다운그리기() {
+  const 브랜드칸 = document.getElementById('코드브랜드선택');
+  const 대분류칸 = document.getElementById('코드대분류선택');
+  const 중량칸 = document.getElementById('코드중량선택');
+  const 입수량칸 = document.getElementById('코드입수량선택');
+  const 이전 = {
+    브랜드: 브랜드칸.value, 대분류: 대분류칸.value,
+    중량: 중량칸.value, 입수량: 입수량칸.value,
+  };
+
+  브랜드칸.innerHTML = '<option value="">— 브랜드 선택 —</option>' + 저장소.캐시.브랜드.map((브랜드) =>
+    `<option value="${브랜드.id}" ${브랜드.브랜드코드 ? '' : 'disabled'}>`
+    + `${html이스케이프(브랜드.브랜드명)}${브랜드.브랜드코드 ? ' · ' + html이스케이프(브랜드.브랜드코드) : ' (코드 없음)'}</option>`).join('');
+
+  대분류칸.innerHTML = '<option value="">— 대분류 선택 —</option>' + 대분류종류().map((대분류) =>
+    `<option value="${html이스케이프(대분류.대분류코드)}">${html이스케이프(대분류.대분류명)} · ${html이스케이프(대분류.대분류코드)}</option>`).join('');
+
+  중량칸.innerHTML = '<option value="">— 중량·수량 선택 —</option>' + 저장소.캐시.중량.map((중량) =>
+    `<option value="${중량.id}">${html이스케이프(중량표기(중량))} · ${html이스케이프(중량코드(중량))}</option>`).join('');
+
+  입수량칸.innerHTML = '<option value="">— 입수량 선택 —</option>' + 저장소.캐시.입수량.map((입수량) =>
+    `<option value="${입수량.id}">${html이스케이프(입수량표기(입수량))} · ${html이스케이프(입수량코드(입수량))}</option>`).join('');
+
+  브랜드칸.value = 이전.브랜드; 대분류칸.value = 이전.대분류;
+  중량칸.value = 이전.중량; 입수량칸.value = 이전.입수량;
+  옵션분류드롭다운그리기();
+}
+
+/** 옵션분류는 고른 대분류에 묶인 것만 보여준다. */
+function 옵션분류드롭다운그리기() {
+  const 대분류코드 = document.getElementById('코드대분류선택').value;
+  const 옵션칸 = document.getElementById('코드옵션분류선택');
+  const 이전값 = 옵션칸.value;
+  const 후보 = 저장소.캐시.대분류.filter((줄) => 줄.대분류코드 === 대분류코드);
+
+  옵션칸.innerHTML = 대분류코드
+    ? '<option value="">— 옵션분류 선택 —</option>' + 후보.map((줄) =>
+        `<option value="${줄.id}">${html이스케이프(줄.옵션분류명)} · ${html이스케이프(줄.옵션분류코드)}</option>`).join('')
+    : '<option value="">먼저 대분류를 고르세요</option>';
+  옵션칸.disabled = !대분류코드;
+  옵션칸.value = 후보.some((줄) => 줄.id === 이전값) ? 이전값 : '';
+  코드미리보기갱신();
+}
+
+/** 지금 고른 값으로 만들어질 코드를 미리 보여준다. */
+function 코드미리보기갱신() {
+  const 조합 = 코드조합(
+    브랜드찾기(document.getElementById('코드브랜드선택').value),
+    대분류찾기(document.getElementById('코드옵션분류선택').value),
+    중량찾기(document.getElementById('코드중량선택').value),
+    입수량찾기(document.getElementById('코드입수량선택').value),
+  );
+  document.getElementById('미리보기구분형').textContent = 조합 ? 조합.구분형 : '—';
+  document.getElementById('미리보기연속형').textContent = 조합 ? 조합.연속형 : '—';
+}
+
+['코드브랜드선택', '코드중량선택', '코드입수량선택', '코드옵션분류선택'].forEach((칸ID) => {
+  document.getElementById(칸ID).addEventListener('change', 코드미리보기갱신);
+});
+document.getElementById('코드대분류선택').addEventListener('change', 옵션분류드롭다운그리기);
+
+function 코드생성오류표시(문구) {
+  const 칸 = document.getElementById('코드생성오류');
+  칸.textContent = 문구;
+  칸.classList.remove('hidden');
+}
+
+async function 제품코드저장() {
+  document.getElementById('코드생성오류').classList.add('hidden');
+
+  const 브랜드ID = document.getElementById('코드브랜드선택').value;
+  const 분류ID = document.getElementById('코드옵션분류선택').value;
+  const 중량ID = document.getElementById('코드중량선택').value;
+  const 입수량ID = document.getElementById('코드입수량선택').value;
+
+  const 재료 = { 브랜드: 브랜드찾기(브랜드ID), 분류: 대분류찾기(분류ID), 중량: 중량찾기(중량ID), 입수량: 입수량찾기(입수량ID) };
+  const 조합 = 코드조합(재료.브랜드, 재료.분류, 재료.중량, 재료.입수량);
+  if (!조합) { 코드생성오류표시('브랜드 · 대분류 · 옵션분류 · 중량·수량 · 입수량을 모두 골라 주세요.'); return; }
+
+  // 같은 조합이 이미 있으면 만들지 않고 기존 코드를 알려준다
+  const 중복 = 저장소.캐시.제품코드.find((코드) =>
+    코드.브랜드ID === 브랜드ID && 코드.분류ID === 분류ID &&
+    코드.중량ID === 중량ID && 코드.입수량ID === 입수량ID && 코드.id !== 수정중제품코드ID);
+  if (중복) { 코드생성오류표시(`같은 조합이 이미 ${중복.구분형코드} 로 등록되어 있습니다.`); return; }
+
+  if (수정중제품코드ID) {
+    const 대상 = 저장소.캐시.제품코드.find((코드) => 코드.id === 수정중제품코드ID);
+    if (대상) Object.assign(대상, {
+      브랜드ID, 분류ID, 중량ID, 입수량ID,
+      구분형코드: 조합.구분형, 연속형코드: 조합.연속형,
+    });
+  } else {
+    저장소.캐시.제품코드.push({
+      id: 새ID('p'), 브랜드ID, 분류ID, 중량ID, 입수량ID,
+      구분형코드: 조합.구분형, 연속형코드: 조합.연속형,
+      생성일: 지금밀리초(),
+    });
+  }
+
+  await 저장소.저장('제품코드');
+  const 안내 = 수정중제품코드ID ? '제품코드를 수정했습니다' : '제품코드를 만들었습니다';
+  제품코드생성초기화();
+  제품코드화면다시그리기();
+  토스트(`${안내} · ${조합.구분형}`);
+  화면전환('제품코드목록');
+}
+
+function 제품코드생성초기화() {
+  수정중제품코드ID = null;
+  ['코드브랜드선택', '코드대분류선택', '코드중량선택', '코드입수량선택'].forEach((칸ID) => {
+    document.getElementById(칸ID).value = '';
+  });
+  옵션분류드롭다운그리기();
+  document.getElementById('코드저장버튼').textContent = '제품코드 저장';
+  document.getElementById('코드생성취소버튼').classList.add('hidden');
+  document.getElementById('코드생성수정중').classList.add('hidden');
+  document.getElementById('코드생성오류').classList.add('hidden');
+}
+
+/** 목록의 「수정」에서 넘어올 때 값을 채워 넣는다. */
+function 제품코드수정시작(id) {
+  const 대상 = 저장소.캐시.제품코드.find((코드) => 코드.id === id);
+  if (!대상) return;
+  수정중제품코드ID = id;
+  const 분류 = 대분류찾기(대상.분류ID);
+  document.getElementById('코드브랜드선택').value = 대상.브랜드ID;
+  document.getElementById('코드대분류선택').value = 분류 ? 분류.대분류코드 : '';
+  옵션분류드롭다운그리기();
+  document.getElementById('코드옵션분류선택').value = 대상.분류ID;
+  document.getElementById('코드중량선택').value = 대상.중량ID;
+  document.getElementById('코드입수량선택').value = 대상.입수량ID;
+  코드미리보기갱신();
+
+  const 수정중칸 = document.getElementById('코드생성수정중');
+  수정중칸.textContent = `${대상.구분형코드} 를 수정하고 있습니다.`;
+  수정중칸.classList.remove('hidden');
+  document.getElementById('코드저장버튼').textContent = '수정 저장';
+  document.getElementById('코드생성취소버튼').classList.remove('hidden');
+  화면전환('제품코드생성');
+}
+
+document.getElementById('코드저장버튼').addEventListener('click', 제품코드저장);
+document.getElementById('코드생성취소버튼').addEventListener('click', 제품코드생성초기화);
+
+/* ===================================================================
+   13. 제품코드 › 제품코드 목록 — 검색 · 정렬 · 복사
+   =================================================================== */
+const 검색조건 = { 제품분류: '', 중량: '', 브랜드: '', 입수량: '', 키워드: '' };
+let 정렬기준 = '생성일';     // '생성일' | '코드'
+let 정렬방향 = '내림';       // '오름' | '내림'
+const 선택한코드 = new Set();
+
+function 지금밀리초() { return Date.now(); }
+
+/** 저장한 시각을 KST 기준으로 보여준다. 브라우저 시간대와 무관하게 같은 날짜가 나와야 한다. */
+function 날짜표시(밀리초) {
+  if (!밀리초) return '';
+  const 한국 = new Date(밀리초 + 9 * 60 * 60 * 1000);
+  const 두자리 = (숫자) => String(숫자).padStart(2, '0');
+  return `${한국.getUTCFullYear()}-${두자리(한국.getUTCMonth() + 1)}-${두자리(한국.getUTCDate())}`
+       + ` ${두자리(한국.getUTCHours())}:${두자리(한국.getUTCMinutes())}`;
+}
+
+function 토스트(문구) {
+  let 칸 = document.getElementById('토스트');
+  if (!칸) {
+    칸 = document.createElement('div');
+    칸.id = '토스트';
+    칸.className = 'fixed left-1/2 -translate-x-1/2 bottom-6 z-50 bg-slate-900 text-white text-[13.5px] '
+                 + 'font-bold rounded-full px-4 py-2.5 shadow-lg transition-opacity duration-200';
+    document.body.appendChild(칸);
+  }
+  칸.textContent = 문구;
+  칸.style.opacity = '1';
+  clearTimeout(토스트.타이머);
+  토스트.타이머 = setTimeout(() => { 칸.style.opacity = '0'; }, 2200);
+}
+
+/** 클립보드 API 가 막힌 환경(http, 구형 브라우저)에서도 복사되도록 대비한다. */
+async function 클립보드복사(문자열) {
+  try {
+    await navigator.clipboard.writeText(문자열);
+    return true;
+  } catch {
+    try {
+      const 임시 = document.createElement('textarea');
+      임시.value = 문자열;
+      임시.style.position = 'fixed';
+      임시.style.opacity = '0';
+      document.body.appendChild(임시);
+      임시.select();
+      const 성공 = document.execCommand('copy');
+      document.body.removeChild(임시);
+      return 성공;
+    } catch {
+      return false;
+    }
+  }
+}
+
+function 목록필터드롭다운그리기() {
+  const 제품분류칸 = document.getElementById('필터제품분류');
+  const 중량칸 = document.getElementById('필터중량');
+  const 브랜드칸 = document.getElementById('필터브랜드');
+  const 입수량칸 = document.getElementById('필터입수량');
+
+  제품분류칸.innerHTML = '<option value="">제품분류 전체</option>' + 저장소.캐시.대분류.map((줄) =>
+    `<option value="${줄.id}">${html이스케이프(줄.대분류명)} › ${html이스케이프(줄.옵션분류명)}</option>`).join('');
+  중량칸.innerHTML = '<option value="">중량·수량 전체</option>' + 저장소.캐시.중량.map((중량) =>
+    `<option value="${중량.id}">${html이스케이프(중량표기(중량))}</option>`).join('');
+  브랜드칸.innerHTML = '<option value="">브랜드 전체</option>' + 저장소.캐시.브랜드.map((브랜드) =>
+    `<option value="${브랜드.id}">${html이스케이프(브랜드.브랜드명)}</option>`).join('');
+  입수량칸.innerHTML = '<option value="">입수량 전체</option>' + 저장소.캐시.입수량.map((입수량) =>
+    `<option value="${입수량.id}">${html이스케이프(입수량표기(입수량))}</option>`).join('');
+
+  제품분류칸.value = 검색조건.제품분류;
+  중량칸.value = 검색조건.중량;
+  브랜드칸.value = 검색조건.브랜드;
+  입수량칸.value = 검색조건.입수량;
+}
+
+/** 한 건을 사람이 읽는 문구로. 키워드 검색 대상이기도 하다. */
+function 코드설명(코드) {
+  const 재료 = 코드재료(코드);
+  return [
+    재료.브랜드 ? 재료.브랜드.브랜드명 : '브랜드 삭제됨',
+    재료.분류 ? `${재료.분류.대분류명} › ${재료.분류.옵션분류명}` : '분류 삭제됨',
+    재료.중량 ? 중량표기(재료.중량) : '중량 삭제됨',
+    재료.입수량 ? 입수량표기(재료.입수량) : '입수량 삭제됨',
+  ].join(' · ');
+}
+
+function 걸러낸제품코드() {
+  const 키워드 = 검색조건.키워드.trim().toLowerCase();
+  const 걸러진 = 저장소.캐시.제품코드.filter((코드) => {
+    if (검색조건.제품분류 && 코드.분류ID !== 검색조건.제품분류) return false;
+    if (검색조건.중량 && 코드.중량ID !== 검색조건.중량) return false;
+    if (검색조건.브랜드 && 코드.브랜드ID !== 검색조건.브랜드) return false;
+    if (검색조건.입수량 && 코드.입수량ID !== 검색조건.입수량) return false;
+    if (!키워드) return true;
+    // 분류명 · 생성된 코드 · 옵션분류 · 브랜드 어디에든 걸리면 통과
+    const 재료 = 코드재료(코드);
+    const 건초더미 = [
+      코드.구분형코드, 코드.연속형코드,
+      재료.브랜드?.브랜드명, 재료.브랜드?.브랜드코드,
+      재료.분류?.대분류명, 재료.분류?.대분류코드,
+      재료.분류?.옵션분류명, 재료.분류?.옵션분류코드,
+      재료.중량 ? 중량코드(재료.중량) : '',
+      재료.입수량 ? 입수량코드(재료.입수량) : '',
+    ].join(' ').toLowerCase();
+    return 건초더미.includes(키워드);
+  });
+
+  const 방향 = 정렬방향 === '오름' ? 1 : -1;
+  걸러진.sort((가, 나) => 방향 * (정렬기준 === '코드'
+    ? 가.구분형코드.localeCompare(나.구분형코드)
+    : (가.생성일 ?? 0) - (나.생성일 ?? 0)));
+  return 걸러진;
+}
+
+function 정렬버튼갱신() {
+  document.querySelectorAll('[data-정렬]').forEach((버튼) => {
+    const 활성 = 버튼.dataset.정렬 === 정렬기준;
+    버튼.classList.toggle('btn-main', 활성);
+    const 이름 = 버튼.dataset.정렬 === '코드' ? '제품코드' : '생성 날짜';
+    버튼.textContent = 활성 ? `${이름} ${정렬방향 === '오름' ? '↑' : '↓'}` : 이름;
+  });
+}
+
+function 제품코드목록그리기() {
+  const 대상 = document.getElementById('제품코드목록');
+  const 목록 = 걸러낸제품코드();
+
+  // 화면에서 사라진 건의 체크는 풀어 준다
+  for (const id of [...선택한코드]) if (!목록.some((코드) => 코드.id === id)) 선택한코드.delete(id);
+
+  정렬버튼갱신();
+  선택상태갱신(목록);
+
+  if (저장소.캐시.제품코드.length === 0) {
+    대상.innerHTML = 빈안내('만들어진 제품코드가 없습니다. 「제품코드 생성」에서 먼저 코드를 만들어 주세요.');
+    return;
+  }
+  if (목록.length === 0) {
+    대상.innerHTML = 빈안내('검색 조건에 맞는 제품코드가 없습니다.');
+    return;
+  }
+
+  대상.innerHTML = '<div class="space-y-2">' + 목록.map((코드) => `
+    <div class="bg-white rounded-xl border border-slate-200 px-4 py-3">
+      <div class="flex items-start gap-3">
+        <input type="checkbox" class="w-4 h-4 mt-1 shrink-0" data-코드선택="${코드.id}" ${선택한코드.has(코드.id) ? 'checked' : ''}>
+        <div class="min-w-0 flex-1">
+          <div class="flex items-center gap-2 flex-wrap">
+            <span class="코드값 font-extrabold text-[15.5px] text-blue-700 break-all">${html이스케이프(코드.구분형코드)}</span>
+            <button class="btn btn-sm" type="button" data-복사="구분형" data-코드ID="${코드.id}">복사</button>
+          </div>
+          <div class="flex items-center gap-2 flex-wrap mt-1">
+            <span class="코드값 text-[13.5px] text-slate-600 break-all">${html이스케이프(코드.연속형코드)}</span>
+            <button class="btn btn-sm" type="button" data-복사="연속형" data-코드ID="${코드.id}">복사</button>
+          </div>
+          <div class="text-[13px] text-slate-500 mt-1.5">${html이스케이프(코드설명(코드))}</div>
+          <div class="text-[11.5px] text-slate-400 mt-0.5 tabular-nums">${html이스케이프(날짜표시(코드.생성일))} 생성</div>
+        </div>
+        <div class="flex gap-2 shrink-0">
+          <button class="btn btn-sm" type="button" data-코드수정="${코드.id}">수정</button>
+          <button class="btn btn-sm btn-del" type="button" data-코드삭제="${코드.id}">삭제</button>
+        </div>
+      </div>
+    </div>`).join('') + '</div>';
+}
+
+function 선택상태갱신(목록) {
+  const 보이는목록 = 목록 ?? 걸러낸제품코드();
+  document.getElementById('선택개수').textContent = `${선택한코드.size}개 선택`;
+  const 전체선택칸 = document.getElementById('전체선택');
+  전체선택칸.checked = 보이는목록.length > 0 && 보이는목록.every((코드) => 선택한코드.has(코드.id));
+}
+
+/* 검색 · 정렬 입력 */
+[['필터제품분류', '제품분류'], ['필터중량', '중량'], ['필터브랜드', '브랜드'], ['필터입수량', '입수량']]
+  .forEach(([칸ID, 조건이름]) => {
+    document.getElementById(칸ID).addEventListener('change', (사건) => {
+      검색조건[조건이름] = 사건.target.value;
+      제품코드목록그리기();
+    });
+  });
+
+document.getElementById('키워드검색').addEventListener('input', (사건) => {
+  검색조건.키워드 = 사건.target.value;
+  제품코드목록그리기();
+});
+
+document.querySelectorAll('[data-정렬]').forEach((버튼) => {
+  버튼.addEventListener('click', () => {
+    const 누른기준 = 버튼.dataset.정렬;
+    // 같은 기준을 다시 누르면 오름/내림을 뒤집는다
+    if (정렬기준 === 누른기준) 정렬방향 = 정렬방향 === '오름' ? '내림' : '오름';
+    else { 정렬기준 = 누른기준; 정렬방향 = 누른기준 === '코드' ? '오름' : '내림'; }
+    제품코드목록그리기();
+  });
+});
+
+document.getElementById('필터초기화버튼').addEventListener('click', () => {
+  Object.assign(검색조건, { 제품분류: '', 중량: '', 브랜드: '', 입수량: '', 키워드: '' });
+  document.getElementById('키워드검색').value = '';
+  목록필터드롭다운그리기();
+  제품코드목록그리기();
+});
+
+/* 선택 · 복사 · 수정 · 삭제 */
+document.getElementById('전체선택').addEventListener('change', (사건) => {
+  const 목록 = 걸러낸제품코드();
+  if (사건.target.checked) 목록.forEach((코드) => 선택한코드.add(코드.id));
+  else 목록.forEach((코드) => 선택한코드.delete(코드.id));
+  제품코드목록그리기();
+});
+
+document.getElementById('선택복사버튼').addEventListener('click', async () => {
+  const 형태 = document.getElementById('복사형태').value;
+  // 화면에 보이는 순서 그대로 복사한다
+  const 대상 = 걸러낸제품코드().filter((코드) => 선택한코드.has(코드.id));
+  if (대상.length === 0) { 토스트('복사할 제품코드를 먼저 선택해 주세요'); return; }
+  const 문자열 = 대상.map((코드) => (형태 === '연속형' ? 코드.연속형코드 : 코드.구분형코드)).join('\n');
+  토스트(await 클립보드복사(문자열)
+    ? `${형태}코드 ${대상.length}건을 복사했습니다`
+    : '복사하지 못했습니다. 코드를 직접 선택해 복사해 주세요');
+});
+
+document.getElementById('제품코드목록').addEventListener('change', (사건) => {
+  const 체크 = 사건.target.closest('[data-코드선택]');
+  if (!체크) return;
+  if (체크.checked) 선택한코드.add(체크.dataset.코드선택);
+  else 선택한코드.delete(체크.dataset.코드선택);
+  선택상태갱신();
+});
+
+document.getElementById('제품코드목록').addEventListener('click', async (사건) => {
+  const 복사 = 사건.target.closest('[data-복사]');
+  const 수정 = 사건.target.closest('[data-코드수정]');
+  const 삭제 = 사건.target.closest('[data-코드삭제]');
+
+  if (복사) {
+    const 대상 = 저장소.캐시.제품코드.find((코드) => 코드.id === 복사.dataset.코드id);
+    if (!대상) return;
+    const 문자열 = 복사.dataset.복사 === '연속형' ? 대상.연속형코드 : 대상.구분형코드;
+    토스트(await 클립보드복사(문자열) ? `복사했습니다 · ${문자열}` : '복사하지 못했습니다');
+  }
+  if (수정) 제품코드수정시작(수정.dataset.코드수정);
+  if (삭제) {
+    const 대상 = 저장소.캐시.제품코드.find((코드) => 코드.id === 삭제.dataset.코드삭제);
+    if (!대상 || !confirm(`제품코드 ${대상.구분형코드} 를 삭제할까요?`)) return;
+    저장소.캐시.제품코드 = 저장소.캐시.제품코드.filter((코드) => 코드.id !== 대상.id);
+    선택한코드.delete(대상.id);
+    await 저장소.저장('제품코드');
+    if (수정중제품코드ID === 대상.id) 제품코드생성초기화();
+    제품코드화면다시그리기();
+    토스트('제품코드를 삭제했습니다');
+  }
+});
+
+/** 제품코드와 관련된 화면을 한 번에 다시 그린다. */
+function 제품코드화면다시그리기() {
+  코드생성드롭다운그리기();
+  목록필터드롭다운그리기();
+  제품코드목록그리기();
+  제품코드불러오기갱신();
+}
+
+/* ===================================================================
+   14. 판매가 계산 ↔ 제품코드 연결
+   기능은 넣어 두되 화면 노출은 아직 막아 둔다.
+   아래 값을 true 로 바꾸면 판매가 계산 화면에 「제품코드 불러오기」가 나타난다.
+   =================================================================== */
+const 제품코드연동표시 = false;
+
+function 제품코드불러오기갱신() {
+  const 영역 = document.getElementById('제품코드불러오기영역');
+  if (!영역) return;
+  영역.classList.toggle('hidden', !제품코드연동표시);
+  if (!제품코드연동표시) return;
+
+  const 드롭다운 = document.getElementById('제품코드불러오기');
+  const 이전값 = 드롭다운.value;
+  드롭다운.innerHTML = '<option value="">— 제품코드에서 불러오기 —</option>'
+    + 저장소.캐시.제품코드.map((코드) =>
+        `<option value="${코드.id}">${html이스케이프(코드.구분형코드)} · ${html이스케이프(코드설명(코드))}</option>`).join('');
+  드롭다운.value = 이전값;
+}
+
+/** 고른 제품코드의 재료를 판매가 계산 입력칸에 채운다. */
+function 제품코드적용(코드ID) {
+  const 대상 = 저장소.캐시.제품코드.find((코드) => 코드.id === 코드ID);
+  if (!대상) return;
+  const 재료 = 코드재료(대상);
+
+  const 이름조각 = [재료.브랜드?.브랜드명, 재료.분류?.대분류명, 재료.분류?.옵션분류명].filter(Boolean);
+  if (재료.중량) 이름조각.push(중량코드(재료.중량));
+  document.getElementById('제품명').value = 이름조각.join(' ');
+
+  if (재료.중량) {
+    document.getElementById('판매가단위').value = 재료.중량.단위 === 'G' ? 'g' : '개';
+    document.getElementById('판매가수량').value = 재료.중량.값;
+  }
+  if (재료.입수량) {
+    document.getElementById('입수량최소').value = 재료.입수량.최소;
+    document.getElementById('입수량최대').value = 재료.입수량.최대;
+  }
+  토스트(`${대상.구분형코드} 를 불러왔습니다`);
+}
+
+document.getElementById('제품코드불러오기')?.addEventListener('change', (사건) => {
+  if (사건.target.value) 제품코드적용(사건.target.value);
+});
+
+/* ===================================================================
+   15. 시작
    =================================================================== */
 async function 시작() {
   try {
@@ -1148,12 +2370,15 @@ async function 시작() {
   }
 
   브랜드목록그리기();
+  분류브랜드목록그리기();
   택배목록그리기();
   채널브랜드드롭다운그리기();
   채널목록그리기();
   택배드롭다운그리기();
   마진율칸그리기();
   환산화면갱신();
+  중량환산안내갱신();
+  분류다시그리기();          // 대분류 · 중량·수량 · 입수량 목록 + 제품코드 화면
   화면전환('판매가계산');
 }
 
