@@ -259,23 +259,25 @@
       <div class="grid sm:grid-cols-2 gap-3">
         <div>
           <label class="lbl" for="대분류명입력">대분류명</label>
-          <input id="대분류명입력" class="inp" type="text" placeholder="예: 포도">
+          <input id="대분류명입력" class="inp" type="text" placeholder="예: 감귤류">
         </div>
         <div>
           <label class="lbl" for="대분류코드입력">대분류 코드</label>
-          <input id="대분류코드입력" class="inp 코드칸" type="text" maxlength="10" placeholder="예: GP">
-        </div>
-        <div>
-          <label class="lbl" for="옵션분류명입력">옵션분류명</label>
-          <input id="옵션분류명입력" class="inp" type="text" placeholder="예: 샤인머스캣">
-        </div>
-        <div>
-          <label class="lbl" for="옵션분류코드입력">옵션분류 코드</label>
-          <input id="옵션분류코드입력" class="inp 코드칸" type="text" maxlength="10" placeholder="예: SH">
+          <input id="대분류코드입력" class="inp 코드칸" type="text" maxlength="10" placeholder="예: CT">
         </div>
       </div>
+
+      <div class="mt-4">
+        <div class="flex items-center justify-between mb-1.5">
+          <label class="lbl mb-0">옵션분류 <span id="옵션분류개수" class="font-normal text-slate-400"></span></label>
+          <button id="옵션분류추가버튼" class="btn btn-sm" type="button">+ 옵션분류 추가</button>
+        </div>
+        <div id="옵션분류목록" class="space-y-2"></div>
+      </div>
+
       <p class="text-[12px] text-slate-500 mt-2">
-        대분류와 옵션분류는 한 세트로 묶여 등록됩니다. 코드는 대문자로 저장됩니다.<br>
+        코드는 대문자로 저장됩니다.<br>
+        <b>+ 옵션분류 추가</b> 로 칸을 늘리면 같은 대분류에 여러 옵션분류를 <b>한 번에</b> 등록합니다.<br>
         대분류명·대분류 코드를 고치면 <b>그 대분류에 달린 옵션분류가 모두 함께</b> 바뀝니다.
       </p>
       <div class="mt-3 flex gap-2">
@@ -1526,6 +1528,53 @@ function 분류다시그리기() {
 }
 
 /* ── 대분류 ─────────────────────────────────────────────────── */
+/**
+ * 대분류 하나에 옵션분류가 여러 개인 경우가 많아서, 생성 폼의 옵션분류를 줄 단위로 늘린다.
+ * 여기 담긴 줄이 저장 버튼 한 번에 모두 등록된다.
+ * 수정 모드에서는 고르고 있는 옵션분류 한 줄만 다룬다.
+ */
+let 옵션분류칸들 = [{ 옵션분류명: '', 옵션분류코드: '' }];
+
+function 옵션분류칸그리기() {
+  const 수정중 = Boolean(수정중대분류ID);
+  const 지울수있음 = !수정중 && 옵션분류칸들.length > 1;
+
+  document.getElementById('옵션분류추가버튼').classList.toggle('hidden', 수정중);
+  document.getElementById('옵션분류개수').textContent =
+    수정중 ? '(수정 중에는 한 줄만 바꿉니다)' : `${옵션분류칸들.length}줄`;
+
+  document.getElementById('옵션분류목록').innerHTML = 옵션분류칸들.map((칸, 순번) => `
+    <div class="flex gap-2">
+      <input class="inp" type="text" style="flex:1;min-width:0"
+             data-옵션분류명="${순번}" value="${html이스케이프(칸.옵션분류명)}" placeholder="옵션분류명 (예: 만감)">
+      <input class="inp 코드칸" type="text" maxlength="10" style="flex:0 0 140px"
+             data-옵션분류코드="${순번}" value="${html이스케이프(칸.옵션분류코드)}" placeholder="코드 (예: MG)">
+      <button class="btn btn-sm btn-del" type="button" data-옵션분류삭제="${순번}"
+              ${지울수있음 ? '' : 'disabled style="opacity:.35;cursor:default"'}>−</button>
+    </div>`).join('');
+}
+
+document.getElementById('옵션분류추가버튼').addEventListener('click', () => {
+  옵션분류칸들.push({ 옵션분류명: '', 옵션분류코드: '' });
+  옵션분류칸그리기();
+  const 칸들 = document.querySelectorAll('[data-옵션분류명]');
+  칸들[칸들.length - 1]?.focus();
+});
+
+document.getElementById('옵션분류목록').addEventListener('input', (사건) => {
+  const 이름순번 = 사건.target.dataset.옵션분류명;
+  const 코드순번 = 사건.target.dataset.옵션분류코드;
+  if (이름순번 !== undefined) 옵션분류칸들[Number(이름순번)].옵션분류명 = 사건.target.value;
+  if (코드순번 !== undefined) 옵션분류칸들[Number(코드순번)].옵션분류코드 = 사건.target.value;
+});
+
+document.getElementById('옵션분류목록').addEventListener('click', (사건) => {
+  const 삭제 = 사건.target.closest('[data-옵션분류삭제]');
+  if (!삭제 || 수정중대분류ID || 옵션분류칸들.length <= 1) return;
+  옵션분류칸들.splice(Number(삭제.dataset.옵션분류삭제), 1);
+  옵션분류칸그리기();
+});
+
 function 대분류목록그리기() {
   const 대상 = document.getElementById('대분류목록');
   const 목록 = 저장소.캐시.대분류;
@@ -1542,10 +1591,11 @@ function 대분류목록그리기() {
 
   대상.innerHTML = '<div class="space-y-2">' + [...묶음.entries()].map(([코드, 묶은것]) => `
     <div class="bg-white rounded-xl border border-slate-200 overflow-hidden">
-      <div class="px-4 py-2.5 bg-slate-50 border-b border-slate-200 flex items-baseline gap-2">
+      <div class="px-4 py-2.5 bg-slate-50 border-b border-slate-200 flex items-center gap-2">
         <span class="font-extrabold">${html이스케이프(묶은것.대분류명)}</span>
         <span class="코드값 text-[13px] text-slate-500">${html이스케이프(코드)}</span>
         <span class="text-[12px] text-slate-400 ml-auto">옵션분류 ${묶은것.옵션들.length}개</span>
+        <button class="btn btn-sm" type="button" data-대분류에추가="${html이스케이프(코드)}">+ 옵션분류</button>
       </div>
       ${묶은것.옵션들.map((줄) => `
         <div class="px-4 py-2.5 flex items-center justify-between gap-3 border-b border-slate-100 last:border-b-0">
@@ -1564,13 +1614,22 @@ function 대분류목록그리기() {
 async function 대분류저장() {
   const 대분류명 = document.getElementById('대분류명입력').value.trim();
   const 대분류코드 = 코드정규화(document.getElementById('대분류코드입력').value);
-  const 옵션분류명 = document.getElementById('옵션분류명입력').value.trim();
-  const 옵션분류코드 = 코드정규화(document.getElementById('옵션분류코드입력').value);
-
   if (!대분류명) { alert('대분류명을 입력해 주세요.'); return; }
   if (!대분류코드) { alert('대분류 코드를 입력해 주세요.'); return; }
-  if (!옵션분류명) { alert('옵션분류명을 입력해 주세요.'); return; }
-  if (!옵션분류코드) { alert('옵션분류 코드를 입력해 주세요.'); return; }
+
+  // 빈 줄은 건너뛰고, 한쪽만 채운 줄은 실수이므로 막는다
+  const 채운줄 = [];
+  for (const [순번, 칸] of 옵션분류칸들.entries()) {
+    const 옵션분류명 = 칸.옵션분류명.trim();
+    const 옵션분류코드 = 코드정규화(칸.옵션분류코드);
+    if (!옵션분류명 && !옵션분류코드) continue;
+    if (!옵션분류명 || !옵션분류코드) {
+      alert(`${순번 + 1}번째 옵션분류 줄에 이름과 코드를 모두 입력해 주세요.`);
+      return;
+    }
+    채운줄.push({ 옵션분류명, 옵션분류코드 });
+  }
+  if (채운줄.length === 0) { alert('옵션분류를 최소 하나 입력해 주세요.'); return; }
 
   // 같은 대분류코드가 다른 이름으로 등록되어 있으면 막는다. 코드 하나에 이름 하나여야 한다.
   const 이름충돌 = 저장소.캐시.대분류.find(
@@ -1580,10 +1639,18 @@ async function 대분류저장() {
     return;
   }
 
-  const 조합중복 = 저장소.캐시.대분류.find(
-    (줄) => 줄.대분류코드 === 대분류코드 && 줄.옵션분류코드 === 옵션분류코드 && 줄.id !== 수정중대분류ID);
+  // 이번에 넣는 줄끼리 겹치는지 먼저 본다
+  const 이번코드들 = 채운줄.map((줄) => 줄.옵션분류코드);
+  const 안에서겹침 = 이번코드들.find((코드, 순번) => 이번코드들.indexOf(코드) !== 순번);
+  if (안에서겹침) { alert(`옵션분류 코드 ${안에서겹침} 를 두 줄에 넣었습니다.`); return; }
+
+  // 이미 등록된 것과 겹치는지 본다
+  const 조합중복 = 채운줄
+    .map((줄) => 저장소.캐시.대분류.find(
+      (기존) => 기존.대분류코드 === 대분류코드 && 기존.옵션분류코드 === 줄.옵션분류코드 && 기존.id !== 수정중대분류ID))
+    .find(Boolean);
   if (조합중복) {
-    alert(`${대분류코드} - ${옵션분류코드} 조합은 이미 「${조합중복.대분류명} › ${조합중복.옵션분류명}」 으로 등록되어 있습니다.`);
+    alert(`${대분류코드} - ${조합중복.옵션분류코드} 조합은 이미 「${조합중복.대분류명} › ${조합중복.옵션분류명}」 으로 등록되어 있습니다.`);
     return;
   }
 
@@ -1606,26 +1673,31 @@ async function 대분류저장() {
       }
     }
 
-    Object.assign(대상, { 대분류명, 대분류코드, 옵션분류명, 옵션분류코드 });
+    Object.assign(대상, { 대분류명, 대분류코드, ...채운줄[0] });
     for (const 줄 of 함께움직일줄) {
       줄.대분류명 = 대분류명;
       줄.대분류코드 = 대분류코드;
     }
   } else {
-    저장소.캐시.대분류.push({ id: 새ID('g'), 대분류명, 대분류코드, 옵션분류명, 옵션분류코드 });
+    for (const 줄 of 채운줄) {
+      저장소.캐시.대분류.push({ id: 새ID('g'), 대분류명, 대분류코드, ...줄 });
+    }
   }
 
   await 저장소.저장('분류');
   await 제품코드전체재계산();
+  const 만든건수 = 수정중대분류ID ? 0 : 채운줄.length;
   대분류입력초기화();
   분류다시그리기();
+  if (만든건수 > 1) 토스트(`${대분류명} 에 옵션분류 ${만든건수}건을 등록했습니다`);
 }
 
 function 대분류입력초기화() {
   수정중대분류ID = null;
-  ['대분류명입력', '대분류코드입력', '옵션분류명입력', '옵션분류코드입력'].forEach((칸) => {
-    document.getElementById(칸).value = '';
-  });
+  document.getElementById('대분류명입력').value = '';
+  document.getElementById('대분류코드입력').value = '';
+  옵션분류칸들 = [{ 옵션분류명: '', 옵션분류코드: '' }];
+  옵션분류칸그리기();
   document.getElementById('대분류저장버튼').textContent = '대분류 생성';
   document.getElementById('대분류취소버튼').classList.add('hidden');
 }
@@ -1645,18 +1717,32 @@ document.getElementById('대분류취소버튼').addEventListener('click', 대�
 document.getElementById('대분류목록').addEventListener('click', (사건) => {
   const 수정 = 사건.target.closest('[data-대분류수정]');
   const 삭제 = 사건.target.closest('[data-대분류삭제]');
+  const 추가 = 사건.target.closest('[data-대분류에추가]');
+
   if (수정) {
     const 대상 = 대분류찾기(수정.dataset.대분류수정);
     if (!대상) return;
     수정중대분류ID = 대상.id;
     document.getElementById('대분류명입력').value = 대상.대분류명;
     document.getElementById('대분류코드입력').value = 대상.대분류코드;
-    document.getElementById('옵션분류명입력').value = 대상.옵션분류명;
-    document.getElementById('옵션분류코드입력').value = 대상.옵션분류코드;
+    옵션분류칸들 = [{ 옵션분류명: 대상.옵션분류명, 옵션분류코드: 대상.옵션분류코드 }];
+    옵션분류칸그리기();
     document.getElementById('대분류저장버튼').textContent = '수정 저장';
     document.getElementById('대분류취소버튼').classList.remove('hidden');
     document.getElementById('대분류명입력').focus();
   }
+
+  // 이미 있는 대분류에 옵션분류만 더 붙일 때 — 대분류명·코드를 다시 치지 않아도 되게 채워 준다
+  if (추가) {
+    const 기존 = 저장소.캐시.대분류.find((줄) => 줄.대분류코드 === 추가.dataset.대분류에추가);
+    if (!기존) return;
+    대분류입력초기화();
+    document.getElementById('대분류명입력').value = 기존.대분류명;
+    document.getElementById('대분류코드입력').value = 기존.대분류코드;
+    document.querySelector('[data-옵션분류명="0"]')?.focus();
+    document.getElementById('대분류저장버튼').scrollIntoView({ block: 'center' });
+  }
+
   if (삭제) 대분류삭제(삭제.dataset.대분류삭제);
 });
 
@@ -2378,6 +2464,7 @@ async function 시작() {
   마진율칸그리기();
   환산화면갱신();
   중량환산안내갱신();
+  옵션분류칸그리기();
   분류다시그리기();          // 대분류 · 중량·수량 · 입수량 목록 + 제품코드 화면
   화면전환('판매가계산');
 }
