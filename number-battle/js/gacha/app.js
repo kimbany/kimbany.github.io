@@ -257,8 +257,10 @@ function 공개_화면(state) {
   `;
   root.querySelector('[data-act="next"]').addEventListener('click', () => {
     try {
-      store.update((s) => { closeCapsule(s); });
+      // store.update() 가 동기적으로 다시 그리므로, 그 전에 비워야
+      // 다음 사람 차례에 입력란이 깨끗하게 나온다
       ui.drawName = '';
+      store.update((s) => { closeCapsule(s); });
     } catch (err) { toast(err.message); }
   });
   기록_연결();
@@ -494,6 +496,7 @@ function 드로어_그리기() {
       } catch (err) { toast(err.message); }
     } else if (action === 'resume') {
       try {
+        ui.drawName = '';
         store.update((st) => { resumeGacha(st); });
         드로어_닫기();
         toast('이어서 뽑습니다.', 1600);
@@ -575,6 +578,9 @@ export function unmount() {
   배경_지우기();
   document.body.classList.remove('gacha-mode');
   ui.spinning = false;
+  // 결과까지 확인한 뒤 화면을 벗어나면 다음 판을 위해 자동 초기화한다.
+  // (구독을 끊은 뒤라 store.reset() 이 사라진 화면을 다시 그리지 않는다)
+  if (store.get().phase === GACHA_PHASE.DONE) 초기화();
   if (root) { root.classList.remove('has-dock'); root.innerHTML = ''; }
   root = null;
   host = null;
