@@ -3,7 +3,7 @@
 번호가 붙은 피규어·랜덤박스를 오프라인에서 재미있게 나누기 위한 **파티게임 웹앱**입니다.
 기기 한 대를 돌려가며 각자 원하는 번호를 몰래 고르고, 겹친 번호는 미니게임으로 쟁탈합니다.
 
-👉 **[바로 실행하기](https://kimbany.github.io/number-battle/)**
+👉 **[바로 실행하기](https://invedory.com/number-battle/)**
 
 ## 어떻게 하는 게임인가요
 
@@ -57,10 +57,11 @@
 빌드 도구가 필요 없는 정적 파일입니다. 로컬에서 볼 때는 ES modules 때문에 정적 서버가 필요합니다.
 
 ```bash
-npx http-server -p 8080 .      # 저장소 루트에서
-# http://localhost:8080/number-battle/
+npx http-server -p 8899 -s .   # 저장소 루트에서
+# http://localhost:8899/number-battle/
 
 node tests/engine.test.mjs     # 게임 로직 테스트 (CASE A~H · 경계 · 무작위 400회)
+node tests/layout.mjs          # 반응형 검사 (위 서버가 떠 있어야 함)
 ```
 
 구조와 확장 방법(새 미니게임 추가 등)은 [`CLAUDE.md`](./CLAUDE.md) 를 참고하세요.

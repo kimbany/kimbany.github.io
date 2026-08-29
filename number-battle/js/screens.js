@@ -30,6 +30,22 @@ export const PHASE_LABEL = {
 };
 
 /* ===================== SETUP ===================== */
+
+/* option 안에는 게임 이름만 넣는다.
+ * iOS WebKit 은 select 를 "가장 긴 option 텍스트"보다 좁게 줄이지 않아서
+ * 설명까지 넣으면 문서 전체가 가로로 넘치고 화면이 축소돼 버린다. */
+function gamePicker(key, label, gameIds, selectedId) {
+  const chosen = getGame(selectedId);
+  return `
+    <div class="field game-picker">
+      <label>${escapeHtml(label)}</label>
+      <select data-select="${key}">
+        ${listGames(gameIds).map((g) => `<option value="${g.id}" ${g.id === selectedId ? 'selected' : ''}>${g.icon} ${escapeHtml(g.name)}</option>`).join('')}
+      </select>
+      <p class="picker-note">${escapeHtml(chosen.tagline)}</p>
+    </div>`;
+}
+
 export function renderSetup(root, ctx) {
   const draft = ctx.ui.setup;
   root.innerHTML = `
@@ -53,18 +69,8 @@ export function renderSetup(root, ctx) {
 
     <div class="card">
       <p class="eyebrow">미니게임 선택</p>
-      <div class="field" style="margin-bottom:12px">
-        <label>1차 번호 쟁탈전</label>
-        <select data-select="battle">
-          ${listGames(BATTLE_GAME_IDS).map((g) => `<option value="${g.id}" ${g.id === draft.battleGameId ? 'selected' : ''}>${g.icon} ${g.name} — ${escapeHtml(g.tagline)}</option>`).join('')}
-        </select>
-      </div>
-      <div class="field">
-        <label>FINAL 순위 결정전</label>
-        <select data-select="final">
-          ${listGames(FINAL_GAME_IDS).map((g) => `<option value="${g.id}" ${g.id === draft.finalGameId ? 'selected' : ''}>${g.icon} ${g.name} — ${escapeHtml(g.tagline)}</option>`).join('')}
-        </select>
-      </div>
+      ${gamePicker('battle', '1차 번호 쟁탈전', BATTLE_GAME_IDS, draft.battleGameId)}
+      ${gamePicker('final', 'FINAL 순위 결정전', FINAL_GAME_IDS, draft.finalGameId)}
     </div>
 
     <div class="card">
@@ -83,8 +89,14 @@ export function renderSetup(root, ctx) {
     draft.totalNumbers = Math.max(MIN_NUMBERS, Math.min(MAX_NUMBERS, next));
     ctx.refresh();
   }));
-  root.querySelector('[data-select="battle"]').addEventListener('change', (e) => { draft.battleGameId = e.target.value; });
-  root.querySelector('[data-select="final"]').addEventListener('change', (e) => { draft.finalGameId = e.target.value; });
+  root.querySelector('[data-select="battle"]').addEventListener('change', (e) => {
+    draft.battleGameId = e.target.value;
+    ctx.refresh();
+  });
+  root.querySelector('[data-select="final"]').addEventListener('change', (e) => {
+    draft.finalGameId = e.target.value;
+    ctx.refresh();
+  });
   root.querySelector('[data-input="pin"]').addEventListener('input', (e) => { draft.hostPin = e.target.value.trim(); });
   root.querySelector('[data-act="start"]').addEventListener('click', () => ctx.act.startGame(draft));
 }
