@@ -400,6 +400,7 @@
 /* ---------------------------------------------------------------- 가챠 기계 */
 .gacha-machine {
   position: relative; padding: 0 2px;
+  width: 100%; max-width: 440px; margin-inline: auto; /* 넓은 화면에서 통이 과하게 커지지 않게 */
   animation: g-rise var(--q-dur) var(--q-ease-out) both;
 }
 
@@ -424,11 +425,10 @@
 
 /* 캡슐이 보이는 창 — 유리 아래로 살짝 파인 느낌 */
 .g-dome {
-  position: relative; height: clamp(232px, 62vw, 300px);
-  /* 가로/세로 반경을 따로 준다.
-     돔 폭이 높이보다 넓어서, 세로 반경을 높이의 70% 이상 줘야 실제 가챠 구체처럼 깊게 부푼다.
-     (46% 정도로는 아치가 얕아 윗면이 납작해 보인다) */
-  border-radius: 50% 50% 20px 20px / 72% 72% 20px 20px;
+  /* 폭이 바뀌어도 늘 정사각형. 고정 높이를 주면 화면 폭마다 비율이 달라진다. */
+  position: relative; aspect-ratio: 1 / 1;
+  /* 정사각형에서는 세로 반경 50% 가 정확히 반원. 56% 로 조금 더 부풀려 구체 느낌을 준다. */
+  border-radius: 50% 50% 20px 20px / 56% 56% 20px 20px;
   background: linear-gradient(180deg, rgba(255,255,255,0.5), rgba(226,232,244,0.55) 60%, rgba(244,247,252,0.6));
   box-shadow:
     inset 0 3px 8px rgba(90, 100, 130, 0.22),
