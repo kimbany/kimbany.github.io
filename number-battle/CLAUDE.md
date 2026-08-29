@@ -26,7 +26,8 @@
 ```
 number-battle/
 ├── index.html            # 셸 (topbar / #screen / #overlay-root / #confetti)
-├── styles.css            # 전체 스타일 (아케이드/네온 톤 + 가챠 기계)
+├── styles.css            # 공통 + 번호 쟁탈전 스타일 (아케이드/네온 톤)
+├── gacha.css             # 가챠 전용 스타일 (클레이 3D). 전부 .gacha-mode 스코프
 ├── js/
 │   ├── main.js           # ★ 셸 + 라우터. 대메뉴를 mount/unmount 로 갈아끼운다
 │   ├── home.js           # 홈 대메뉴 화면
@@ -44,7 +45,8 @@ number-battle/
 │   │   └── fateCards.js  # 기본 FINAL 순위 결정전
 │   └── gacha/
 │       ├── engine.js     # [가챠] ★ 순수 로직. 비복원 균등 추출 + 무결성 검사
-│       └── app.js        # [가챠] 화면 · 기계 연출 · 진행자 드로어 · mount/unmount
+│       ├── app.js        # [가챠] 화면 · 기계 연출 · 진행자 드로어 · mount/unmount
+│       └── icons.js      # [가챠] 인라인 SVG 아이콘 (이모지 대신)
 ├── tests/
 │   ├── engine.test.mjs   # 쟁탈전: CASE A~H + 경계 + 무작위 400회
 │   ├── gacha.test.mjs    # 가챠: 중복 없음 + 확률 균등(χ²) + 복구
@@ -109,6 +111,35 @@ export const myGame = {
 
 후보 미니게임: 폭탄 타이머 · 슬롯머신 · 하이카드 · 랜덤박스 · 가위바위보 · 룰렛
 
+## [가챠] 디자인 시스템
+
+가챠 화면만 **클레이(점토) 3D 무드**를 쓴다. 번호 쟁탈전의 아케이드/네온 톤과 섞이지 않도록
+`gacha.css` 의 모든 규칙은 `.gacha-mode` 아래에만 둔다.
+진입 시 `mount()` 가 `<body>` 에 클래스를 붙이고 `unmount()` 가 뗀다.
+
+- 토큰은 `.gacha-mode` 의 CSS 변수로만 정의하고 재사용한다 (`--g-*`).
+  색·그림자·반경·스프링 커브를 직접 하드코딩하지 말 것
+- 폰트 Pretendard (CDN). `.gacha-mode` 에서만 적용되고 쟁탈전은 기존 폰트 유지
+- 배경은 `.g-bg` 레이어(대각 그라데이션 + 물결 SVG 3겹 + 떠다니는 구슬)를
+  mount 때 `<body>` 에 넣고 unmount 때 지운다
+- 이모지 금지. 아이콘은 `gacha/icons.js` 의 인라인 SVG (currentColor 상속)
+- 뷰 레이어(`gacha/app.js`, `icons.js`)는 함수명도 한글로 쓴다.
+  단 `gacha/engine.js` 는 테스트·문서와 공유하는 API 라 영문 유지
+- 등급 색 토큰(`--g-tier-*`)은 정의해 두되 **숫자에 임의 등급을 붙이지 않는다.**
+  모든 숫자가 동일 확률인 게 이 가챠의 보장이라 등급을 매기면 공정성을 오해하게 된다.
+  전설급 연출(무지개 테두리 + 파티클)은 실제로 특별한 "마지막 캡슐"에만 쓴다
+
+### 이 무드에서 밟은 함정 ⚠️
+
+- **SVG `fill="var(--x)"` 는 동작하지 않는다.** 프레젠테이션 속성은 var() 를 해석하지 않으므로
+  반드시 `style="fill:var(--x)"` 로 준다
+- **배경 레이어에 `z-index: -1` 을 쓰면 안 보인다.** html 에 배경이 있어 body 배경이
+  캔버스로 전파되지 않으므로, 음수 z-index 요소가 body 자기 배경 뒤로 깔린다.
+  `.g-bg` 는 0, `.gacha-mode .app` 은 1 로 명시한다
+- **`backdrop-filter` 는 스태킹 컨텍스트를 만든다.** 그 안에서 `z-index:-1` 의사요소는
+  부모 배경 "위"에 그려져 카드 전체를 덮는다. 무지개 테두리를 바깥 래퍼
+  (`.g-final-ring`)로 뺀 이유
+
 ## [가챠] 확률 설계 ⚠️
 
 ```js
@@ -154,6 +185,9 @@ node tests/layout.mjs           # 320/360/375/390/430/768px 에서 전 화면 �
     단, 이 선언을 `input` 전체에 걸면 **체크박스가 사라지므로** 텍스트 입력에만 한정하세요.
   - `backdrop-filter` 는 `-webkit-` 접두사가 필요합니다.
   - 새 화면·컴포넌트를 추가하면 `tests/layout.mjs` 를 꼭 돌려보세요.
+- **스크린샷으로 확인할 때는 애니메이션이 끝날 때까지 기다릴 것.** `g-rise` 같은 등장
+  애니메이션은 `both` + stagger 라 초기 `opacity: 0` 이다. 덜 기다리면 "카드가 투명하다"는
+  착시로 엉뚱한 원인을 찾게 된다.
 - **애니메이션 오버플로**: `transform: scale()/rotate()` 는 `getBoundingClientRect` 에 반영되어
   가로 스크롤을 만들 수 있습니다. 블록 요소를 확대하면 컨테이너 폭 전체가 커지므로
   `display: inline-block` 으로 콘텐츠 폭만 차지하게 하세요.
