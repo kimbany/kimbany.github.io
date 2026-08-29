@@ -1,11 +1,13 @@
 /* 상태 저장소 — localStorage 영속화 + 구독
  *
- * 비밀 선택 내용(originalNumber)이 저장소에 그대로 보이면 김이 새므로
- * 가볍게 인코딩해서 저장한다. (암호화가 아니라 "실수로 엿보기" 방지용)
+ * 비밀 선택 내용(originalNumber)이나 가챠에 남은 숫자가 저장소에 그대로 보이면
+ * 김이 새므로 가볍게 인코딩해서 저장한다. (암호화가 아니라 "실수로 엿보기" 방지용)
+ *
+ * 번호 쟁탈전과 가챠가 각각 다른 키를 쓰므로 createStore 로 키를 주입한다.
  */
 import { STATE_VERSION, emptySetupState, checkIntegrity } from './engine.js';
 
-const KEY = 'numberBattle.state.v1';
+const BATTLE_KEY = 'numberBattle.state.v1';
 const MAGIC = 'NB1:';
 
 function encode(json) {
@@ -27,8 +29,19 @@ function decode(raw) {
   return new TextDecoder().decode(bytes);
 }
 
-export function createStore() {
-  let state = load() || emptySetupState();
+/**
+ * @param {string} options.key       localStorage 키
+ * @param {function} options.empty   초기(빈) 상태를 만드는 함수
+ * @param {function} options.validate 불러온 데이터 검증 — 문제 목록을 반환하면 그 데이터는 버린다
+ * @param {number} options.version   저장 포맷 버전. 다르면 옛 데이터를 버린다
+ */
+export function createStore({
+  key = BATTLE_KEY,
+  empty = emptySetupState,
+  validate = (s) => checkIntegrity(s, { final: false }),
+  version = STATE_VERSION,
+} = {}) {
+  let state = load(key, validate, version) || empty();
   const listeners = new Set();
 
   function notify() {
@@ -53,21 +66,21 @@ export function createStore() {
         state = JSON.parse(backup); // 반쯤 바뀐 상태가 남지 않도록 롤백
         throw err;
       }
-      save(state);
+      save(state, key);
       if (!silent) notify();
       return state;
     },
 
     replace(next) {
       state = next;
-      save(state);
+      save(state, key);
       notify();
       return state;
     },
 
     reset() {
-      state = emptySetupState();
-      try { localStorage.removeItem(KEY); } catch { /* 무시 */ }
+      state = empty();
+      try { localStorage.removeItem(key); } catch { /* 무시 */ }
       notify();
       return state;
     },
@@ -77,30 +90,26 @@ export function createStore() {
   };
 }
 
-export function save(state) {
+export function save(state, key = BATTLE_KEY) {
   try {
-    localStorage.setItem(KEY, encode(JSON.stringify(state)));
+    localStorage.setItem(key, encode(JSON.stringify(state)));
     return true;
   } catch {
     return false; // 시크릿 모드 등 — 저장 실패해도 게임은 계속된다
   }
 }
 
-export function load() {
+export function load(key = BATTLE_KEY, validate = (s) => checkIntegrity(s, { final: false }), version = STATE_VERSION) {
   let raw = null;
-  try { raw = localStorage.getItem(KEY); } catch { return null; }
+  try { raw = localStorage.getItem(key); } catch { return null; }
   if (!raw) return null;
   try {
     const parsed = JSON.parse(decode(raw));
-    if (!parsed || parsed.version !== STATE_VERSION) return null;
-    // 저장된 데이터가 깨졌으면 버린다 (진행 중 상태는 final=false 로 느슨하게 검사)
-    if (parsed.participants && checkIntegrity(parsed, { final: false }).length) return null;
+    if (!parsed || parsed.version !== version) return null;
+    // 저장된 데이터가 깨졌으면 버린다 (설정 단계 상태는 검사할 게 없다)
+    if (parsed.phase && parsed.phase !== 'SETUP' && validate(parsed).length) return null;
     return parsed;
   } catch {
     return null;
   }
-}
-
-export function hasSavedGame() {
-  return load() !== null;
 }

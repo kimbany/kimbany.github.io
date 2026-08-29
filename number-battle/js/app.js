@@ -1,4 +1,7 @@
-/* 앱 컨트롤러 — 라우팅, 액션, 진행자 메뉴 */
+/* 번호 쟁탈전 — 앱 컨트롤러 (화면 라우팅, 액션, 진행자 메뉴)
+ *
+ * main.js 의 라우터가 mount()/unmount() 로 이 화면을 켜고 끈다.
+ * 동시에 두 개가 뜨는 일이 없으므로 상태는 모듈 수준 싱글턴으로 둔다. */
 import { createStore } from './store.js';
 import * as engine from './engine.js';
 import { PHASE, MIN_NUMBERS, MAX_NUMBERS } from './engine.js';
@@ -30,7 +33,8 @@ const ui = {
   busy: false,
 };
 
-const root = document.getElementById('screen');
+let root = null;   // mount 시 셸이 넘겨준다
+let host = null;   // 셸 API (setChip / setHostMenu)
 
 /* ui.selection 은 화면 이벤트 핸들러가 붙잡고 있는 객체이므로
  * 통째로 교체하지 말고 항상 제자리에서 초기화한다. */
@@ -350,8 +354,7 @@ function render() {
   const view = ROUTES[state.phase];
   const ctx = { state, store, ui, act, refresh: render };
 
-  document.getElementById('phase-chip').textContent = PHASE_LABEL[state.phase] || state.phase;
-  document.getElementById('phase-chip').classList.toggle('live', state.phase !== PHASE.SETUP);
+  host.setChip(PHASE_LABEL[state.phase] || state.phase, state.phase !== PHASE.SETUP);
 
   if (!view) {
     root.innerHTML = '<div class="card center"><p>알 수 없는 단계입니다. 진행자 메뉴에서 초기화해 주세요.</p></div>';
@@ -369,17 +372,49 @@ function render() {
   if (ui.drawerOpen) renderDrawer();
 }
 
-/* ===================== 부팅 ===================== */
-store.subscribe(render);
-document.getElementById('host-btn').addEventListener('click', openDrawer);
-document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeDrawer(); });
+/* ===================== 마운트 / 해제 ===================== */
+let unsubscribe = null;
 
-// 새로고침 복구: 진행 중이던 게임이 있으면 그대로 이어간다
-const booted = store.get();
-if (booted.phase !== PHASE.SETUP) {
-  ui.hostUnlocked = !booted.hostPin;
-  // 새로고침 시 이전 참가자의 입력 흔적은 남기지 않는다
-  resetSelection('NAME');
-  ui.setup.totalNumbers = booted.totalNumbers ?? ui.setup.totalNumbers;
+function onKeydown(e) { if (e.key === 'Escape') closeDrawer(); }
+
+/** 진행 중인 게임이 있는지 (홈 화면에서 "이어하기" 표시용) */
+export function hasBattleInProgress() {
+  const s = store.get();
+  return s.phase !== PHASE.SETUP && s.phase !== PHASE.RESULT;
 }
-render();
+
+export function battleStatusLine() {
+  const s = store.get();
+  if (s.phase === PHASE.SETUP) return null;
+  if (s.phase === PHASE.RESULT) return `지난 게임 결과 (${s.participants.length}명)`;
+  return `진행 중 · ${PHASE_LABEL[s.phase]} · ${s.participants.length}명`;
+}
+
+export function mount(shell) {
+  host = shell;
+  root = shell.root;
+  unsubscribe = store.subscribe(render);
+  shell.setHostMenu(openDrawer);
+  document.addEventListener('keydown', onKeydown);
+
+  // 새로고침/복귀: 진행 중이던 게임이 있으면 그대로 이어간다
+  const booted = store.get();
+  if (booted.phase !== PHASE.SETUP) {
+    ui.hostUnlocked = !booted.hostPin;
+    // 이전 참가자의 입력 흔적은 남기지 않는다
+    resetSelection('NAME');
+    ui.setup.totalNumbers = booted.totalNumbers ?? ui.setup.totalNumbers;
+  }
+  render();
+}
+
+export function unmount() {
+  if (unsubscribe) { unsubscribe(); unsubscribe = null; }
+  document.removeEventListener('keydown', onKeydown);
+  if (ui.timer) { clearTimeout(ui.timer); ui.timer = null; }
+  if (ui.cleanup) { try { ui.cleanup(); } catch { /* 무시 */ } ui.cleanup = null; }
+  closeDrawer();
+  if (root) root.innerHTML = '';
+  root = null;
+  host = null;
+}

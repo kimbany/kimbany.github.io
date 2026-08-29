@@ -79,6 +79,43 @@ for (const width of WIDTHS) {
   await page.goto(URL, { waitUntil: 'domcontentloaded' });
   await page.evaluate(() => localStorage.clear());
   await page.reload({ waitUntil: 'domcontentloaded' });
+
+  /* ---------- 홈 대메뉴 ---------- */
+  await page.waitForSelector('.menu-card');
+  await snap('홈 대메뉴');
+
+  /* ---------- 가챠 뽑기 ---------- */
+  await click('[data-go="gacha"]');
+  await page.waitForSelector('[data-act="start"]');
+  await snap('가챠 설정');
+  await click('[data-act="names"]');
+  for (let i = 11; i < 26; i += 1) await click('[data-step="1"]'); // 26개 (캡슐 많을 때)
+  await snap('가챠 설정(26개)');
+  await click('[data-act="start"]');
+  await page.waitForSelector('.gacha-machine');
+  await snap('가챠 기계');
+  for (let i = 0; i < 3; i += 1) {
+    await page.fill('[data-input="name"]', i === 0 ? '가나다라마바사아자차카' : `P${i}`);
+    await click('.gacha-go');
+    await page.waitForSelector('.co-number', { timeout: 15000 });
+    await page.waitForTimeout(650);
+    await snap('가챠 캡슐 공개');
+    await click('[data-act="history"]');
+    await snap('가챠 기록 펼침');
+    await click('[data-act="next"]');
+    await page.waitForSelector('.gacha-go');
+    await snap('가챠 뽑기 대기');
+  }
+  await click('#host-btn');
+  await page.waitForSelector('.drawer');
+  await snap('가챠 진행자 메뉴');
+  await click('.drawer [data-act="close"]');
+  await click('#home-btn');
+  await page.waitForSelector('.menu-card');
+  await snap('홈(진행 중 표시)');
+
+  /* ---------- 번호 쟁탈전 ---------- */
+  await click('[data-go="battle"]');
   await page.waitForSelector('[data-act="start"]');
   await snap('SETUP');
 
@@ -156,6 +193,23 @@ for (const width of WIDTHS) {
   await snap('최종 결과');
   await click('[data-act="log"]');
   await snap('진행 기록');
+
+  /* ---------- 가챠 전부 소진 (완료 화면) ---------- */
+  await click('#home-btn');
+  await page.waitForSelector('.menu-card');
+  await click('[data-go="gacha"]');
+  await page.waitForSelector('.gacha-go, [data-act="again"]');
+  let g = 0;
+  while (await has('.gacha-go')) {
+    if (g++ > 40) throw new Error(`[${width}px] 가챠가 끝나지 않음`);
+    await click('.gacha-go');
+    await page.waitForSelector('.co-number', { timeout: 15000 });
+    await click('[data-act="next"]');
+    await page.waitForTimeout(120);
+  }
+  await page.waitForSelector('[data-act="again"]');
+  await page.waitForTimeout(600);
+  await snap('가챠 완료');
   await page.close();
   console.log(`  ✅ ${width}px — 모든 화면 검사 완료`);
 }
