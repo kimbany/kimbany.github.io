@@ -10,7 +10,7 @@ import {
   endGachaEarly, resumeGacha, canEndGacha,
   remainingCount, gachaSummary, checkGachaIntegrity,
 } from './engine.js';
-import { toast, confirmDialog } from '../ui.js';
+import { toast, confirmDialog, bindNameInput, NAME_MAX_LENGTH } from '../ui.js';
 import { escapeHtml } from '../util.js';
 import {
   아이콘_캡슐, 아이콘_더하기, 아이콘_빼기, 아이콘_돌리기,
@@ -198,9 +198,9 @@ function 뽑기_화면(state) {
       <section class="g-card" style="--stagger:60ms">
         <div class="g-field">
           <label for="g-name">뽑는 사람 (선택)</label>
-          <input id="g-name" class="g-input" type="text" maxlength="12" data-input="name"
+          <input id="g-name" class="g-input" type="text" data-input="name"
                  placeholder="이름을 적고 손잡이를 돌리세요"
-                 value="${escapeHtml(ui.drawName)}" autocomplete="off" />
+                 value="${escapeHtml(ui.drawName)}" />
         </div>
       </section>` : ''}
     <section class="g-card soft" style="--stagger:120ms">
@@ -218,8 +218,10 @@ function 뽑기_화면(state) {
   기록_연결();
   const input = root.querySelector('[data-input="name"]');
   if (input) {
-    input.addEventListener('input', () => { ui.drawName = input.value; });
-    input.addEventListener('keydown', (e) => { if (e.key === 'Enter') { input.blur(); 뽑기(); } });
+    bindNameInput(input, {
+      onChange: (v) => { ui.drawName = v; },
+      onEnter: () => { input.blur(); 뽑기(); },
+    });
   }
 }
 
@@ -382,6 +384,10 @@ async function 뽑기() {
 
   // 흔들림 → 튀어오름 → 트레이로 낙하
   await new Promise((r) => setTimeout(r, 1150));
+
+  // 조합 중이던 글자는 버튼을 누르며 확정되므로, 저장 직전에 화면 값을 그대로 읽는다
+  const 입력 = root.querySelector('[data-input="name"]');
+  if (입력) ui.drawName = 입력.value.slice(0, NAME_MAX_LENGTH);
 
   try {
     store.update((s) => { drawCapsule(s, { name: ui.drawName }); });

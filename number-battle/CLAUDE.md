@@ -52,7 +52,8 @@ number-battle/
 │   ├── gacha.test.mjs    # 가챠: 중복 없음 + 확률 균등(χ²) + 복구
 │   ├── harness.mjs       # DOM 없이 엔진을 끝까지 돌리는 드라이버 (+ seededRng)
 │   ├── layout.mjs        # 여러 폭에서 가로 넘침 회귀 검사 (Playwright)
-│   └── gacha-ui.mjs      # 가챠 화면 동작 회귀 (입력란 비우기 · 자동 초기화)
+│   ├── gacha-ui.mjs      # 가챠 화면 동작 회귀 (입력란 비우기 · 자동 초기화)
+│   └── name-input.mjs    # 한글 IME 이름 입력 회귀 (CDP 조합 시뮬레이션)
 └── package.json
 ```
 
@@ -190,6 +191,7 @@ npm test                        # 위 둘 다
 npx http-server -p 8899 -s .
 node tests/layout.mjs           # 320/360/375/390/430/768px 에서 전 화면 가로 넘침 검사
 node tests/gacha-ui.mjs         # 가챠 화면 동작 (입력란 비우기 · 결과 후 자동 초기화)
+node tests/name-input.mjs       # 한글 IME 이름 입력 (조합 중 확정 · 길이 제한)
 ```
 `layout.mjs` 는 홈 → 가챠 → 쟁탈전을 끝까지 진행하면서 매 화면의 `scrollWidth` 를 확인하고,
 `<select>` 는 "가장 긴 option 텍스트" 기준으로 별도 검사합니다(아래 iOS 항목 참고).
@@ -210,6 +212,12 @@ node tests/gacha-ui.mjs         # 가챠 화면 동작 (입력란 비우기 · �
     단, 이 선언을 `input` 전체에 걸면 **체크박스가 사라지므로** 텍스트 입력에만 한정하세요.
   - `backdrop-filter` 는 `-webkit-` 접두사가 필요합니다.
   - 새 화면·컴포넌트를 추가하면 `tests/layout.mjs` 를 꼭 돌려보세요.
+- **이름 입력에는 `maxlength` 속성을 쓰지 않는다.** iOS Safari 는 maxlength 가 걸린
+  입력에서 한글을 조합할 때 마지막 음절을 한 번 더 커밋한다 ("바니" → "바니니").
+  `ui.js` 의 `bindNameInput()` 을 쓰면 조합이 끝난 뒤에만 길이를 자르고,
+  조합 중(compositionstart~end)에는 값을 건드리지 않는다.
+  새 텍스트 입력을 추가할 때도 이 헬퍼를 통해서 연결할 것.
+  제출 시점에는 `read()` 로 DOM 값을 직접 읽어야 조합 중이던 마지막 글자가 반영된다.
 - **`store.update()` 는 동기적으로 화면을 다시 그린다.** 렌더에 반영돼야 하는 휘발성 UI 값
   (`ui.drawName` 등)은 반드시 `store.update()` **호출 전에** 바꿔야 한다.
   뒤에 바꾸면 이미 그려진 화면에는 옛 값이 남는다. (다음 사람 차례에 이전 이름이

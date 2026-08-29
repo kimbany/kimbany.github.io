@@ -1,7 +1,7 @@
 /* 화면 렌더러 — 단계별로 하나씩. 게임 로직은 engine.js 가 전부 갖고 있고
  * 여기서는 "상태를 그림으로 바꾸는 일"과 "사용자 입력을 액션으로 넘기는 일"만 한다. */
 import { escapeHtml, ordinal } from './util.js';
-import { nameTag, numberGrid } from './ui.js';
+import { nameTag, numberGrid, bindNameInput } from './ui.js';
 import {
   PHASE, RESOLUTION, MIN_NUMBERS, MAX_NUMBERS,
   nameOf, emptyNumbers, currentGroup, keepPassContext, finalSelectionContext,
@@ -162,8 +162,8 @@ export function renderSecretSelection(root, ctx) {
     </div>
     <div class="card">
       <div class="field">
-        <input type="text" maxlength="12" data-input="name" placeholder="예: 현우" value="${escapeHtml(sel.name || '')}"
-               autocomplete="off" autocapitalize="off" ${full ? 'disabled' : ''} />
+        <input type="text" data-input="name" placeholder="예: 현우" value="${escapeHtml(sel.name || '')}"
+               ${full ? 'disabled' : ''} />
       </div>
     </div>
     <button class="btn btn-hero" data-act="next" type="button" ${full ? 'disabled' : ''}>
@@ -177,12 +177,15 @@ export function renderSecretSelection(root, ctx) {
     </div>`;
 
   const input = root.querySelector('[data-input="name"]');
-  const go = () => {
-    sel.name = input.value.trim();
+  let go = () => {};
+  const nameInput = bindNameInput(input, {
+    onChange: (v) => { sel.name = v; },
+    onEnter: () => go(),
+  });
+  go = () => {
+    sel.name = nameInput.read().trim(); // 조합 중이던 글자까지 반영
     ctx.act.toPickStep();
   };
-  input.addEventListener('input', () => { sel.name = input.value; });
-  input.addEventListener('keydown', (e) => { if (e.key === 'Enter') go(); });
   root.querySelector('[data-act="next"]').addEventListener('click', go);
   if (!full) setTimeout(() => input.focus(), 60);
 }

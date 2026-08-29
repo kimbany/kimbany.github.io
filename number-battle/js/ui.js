@@ -148,3 +148,52 @@ export function numberGrid(numbers, { selected = null, disabled = [], dense = fa
     </button>`;
   }).join('')}</div>`;
 }
+
+/* ===================== 이름 입력 ===================== */
+
+export const NAME_MAX_LENGTH = 12;
+
+/**
+ * 한글 IME 안전한 이름 입력 연결.
+ *
+ * iOS Safari 는 `maxlength` 가 걸린 입력에서 한글을 조합할 때 마지막 음절을
+ * 한 번 더 커밋하는 문제가 있다. ("바니" → "바니니")
+ * 그래서 maxlength 속성을 아예 쓰지 않고, **조합이 끝난 뒤에만** 길이를 자른다.
+ * 조합 중(compositionstart~end)에는 값을 절대 건드리지 않는다.
+ *
+ * @param {HTMLInputElement} input
+ * @param {number} options.maxLength  조합이 끝난 뒤 적용할 최대 길이
+ * @param {function} options.onChange 확정된 값이 바뀔 때 (조합 중에는 부르지 않는다)
+ * @param {function} options.onEnter  엔터 (조합 확정용 엔터는 무시)
+ * @returns {{ read: () => string }} 조합 중인 글자까지 포함해 지금 값을 읽는다
+ */
+export function bindNameInput(input, { maxLength = NAME_MAX_LENGTH, onChange, onEnter } = {}) {
+  let 조합중 = false;
+
+  // maxlength 속성이 남아 있으면 IME 중복 입력이 재발한다
+  input.removeAttribute('maxlength');
+  input.setAttribute('autocomplete', 'off');
+  input.setAttribute('autocorrect', 'off');
+  input.setAttribute('autocapitalize', 'off');
+  input.setAttribute('spellcheck', 'false');
+
+  const 자르기 = () => {
+    if (input.value.length > maxLength) input.value = input.value.slice(0, maxLength);
+    return input.value;
+  };
+  const 알리기 = () => { if (onChange) onChange(input.value); };
+
+  input.addEventListener('compositionstart', () => { 조합중 = true; });
+  input.addEventListener('compositionend', () => { 조합중 = false; 자르기(); 알리기(); });
+  input.addEventListener('input', () => { if (조합중) return; 자르기(); 알리기(); });
+  input.addEventListener('blur', () => { 자르기(); 알리기(); });
+  input.addEventListener('keydown', (e) => {
+    if (e.key !== 'Enter') return;
+    // 한글 조합을 확정하는 엔터는 제출이 아니다 (iOS/안드로이드는 keyCode 229)
+    if (조합중 || e.isComposing || e.keyCode === 229) return;
+    자르기(); 알리기();
+    if (onEnter) onEnter(input.value);
+  });
+
+  return { read: () => 자르기() };
+}
