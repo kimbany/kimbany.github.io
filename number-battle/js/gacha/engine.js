@@ -37,6 +37,8 @@ export function createGacha({ totalNumbers, useNames = false } = {}) {
     draws: [],      // [{ seq, number, name, at }]
     current: null,  // 방금 뽑은 것 (공개 연출 중)
     useNames,
+    endedEarly: false, // 진행자가 중간에 종료했는지
+    endedAt: null,
     createdAt: Date.now(),
   };
 }
@@ -98,6 +100,35 @@ export function undoLastDraw(state) {
   return last;
 }
 
+/**
+ * 진행자가 중간에 가챠를 종료한다.
+ * 지금까지 뽑은 기록은 그대로 두고 결과 화면으로 넘어간다.
+ * (남은 숫자는 주인 없이 남는다 — 무결성 검사는 그대로 통과한다)
+ */
+export function endGachaEarly(state) {
+  if (state.phase === GACHA_PHASE.SETUP) throw new Error('아직 시작하지 않았습니다.');
+  if (state.phase === GACHA_PHASE.DONE) throw new Error('이미 끝난 가챠입니다.');
+  state.current = null;
+  state.endedEarly = true;
+  state.endedAt = Date.now();
+  state.phase = GACHA_PHASE.DONE;
+  assertGachaIntegrity(state);
+  return state;
+}
+
+/** 중간 종료를 되돌려 다시 뽑을 수 있게 한다 (진행자 실수 복구용) */
+export function resumeGacha(state) {
+  if (state.phase !== GACHA_PHASE.DONE) throw new Error('종료된 가챠가 아닙니다.');
+  if (!state.endedEarly) throw new Error('모든 숫자가 나와서 끝난 가챠는 이어서 진행할 수 없습니다.');
+  if (!state.remaining.length) throw new Error('남은 숫자가 없습니다.');
+  state.endedEarly = false;
+  state.endedAt = null;
+  state.current = null;
+  state.phase = GACHA_PHASE.READY;
+  assertGachaIntegrity(state);
+  return state;
+}
+
 export function checkGachaIntegrity(state) {
   const problems = [];
   const drawn = drawnNumbers(state);
@@ -143,5 +174,11 @@ export function gachaSummary(state) {
     drawn: state.draws.length,
     remaining: remainingCount(state),
     nextChance: remainingCount(state) ? `1 / ${remainingCount(state)}` : '-',
+    endedEarly: Boolean(state.endedEarly),
   };
+}
+
+/** 진행자가 종료할 수 있는 상태인지 */
+export function canEndGacha(state) {
+  return state.phase === GACHA_PHASE.READY || state.phase === GACHA_PHASE.REVEAL;
 }

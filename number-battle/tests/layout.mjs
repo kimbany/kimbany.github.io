@@ -109,6 +109,25 @@ for (const width of WIDTHS) {
   await click('#host-btn');
   await page.waitForSelector('.drawer');
   await snap('가챠 진행자 메뉴');
+  // 진행자 중간 종료 → 전체 결과 화면
+  await click('.drawer [data-act="end"]');
+  await page.waitForSelector('.modal');
+  await snap('가챠 종료 확인');
+  await click('.modal [data-act="ok"]');
+  await page.waitForSelector('[data-act="again"]', { timeout: 12000 });
+  await page.waitForTimeout(700);
+  await snap('가챠 중간 종료 결과');
+  await click('[data-sort="seq"]');
+  await page.waitForTimeout(400);
+  await snap('가챠 결과(뽑은 순서)');
+  // 되돌려서 이어 뽑기
+  await click('#host-btn');
+  await page.waitForSelector('.drawer');
+  await click('.drawer [data-act="resume"]');
+  await page.waitForSelector('.gacha-go', { timeout: 12000 });
+  await snap('가챠 이어서 뽑기');
+  await click('#host-btn');
+  await page.waitForSelector('.drawer');
   await click('.drawer [data-act="close"]');
   await click('#home-btn');
   await page.waitForSelector('.menu-card');

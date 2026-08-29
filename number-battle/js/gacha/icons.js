@@ -32,3 +32,9 @@ export const 아이콘_별 = wrap(`
 export const 아이콘_되돌리기 = wrap(`
   <path d="M4 9h9a5.5 5.5 0 1 1 0 11H7" />
   <path d="M8 4.5L3.6 9 8 13.5" />`);
+
+/** 깃발 — 진행자가 중간에 종료했을 때 */
+export const 아이콘_깃발 = wrap(`
+  <path d="M6 20.5V4" />
+  <path d="M6 4.8h11.4l-2.3 3.7 2.3 3.7H6z" fill="currentColor" stroke="none" opacity="0.9" />
+  <path d="M6 4.8h11.4l-2.3 3.7 2.3 3.7H6z" />`);
