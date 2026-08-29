@@ -51,7 +51,8 @@ number-battle/
 │   ├── engine.test.mjs   # 쟁탈전: CASE A~H + 경계 + 무작위 400회
 │   ├── gacha.test.mjs    # 가챠: 중복 없음 + 확률 균등(χ²) + 복구
 │   ├── harness.mjs       # DOM 없이 엔진을 끝까지 돌리는 드라이버 (+ seededRng)
-│   └── layout.mjs        # 여러 폭에서 가로 넘침 회귀 검사 (Playwright)
+│   ├── layout.mjs        # 여러 폭에서 가로 넘침 회귀 검사 (Playwright)
+│   └── gacha-ui.mjs      # 가챠 화면 동작 회귀 (입력란 비우기 · 자동 초기화)
 └── package.json
 ```
 
@@ -188,6 +189,7 @@ npm test                        # 위 둘 다
 # 반응형 회귀 검사 — 저장소 루트에서 정적 서버를 띄운 뒤
 npx http-server -p 8899 -s .
 node tests/layout.mjs           # 320/360/375/390/430/768px 에서 전 화면 가로 넘침 검사
+node tests/gacha-ui.mjs         # 가챠 화면 동작 (입력란 비우기 · 결과 후 자동 초기화)
 ```
 `layout.mjs` 는 홈 → 가챠 → 쟁탈전을 끝까지 진행하면서 매 화면의 `scrollWidth` 를 확인하고,
 `<select>` 는 "가장 긴 option 텍스트" 기준으로 별도 검사합니다(아래 iOS 항목 참고).
@@ -208,6 +210,10 @@ node tests/layout.mjs           # 320/360/375/390/430/768px 에서 전 화면 �
     단, 이 선언을 `input` 전체에 걸면 **체크박스가 사라지므로** 텍스트 입력에만 한정하세요.
   - `backdrop-filter` 는 `-webkit-` 접두사가 필요합니다.
   - 새 화면·컴포넌트를 추가하면 `tests/layout.mjs` 를 꼭 돌려보세요.
+- **`store.update()` 는 동기적으로 화면을 다시 그린다.** 렌더에 반영돼야 하는 휘발성 UI 값
+  (`ui.drawName` 등)은 반드시 `store.update()` **호출 전에** 바꿔야 한다.
+  뒤에 바꾸면 이미 그려진 화면에는 옛 값이 남는다. (다음 사람 차례에 이전 이름이
+  남아 있던 버그가 이 순서 때문이었다)
 - **스크린샷으로 확인할 때는 애니메이션이 끝날 때까지 기다릴 것.** `g-rise` 같은 등장
   애니메이션은 `both` + stagger 라 초기 `opacity: 0` 이다. 덜 기다리면 "카드가 투명하다"는
   착시로 엉뚱한 원인을 찾게 된다.
