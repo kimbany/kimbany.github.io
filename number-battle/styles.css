@@ -67,18 +67,23 @@ h1, h2, h3, .display { font-family: 'Black Han Sans', 'Jua', sans-serif; font-we
   display: flex; align-items: center; gap: 10px;
   padding: 10px 14px;
   background: rgba(16, 6, 31, 0.72);
+  -webkit-backdrop-filter: blur(12px);
   backdrop-filter: blur(12px);
   border-bottom: 1px solid var(--line);
 }
-.topbar .brand { font-family: 'Black Han Sans', sans-serif; font-size: 17px; letter-spacing: -0.02em; }
+.topbar .brand {
+  font-family: 'Black Han Sans', sans-serif; font-size: 17px; letter-spacing: -0.02em;
+  min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
 .topbar .brand span { color: var(--pink); }
 .topbar .spacer { flex: 1; }
 
 .chip {
   font-size: 12px; padding: 4px 10px; border-radius: 999px;
   background: var(--panel); border: 1px solid var(--line); color: var(--muted);
-  white-space: nowrap;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0;
 }
+.topbar .btn { flex: none; }
 .chip.live { color: var(--lime); border-color: rgba(124, 255, 107, 0.45); }
 
 .screen {
@@ -86,6 +91,9 @@ h1, h2, h3, .display { font-family: 'Black Han Sans', 'Jua', sans-serif; font-we
   padding: 18px 16px calc(28px + var(--safe-b));
   display: flex; flex-direction: column; gap: 16px;
   animation: screen-in 0.32s ease both;
+  /* 등장 애니메이션의 scale 오버슈트가 순간적으로 뷰포트를 넘겨
+     가로 스크롤이 생기는 것을 막는다. clip 이라 세로 스크롤은 그대로. */
+  overflow-x: clip;
 }
 @keyframes screen-in { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
 
@@ -94,9 +102,12 @@ h1, h2, h3, .display { font-family: 'Black Han Sans', 'Jua', sans-serif; font-we
   border: 1px solid var(--line);
   border-radius: var(--radius);
   padding: 18px;
+  -webkit-backdrop-filter: blur(6px);
   backdrop-filter: blur(6px);
 }
 .card.tight { padding: 14px; }
+.card, .screen, .name-tag, .vs-player, .res-row, .rank-item { min-width: 0; }
+.lt-name, .res-name, .name-tag, .vs-player, .title { overflow-wrap: anywhere; }
 
 .eyebrow { font-size: 12px; letter-spacing: 0.16em; color: var(--pink-soft); text-transform: uppercase; margin: 0 0 6px; }
 .title { font-size: clamp(26px, 7vw, 40px); margin: 0 0 6px; line-height: 1.15; }
@@ -131,14 +142,34 @@ h1, h2, h3, .display { font-family: 'Black Han Sans', 'Jua', sans-serif; font-we
 .btn-row { display: flex; gap: 10px; }
 .btn-row > * { flex: 1; }
 
-.field { display: flex; flex-direction: column; gap: 8px; }
+.field { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
 .field label { font-size: 14px; color: var(--muted); }
 input[type="text"], input[type="number"], input[type="password"], select {
   width: 100%; font-family: inherit; font-size: 18px;
   padding: 14px 16px; border-radius: 14px;
   background: rgba(0, 0, 0, 0.32); color: #fff;
   border: 2px solid var(--line); outline: none;
+  /* iOS WebKit 은 select/input 을 고유 콘텐츠 폭 아래로 줄이지 않는다.
+     이 세 줄이 없으면 긴 option 텍스트가 뷰포트를 넘겨 화면 전체가 축소된다. */
+  min-width: 0; max-width: 100%;
+  text-overflow: ellipsis;
 }
+/* iOS 는 기본 appearance 상태의 select 에 background/color 를 적용하지 않는다.
+   직접 그리고 화살표도 data URI 로 붙인다. */
+select {
+  -webkit-appearance: none; appearance: none;
+  padding-right: 44px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' fill='none' stroke='%23b9a8d6' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 16px center;
+  background-size: 12px 8px;
+}
+/* 체크박스/라디오는 네이티브 렌더링을 유지해야 하므로 텍스트 입력에만 적용 */
+input[type="text"], input[type="number"], input[type="password"] {
+  -webkit-appearance: none; appearance: none;
+}
+.game-picker + .game-picker { margin-top: 14px; }
+.picker-note { margin: 0; font-size: 13px; color: var(--muted); }
 input:focus, select:focus { border-color: var(--pink); box-shadow: 0 0 0 4px rgba(255, 46, 136, 0.18); }
 select option { background: #1d0a38; }
 
@@ -200,6 +231,7 @@ select option { background: #1d0a38; }
 /* ---------------- VS 연출 ---------------- */
 .vs-stage { text-align: center; padding: 12px 0; }
 .vs-number {
+  display: inline-block; /* 블록이면 컨테이너 폭 전체가 scale 되어 화면 밖으로 나간다 */
   font-family: 'Black Han Sans', sans-serif; font-size: clamp(44px, 14vw, 76px); line-height: 1;
   color: var(--yellow); text-shadow: 0 0 30px rgba(255, 217, 61, 0.7);
   animation: pop 0.5s cubic-bezier(0.2, 1.6, 0.4, 1) both;
@@ -240,14 +272,15 @@ select option { background: #1d0a38; }
 @keyframes pulse { 50% { filter: brightness(1.22); } }
 .lt-secret { font-size: 12px; color: var(--muted); margin: 0; }
 .lt-done { list-style: none; padding: 0; margin: 0; width: 100%; display: flex; flex-direction: column; gap: 6px; }
-.lt-done li { display: flex; justify-content: space-between; font-size: 14px; padding: 8px 12px; background: rgba(0,0,0,0.25); border-radius: 10px; }
+.lt-done li { display: flex; justify-content: space-between; gap: 10px; font-size: 14px; padding: 8px 12px; background: rgba(0,0,0,0.25); border-radius: 10px; }
+.lt-done li b { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .lt-done span { color: var(--cyan); }
 .lt-stopped .lt-stamp {
   font-family: 'Black Han Sans', sans-serif; font-size: 32px; color: var(--pink);
   border: 4px solid var(--pink); border-radius: 12px; padding: 2px 18px; transform: rotate(-8deg);
   animation: stamp 0.35s cubic-bezier(0.2, 1.8, 0.4, 1) both;
 }
-@keyframes stamp { 0% { transform: scale(2.4) rotate(-8deg); opacity: 0; } 100% { transform: scale(1) rotate(-8deg); opacity: 1; } }
+@keyframes stamp { 0% { transform: scale(1.8) rotate(-8deg); opacity: 0; } 100% { transform: scale(1) rotate(-8deg); opacity: 1; } }
 .lt-value { font-family: 'Black Han Sans', sans-serif; font-size: 64px; line-height: 1; color: var(--yellow); }
 
 /* ---------------- 운명의 카드 ---------------- */
@@ -303,8 +336,8 @@ select option { background: #1d0a38; }
 }
 @keyframes slide-in { from { opacity: 0; transform: translateX(-26px); } to { opacity: 1; transform: none; } }
 .rank-item .medal { font-family: 'Black Han Sans', sans-serif; font-size: 20px; min-width: 46px; text-align: center; color: var(--muted); }
-.rank-item .who { flex: 1; font-size: 17px; }
-.rank-item .val { font-size: 14px; color: var(--cyan); }
+.rank-item .who { flex: 1; min-width: 0; font-size: 17px; overflow-wrap: anywhere; }
+.rank-item .val { font-size: 14px; color: var(--cyan); text-align: right; white-space: nowrap; }
 .rank-item .note { font-size: 12px; color: var(--muted); }
 .rank-item.top {
   border-color: var(--yellow); background: linear-gradient(120deg, rgba(255,217,61,0.24), rgba(255,138,61,0.12));
@@ -371,7 +404,8 @@ select option { background: #1d0a38; }
 /* ---------------- 오버레이 ---------------- */
 .overlay {
   position: fixed; inset: 0; z-index: 60; display: flex; align-items: center; justify-content: center;
-  background: rgba(8, 3, 16, 0.82); backdrop-filter: blur(6px); padding: 20px;
+  background: rgba(8, 3, 16, 0.82); padding: 20px;
+  -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
   animation: fade 0.2s ease both;
 }
 @keyframes fade { from { opacity: 0; } to { opacity: 1; } }

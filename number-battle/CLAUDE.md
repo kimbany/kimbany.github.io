@@ -8,7 +8,7 @@
 참가자들이 기기 하나를 돌려가며 원하는 번호를 **비밀리에** 고르고, 선택이 끝나면 겹친 번호를
 미니게임으로 쟁탈합니다.
 
-- 배포 위치: `kimbany.github.io/number-battle/`
+- 배포 위치: `invedory.com/number-battle/` (저장소 루트 `CNAME` 의 커스텀 도메인)
 - 실물 피규어의 내용물은 앱이 절대 알지 못합니다. 앱은 "누가 몇 번을 가져가는가"만 정합니다.
 
 ## 기술 스택 / 컨벤션
@@ -38,7 +38,8 @@ number-battle/
 │       └── fateCards.js  # 기본 FINAL 순위 결정전
 ├── tests/
 │   ├── engine.test.mjs   # CASE A~H + 경계 + 무작위 400회
-│   └── harness.mjs       # DOM 없이 엔진을 끝까지 돌리는 드라이버
+│   ├── harness.mjs       # DOM 없이 엔진을 끝까지 돌리는 드라이버
+│   └── layout.mjs        # 여러 폭에서 가로 넘침 회귀 검사 (Playwright)
 └── package.json
 ```
 
@@ -91,8 +92,13 @@ export const myGame = {
 
 ```bash
 node tests/engine.test.mjs      # 로직 (CASE A~H, 경계, 무작위 400회)
+
+# 반응형 회귀 검사 — 저장소 루트에서 정적 서버를 띄운 뒤
+npx http-server -p 8899 -s .
+node tests/layout.mjs           # 320/360/375/390/430/768px 에서 전 화면 가로 넘침 검사
 ```
-UI 는 Playwright 로 수동 검증했습니다 (전체 플로우 · PIN · 새로고침 복구 · 미니게임 교체).
+`layout.mjs` 는 게임을 끝까지 진행하면서 매 화면의 `scrollWidth` 를 확인하고,
+`<select>` 는 "가장 긴 option 텍스트" 기준으로 별도 검사합니다(아래 iOS 항목 참고).
 
 ## 주의사항
 
@@ -102,3 +108,11 @@ UI 는 Playwright 로 수동 검증했습니다 (전체 플로우 · PIN · 새�
   `ui.selection` 은 **통째로 재할당하지 말고** `resetSelection()` 으로 제자리 초기화하세요.
   (렌더된 화면의 이벤트 핸들러가 그 객체를 붙잡고 있어서, 교체하면 입력이 유실됩니다.)
 - `store.update()` 안에서 예외가 나면 상태를 롤백합니다. 상태 변경은 반드시 이 함수를 통해서 하세요.
+- **iOS WebKit 주의** (실제로 화면이 깨졌던 사례):
+  - `<select>` 는 **가장 긴 `<option>` 텍스트보다 좁아지지 않습니다.** `width:100%` 를 줘도 소용없습니다.
+    긴 설명을 option 에 넣으면 문서가 가로로 넘치고 브라우저가 **페이지 전체를 축소**해 버립니다.
+    → option 에는 짧은 이름만 넣고 설명은 `.picker-note` 캡션으로 뺍니다. `min-width: 0` 도 함께 겁니다.
+  - `select` 는 `appearance: none` 없이는 `background`/`color` 가 무시되어 다크 테마가 깨집니다.
+    단, 이 선언을 `input` 전체에 걸면 **체크박스가 사라지므로** 텍스트 입력에만 한정하세요.
+  - `backdrop-filter` 는 `-webkit-` 접두사가 필요합니다.
+  - 새 화면·컴포넌트를 추가하면 `tests/layout.mjs` 를 꼭 돌려보세요.
