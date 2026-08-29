@@ -3,6 +3,7 @@
  */
 import {
   GACHA_PHASE, createGacha, drawCapsule, closeCapsule, undoLastDraw,
+  endGachaEarly, resumeGacha, canEndGacha,
   checkGachaIntegrity, drawnNumbers, remainingCount, gachaSummary,
 } from '../js/gacha/engine.js';
 import { seededRng } from './harness.mjs';
@@ -236,6 +237,98 @@ test('무결성 검사가 조작된 상태를 잡아낸다', () => {
   const broken = JSON.parse(JSON.stringify(s));
   broken.remaining.pop();
   assert(checkGachaIntegrity(broken).some((p) => p.includes('총합')), '개수 불일치를 감지');
+});
+
+/* ============ 진행자 중간 종료 ============ */
+section('진행자 중간 종료');
+
+test('뽑는 중에 종료하면 지금까지 기록을 유지한 채 DONE 이 된다', () => {
+  const s = createGacha({ totalNumbers: 10, useNames: true });
+  const rng = seededRng(31);
+  const 나온것 = [];
+  for (let i = 0; i < 4; i += 1) { 나온것.push(drawCapsule(s, { name: `P${i}`, rng }).number); closeCapsule(s); }
+  assert(canEndGacha(s), 'READY 상태에서는 종료할 수 있다');
+  endGachaEarly(s);
+  eq(s.phase, GACHA_PHASE.DONE);
+  eq(s.endedEarly, true);
+  eq(s.draws.length, 4, '뽑은 기록은 그대로');
+  eq(drawnNumbers(s), 나온것, '누가 무엇을 뽑았는지 순서까지 보존');
+  eq(remainingCount(s), 6, '남은 숫자는 주인 없이 남는다');
+  eq(checkGachaIntegrity(s), [], '무결성 통과');
+  eq(gachaSummary(s).endedEarly, true);
+});
+
+test('캡슐 공개 중에도 종료할 수 있고 그 뽑기는 결과에 포함된다', () => {
+  const s = createGacha({ totalNumbers: 8 });
+  const e = drawCapsule(s, { rng: seededRng(32) });
+  eq(s.phase, GACHA_PHASE.REVEAL);
+  assert(canEndGacha(s), 'REVEAL 상태에서도 종료할 수 있다');
+  endGachaEarly(s);
+  eq(s.phase, GACHA_PHASE.DONE);
+  eq(s.current, null, '공개 중이던 캡슐 상태는 정리된다');
+  eq(drawnNumbers(s), [e.number], '방금 뽑은 것도 결과에 남는다');
+});
+
+test('한 번도 안 뽑았어도 종료할 수 있다', () => {
+  const s = createGacha({ totalNumbers: 5 });
+  endGachaEarly(s);
+  eq(s.phase, GACHA_PHASE.DONE);
+  eq(s.draws.length, 0);
+  eq(remainingCount(s), 5);
+  eq(checkGachaIntegrity(s), []);
+});
+
+test('설정 단계이거나 이미 끝난 가챠는 종료할 수 없다', () => {
+  const setup = { phase: GACHA_PHASE.SETUP };
+  throws(() => endGachaEarly(setup), '아직 시작하지 않았습니다');
+  const s = createGacha({ totalNumbers: 4 });
+  endGachaEarly(s);
+  assert(!canEndGacha(s), '이미 끝났으면 종료 버튼을 내보내지 않는다');
+  throws(() => endGachaEarly(s), '이미 끝난 가챠');
+});
+
+test('종료 후에는 더 뽑을 수 없다', () => {
+  const s = createGacha({ totalNumbers: 6 });
+  drawCapsule(s, { rng: seededRng(33) }); closeCapsule(s);
+  endGachaEarly(s);
+  throws(() => drawCapsule(s), '뽑을 수 없습니다');
+});
+
+test('종료를 되돌려 이어서 뽑을 수 있다 (진행자 실수 복구)', () => {
+  const s = createGacha({ totalNumbers: 7 });
+  const rng = seededRng(34);
+  const 먼저 = [];
+  for (let i = 0; i < 3; i += 1) { 먼저.push(drawCapsule(s, { rng }).number); closeCapsule(s); }
+  endGachaEarly(s);
+  resumeGacha(s);
+  eq(s.phase, GACHA_PHASE.READY);
+  eq(s.endedEarly, false);
+  eq(s.draws.length, 3, '되돌려도 기록은 그대로');
+  // 이어서 끝까지 뽑아도 중복이 없어야 한다
+  while (s.phase !== GACHA_PHASE.DONE) { drawCapsule(s, { rng }); closeCapsule(s); }
+  const 전체 = drawnNumbers(s);
+  eq(전체.length, 7);
+  eq(new Set(전체).size, 7, '이어서 뽑아도 중복 없음');
+  eq(전체.slice(0, 3), 먼저, '앞서 뽑은 순서는 그대로');
+});
+
+test('전부 소진되어 끝난 가챠는 이어서 진행할 수 없다', () => {
+  const s = createGacha({ totalNumbers: 4 });
+  drainAll(s, seededRng(35));
+  eq(s.endedEarly, false, '자연 종료는 중간 종료가 아니다');
+  throws(() => resumeGacha(s), '모든 숫자가 나와서');
+});
+
+test('종료 상태가 JSON 왕복(새로고침) 후에도 유지된다', () => {
+  const s = createGacha({ totalNumbers: 9, useNames: true });
+  const rng = seededRng(36);
+  for (let i = 0; i < 3; i += 1) { drawCapsule(s, { name: `이름${i}`, rng }); closeCapsule(s); }
+  endGachaEarly(s);
+  const restored = JSON.parse(JSON.stringify(s));
+  eq(restored.phase, GACHA_PHASE.DONE);
+  eq(restored.endedEarly, true);
+  eq(restored.draws.map((d) => d.name), ['이름0', '이름1', '이름2'], '이름 기록 보존');
+  eq(checkGachaIntegrity(restored), []);
 });
 
 console.log(`\n${'─'.repeat(50)}`);

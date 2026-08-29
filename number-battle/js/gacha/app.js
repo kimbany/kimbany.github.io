@@ -7,13 +7,14 @@ import { createStore } from '../store.js';
 import {
   GACHA_PHASE, GACHA_MIN, GACHA_MAX, GACHA_VERSION,
   createGacha, emptyGachaSetup, drawCapsule, closeCapsule, undoLastDraw,
+  endGachaEarly, resumeGacha, canEndGacha,
   remainingCount, gachaSummary, checkGachaIntegrity,
 } from './engine.js';
 import { toast, confirmDialog } from '../ui.js';
 import { escapeHtml } from '../util.js';
 import {
   아이콘_캡슐, 아이콘_더하기, 아이콘_빼기, 아이콘_돌리기,
-  아이콘_아래, 아이콘_위, 아이콘_별, 아이콘_되돌리기,
+  아이콘_아래, 아이콘_위, 아이콘_별, 아이콘_되돌리기, 아이콘_깃발,
 } from './icons.js';
 
 const STORE_KEY = 'numberBattle.gacha.v1';
@@ -47,6 +48,7 @@ const 배경_구슬 = [
 const ui = {
   setup: { totalNumbers: 11, useNames: false },
   drawName: '',
+  resultSort: 'number', // 'number' | 'seq'
   spinning: false,
   drawerOpen: false,
   historyOpen: false,
@@ -275,30 +277,62 @@ function 파티클() {
   }).join('')}</span>`;
 }
 
+/** 결과 화면 — 누가 몇 번을 뽑았는지 한 화면에 모아 보여준다 */
 function 완료_화면(state) {
-  const rows = state.draws.slice().sort((a, b) => a.number - b.number);
+  const 중간종료 = Boolean(state.endedEarly);
+  const 남음 = remainingCount(state);
+  const rows = state.draws.slice().sort((a, b) => (
+    ui.resultSort === 'seq' ? a.seq - b.seq : a.number - b.number
+  ));
   root.classList.add('has-dock');
   root.innerHTML = `
     <section class="g-card g-hero" style="--stagger:0ms">
-      <div class="g-hero-mark">${아이콘_별}</div>
-      <h1 class="g-title">뽑기 완료!</h1>
-      <p class="g-body">${state.totalNumbers}개 숫자가 모두 나왔습니다.</p>
+      <div class="g-hero-mark">${중간종료 ? 아이콘_깃발 : 아이콘_별}</div>
+      <h1 class="g-title">${중간종료 ? '가챠 종료' : '뽑기 완료!'}</h1>
+      <p class="g-body">${중간종료
+        ? '진행자가 여기까지로 마무리했습니다.'
+        : `${state.totalNumbers}개 숫자가 모두 나왔습니다.`}</p>
+      <div class="g-stats">
+        <span class="g-stat"><b>${state.draws.length}</b><small>뽑음</small></span>
+        <span class="g-stat"><b>${남음}</b><small>남은 숫자</small></span>
+        <span class="g-stat"><b>${state.totalNumbers}</b><small>전체</small></span>
+      </div>
     </section>
-    <div class="g-result-list">
-      ${rows.map((d, i) => `
-        <div class="g-result-row" style="--stagger:${i * 60}ms">
-          <span class="g-num-badge">${d.number}</span>
-          <span class="g-row-body">
-            <span class="g-row-name">${d.name ? escapeHtml(d.name) : `${d.seq}번째로 나옴`}</span>
-            ${d.name ? `<span class="g-row-meta">${d.seq}번째 뽑기</span>` : ''}
-          </span>
-        </div>`).join('')}
-    </div>
+
+    ${state.draws.length ? `
+      <div class="g-segment" role="tablist">
+        <button class="g-seg ${ui.resultSort === 'number' ? 'on' : ''}" data-sort="number" type="button">번호순</button>
+        <button class="g-seg ${ui.resultSort === 'seq' ? 'on' : ''}" data-sort="seq" type="button">뽑은 순서</button>
+      </div>
+      <div class="g-result-list">
+        ${rows.map((d, i) => `
+          <div class="g-result-row" style="--stagger:${i * 45}ms">
+            <span class="g-num-badge">${d.number}</span>
+            <span class="g-row-body">
+              <span class="g-row-name">${d.name ? escapeHtml(d.name) : `${d.seq}번째 뽑기`}</span>
+              ${d.name ? `<span class="g-row-meta">${d.seq}번째 뽑기</span>` : ''}
+            </span>
+          </div>`).join('')}
+      </div>`
+    : `<section class="g-card g-center"><p class="g-body">아직 아무도 뽑지 않았습니다.</p></section>`}
+
+    ${중간종료 && 남음 ? `
+      <section class="g-card soft" style="--stagger:60ms">
+        <p class="g-label">주인 없이 남은 숫자 ${남음}개</p>
+        <div class="g-chips">
+          ${state.remaining.map((n) => `<span class="g-chip g-chip-ghost">${n}</span>`).join('')}
+        </div>
+      </section>` : ''}
+
     <div class="g-dock">
       <button class="g-clay g-clay-lg g-clay-violet" data-act="again" type="button">새로 채우기</button>
     </div>
   `;
   root.querySelector('[data-act="again"]').addEventListener('click', 초기화);
+  root.querySelectorAll('[data-sort]').forEach((b) => b.addEventListener('click', () => {
+    ui.resultSort = b.dataset.sort;
+    그리기();
+  }));
 }
 
 function 기록(state, stagger = 0) {
@@ -360,6 +394,7 @@ async function 뽑기() {
 function 초기화() {
   ui.drawName = '';
   ui.historyOpen = false;
+  ui.resultSort = 'number';
   store.reset();
 }
 
@@ -400,7 +435,8 @@ function 드로어_그리기() {
           <div class="kv"><span>나온 숫자</span><b>${s.drawn}개</b></div>
           <div class="kv"><span>남은 숫자</span><b>${s.remaining}개</b></div>
           <div class="kv"><span>다음 확률</span><b>${s.nextChance}</b></div>
-          <div class="kv"><span>이름 기록</span><b>${state.useNames ? '켜짐' : '꺼짐'}</b></div>`}
+          <div class="kv"><span>이름 기록</span><b>${state.useNames ? '켜짐' : '꺼짐'}</b></div>
+          ${state.endedEarly ? '<div class="kv"><span>종료 방식</span><b>진행자 중간 종료</b></div>' : ''}`}
       </div>
 
       ${설정중 ? '' : `
@@ -410,6 +446,12 @@ function 드로어_그리기() {
             마지막 뽑기 취소
           </button>
           <p class="small muted" style="margin:0">잘못 눌렀을 때 방금 나온 숫자를 통에 되돌립니다.</p>
+          ${canEndGacha(state) ? `
+            <button class="btn btn-sm btn-danger" data-act="end" type="button" style="margin-top:6px">게임 종료</button>
+            <p class="small muted" style="margin:0">숫자가 남아 있어도 여기까지로 마무리하고 결과를 보여줍니다.</p>` : ''}
+          ${state.endedEarly && s.remaining ? `
+            <button class="btn btn-sm" data-act="resume" type="button" style="margin-top:6px">이어서 뽑기</button>
+            <p class="small muted" style="margin:0">종료를 되돌려 남은 ${s.remaining}개를 계속 뽑습니다.</p>` : ''}
         </div>
 
         <div class="group">
@@ -436,6 +478,26 @@ function 드로어_그리기() {
         드로어_닫기();
         toast('마지막 뽑기를 취소했습니다.', 1600);
       } catch (err) { toast(err.message); }
+    } else if (action === 'end') {
+      const left = remainingCount(store.get());
+      const ok = await confirmDialog({
+        title: '가챠를 종료할까요?',
+        message: `아직 ${left}개가 남아 있습니다.\n여기까지의 결과를 한 화면에 보여주고 뽑기를 끝냅니다.`,
+        confirmLabel: '종료',
+        danger: true,
+      });
+      if (!ok) return;
+      try {
+        ui.resultSort = 'number';
+        store.update((st) => { endGachaEarly(st); });
+        드로어_닫기();
+      } catch (err) { toast(err.message); }
+    } else if (action === 'resume') {
+      try {
+        store.update((st) => { resumeGacha(st); });
+        드로어_닫기();
+        toast('이어서 뽑습니다.', 1600);
+      } catch (err) { toast(err.message); }
     } else if (action === 'reset') {
       const ok = await confirmDialog({
         title: '가챠를 초기화할까요?',
@@ -456,7 +518,10 @@ function 드로어_그리기() {
 
 function 그리기() {
   const state = store.get();
-  host.setChip(단계_이름[state.phase] || state.phase, state.phase !== GACHA_PHASE.SETUP);
+  const 칩 = state.phase === GACHA_PHASE.DONE && state.endedEarly
+    ? '가챠 종료'
+    : (단계_이름[state.phase] || state.phase);
+  host.setChip(칩, state.phase !== GACHA_PHASE.SETUP);
   root.classList.remove('has-dock');
   try {
     if (state.phase === GACHA_PHASE.SETUP) 설정_화면();
@@ -483,7 +548,11 @@ export function hasGachaInProgress() {
 export function gachaStatusLine() {
   const s = store.get();
   if (s.phase === GACHA_PHASE.SETUP) return null;
-  if (s.phase === GACHA_PHASE.DONE) return `지난 뽑기 결과 (숫자 ${s.totalNumbers}개)`;
+  if (s.phase === GACHA_PHASE.DONE) {
+    return s.endedEarly
+      ? `중간 종료 · ${s.draws.length} / ${s.totalNumbers}개 뽑음`
+      : `지난 뽑기 결과 (숫자 ${s.totalNumbers}개)`;
+  }
   return `진행 중 · ${s.draws.length} / ${s.totalNumbers}개 뽑음`;
 }
 

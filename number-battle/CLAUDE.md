@@ -152,6 +152,17 @@ export const myGame = {
   부모 배경 "위"에 그려져 카드 전체를 덮는다. 무지개 테두리를 바깥 래퍼
   (`.g-final-ring`)로 뺀 이유
 
+## [가챠] 단계
+
+```
+SETUP → READY ⇄ REVEAL → DONE
+```
+- `READY ⇄ REVEAL` 를 반복하다 남은 숫자가 0이 되면 자연 종료(`DONE`)
+- 진행자가 중간에 `endGachaEarly()` 로 끊으면 `endedEarly: true` 인 `DONE`.
+  남은 숫자는 주인 없이 남고 무결성 검사는 그대로 통과한다
+- `resumeGacha()` 는 중간 종료만 되돌린다. 전부 소진된 `DONE` 은 되돌릴 수 없다
+- 결과 화면은 두 경우를 구분해 제목·요약을 바꾸고, 중간 종료면 남은 숫자 목록을 함께 보여준다
+
 ## [가챠] 확률 설계 ⚠️
 
 ```js
