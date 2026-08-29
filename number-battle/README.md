@@ -109,6 +109,7 @@ node tests/engine.test.mjs     # 번호 쟁탈전 로직 (CASE A~H · 경계 · 
 node tests/gacha.test.mjs      # 가챠 로직 (중복 없음 · 확률 균등 χ² 검정)
 node tests/layout.mjs          # 반응형 검사 (위 서버가 떠 있어야 함)
 node tests/gacha-ui.mjs        # 가챠 화면 동작 검사
+node tests/name-input.mjs      # 한글 이름 입력 검사
 ```
 
 구조와 확장 방법(새 미니게임 추가 등)은 [`CLAUDE.md`](./CLAUDE.md) 를 참고하세요.

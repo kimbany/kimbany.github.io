@@ -6,6 +6,7 @@
   "scripts": {
     "test": "node tests/engine.test.mjs && node tests/gacha.test.mjs",
     "test:layout": "node tests/layout.mjs",
-    "test:gacha-ui": "node tests/gacha-ui.mjs"
+    "test:gacha-ui": "node tests/gacha-ui.mjs",
+    "test:name-input": "node tests/name-input.mjs"
   }
 }
