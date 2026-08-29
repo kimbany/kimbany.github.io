@@ -31,17 +31,17 @@ const 단계_이름 = {
   [GACHA_PHASE.DONE]: '뽑기 완료',
 };
 
-/* 캡슐 색 — 포인트 색 토큰에서 가져온다 */
-const 캡슐_색 = ['var(--g-pink)', 'var(--g-amber)', 'var(--g-blue)', 'var(--g-violet)', 'var(--g-mint)', 'var(--g-coral)'];
+/* 캡슐 색 — 유리에 비치는 톤이라 채도를 낮춰 잡는다 */
+const 캡슐_색 = ['#5B8DEF', '#FF8A5B', '#3ECFA6', '#A98CFF', '#FFC24B', '#FF6E9C'];
 
 /* 배경에 떠다니는 구슬 (크기·색·속도를 달리해 배치) */
 const 배경_구슬 = [
-  { size: 96, top: 6, left: -6, color: 'var(--g-pink)', dur: 5.2, delay: 0 },
-  { size: 52, top: 20, left: 78, color: 'var(--g-amber)', dur: 4.1, delay: 0.7 },
-  { size: 132, top: 44, left: 72, color: 'var(--g-violet)', dur: 6.0, delay: 1.3 },
-  { size: 38, top: 58, left: 8, color: 'var(--g-mint)', dur: 3.6, delay: 0.4 },
-  { size: 74, top: 76, left: -8, color: 'var(--g-blue)', dur: 5.6, delay: 1.9 },
-  { size: 44, top: 88, left: 66, color: 'var(--g-coral)', dur: 4.4, delay: 1.1 },
+  { size: 104, top: 5, left: -7, color: '#6E96FF', dur: 6.4, delay: 0 },
+  { size: 46, top: 19, left: 82, color: '#FF9E7A', dur: 5.1, delay: 0.9 },
+  { size: 138, top: 46, left: 74, color: '#A98CFF', dur: 7.2, delay: 1.6 },
+  { size: 34, top: 60, left: 9, color: '#3ECFA6', dur: 4.6, delay: 0.5 },
+  { size: 80, top: 78, left: -9, color: '#5B8DEF', dur: 6.8, delay: 2.2 },
+  { size: 40, top: 90, left: 68, color: '#FFC24B', dur: 5.4, delay: 1.3 },
 ];
 
 const ui = {
@@ -65,9 +65,9 @@ function 배경_그리기() {
   el.className = 'g-bg';
   el.setAttribute('aria-hidden', 'true');
   el.innerHTML = `
-    ${물결(1, 'var(--g-violet)', 'M0,60 C120,120 260,0 400,54 L400,160 L0,160 Z')}
-    ${물결(2, 'var(--g-pink)', 'M0,86 C110,20 250,130 400,64 L400,160 L0,160 Z')}
-    ${물결(3, 'var(--g-blue)', 'M0,110 C130,54 250,138 400,96 L400,160 L0,160 Z')}
+    ${물결(1, 'rgba(120,150,255,0.30)', 'M0,60 C120,120 260,0 400,54 L400,160 L0,160 Z')}
+    ${물결(2, 'rgba(255,160,130,0.24)', 'M0,86 C110,20 250,130 400,64 L400,160 L0,160 Z')}
+    ${물결(3, 'rgba(150,130,255,0.26)', 'M0,110 C130,54 250,138 400,96 L400,160 L0,160 Z')}
     ${배경_구슬.map((b) => `
       <span class="g-bead" style="
         width:${b.size}px;height:${b.size}px;
@@ -99,7 +99,7 @@ function 캡슐들(count) {
     // 곱수와 나머지는 서로소여야 골고루 퍼진다. (37 % 74 는 주기가 2라 두 자리에만 쌓였다)
     const color = 캡슐_색[i % 캡슐_색.length];
     const left = 4 + ((i * 29) % 72);
-    const bottom = 2 + ((i * 17) % 30);
+    const bottom = 2 + ((i * 17) % 26);
     const rot = ((i * 47) % 70) - 35;
     return `<span class="g-capsule" style="
       --c:${color};left:${left}%;bottom:${bottom}%;--rot:${rot}deg;
@@ -110,26 +110,28 @@ function 캡슐들(count) {
 function 기계(state) {
   const left = remainingCount(state);
   const dropColor = 캡슐_색[state.draws.length % 캡슐_색.length];
+  // 돔 · 조작부 · 배출구를 하나의 유리 본체 안에 넣어 한 덩어리 기기로 읽히게 한다
   return `
     <div class="gacha-machine">
-      <div class="g-dome">
-        <div class="g-pile">${캡슐들(left)}</div>
-        ${left === 0 ? '<p class="g-dome-empty">텅 비었습니다</p>' : ''}
-      </div>
-
-      <div class="g-body-panel">
-        <button class="g-knob" type="button" data-act="draw" ${left === 0 ? 'disabled' : ''} aria-label="손잡이 돌리기">
-          ${아이콘_돌리기}
-        </button>
-        <div class="g-counter"><b>${left}</b><span>개 남음</span></div>
-        <div class="g-slot"><i></i></div>
-      </div>
-
-      <div class="g-tray">
-        <div class="g-tray-mouth">
-          <span class="g-drop g-capsule" style="--c:${dropColor};--delay:0ms"></span>
+      <div class="g-shell">
+        <div class="g-dome">
+          <div class="g-pile">${캡슐들(left)}</div>
+          ${left === 0 ? '<p class="g-dome-empty">EMPTY</p>' : ''}
         </div>
-        <div class="g-tray-lip"></div>
+
+        <div class="g-body-panel">
+          <button class="g-knob" type="button" data-act="draw" ${left === 0 ? 'disabled' : ''} aria-label="손잡이 돌리기">
+            ${아이콘_돌리기}
+          </button>
+          <div class="g-counter"><b>${left}</b><span>개 남음</span></div>
+          <div class="g-slot"><i></i></div>
+        </div>
+
+        <div class="g-tray">
+          <div class="g-tray-mouth">
+            <span class="g-drop g-capsule" style="--c:${dropColor};--delay:0ms"></span>
+          </div>
+        </div>
       </div>
     </div>`;
 }
@@ -170,7 +172,7 @@ function 설정_화면() {
     </section>
 
     <div class="g-dock">
-      <button class="g-clay g-clay-lg" data-act="start" type="button">가챠 채우기</button>
+      <button class="g-clay g-clay-lg g-clay-hot" data-act="start" type="button">가챠 채우기</button>
     </div>
   `;
   root.querySelectorAll('[data-step]').forEach((b) => b.addEventListener('click', () => {
@@ -207,7 +209,7 @@ function 뽑기_화면(state) {
     </section>
     ${기록(state, 180)}
     <div class="g-dock">
-      <button class="g-clay g-clay-lg gacha-go" data-act="draw" type="button">뽑기하기</button>
+      <button class="g-clay g-clay-lg g-clay-hot gacha-go" data-act="draw" type="button">뽑기하기</button>
     </div>
   `;
   기계_연결();
@@ -262,7 +264,7 @@ function 공개_화면(state) {
 
 /** 마지막 캡슐용 파티클 */
 function 파티클() {
-  const 색 = ['var(--g-tier-legend)', 'var(--g-pink)', 'var(--g-mint)', 'var(--g-blue)', 'var(--g-violet)'];
+  const 색 = ['#FFC24B', '#FF6E9C', '#3ECFA6', '#5B8DEF', '#A98CFF'];
   return `<span class="g-sparks">${Array.from({ length: 18 }, (_, i) => {
     const 각도 = (i / 18) * Math.PI * 2;
     const 거리 = 90 + ((i * 37) % 70);

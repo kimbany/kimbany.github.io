@@ -2,7 +2,7 @@
  * 모두 currentColor 를 따르고, 크기는 CSS 에서 정한다. */
 
 const wrap = (inner, extra = '') =>
-  `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"
+  `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"
         stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" ${extra}>${inner}</svg>`;
 
 /** 캡슐 (가챠 상징) — 아래 반쪽을 채워 "뽑기 캡슐"로 읽히게 한다 */
@@ -17,7 +17,7 @@ export const 아이콘_빼기 = wrap(`<path d="M5 12h14" />`);
 
 /** 손잡이 돌리기 */
 export const 아이콘_돌리기 = wrap(`
-  <path d="M12 4.5v15" stroke-width="3" />
+  <path d="M12 4.5v15" stroke-width="2.4" />
   <circle cx="12" cy="12" r="8.5" opacity="0.45" stroke-width="1.6" />`);
 
 /** 아래 화살표 (펼치기) */
