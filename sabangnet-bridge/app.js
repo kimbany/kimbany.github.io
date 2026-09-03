@@ -11,12 +11,12 @@ const MAX_TPL = 5 * 1024 * 1024; // 서식 유지 저장 가능한 양식 파일
 
 /* ------------------------- 설정 ------------------------- */
 const defaultProfile = () => ({
-  tplName: "", tplB64: "", tplHdr: 1, tplSheet: "", useTpl: false,
-  cols: [], skipEmpty: true, skipNoTrack: true,
-  srcHdr: 1, joinA: "", joinB: ""
+  tplName: "", tplB64: "", tplHdr: 1, tplSheet: "", useTpl: false, fmt: "xlsx",
+  tplSamples: {}, cols: [], skipEmpty: true, skipNoTrack: true,
+  filterCol: "", filterVals: [], joinA: "", joinB: ""
 });
 
-let CFG = { out: defaultProfile(), inv: defaultProfile(), courier: [] };
+let CFG = { out: defaultProfile(), inv: defaultProfile(), courier: [], product: [] };
 
 function loadCfg() {
   try {
@@ -26,7 +26,8 @@ function loadCfg() {
     CFG = {
       out: Object.assign(defaultProfile(), o.out || {}),
       inv: Object.assign(defaultProfile(), o.inv || {}),
-      courier: Array.isArray(o.courier) ? o.courier : []
+      courier: Array.isArray(o.courier) ? o.courier : [],
+      product: Array.isArray(o.product) ? o.product : []
     };
   } catch (e) { console.warn("설정 로드 실패", e); }
 }
@@ -137,10 +138,11 @@ function buildTable(src) {
 /* ------------------------- 자동 매핑 사전 ------------------------- */
 const GROUPS = [
   { id: "orderNo",   tf: "text",   words: ["주문번호", "주문번호(사방넷)", "사방넷주문번호", "주문no", "오더번호", "orderno", "ordernumber", "주문아이디"] },
-  { id: "mallOrder", tf: "text",   words: ["주문번호(쇼핑몰)", "쇼핑몰주문번호", "원주문번호", "외부주문번호", "마켓주문번호"] },
+  { id: "mallOrder", tf: "text",   words: ["주문번호(쇼핑몰)", "쇼핑몰주문번호", "고객주문번호", "원주문번호", "외부주문번호", "마켓주문번호"] },
   { id: "itemNo",    tf: "text",   words: ["상품주문번호", "주문상세번호", "상세주문번호", "품목주문번호"] },
   { id: "receiver",  tf: "text",   words: ["수취인명", "수취인", "수령인", "수령인명", "수령자", "받는분", "받는사람", "수하인", "수하인명", "받는분성명", "수취인이름", "받는사람이름"] },
-  { id: "orderer",   tf: "text",   words: ["주문자", "주문자명", "보내는분", "송하인", "구매자명", "구매자"] },
+  { id: "orderer",   tf: "text",   words: ["주문자", "주문자명", "구매자명", "구매자"] },
+  { id: "sender",    tf: "text",   words: ["보내는분", "보내는분성명", "보내는분주소", "보내는분전화번호", "보내는분우편번호", "발송인", "발송인명", "송하인", "송하인명", "보내는사람"] },
   { id: "tel1",      tf: "phone",  words: ["수취인전화번호1", "수취인전화번호", "수취인연락처", "수취인휴대폰", "전화번호", "전화번호1", "연락처", "연락처1", "휴대폰번호", "휴대전화", "핸드폰", "받는분전화번호", "tel", "hp"] },
   { id: "tel2",      tf: "phone",  words: ["수취인전화번호2", "전화번호2", "연락처2", "추가연락처", "보조연락처", "수취인연락처2"] },
   { id: "zip",       tf: "text",   words: ["우편번호", "우편번호신", "받는분우편번호", "zipcode", "zip", "post"] },
@@ -187,8 +189,8 @@ function scoreMatch(target, cand) {
 /* ------------------------- 값 가공 ------------------------- */
 const TFS = [
   ["text", "그대로"], ["num", "숫자"], ["digits", "숫자만"], ["phone", "전화(하이픈)"],
-  ["zip", "우편번호만"], ["noZip", "주소만(우편번호 빼기)"],
-  ["trim", "공백제거"], ["courier", "택배사 변환"]
+  ["zip", "우편번호만"], ["zipBr", "우편번호([] 포함)"], ["noZip", "주소만(우편번호 빼기)"],
+  ["trim", "공백제거"], ["product", "상품명 변환"], ["courier", "택배사 변환"]
 ];
 
 const ZIP_RE = /\[\s*([0-9]{3}\s*-?\s*[0-9]{2,3})\s*\]/;
@@ -222,6 +224,18 @@ function applyTf(raw, tf) {
       if (p) return { v: p[1].replace(/[^0-9]/g, ""), t: "s" };
       const only = v.replace(/[^0-9]/g, "");
       return { v: /^[0-9]{5,6}$/.test(only) ? only : "", t: "s" };
+    }
+    case "zipBr": {
+      const m = v.match(ZIP_RE);
+      if (m) return { v: "[" + m[1].replace(/\s/g, "") + "]", t: "s" };
+      const only = v.replace(/[^0-9]/g, "");
+      return { v: only ? "[" + only + "]" : "", t: "s" };
+    }
+    case "product": {
+      const key = v.trim();
+      const hit = CFG.product.find(x => x.from.trim() === key)
+        || CFG.product.find(x => normKey(x.from) === normKey(key));
+      return { v: hit ? (hit.to || hit.from) : key, t: "s" };
     }
     case "noZip": {
       let out = v.replace(ZIP_RE, " ");
@@ -340,14 +354,52 @@ function zipEmbeddedSources(ns) {
   return set;
 }
 
+/* 상품 변환표에 등록된 품목명이 실제로 들어 있는 소스 컬럼 찾기 */
+function productSourceGuess(ns) {
+  if (!CFG.product.length) return "";
+  const keys = new Set(CFG.product.map(x => normKey(x.from)));
+  let best = "", bestHit = 0;
+  const tbl = S[ns].src;
+  if (!tbl) return "";
+  tbl.headers.forEach(h => {
+    let hit = 0;
+    tbl.rows.slice(0, 300).forEach(r => { if (keys.has(normKey(r[h]))) hit++; });
+    if (hit > bestHit) { bestHit = hit; best = h; }
+  });
+  return bestHit > 0 ? best : "";
+}
+
 function autoMap(ns) {
   const opts = sourceOptions(ns);
   if (!opts.length) { alert("먼저 파일을 업로드해 주세요."); return; }
   const cols = CFG[ns].cols;
   const used = new Set();
 
+  const samples = CFG[ns].tplSamples || {};
+  const sample1 = name => (samples[name] && samples[name][0]) || "";
+  const allSame = name => {
+    const v = samples[name] || [];
+    return v.length >= 2 && new Set(v).size === 1 ? v[0] : "";
+  };
+
+  const tplHasData = Object.keys(samples).some(k => (samples[k] || []).length);
+  const prodSrc = productSourceGuess(ns);
+
   cols.forEach(c => {
     if (c.mode !== "map") return;
+    const gc = groupOf(c.name);
+    /* 양식 견본에서 이 칸이 늘 비어 있었다면 그대로 비운다 */
+    if (tplHasData && !(samples[c.name] || []).length) { c.mode = "blank"; c.src = ""; return; }
+    /* 상품 변환표에 등록해 둔 품목명이 들어 있는 컬럼을 우선 연결 */
+    if (gc && gc.id === "product" && prodSrc) {
+      c.src = prodSrc; used.add(prodSrc); c.tf = "product"; return;
+    }
+    /* 보내는분(발송인) 칸은 매번 같은 값 → 양식에 들어 있던 값을 고정값으로 */
+    if (gc && gc.id === "sender") {
+      const fixed = allSame(c.name) || sample1(c.name);
+      if (fixed) { c.mode = "const"; c.val = fixed; c.tf = "text"; }
+      return;
+    }
     let best = null, bestScore = 0;
     opts.forEach(o => {
       let sc = scoreMatch(c.name, o.label);
@@ -358,8 +410,17 @@ function autoMap(ns) {
     });
     if (best && bestScore >= 45) {
       c.src = best.value; used.add(best.value);
-      const g = groupOf(c.name) || groupOf(best.label);
+      const g = gc || groupOf(best.label);
       if (g) c.tf = g.tf;
+      /* 양식에 남아 있는 견본값으로 형식을 맞춘다 */
+      const ex = sample1(c.name);
+      if (g && g.id === "zip" && ex) c.tf = /^\s*\[/.test(ex) ? "zipBr" : "zip";
+      if (g && (g.id === "tel1" || g.id === "tel2") && ex) c.tf = /-/.test(ex) ? "phone" : "digits";
+      if (g && g.id === "product" && CFG.product.length) c.tf = "product";
+    } else {
+      /* 소스에 대응이 없고 양식 견본이 늘 같은 값이면 고정값으로 */
+      const fixed = allSame(c.name);
+      if (fixed) { c.mode = "const"; c.val = fixed; c.tf = "text"; }
     }
   });
 
@@ -372,7 +433,12 @@ function autoMap(ns) {
     cols.forEach(c => {
       const g = groupOf(c.name);
       if (c.mode !== "map" || !g || g.id !== "zip") return;
-      if (!c.src || zipCols.has(c.src)) { c.src = c.src || firstZipCol; c.tf = "zip"; extracted = true; }
+      if (!c.src || zipCols.has(c.src)) {
+        c.src = c.src || firstZipCol;
+        const ex = sample1(c.name);
+        c.tf = ex && /^\s*\[/.test(ex) ? "zipBr" : "zip";
+        extracted = true;
+      }
     });
     if (extracted) cols.forEach(c => {
       const g = groupOf(c.name);
@@ -400,6 +466,16 @@ async function registerTemplate(ns, file) {
   cfg.tplName = file.name;
   cfg.tplHdr = hdr;
   cfg.tplSheet = sheet;
+  cfg.fmt = /\.xls$/i.test(file.name) ? cfg.fmt : "xlsx";
+  cfg.tplSamples = {};
+  headers.forEach((h, i) => {
+    const vals = [];
+    for (let r = hdr; r < aoa.length && vals.length < 20; r++) {
+      const v = String((aoa[r] || [])[i] == null ? "" : (aoa[r] || [])[i]).trim();
+      if (v !== "") vals.push(v);
+    }
+    cfg.tplSamples[h] = vals;
+  });
   cfg.tplB64 = (!/\.csv$/i.test(file.name) && buf.byteLength <= MAX_TPL) ? bufToB64(buf) : "";
   cfg.useTpl = !!cfg.tplB64;
   cfg.cols = headers.map(h => {
@@ -419,6 +495,7 @@ function syncTplUI(ns) {
   $(`#${ns}TplHdr`).value = cfg.tplHdr || 1;
   $(`#${ns}UseTpl`).checked = !!cfg.useTpl;
   $(`#${ns}UseTpl`).disabled = !cfg.tplB64;
+  $(`#${ns}Fmt`).value = cfg.fmt || "xlsx";
   $(`#${ns}TplInfo`).textContent = has
     ? `양식: ${cfg.tplName} · 시트 ${cfg.tplSheet || "첫 번째"} · 컬럼 ${cfg.cols.length}개`
       + (cfg.tplB64 ? "" : " · (파일이 커서 또는 CSV라 서식 유지 저장은 사용할 수 없습니다)")
@@ -437,7 +514,9 @@ function convert(ns) {
     refIndex = new Map();
     S.inv.ref.rows.forEach(r => {
       const k = String(r[cfg.joinB] == null ? "" : r[cfg.joinB]).trim();
-      if (k && !refIndex.has(k)) refIndex.set(k, r);
+      if (!k) return;
+      if (!refIndex.has(k)) refIndex.set(k, []);
+      refIndex.get(k).push(r);
     });
   }
   const needsRef = cfg.cols.some(c =>
@@ -450,16 +529,29 @@ function convert(ns) {
 
   const headers = cfg.cols.map(c => c.name);
   const trackIdx = cfg.cols.findIndex(c => { const g = groupOf(c.name); return g && g.id === "tracking"; });
+  const keyIdx = cfg.cols.findIndex(c => { const g = groupOf(c.name); return g && (g.id === "orderNo" || g.id === "mallOrder"); });
   const rows = [];
-  let skipped = 0, unmatched = 0;
+  const seen = new Set();
+  let skipped = 0, unmatched = 0, filtered = 0, expanded = 0;
+
+  const wanted = cfg.filterCol && (cfg.filterVals || []).length
+    ? new Set(cfg.filterVals.map(v => String(v).trim())) : null;
 
   src.rows.forEach(row => {
-    let refRow = null;
+    if (wanted && !wanted.has(String(row[cfg.filterCol] == null ? "" : row[cfg.filterCol]).trim())) { filtered++; return; }
+
+    /* 원본 출고 파일과 연결: 같은 주문번호가 여러 건이면 건마다 한 줄씩 만든다 */
+    let refRows = [null];
     if (refIndex) {
       const k = String(row[cfg.joinA] == null ? "" : row[cfg.joinA]).trim();
-      refRow = refIndex.get(k) || null;
-      if (needsRef && !refRow) unmatched++;
+      const hit = refIndex.get(k);
+      if (hit && hit.length) { refRows = hit; if (hit.length > 1) expanded += hit.length - 1; }
+      else if (needsRef) unmatched++;
     }
+    refRows.forEach(refRow => emit(row, refRow));
+  });
+
+  function emit(row, refRow) {
     const cells = cfg.cols.map(c => {
       if (c.mode === "blank") return { v: "", t: "s" };
       if (c.mode === "const") return applyTf(c.val, c.tf);
@@ -477,10 +569,14 @@ function convert(ns) {
     if (cfg.skipEmpty && cells.every(c => String(c.v).trim() === "")) { skipped++; return; }
     if (ns === "inv" && cfg.skipNoTrack && trackIdx >= 0
         && String(cells[trackIdx].v).trim() === "") { skipped++; return; }
+    if (refIndex && keyIdx >= 0) {
+      const k = String(cells[keyIdx].v).trim();
+      if (k) { if (seen.has(k)) return; seen.add(k); }
+    }
     rows.push(cells);
-  });
+  }
 
-  return { headers, rows, skipped, unmatched };
+  return { headers, rows, skipped, unmatched, filtered, expanded };
 }
 
 function renderPreview(ns, res) {
@@ -492,6 +588,16 @@ function renderPreview(ns, res) {
     `<tbody>${lim.map(r => `<tr>${r.map(c => `<td>${esc(c.v)}</td>`).join("")}</tr>`).join("")}</tbody>`;
 }
 
+/* .xls 등에서 읽은 서식을 저장 가능한 형태로 맞춘다(헤더 배경색 유지) */
+function normStyle(st) {
+  if (!st) return undefined;
+  const o = {};
+  ["font", "alignment", "border", "numFmt", "fill"].forEach(k => { if (st[k]) o[k] = st[k]; });
+  if (!o.fill && st.patternType && st.patternType !== "none" && st.fgColor)
+    o.fill = { patternType: st.patternType, fgColor: st.fgColor, bgColor: st.bgColor };
+  return Object.keys(o).length ? o : undefined;
+}
+
 /* 결과 → 워크북 */
 function buildWorkbook(ns, res) {
   const cfg = CFG[ns];
@@ -499,6 +605,7 @@ function buildWorkbook(ns, res) {
     const wb = XLSX.read(b64ToBuf(cfg.tplB64), { type: "array", cellStyles: true });
     const sheetName = wb.SheetNames.includes(cfg.tplSheet) ? cfg.tplSheet : wb.SheetNames[0];
     const ws = wb.Sheets[sheetName];
+    Object.keys(ws).forEach(a => { if (a[0] !== "!" && ws[a] && ws[a].s) ws[a].s = normStyle(ws[a].s); });
     const range = XLSX.utils.decode_range(ws["!ref"] || "A1");
     const hdrIdx = (cfg.tplHdr || 1) - 1;
 
@@ -550,7 +657,9 @@ function download(ns) {
   if (!res) return;
   const wb = buildWorkbook(ns, res);
   const base = ns === "out" ? "업체발주" : "사방넷운송장";
-  XLSX.writeFile(wb, `${base}_${stamp()}.xlsx`, { bookType: "xlsx", cellStyles: true });
+  const xls = CFG[ns].fmt === "xls";
+  XLSX.writeFile(wb, `${base}_${stamp()}.${xls ? "xls" : "xlsx"}`,
+    xls ? { bookType: "biff8" } : { bookType: "xlsx", cellStyles: true });
 }
 
 /* ------------------------- 파일 업로드 처리 ------------------------- */
@@ -587,6 +696,7 @@ async function loadSource(ns, file) {
     renderMap(ns);
   }
   if (ns === "inv") refreshJoinUI();
+  renderFilter(ns); renderProduct();
 }
 
 function updateSrcCount(ns) {
@@ -601,7 +711,7 @@ function clearSource(ns) {
   $(`#${ns}Prev`).innerHTML = "";
   $(`#${ns}Result`).textContent = "";
   $(`#${ns}Dl`).disabled = true;
-  renderMap(ns);
+  renderMap(ns); renderFilter(ns);
 }
 
 /* ------------------------- ② 원본 출고 파일(조인) ------------------------- */
@@ -623,20 +733,118 @@ function refreshJoinUI() {
   if (!ref) { row.hidden = true; return; }
   row.hidden = false;
   const cfg = CFG.inv;
-  const guess = (headers, prev) => {
+  const byName = (headers, prev) => {
     if (prev && headers.includes(prev)) return prev;
     let best = "", sc = 0;
-    headers.forEach(h => { const s = scoreMatch("주문번호", h); if (s > sc) { sc = s; best = h; } });
+    headers.forEach(h => { const s2 = scoreMatch("주문번호", h); if (s2 > sc) { sc = s2; best = h; } });
     return sc >= 45 ? best : (headers[0] || "");
   };
   const aH = src ? src.headers : [];
-  cfg.joinA = guess(aH, cfg.joinA);
-  cfg.joinB = guess(ref.headers, cfg.joinB);
+  cfg.joinA = byName(aH, cfg.joinA);
+
+  /* 이름보다 값이 정확하다: 송장 파일의 연결키 값이 실제로 들어 있는 원본 컬럼을 고른다 */
+  let matched = "";
+  if (src && cfg.joinA) {
+    const keys = new Set(src.rows.slice(0, 100)
+      .map(r => String(r[cfg.joinA] == null ? "" : r[cfg.joinA]).trim()).filter(v => v !== ""));
+    let bestHit = 0;
+    if (keys.size) ref.headers.forEach(h => {
+      let hit = 0;
+      ref.rows.forEach(r => { if (keys.has(String(r[h] == null ? "" : r[h]).trim())) hit++; });
+      if (hit > bestHit) { bestHit = hit; matched = h; }
+    });
+  }
+  cfg.joinB = matched || byName(ref.headers, cfg.joinB);
+
   $("#invJoinA").innerHTML = aH.map(h => `<option${h === cfg.joinA ? " selected" : ""}>${esc(h)}</option>`).join("")
     || `<option value="">송장 파일을 먼저 올려주세요</option>`;
   $("#invJoinB").innerHTML = ref.headers.map(h => `<option${h === cfg.joinB ? " selected" : ""}>${esc(h)}</option>`).join("");
-  $("#invRefInfo").textContent = `원본: ${ref.name} · ${ref.rows.length.toLocaleString()}행`;
+  $("#invRefInfo").textContent = `원본: ${ref.name} · ${ref.rows.length.toLocaleString()}행`
+    + (matched ? " · 값이 일치하는 컬럼을 자동으로 찾았습니다" : "");
   saveCfg();
+}
+
+/* ------------------------- 보낼 대상 고르기(필터) ------------------------- */
+function filterColumnGuess(src) {
+  let best = "", sc = 0;
+  src.headers.forEach(h => {
+    const g = groupOf(h);
+    const s2 = g && g.id === "option" ? 3 : (g && g.id === "product" ? 2 : 0);
+    if (s2 > sc) { sc = s2; best = h; }
+  });
+  return best || src.headers[0] || "";
+}
+
+function renderFilter(ns) {
+  const wrap = $(`#${ns}FilterList`), sel = $(`#${ns}FilterCol`);
+  if (!wrap || !sel) return;
+  const src = S[ns].src, cfg = CFG[ns];
+  if (!src) {
+    sel.innerHTML = `<option value="">파일을 먼저 올려주세요</option>`;
+    wrap.innerHTML = `<p class="empty">파일을 올리면 품목 목록이 나옵니다.</p>`;
+    $(`#${ns}FilterCnt`).textContent = "";
+    return;
+  }
+  if (!cfg.filterCol || !src.headers.includes(cfg.filterCol)) cfg.filterCol = filterColumnGuess(src);
+  sel.innerHTML = src.headers.map(h => `<option${h === cfg.filterCol ? " selected" : ""}>${esc(h)}</option>`).join("");
+
+  const counts = new Map();
+  src.rows.forEach(r => {
+    const v = String(r[cfg.filterCol] == null ? "" : r[cfg.filterCol]).trim();
+    counts.set(v, (counts.get(v) || 0) + 1);
+  });
+  const picked = new Set((cfg.filterVals || []).map(v => String(v).trim()));
+  wrap.innerHTML = Array.from(counts.entries()).map(([v, n]) =>
+    `<label class="chk item"><input type="checkbox" data-fv="${esc(v)}"${picked.has(v) ? " checked" : ""}>
+      <span>${esc(v === "" ? "(빈 값)" : v)}</span><span class="cnt">${n}건</span></label>`).join("");
+  const on = (cfg.filterVals || []).filter(v => counts.has(String(v).trim()));
+  const total = on.reduce((a, v) => a + (counts.get(String(v).trim()) || 0), 0);
+  $(`#${ns}FilterCnt`).textContent = on.length ? `${on.length}개 품목 · ${total}건 선택` : "전체 출력";
+}
+
+function bindFilter(ns) {
+  const wrap = $(`#${ns}FilterList`);
+  if (!wrap) return;
+  $(`#${ns}FilterCol`).addEventListener("change", e => {
+    CFG[ns].filterCol = e.target.value; CFG[ns].filterVals = []; saveCfg(); renderFilter(ns);
+  });
+  wrap.addEventListener("change", e => {
+    if (!e.target.matches("input[data-fv]")) return;
+    const v = e.target.dataset.fv;
+    const set = new Set(CFG[ns].filterVals || []);
+    if (e.target.checked) set.add(v); else set.delete(v);
+    CFG[ns].filterVals = Array.from(set); saveCfg(); renderFilter(ns);
+  });
+  $(`#${ns}FilterAll`).addEventListener("click", () => {
+    const src = S[ns].src; if (!src) return;
+    CFG[ns].filterVals = Array.from(new Set(src.rows.map(r => String(r[CFG[ns].filterCol] == null ? "" : r[CFG[ns].filterCol]).trim())));
+    saveCfg(); renderFilter(ns);
+  });
+  $(`#${ns}FilterNone`).addEventListener("click", () => { CFG[ns].filterVals = []; saveCfg(); renderFilter(ns); });
+  $(`#${ns}FilterMapped`).addEventListener("click", () => {
+    const src = S[ns].src; if (!src) return;
+    if (!CFG.product.length) { alert("설정 탭의 상품 변환표가 비어 있습니다.\n먼저 품목을 등록해 주세요."); return; }
+    const keys = new Set(CFG.product.map(x => normKey(x.from)));
+    const vals = Array.from(new Set(src.rows.map(r => String(r[CFG[ns].filterCol] == null ? "" : r[CFG[ns].filterCol]).trim())));
+    CFG[ns].filterVals = vals.filter(v => keys.has(normKey(v)));
+    saveCfg(); renderFilter(ns);
+    if (!CFG[ns].filterVals.length) alert("변환표에 있는 품목이 이 파일에 없습니다. 기준 컬럼이 맞는지 확인해 주세요.");
+  });
+}
+
+/* ------------------------- 상품 변환표 ------------------------- */
+function renderProduct() {
+  const tb = $("#pvTable tbody");
+  const sel = $("#pvCol");
+  const src = S.out.src;
+  sel.innerHTML = src
+    ? src.headers.map(h => `<option${h === (CFG.out.filterCol || "") ? " selected" : ""}>${esc(h)}</option>`).join("")
+    : `<option value="">① 탭에 파일을 올려주세요</option>`;
+  if (!CFG.product.length) { tb.innerHTML = `<tr><td colspan="3" class="empty">등록된 품목이 없습니다.</td></tr>`; return; }
+  tb.innerHTML = CFG.product.map((x, i) =>
+    `<tr><td class="wrap">${esc(x.from)}</td>
+      <td><input type="text" data-pv="${i}" value="${esc(x.to)}" placeholder="A업체 품목명"></td>
+      <td class="act"><button class="mini danger" data-pvdel="${i}">✕</button></td></tr>`).join("");
 }
 
 /* ------------------------- 택배사 규칙 ------------------------- */
@@ -666,13 +874,13 @@ function bindDropzone(ns) {
     src.sheet = e.target.value;
     src.hdr = detectHeaderRow(sheetAoa(src.wb, src.sheet));
     $(`#${ns}SrcHdr`).value = src.hdr;
-    buildTable(src); updateSrcCount(ns); renderMap(ns);
+    buildTable(src); updateSrcCount(ns); renderMap(ns); renderFilter(ns);
     if (ns === "inv") refreshJoinUI();
   });
   $(`#${ns}SrcHdr`).addEventListener("change", e => {
     const src = S[ns].src; if (!src) return;
     src.hdr = Math.max(1, Number(e.target.value) || 1);
-    buildTable(src); updateSrcCount(ns); renderMap(ns);
+    buildTable(src); updateSrcCount(ns); renderMap(ns); renderFilter(ns);
     if (ns === "inv") refreshJoinUI();
   });
   $(`#${ns}SrcClear`).addEventListener("click", () => clearSource(ns));
@@ -690,6 +898,7 @@ function bindProfile(ns) {
   });
   $(`#${ns}TplHdr`).addEventListener("change", e => { CFG[ns].tplHdr = Math.max(1, Number(e.target.value) || 1); saveCfg(); });
   $(`#${ns}UseTpl`).addEventListener("change", e => { CFG[ns].useTpl = e.target.checked; saveCfg(); });
+  $(`#${ns}Fmt`).addEventListener("change", e => { CFG[ns].fmt = e.target.value; saveCfg(); });
   $(`#${ns}TplClear`).addEventListener("click", () => {
     if (!confirm("등록된 양식을 삭제할까요? 매핑 설정은 유지됩니다.")) return;
     Object.assign(CFG[ns], { tplName: "", tplB64: "", tplSheet: "", useTpl: false });
@@ -708,7 +917,9 @@ function bindProfile(ns) {
     renderPreview(ns, res);
     if (!res) { $(`#${ns}Result`).textContent = ""; return; }
     let msg = `변환 ${res.rows.length.toLocaleString()}행`;
+    if (res.filtered) msg += ` · 대상 아님 ${res.filtered}행`;
     if (res.skipped) msg += ` · 제외 ${res.skipped}행`;
+    if (res.expanded) msg += ` · 원본 다건 매칭 ${res.expanded}행`;
     if (res.unmatched) msg += ` · 원본 미매칭 ${res.unmatched}행`;
     if (!res.rows.length) msg += " (조건에 맞는 행이 없습니다)";
     $(`#${ns}Result`).textContent = msg;
@@ -751,8 +962,44 @@ function init() {
   $("#invRefClear").addEventListener("click", () => {
     S.inv.ref = null; $("#invJoinRow").hidden = true; renderMap("inv");
   });
-  $("#invJoinA").addEventListener("change", e => { CFG.inv.joinA = e.target.value; saveCfg(); });
+  $("#invJoinA").addEventListener("change", e => { CFG.inv.joinA = e.target.value; CFG.inv.joinB = ""; saveCfg(); refreshJoinUI(); });
   $("#invJoinB").addEventListener("change", e => { CFG.inv.joinB = e.target.value; saveCfg(); });
+
+  /* 보낼 대상 고르기 */
+  bindFilter("out");
+
+  /* 상품 변환표 */
+  $("#pvAdd").addEventListener("click", () => {
+    const from = $("#pvFrom").value.trim(), to = $("#pvTo").value.trim();
+    if (!from) { alert("사방넷 품목명을 입력해 주세요."); return; }
+    if (CFG.product.some(x => x.from === from)) { alert("이미 등록된 품목입니다."); return; }
+    CFG.product.push({ from, to: to || from });
+    $("#pvFrom").value = ""; $("#pvTo").value = "";
+    saveCfg(); renderProduct();
+  });
+  $("#pvLoad").addEventListener("click", () => {
+    const src = S.out.src;
+    if (!src) { alert("① 탭에 사방넷 출고 파일을 먼저 올려주세요."); return; }
+    const col = $("#pvCol").value;
+    const vals = Array.from(new Set(src.rows.map(r => String(r[col] == null ? "" : r[col]).trim()))).filter(v => v !== "");
+    let added = 0;
+    vals.forEach(v => { if (!CFG.product.some(x => x.from === v)) { CFG.product.push({ from: v, to: v }); added++; } });
+    saveCfg(); renderProduct();
+    info(`품목 ${added}개를 불러왔습니다. A업체 품목명 칸을 고쳐 주세요.`);
+    if (!added) alert("새로 추가할 품목이 없습니다.");
+  });
+  $("#pvTable").addEventListener("change", e => {
+    const i = e.target.dataset.pv;
+    if (i == null) return;
+    CFG.product[Number(i)].to = e.target.value;
+    saveCfg();
+  });
+  $("#pvTable").addEventListener("click", e => {
+    const i = e.target.dataset.pvdel;
+    if (i == null) return;
+    CFG.product.splice(Number(i), 1); saveCfg(); renderProduct();
+  });
+  renderProduct();
 
   /* 택배사 규칙 */
   $("#cvAdd").addEventListener("click", () => {
@@ -787,21 +1034,22 @@ function init() {
       CFG = {
         out: Object.assign(defaultProfile(), o.out || {}),
         inv: Object.assign(defaultProfile(), o.inv || {}),
-        courier: Array.isArray(o.courier) ? o.courier : []
+        courier: Array.isArray(o.courier) ? o.courier : [],
+        product: Array.isArray(o.product) ? o.product : []
       };
       saveCfg();
       syncTplUI("out"); syncTplUI("inv");
-      renderMap("out"); renderMap("inv"); renderCourier();
+      renderMap("out"); renderMap("inv"); renderCourier(); renderProduct(); renderFilter("out");
       info("설정을 가져왔습니다.");
     } catch (err) { alert("설정 파일을 읽지 못했습니다: " + err.message); }
     e.target.value = "";
   });
   $("#cfgReset").addEventListener("click", () => {
     if (!confirm("양식·매핑·택배사 규칙을 모두 삭제할까요?")) return;
-    CFG = { out: defaultProfile(), inv: defaultProfile(), courier: [] };
+    CFG = { out: defaultProfile(), inv: defaultProfile(), courier: [], product: [] };
     localStorage.removeItem(LS_KEY);
     syncTplUI("out"); syncTplUI("inv");
-    renderMap("out"); renderMap("inv"); renderCourier();
+    renderMap("out"); renderMap("inv"); renderCourier(); renderProduct(); renderFilter("out");
     info("초기화했습니다.");
   });
 }

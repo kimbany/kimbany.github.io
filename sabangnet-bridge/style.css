@@ -83,3 +83,10 @@ footer a:hover{color:var(--pri)}
 .combine select[multiple]{padding:3px;font-size:12px}
 .combine input[type=text]{width:100%}
 .combine .hint2{margin:0;font-size:11px}
+
+.checklist{max-height:230px;overflow-y:auto;border:1px solid var(--line);border-radius:9px;background:#fff;padding:6px 8px}
+.checklist .item{display:flex;align-items:center;gap:8px;padding:4px 4px;color:var(--text);border-bottom:1px solid #f1f3f6}
+.checklist .item:last-child{border-bottom:0}
+.checklist .item span:first-of-type{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.checklist .empty{color:var(--muted);text-align:center;margin:14px 0}
+table.grid td.wrap{white-space:normal;word-break:break-all}
