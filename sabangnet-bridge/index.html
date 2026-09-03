@@ -1,0 +1,283 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>출고/송장 양식 변환기 · 사방넷 ↔ 업체</title>
+<script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header>
+  <h1>출고 · 송장 양식 변환기</h1>
+  <p class="sub">사방넷 출고 엑셀 → <b>A업체 발주 양식</b> / A업체 송장 엑셀 → <b>사방넷 운송장 업로드 양식</b><br>
+  파일은 서버로 전송되지 않고 브라우저 안에서만 처리됩니다.</p>
+</header>
+
+<nav class="tabs">
+  <button class="tab active" data-tab="t-out">① 출고 → 업체 양식</button>
+  <button class="tab" data-tab="t-inv">② 송장 → 사방넷 양식</button>
+  <button class="tab" data-tab="t-set">설정</button>
+  <button class="tab" data-tab="t-help">도움말</button>
+</nav>
+
+<!-- ============ ① 출고 → 업체 양식 ============ -->
+<section id="t-out" class="panel active">
+  <div class="step">
+    <h2>1. 사방넷 출고 리스트 업로드</h2>
+    <label class="drop" id="outSrcDrop">
+      <span class="drop-t">사방넷에서 받은 출고 엑셀을 올려주세요</span>
+      <span class="drop-s">클릭 또는 파일을 끌어다 놓기 (.xlsx .xls .csv)</span>
+      <input type="file" id="outSrcFile" accept=".xlsx,.xls,.csv" hidden>
+    </label>
+    <div class="filebar" id="outSrcInfo" hidden>
+      <span class="fname" id="outSrcName"></span>
+      <label class="hint">시트 <select id="outSrcSheet"></select></label>
+      <label class="hint">머리글 행 <input type="number" id="outSrcHdr" min="1" value="1" class="num"></label>
+      <span class="cnt" id="outSrcCnt"></span>
+      <button class="ghost" id="outSrcClear">지우기</button>
+    </div>
+  </div>
+
+  <div class="step">
+    <h2>2. A업체 양식 등록 <span class="badge" id="outTplBadge">미등록</span></h2>
+    <p class="desc">A업체가 준 <b>빈 양식 파일</b>을 한 번만 올려두면 컬럼이 자동으로 등록되고, 다음부터는 그 양식 그대로 채워서 내려받습니다. 저장되므로 매번 올릴 필요 없습니다.</p>
+    <div class="row">
+      <label class="btn">양식 파일 올리기<input type="file" id="outTplFile" accept=".xlsx,.xls,.csv" hidden></label>
+      <label class="hint">양식 머리글 행 <input type="number" id="outTplHdr" min="1" value="1" class="num"></label>
+      <label class="chk"><input type="checkbox" id="outUseTpl"> 양식 파일에 그대로 채워서 저장(서식 유지)</label>
+      <label class="hint">저장 형식 <select id="outFmt"><option value="xlsx">.xlsx (권장)</option><option value="xls">.xls (원본과 동일)</option></select></label>
+      <button class="ghost" id="outTplClear">양식 삭제</button>
+    </div>
+    <p class="hint2" id="outTplInfo"></p>
+  </div>
+
+  <div class="step">
+    <h2>3. 보낼 대상 고르기 <span class="cnt" id="outFilterCnt"></span></h2>
+    <p class="desc">A업체로 보낼 품목만 골라서 내보냅니다. 아무것도 고르지 않으면 전체가 나갑니다.
+      <b>상품 변환표에 있는 것만</b>을 누르면 설정 탭의 변환표에 등록해 둔 품목이 자동으로 선택됩니다.</p>
+    <div class="row">
+      <label class="hint">기준 컬럼 <select id="outFilterCol"></select></label>
+      <button class="ghost" id="outFilterMapped">상품 변환표에 있는 것만</button>
+      <button class="ghost" id="outFilterAll">전체 선택</button>
+      <button class="ghost" id="outFilterNone">전체 해제</button>
+    </div>
+    <div class="checklist" id="outFilterList"></div>
+  </div>
+
+  <div class="step">
+    <h2>4. 컬럼 매핑</h2>
+    <div class="row">
+      <button class="ghost" id="outAuto">자동 매핑</button>
+      <button class="ghost" id="outAddCol">+ 컬럼 추가</button>
+      <label class="chk"><input type="checkbox" id="outSkipEmpty" checked> 값이 전부 빈 행은 제외</label>
+    </div>
+    <table class="grid map" id="outMap">
+      <thead><tr><th style="width:26%">A업체 컬럼(출력)</th><th style="width:18%">채우는 방법</th><th style="width:34%">사방넷 컬럼 / 고정값</th><th style="width:16%">가공</th><th></th></tr></thead>
+      <tbody></tbody>
+    </table>
+  </div>
+
+  <div class="step">
+    <h2>5. 미리보기 &amp; 다운로드</h2>
+    <div class="row">
+      <button id="outRun" class="primary">변환하기</button>
+      <button id="outDl" class="primary" disabled>엑셀 다운로드</button>
+      <span class="cnt" id="outResult"></span>
+    </div>
+    <div class="tablewrap"><table class="grid" id="outPrev"></table></div>
+  </div>
+</section>
+
+<!-- ============ ② 송장 → 사방넷 양식 ============ -->
+<section id="t-inv" class="panel">
+  <div class="step">
+    <h2>1. A업체 송장 파일 업로드</h2>
+    <label class="drop" id="invSrcDrop">
+      <span class="drop-t">A업체에서 받은 운송장 엑셀을 올려주세요</span>
+      <span class="drop-s">클릭 또는 파일을 끌어다 놓기 (.xlsx .xls .csv)</span>
+      <input type="file" id="invSrcFile" accept=".xlsx,.xls,.csv" hidden>
+    </label>
+    <div class="filebar" id="invSrcInfo" hidden>
+      <span class="fname" id="invSrcName"></span>
+      <label class="hint">시트 <select id="invSrcSheet"></select></label>
+      <label class="hint">머리글 행 <input type="number" id="invSrcHdr" min="1" value="1" class="num"></label>
+      <span class="cnt" id="invSrcCnt"></span>
+      <button class="ghost" id="invSrcClear">지우기</button>
+    </div>
+  </div>
+
+  <div class="step">
+    <h2>2. (선택) 원본 출고 파일로 정보 채우기</h2>
+    <p class="desc">송장 파일에 주문번호와 송장번호만 있을 때, ①에서 쓴 사방넷 출고 파일을 같이 올리면 <b>주문번호로 연결</b>해서 나머지 값을 가져올 수 있습니다.</p>
+    <div class="row">
+      <label class="btn">원본 출고 파일 올리기<input type="file" id="invRefFile" accept=".xlsx,.xls,.csv" hidden></label>
+      <button class="ghost" id="invRefUseOut">①에 올린 파일 그대로 쓰기</button>
+      <button class="ghost" id="invRefClear">해제</button>
+    </div>
+    <div class="row" id="invJoinRow" hidden>
+      <label class="hint">송장파일 연결키 <select id="invJoinA"></select></label>
+      <span class="arrow">↔</span>
+      <label class="hint">원본파일 연결키 <select id="invJoinB"></select></label>
+      <span class="cnt" id="invRefInfo"></span>
+    </div>
+  </div>
+
+  <div class="step">
+    <h2>3. 사방넷 업로드 양식 등록 <span class="badge" id="invTplBadge">미등록</span></h2>
+    <p class="desc">사방넷 운송장 일괄등록용 <b>양식 파일</b>을 한 번 올려두세요. 컬럼이 자동 등록되고 저장됩니다.</p>
+    <div class="row">
+      <label class="btn">양식 파일 올리기<input type="file" id="invTplFile" accept=".xlsx,.xls,.csv" hidden></label>
+      <label class="hint">양식 머리글 행 <input type="number" id="invTplHdr" min="1" value="1" class="num"></label>
+      <label class="chk"><input type="checkbox" id="invUseTpl"> 양식 파일에 그대로 채워서 저장(서식 유지)</label>
+      <label class="hint">저장 형식 <select id="invFmt"><option value="xlsx">.xlsx (권장)</option><option value="xls">.xls (원본과 동일)</option></select></label>
+      <button class="ghost" id="invTplClear">양식 삭제</button>
+    </div>
+    <p class="hint2" id="invTplInfo"></p>
+  </div>
+
+  <div class="step">
+    <h2>4. 컬럼 매핑</h2>
+    <div class="row">
+      <button class="ghost" id="invAuto">자동 매핑</button>
+      <button class="ghost" id="invAddCol">+ 컬럼 추가</button>
+      <label class="chk"><input type="checkbox" id="invSkipEmpty" checked> 값이 전부 빈 행은 제외</label>
+      <label class="chk"><input type="checkbox" id="invSkipNoTrack" checked> 송장번호가 빈 행은 제외</label>
+    </div>
+    <table class="grid map" id="invMap">
+      <thead><tr><th style="width:26%">사방넷 컬럼(출력)</th><th style="width:18%">채우는 방법</th><th style="width:34%">송장/원본 컬럼 · 고정값</th><th style="width:16%">가공</th><th></th></tr></thead>
+      <tbody></tbody>
+    </table>
+    <p class="hint2">※ 송장번호 컬럼은 가공을 <b>숫자만</b>으로 두면 하이픈이 제거되고(<code>6001-0831-8512</code> → <code>600108318512</code>),
+      엑셀에서 지수(E+) 표기로 깨지지 않도록 텍스트로 저장됩니다. 사방넷이 하이픈 있는 형태를 받는다면 <b>그대로</b>로 바꾸세요.<br>
+      ※ 송장 파일에 택배사 칸이 없으면 <b>채우는 방법</b>을 <b>고정값</b>으로 바꾸고 <code>CJ대한통운</code>처럼 직접 넣으세요.
+      연결되지 않은 칸이 있으면 변환 후 결과 줄에 경고가 표시됩니다.</p>
+  </div>
+
+  <div class="step">
+    <h2>5. 미리보기 &amp; 다운로드</h2>
+    <div class="row">
+      <button id="invRun" class="primary">변환하기</button>
+      <button id="invDl" class="primary" disabled>엑셀 다운로드</button>
+      <span class="cnt" id="invResult"></span>
+    </div>
+    <div class="tablewrap"><table class="grid" id="invPrev"></table></div>
+  </div>
+</section>
+
+<!-- ============ 설정 ============ -->
+<section id="t-set" class="panel">
+  <div class="step">
+    <h2>상품(품목명) 변환표</h2>
+    <p class="desc">사방넷 품목명을 A업체가 쓰는 품목명으로 바꿔줍니다. 매핑에서 가공을 <b>상품명 변환</b>으로 지정한 컬럼에 적용되고,
+      ① 탭의 <b>보낼 대상 고르기</b>에서 필터로도 쓸 수 있습니다.</p>
+    <div class="row">
+      <label class="hint">① 탭에 올린 파일의 <select id="pvCol"></select></label>
+      <button class="ghost" id="pvLoad">품목 불러오기</button>
+      <span class="hint2">파일에 있는 품목을 목록으로 뽑아옵니다. A업체 품목명만 고쳐 쓰면 됩니다.</span>
+    </div>
+    <div class="row">
+      <input type="text" id="pvFrom" placeholder="사방넷 품목명">
+      <span class="arrow">→</span>
+      <input type="text" id="pvTo" placeholder="A업체 품목명">
+      <button id="pvAdd">추가</button>
+    </div>
+    <table class="grid" id="pvTable">
+      <thead><tr><th style="width:45%">사방넷 품목명</th><th style="width:45%">A업체 품목명</th><th></th></tr></thead><tbody></tbody>
+    </table>
+  </div>
+  <div class="step">
+    <h2>택배사 이름 변환 규칙</h2>
+    <p class="desc">A업체가 쓰는 택배사 표기를 사방넷에서 쓰는 표기로 바꿔줍니다. 매핑에서 가공을 <b>택배사 변환</b>으로 지정한 컬럼에 적용됩니다.</p>
+    <div class="row">
+      <input type="text" id="cvFrom" placeholder="바꿀 값 (예: 대한통운)">
+      <span class="arrow">→</span>
+      <input type="text" id="cvTo" placeholder="바뀔 값 (예: CJ대한통운)">
+      <button id="cvAdd">추가</button>
+    </div>
+    <table class="grid" id="cvTable">
+      <thead><tr><th>원본 표기</th><th>변환 결과</th><th></th></tr></thead><tbody></tbody>
+    </table>
+  </div>
+  <div class="step">
+    <h2>설정 백업 / 복원</h2>
+    <p class="desc">양식·매핑 설정은 이 브라우저에 저장됩니다. 다른 PC에서 쓰려면 내보내기 한 파일을 가져오기 하세요.</p>
+    <div class="row">
+      <button class="ghost" id="cfgExport">설정 내보내기(.json)</button>
+      <label class="btn ghost">설정 가져오기<input type="file" id="cfgImport" accept=".json" hidden></label>
+      <button class="ghost danger" id="cfgReset">전체 초기화</button>
+    </div>
+    <p class="hint2" id="cfgInfo"></p>
+  </div>
+</section>
+
+<!-- ============ 도움말 ============ -->
+<section id="t-help" class="panel">
+  <div class="step">
+    <h2>처음 한 번만 하면 되는 준비</h2>
+    <ol class="help">
+      <li><b>① 탭</b>에서 A업체 양식 파일을 <b>양식 파일 올리기</b>로 등록합니다.
+        지난번에 보낸 <b>데이터가 들어 있는 파일</b>을 올리면 더 좋습니다 —
+        보내는분 정보처럼 늘 같은 값은 고정값으로, 늘 비워 두는 칸은 빈칸으로,
+        우편번호를 <code>[049-35]</code>로 쓰는지 <code>04935</code>로 쓰는지까지 알아서 맞춰줍니다.</li>
+      <li>사방넷 출고 엑셀을 올립니다.</li>
+      <li><b>설정 탭 → 상품 변환표</b>에서 <b>품목 불러오기</b>를 누르고,
+        A업체로 보내는 품목만 남긴 뒤 A업체가 쓰는 품목명으로 고칩니다.
+        (예: <code>고당도 매드베리 딸기 230g (9-12입)</code> → <code>매드베리 딸기 230g (9-12입)</code>)</li>
+      <li>① 탭 <b>보낼 대상 고르기</b>에서 <b>상품 변환표에 있는 것만</b>을 누릅니다.
+        이제 A업체 품목만 걸러져 나갑니다.</li>
+      <li><b>자동 매핑</b>을 누르고 틀린 부분만 손으로 고칩니다.</li>
+      <li><b>② 탭</b>도 같은 방식으로 사방넷 운송장 양식과 A업체 송장 파일 샘플로 한 번 맞춰둡니다.</li>
+      <li>여기까지 하면 설정이 저장되어, 다음부터는 <b>파일 올리기 → 변환하기 → 다운로드</b>로 끝납니다.</li>
+    </ol>
+  </div>
+  <div class="step">
+    <h2>매일 쓰는 순서</h2>
+    <ol class="help">
+      <li>사방넷에서 출고 리스트 다운로드 → ① 탭에 올림 → 변환 → 나온 파일을 A업체에 전달</li>
+      <li>A업체에서 송장 파일 수신 → ② 탭에 올림 → <b>①에 올린 파일 그대로 쓰기</b>를 눌러 원본을 연결 → 변환 → 사방넷에 업로드</li>
+      <li>A업체가 <b>쇼핑몰 주문번호</b>로 돌려주면, 원본과 이어붙여 <b>사방넷 주문번호</b>로 바꿔 내보냅니다.
+        한 주문번호에 사방넷 주문이 여러 건이면 각각 한 줄씩 만들어 같은 송장번호를 넣습니다.</li>
+    </ol>
+  </div>
+  <div class="step">
+    <h2>가공 옵션</h2>
+    <ul class="help">
+      <li><b>그대로</b> — 값을 텍스트로 그대로 출력합니다.</li>
+      <li><b>숫자</b> — 숫자로 저장합니다(수량, 금액 등).</li>
+      <li><b>숫자만</b> — 하이픈·공백·문자를 지우고 숫자만 남깁니다(송장번호 등).</li>
+      <li><b>전화(하이픈)</b> — <code>01055556666</code> → <code>010-5555-6666</code> 형태로 맞춰줍니다.</li>
+      <li><b>우편번호만</b> — 사방넷 주소는 <code>[352-51] 대전 서구 문예로 16</code>처럼 우편번호가 주소 안에 들어 있습니다. 여기서 <code>35251</code>만 뽑아냅니다.</li>
+      <li><b>주소만(우편번호 빼기)</b> — 같은 값에서 앞의 <code>[352-51]</code>을 떼고 <code>대전 서구 문예로 16</code>만 남깁니다.</li>
+      <li><b>공백제거</b> — 앞뒤 공백을 제거합니다.</li>
+      <li><b>우편번호([] 포함)</b> — <code>[049-35]</code> 형태 그대로 넣습니다(A업체 양식이 이 형태일 때).</li>
+      <li><b>상품명 변환</b> — 설정 탭의 상품 변환표대로 품목명을 A업체 명칭으로 바꿉니다.</li>
+      <li><b>택배사 변환</b> — 설정 탭의 규칙표대로 이름을 바꿉니다.</li>
+    </ul>
+  </div>
+  <div class="step">
+    <h2>채우는 방법</h2>
+    <ul class="help">
+      <li><b>파일에서 가져오기</b> — 올린 파일의 컬럼 하나를 그대로 씁니다.</li>
+      <li><b>여러 컬럼 합치기</b> — 예를 들어 A업체 양식의 상품명 칸에 <code>상품명(확정) + 옵션별칭</code>을 이어붙여 넣습니다. 구분자(예: <code> / </code>)를 지정할 수 있습니다.</li>
+      <li><b>고정값</b> — 모든 행에 같은 값을 넣습니다(예: 택배사 <code>CJ대한통운</code>, 결제구분 <code>선불</code>).</li>
+      <li><b>비움</b> — 빈 칸으로 둡니다.</li>
+    </ul>
+  </div>
+  <div class="step">
+    <h2>참고</h2>
+    <ul class="help">
+      <li>업로드한 파일은 어디에도 전송되지 않습니다. 모든 변환은 브라우저에서 처리됩니다.</li>
+      <li>양식 파일과 매핑 설정은 이 브라우저(localStorage)에 저장됩니다. 브라우저 데이터를 지우면 사라지니 설정 탭에서 백업해 두세요.</li>
+      <li>양식 파일이 5MB를 넘으면 서식 유지 저장은 사용할 수 없고, 컬럼만 등록됩니다.</li>
+      <li>양식 파일이 <code>.xls</code>여도 읽을 수 있습니다. 저장은 <code>.xlsx</code>가 기본이며(서식이 더 잘 남습니다),
+        <b>저장 형식</b>에서 <code>.xls</code>로 바꿀 수 있습니다.</li>
+      <li>사방넷 파일에 시트가 여러 개면(예: <code>주문서확인처리_송장출력</code>, <code>Sheet1</code>) 파일명 옆의 <b>시트</b>에서 골라주세요.</li>
+    </ul>
+  </div>
+</section>
+
+<footer><a href="../index.html">← 메인으로</a></footer>
+<script src="app.js"></script>
+</body>
+</html>
