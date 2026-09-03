@@ -136,20 +136,22 @@ function buildTable(src) {
 
 /* ------------------------- 자동 매핑 사전 ------------------------- */
 const GROUPS = [
-  { id: "orderNo",   tf: "text",   words: ["주문번호", "주문no", "오더번호", "orderno", "ordernumber", "쇼핑몰주문번호", "원주문번호", "주문아이디"] },
+  { id: "orderNo",   tf: "text",   words: ["주문번호", "주문번호(사방넷)", "사방넷주문번호", "주문no", "오더번호", "orderno", "ordernumber", "주문아이디"] },
+  { id: "mallOrder", tf: "text",   words: ["주문번호(쇼핑몰)", "쇼핑몰주문번호", "원주문번호", "외부주문번호", "마켓주문번호"] },
   { id: "itemNo",    tf: "text",   words: ["상품주문번호", "주문상세번호", "상세주문번호", "품목주문번호"] },
-  { id: "receiver",  tf: "text",   words: ["수취인명", "수취인", "수령인", "수령인명", "수령자", "받는분", "받는사람", "수하인", "수하인명", "받는분성명", "수취인이름"] },
+  { id: "receiver",  tf: "text",   words: ["수취인명", "수취인", "수령인", "수령인명", "수령자", "받는분", "받는사람", "수하인", "수하인명", "받는분성명", "수취인이름", "받는사람이름"] },
   { id: "orderer",   tf: "text",   words: ["주문자", "주문자명", "보내는분", "송하인", "구매자명", "구매자"] },
-  { id: "tel1",      tf: "digits", words: ["수취인전화번호", "수취인연락처", "수취인휴대폰", "전화번호", "연락처", "휴대폰번호", "휴대전화", "핸드폰", "전화번호1", "연락처1", "tel", "hp"] },
-  { id: "tel2",      tf: "digits", words: ["수취인전화번호2", "전화번호2", "연락처2", "추가연락처", "보조연락처"] },
-  { id: "zip",       tf: "text",   words: ["우편번호", "우편번호신", "zipcode", "zip", "post"] },
-  { id: "addr",      tf: "text",   words: ["주소", "배송지주소", "수취인주소", "배송주소", "수하인주소", "전체주소", "주소1", "배송지"] },
-  { id: "addr2",     tf: "text",   words: ["상세주소", "주소2", "나머지주소"] },
-  { id: "memo",      tf: "text",   words: ["배송메시지", "배송메모", "배송요청사항", "요청사항", "배송시요청사항", "전달사항", "메모", "비고"] },
-  { id: "product",   tf: "text",   words: ["상품명", "품목명", "제품명", "품명", "상품", "모델명", "출고상품명"] },
-  { id: "option",    tf: "text",   words: ["옵션", "옵션명", "옵션정보", "상품옵션", "선택옵션", "옵션내용"] },
+  { id: "tel1",      tf: "phone",  words: ["수취인전화번호1", "수취인전화번호", "수취인연락처", "수취인휴대폰", "전화번호", "전화번호1", "연락처", "연락처1", "휴대폰번호", "휴대전화", "핸드폰", "받는분전화번호", "tel", "hp"] },
+  { id: "tel2",      tf: "phone",  words: ["수취인전화번호2", "전화번호2", "연락처2", "추가연락처", "보조연락처", "수취인연락처2"] },
+  { id: "zip",       tf: "text",   words: ["우편번호", "우편번호신", "받는분우편번호", "zipcode", "zip", "post"] },
+  { id: "addr",      tf: "text",   words: ["수취인주소", "수취인주소(1)", "수취인주소1", "주소", "배송지주소", "배송주소", "수하인주소", "전체주소", "주소1", "배송지", "받는분주소"] },
+  { id: "addr2",     tf: "text",   words: ["상세주소", "주소2", "나머지주소", "수취인주소(2)", "수취인주소2"] },
+  { id: "memo",      tf: "text",   words: ["배송메세지", "배송메시지", "배송메모", "배송요청사항", "요청사항", "배송시요청사항", "고객요청사항", "전달사항", "메모", "비고"] },
+  { id: "product",   tf: "text",   words: ["상품명", "상품명(확정)", "품목명", "제품명", "품명", "상품", "모델명", "출고상품명"] },
+  { id: "option",    tf: "text",   words: ["옵션별칭", "옵션", "옵션명", "옵션정보", "상품옵션", "선택옵션", "옵션내용"] },
   { id: "qty",       tf: "num",    words: ["수량", "주문수량", "구매수량", "출고수량", "개수", "qty", "총수량", "판매수량"] },
   { id: "sku",       tf: "text",   words: ["상품코드", "제품코드", "품목코드", "자체상품코드", "sku", "바코드", "관리코드", "출고코드"] },
+  { id: "payType",   tf: "text",   words: ["배송결제", "배송결제(신용,착불)", "결제방법", "운임구분", "선불착불", "배송비결제"] },
   { id: "courier",   tf: "courier",words: ["택배사", "택배사명", "배송업체", "배송사", "배송사명", "운송사", "courier", "배송방법"] },
   { id: "tracking",  tf: "digits", words: ["송장번호", "운송장번호", "운송장", "송장", "운송장no", "invoiceno", "trackingno", "trackingnumber", "등기번호"] },
   { id: "mall",      tf: "text",   words: ["쇼핑몰", "판매처", "마켓", "채널", "쇼핑몰명", "사이트"] },
@@ -161,12 +163,15 @@ GROUPS.forEach(g => g.words.forEach(w => { GROUP_OF[normKey(w)] = g; }));
 
 function groupOf(name) {
   const k = normKey(name);
+  if (!k) return null;
   if (GROUP_OF[k]) return GROUP_OF[k];
+  let best = null, bestLen = 0;
   for (const g of GROUPS) for (const w of g.words) {
     const wk = normKey(w);
-    if (wk.length >= 3 && (k.includes(wk) || wk.includes(k)) && k.length >= 2) return g;
+    if (wk.length < 3 || k.length < 2) continue;
+    if ((k.includes(wk) || wk.includes(k)) && wk.length > bestLen) { bestLen = wk.length; best = g; }
   }
-  return null;
+  return best;
 }
 
 function scoreMatch(target, cand) {
@@ -181,9 +186,12 @@ function scoreMatch(target, cand) {
 
 /* ------------------------- 값 가공 ------------------------- */
 const TFS = [
-  ["text", "그대로"], ["num", "숫자"], ["digits", "숫자만"],
+  ["text", "그대로"], ["num", "숫자"], ["digits", "숫자만"], ["phone", "전화(하이픈)"],
+  ["zip", "우편번호만"], ["noZip", "주소만(우편번호 빼기)"],
   ["trim", "공백제거"], ["courier", "택배사 변환"]
 ];
+
+const ZIP_RE = /\[\s*([0-9]{3}\s*-?\s*[0-9]{2,3})\s*\]/;
 
 function applyTf(raw, tf) {
   let v = raw == null ? "" : raw;
@@ -198,6 +206,28 @@ function applyTf(raw, tf) {
       return { v: isFinite(n) && v.trim() !== "" ? n : "", t: "n" };
     }
     case "digits": return { v: v.replace(/[^0-9]/g, ""), t: "s" };
+    case "phone": {
+      const d = v.replace(/[^0-9]/g, "");
+      let out = d;
+      if (d.length === 11) out = d.replace(/(\d{3})(\d{4})(\d{4})/, "$1-$2-$3");
+      else if (d.length === 10) out = d.startsWith("02")
+        ? d.replace(/(\d{2})(\d{4})(\d{4})/, "$1-$2-$3") : d.replace(/(\d{3})(\d{3})(\d{4})/, "$1-$2-$3");
+      else if (d.length === 9 && d.startsWith("02")) out = d.replace(/(\d{2})(\d{3})(\d{4})/, "$1-$2-$3");
+      return { v: out, t: "s" };
+    }
+    case "zip": {
+      const m = v.match(ZIP_RE);
+      if (m) return { v: m[1].replace(/[^0-9]/g, ""), t: "s" };
+      const p = v.trim().match(/^([0-9]{3}\s*-?\s*[0-9]{2,3})(\s|$)/);
+      if (p) return { v: p[1].replace(/[^0-9]/g, ""), t: "s" };
+      const only = v.replace(/[^0-9]/g, "");
+      return { v: /^[0-9]{5,6}$/.test(only) ? only : "", t: "s" };
+    }
+    case "noZip": {
+      let out = v.replace(ZIP_RE, " ");
+      out = out.replace(/^\s*[0-9]{3}\s*-?\s*[0-9]{2,3}\s+/, "");
+      return { v: out.replace(/\s{2,}/g, " ").trim(), t: "s" };
+    }
     case "trim":   return { v: v.trim(), t: "s" };
     case "courier": {
       const key = v.trim();
@@ -230,6 +260,7 @@ function renderMap(ns) {
   tb.innerHTML = cols.map((c, i) => {
     const modeSel = `<select data-i="${i}" data-f="mode">
         <option value="map"${c.mode === "map" ? " selected" : ""}>파일에서 가져오기</option>
+        <option value="combine"${c.mode === "combine" ? " selected" : ""}>여러 컬럼 합치기</option>
         <option value="const"${c.mode === "const" ? " selected" : ""}>고정값</option>
         <option value="blank"${c.mode === "blank" ? " selected" : ""}>비움</option>
       </select>`;
@@ -238,6 +269,15 @@ function renderMap(ns) {
       valCell = `<input type="text" data-i="${i}" data-f="val" value="${esc(c.val)}" placeholder="모든 행에 넣을 값">`;
     } else if (c.mode === "blank") {
       valCell = `<span class="muted">—</span>`;
+    } else if (c.mode === "combine") {
+      const picked = c.srcs || [];
+      valCell = `<div class="combine">
+        <select data-i="${i}" data-f="srcs" multiple size="4">` +
+        opts.map(o => `<option value="${esc(o.value)}"${picked.includes(o.value) ? " selected" : ""}>${esc(o.label)}${o.group === "원본 출고 파일" ? " (원본)" : ""}</option>`).join("") +
+        `</select>
+        <input type="text" data-i="${i}" data-f="sep" value="${esc(c.sep == null ? " " : c.sep)}" placeholder="구분자" title="이어붙일 때 사이에 넣을 문자">
+        <span class="hint2">Ctrl(⌘)+클릭으로 여러 개 선택 · 위에서부터 순서대로 이어붙입니다</span>
+      </div>`;
     } else {
       const groups = {};
       opts.forEach(o => { (groups[o.group] = groups[o.group] || []).push(o); });
@@ -272,38 +312,74 @@ function bindMap(ns) {
     const i = el.dataset.i, f = el.dataset.f;
     if (i == null || !f) return;
     const cols = CFG[ns].cols, idx = Number(i);
+    let restructure = true;
     if (f === "del") { cols.splice(idx, 1); }
     else if (f === "up") { if (idx > 0) cols.splice(idx - 1, 0, cols.splice(idx, 1)[0]); }
     else if (f === "down") { if (idx < cols.length - 1) cols.splice(idx + 1, 0, cols.splice(idx, 1)[0]); }
-    else { cols[idx][f] = el.value; }
+    else if (f === "srcs") { cols[idx].srcs = Array.from(el.selectedOptions).map(o => o.value); restructure = false; }
+    else { cols[idx][f] = el.value; restructure = (f === "mode"); }
     saveCfg();
-    renderMap(ns);
+    if (restructure) renderMap(ns);
   };
   table.addEventListener("change", handler);
   table.addEventListener("click", e => { if (e.target.matches("button.mini")) handler(e); });
 }
 
 /* ------------------------- 자동 매핑 ------------------------- */
+/* 값 안에 [우편번호]가 들어있는 소스 컬럼 찾기 (사방넷 주소 형식) */
+function zipEmbeddedSources(ns) {
+  const set = new Set();
+  const scan = (tbl, prefix) => {
+    if (!tbl) return;
+    tbl.headers.forEach(h => {
+      if (tbl.rows.slice(0, 30).some(r => ZIP_RE.test(String(r[h] == null ? "" : r[h])))) set.add(prefix + h);
+    });
+  };
+  scan(S[ns].src, "");
+  if (ns === "inv") scan(S.inv.ref, "REF:");
+  return set;
+}
+
 function autoMap(ns) {
   const opts = sourceOptions(ns);
   if (!opts.length) { alert("먼저 파일을 업로드해 주세요."); return; }
+  const cols = CFG[ns].cols;
   const used = new Set();
-  CFG[ns].cols.forEach(c => {
-    if (c.mode === "const" || c.mode === "blank") return;
+
+  cols.forEach(c => {
+    if (c.mode !== "map") return;
     let best = null, bestScore = 0;
     opts.forEach(o => {
-      let s = scoreMatch(c.name, o.label);
-      if (!s) return;
-      if (used.has(o.value)) s -= 30;
-      if (o.value.startsWith("REF:")) s -= 5; // 같은 점수면 송장 파일 우선
-      if (s > bestScore) { bestScore = s; best = o; }
+      let sc = scoreMatch(c.name, o.label);
+      if (!sc) return;
+      if (used.has(o.value)) sc -= 30;
+      if (o.value.startsWith("REF:")) sc -= 20; // 같은 값이면 업로드 파일 쪽을 우선(조인 실패 대비)
+      if (sc > bestScore) { bestScore = sc; best = o; }
     });
     if (best && bestScore >= 45) {
-      c.mode = "map"; c.src = best.value; used.add(best.value);
+      c.src = best.value; used.add(best.value);
       const g = groupOf(c.name) || groupOf(best.label);
       if (g) c.tf = g.tf;
     }
   });
+
+  /* 사방넷 주소는 "[352-51] 대전 서구 …" 처럼 우편번호가 주소에 붙어 있다.
+     우편번호 컬럼이 따로 있으면 주소에서 뽑아 쓰고, 주소 컬럼은 우편번호를 뺀다. */
+  const zipCols = zipEmbeddedSources(ns);
+  if (zipCols.size) {
+    const firstZipCol = Array.from(zipCols)[0];
+    let extracted = false;
+    cols.forEach(c => {
+      const g = groupOf(c.name);
+      if (c.mode !== "map" || !g || g.id !== "zip") return;
+      if (!c.src || zipCols.has(c.src)) { c.src = c.src || firstZipCol; c.tf = "zip"; extracted = true; }
+    });
+    if (extracted) cols.forEach(c => {
+      const g = groupOf(c.name);
+      if (c.mode === "map" && g && g.id === "addr" && zipCols.has(c.src) && c.tf === "text") c.tf = "noZip";
+    });
+  }
+
   saveCfg();
   renderMap(ns);
 }
@@ -328,7 +404,7 @@ async function registerTemplate(ns, file) {
   cfg.useTpl = !!cfg.tplB64;
   cfg.cols = headers.map(h => {
     const g = groupOf(h);
-    return { name: h, mode: "map", src: "", val: "", tf: g ? g.tf : "text" };
+    return { name: h, mode: "map", src: "", val: "", srcs: [], sep: " ", tf: g ? g.tf : "text" };
   });
   saveCfg();
   syncTplUI(ns);
@@ -364,7 +440,9 @@ function convert(ns) {
       if (k && !refIndex.has(k)) refIndex.set(k, r);
     });
   }
-  const needsRef = cfg.cols.some(c => c.mode === "map" && String(c.src).startsWith("REF:"));
+  const needsRef = cfg.cols.some(c =>
+    (c.mode === "map" && String(c.src).startsWith("REF:")) ||
+    (c.mode === "combine" && (c.srcs || []).some(k => String(k).startsWith("REF:"))));
   if (needsRef && !refIndex) {
     alert("원본 출고 파일에서 값을 가져오도록 설정된 컬럼이 있습니다.\n원본 파일을 올리고 연결키(주문번호 등)를 선택해 주세요.");
     return null;
@@ -385,10 +463,15 @@ function convert(ns) {
     const cells = cfg.cols.map(c => {
       if (c.mode === "blank") return { v: "", t: "s" };
       if (c.mode === "const") return applyTf(c.val, c.tf);
-      let raw = "";
-      if (String(c.src).startsWith("REF:")) raw = refRow ? refRow[c.src.slice(4)] : "";
-      else raw = row[c.src];
-      return applyTf(raw, c.tf);
+      const pick = key => {
+        const raw = String(key).startsWith("REF:") ? (refRow ? refRow[key.slice(4)] : "") : row[key];
+        return raw == null ? "" : raw;
+      };
+      if (c.mode === "combine") {
+        const parts = (c.srcs || []).map(k => String(pick(k)).trim()).filter(x => x !== "");
+        return applyTf(parts.join(c.sep == null ? " " : c.sep), c.tf);
+      }
+      return applyTf(pick(c.src), c.tf);
     });
 
     if (cfg.skipEmpty && cells.every(c => String(c.v).trim() === "")) { skipped++; return; }
@@ -494,7 +577,7 @@ async function loadSource(ns, file) {
     /* 양식이 없으면 업로드 파일 컬럼을 그대로 출력 컬럼으로 제안 */
     CFG[ns].cols = src.headers.map(h => {
       const g = groupOf(h);
-      return { name: h, mode: "map", src: h, val: "", tf: g ? g.tf : "text" };
+      return { name: h, mode: "map", src: h, val: "", srcs: [], sep: " ", tf: g ? g.tf : "text" };
     });
     saveCfg();
     renderMap(ns);
@@ -614,7 +697,7 @@ function bindProfile(ns) {
   });
   $(`#${ns}Auto`).addEventListener("click", () => autoMap(ns));
   $(`#${ns}AddCol`).addEventListener("click", () => {
-    CFG[ns].cols.push({ name: "새 컬럼", mode: "map", src: "", val: "", tf: "text" });
+    CFG[ns].cols.push({ name: "새 컬럼", mode: "map", src: "", val: "", srcs: [], sep: " ", tf: "text" });
     saveCfg(); renderMap(ns);
   });
   $(`#${ns}SkipEmpty`).addEventListener("change", e => { CFG[ns].skipEmpty = e.target.checked; saveCfg(); });
