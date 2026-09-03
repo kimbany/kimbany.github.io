@@ -90,3 +90,4 @@ footer a:hover{color:var(--pri)}
 .checklist .item span:first-of-type{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .checklist .empty{color:var(--muted);text-align:center;margin:14px 0}
 table.grid td.wrap{white-space:normal;word-break:break-all}
+.cnt.warn{color:#b26a00;font-weight:600}

@@ -170,7 +170,7 @@ function groupOf(name) {
   let best = null, bestLen = 0;
   for (const g of GROUPS) for (const w of g.words) {
     const wk = normKey(w);
-    if (wk.length < 3 || k.length < 2) continue;
+    if (wk.length < 3 || k.length < 3) continue;
     if ((k.includes(wk) || wk.includes(k)) && wk.length > bestLen) { bestLen = wk.length; best = g; }
   }
   return best;
@@ -181,7 +181,7 @@ function scoreMatch(target, cand) {
   if (!a || !b) return 0;
   if (a === b) return 100;
   const ga = groupOf(target), gb = groupOf(cand);
-  if (ga && gb && ga.id === gb.id) return 80;
+  if (ga && gb && ga.id === gb.id) return 80 + (a.includes(b) || b.includes(a) ? 10 : 0);
   if (a.includes(b) || b.includes(a)) return 50 + Math.min(a.length, b.length);
   return 0;
 }
@@ -576,7 +576,8 @@ function convert(ns) {
     rows.push(cells);
   }
 
-  return { headers, rows, skipped, unmatched, filtered, expanded };
+  const unmapped = cfg.cols.filter(c => c.mode === "map" && !c.src).map(c => c.name);
+  return { headers, rows, skipped, unmatched, filtered, expanded, unmapped };
 }
 
 function renderPreview(ns, res) {
@@ -922,7 +923,9 @@ function bindProfile(ns) {
     if (res.expanded) msg += ` · 원본 다건 매칭 ${res.expanded}행`;
     if (res.unmatched) msg += ` · 원본 미매칭 ${res.unmatched}행`;
     if (!res.rows.length) msg += " (조건에 맞는 행이 없습니다)";
+    if (res.unmapped.length) msg += ` · ⚠ 연결 안 된 칸: ${res.unmapped.join(", ")}`;
     $(`#${ns}Result`).textContent = msg;
+    $(`#${ns}Result`).classList.toggle("warn", res.unmapped.length > 0);
   });
   $(`#${ns}Dl`).addEventListener("click", () => download(ns));
 
