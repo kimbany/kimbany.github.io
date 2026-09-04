@@ -16,7 +16,46 @@ const defaultProfile = () => ({
   filterCol: "", filterVals: [], joinA: "", joinB: ""
 });
 
-let CFG = { out: defaultProfile(), inv: defaultProfile(), courier: [], product: [] };
+/* 미리 넣어 둔 양식 — 파일을 올리지 않아도 바로 쓸 수 있다 */
+const BUILTIN = {
+  out: {
+    label: "가미락(매드딸기) 발주 양식", file: "templates/gamirak-order.xlsx",
+    sheet: "발주", hdr: 1,
+    cols: [
+      { mode: "map",   src: "옵션별칭",        tf: "product" },
+      { mode: "map",   src: "주문번호(쇼핑몰)", tf: "text" },
+      { mode: "map",   src: "수량",            tf: "num" },
+      { mode: "map",   src: "수취인명",         tf: "text" },
+      { mode: "map",   src: "수취인전화번호1",   tf: "phone" },
+      { mode: "blank", src: "",               tf: "text" },
+      { mode: "map",   src: "수취인주소(1)",    tf: "zipBr" },
+      { mode: "map",   src: "수취인주소(1)",    tf: "noZip" },
+      { mode: "map",   src: "배송메세지",       tf: "text" },
+      { mode: "const", src: "",               tf: "text" },
+      { mode: "const", src: "",               tf: "text" },
+      { mode: "const", src: "",               tf: "text" }
+    ]
+  },
+  inv: {
+    label: "사방넷 운송장 업로드 양식", file: "templates/sabangnet-tracking.xlsx",
+    sheet: "20251105_주문서확인처리_송장출력", hdr: 1,
+    cols: [
+      { mode: "map", src: "REF:주문번호(사방넷)", tf: "text" },
+      { mode: "map", src: "운송장번호",          tf: "digits" }
+    ]
+  }
+};
+
+const DEFAULT_SENDER = {
+  label: "몽프루이 (김포)", person: "몽프루이",
+  tel: "070-8080-2817", addr: "경기 김포시 유현1로 137-48 (풍무동)", zip: ""
+};
+const DEFAULT_PRODUCT = [{ from: "고당도 매드베리 딸기 230g (9-12입)", to: "매드베리 딸기 230g (9-12입)" }];
+
+let CFG = {
+  out: defaultProfile(), inv: defaultProfile(),
+  courier: [], product: [], senders: [], senderPick: ""
+};
 
 function loadCfg() {
   try {
@@ -27,7 +66,9 @@ function loadCfg() {
       out: Object.assign(defaultProfile(), o.out || {}),
       inv: Object.assign(defaultProfile(), o.inv || {}),
       courier: Array.isArray(o.courier) ? o.courier : [],
-      product: Array.isArray(o.product) ? o.product : []
+      product: Array.isArray(o.product) ? o.product : [],
+      senders: Array.isArray(o.senders) ? o.senders : [],
+      senderPick: o.senderPick || ""
     };
   } catch (e) { console.warn("설정 로드 실패", e); }
 }
@@ -396,7 +437,8 @@ function autoMap(ns) {
     }
     /* 보내는분(발송인) 칸은 매번 같은 값 → 양식에 들어 있던 값을 고정값으로 */
     if (gc && gc.id === "sender") {
-      const fixed = allSame(c.name) || sample1(c.name);
+      const sd = currentSender();
+      const fixed = (sd && sd[senderField(c.name)]) || allSame(c.name) || sample1(c.name);
       if (fixed) { c.mode = "const"; c.val = fixed; c.tf = "text"; }
       return;
     }
@@ -487,6 +529,75 @@ async function registerTemplate(ns, file) {
   if (sourceOptions(ns).length) autoMap(ns); else renderMap(ns);
 }
 
+async function installBuiltin(ns, force) {
+  const bi = BUILTIN[ns], cfg = CFG[ns];
+  if (!force && (cfg.tplB64 || cfg.cols.length)) return false;
+  try {
+    const res = await fetch(bi.file, { cache: "no-cache" });
+    if (!res.ok) throw new Error("HTTP " + res.status);
+    const buf = await res.arrayBuffer();
+    const wb = readWorkbook(buf, bi.file);
+    const sheet = wb.SheetNames.includes(bi.sheet) ? bi.sheet : wb.SheetNames[0];
+    const headers = uniqueHeaders(sheetAoa(wb, sheet)[bi.hdr - 1] || []);
+    cfg.tplName = bi.label; cfg.tplSheet = sheet; cfg.tplHdr = bi.hdr;
+    cfg.tplB64 = bufToB64(buf); cfg.useTpl = true; cfg.fmt = "xlsx";
+    cfg.tplSamples = {};
+    cfg.cols = bi.cols.map((c, i) => ({
+      name: headers[i] || `열${i + 1}`, mode: c.mode, src: c.src || "", val: "",
+      srcs: [], sep: " ", tf: c.tf || "text"
+    }));
+    applySender();
+    saveCfg(); syncTplUI(ns); renderMap(ns);
+    return true;
+  } catch (e) {
+    console.warn("기본 양식을 불러오지 못했습니다", e);
+    return false;
+  }
+}
+
+/* ------------------------- 보내는분(발송인) ------------------------- */
+function senderField(name) {
+  const k = normKey(name);
+  if (k.includes("우편")) return "zip";
+  if (k.includes("주소")) return "addr";
+  if (k.includes("전화") || k.includes("연락처") || k.includes("휴대") || k.includes("핸드폰")) return "tel";
+  return "person";
+}
+
+function currentSender() {
+  return CFG.senders.find(x => x.label === CFG.senderPick) || CFG.senders[0] || null;
+}
+
+/* 보내는분 칸(고정값)을 지금 고른 발송인 정보로 채운다 */
+function applySender() {
+  const sd = currentSender();
+  if (!sd) return;
+  ["out", "inv"].forEach(ns => {
+    CFG[ns].cols.forEach(c => {
+      const g = groupOf(c.name);
+      if (!g || g.id !== "sender") return;
+      c.mode = "const"; c.tf = "text"; c.src = "";
+      c.val = sd[senderField(c.name)] || "";
+    });
+  });
+}
+
+function renderSender() {
+  const sel = $("#senderPick");
+  if (sel) {
+    sel.innerHTML = CFG.senders.length
+      ? CFG.senders.map(x => `<option${x.label === (currentSender() || {}).label ? " selected" : ""}>${esc(x.label)}</option>`).join("")
+      : `<option value="">설정 탭에서 등록해 주세요</option>`;
+  }
+  const tb = $("#sdTable tbody");
+  if (!tb) return;
+  if (!CFG.senders.length) { tb.innerHTML = `<tr><td colspan="6" class="empty">등록된 보내는분이 없습니다.</td></tr>`; return; }
+  tb.innerHTML = CFG.senders.map((x, i) =>
+    `<tr><td>${esc(x.label)}</td><td>${esc(x.person)}</td><td>${esc(x.tel)}</td>
+      <td class="wrap">${esc(x.addr)}</td><td>${esc(x.zip || "")}</td>
+      <td class="act"><button class="mini danger" data-sddel="${i}">✕</button></td></tr>`).join("");
+}
+
 function syncTplUI(ns) {
   const cfg = CFG[ns];
   const has = !!cfg.tplName;
@@ -499,7 +610,7 @@ function syncTplUI(ns) {
   $(`#${ns}TplInfo`).textContent = has
     ? `양식: ${cfg.tplName} · 시트 ${cfg.tplSheet || "첫 번째"} · 컬럼 ${cfg.cols.length}개`
       + (cfg.tplB64 ? "" : " · (파일이 커서 또는 CSV라 서식 유지 저장은 사용할 수 없습니다)")
-    : "등록된 양식이 없습니다. 컬럼만 직접 추가해서 써도 됩니다.";
+    : "등록된 양식이 없습니다. [기본 양식으로]를 누르거나 양식 파일을 올려 주세요.";
 }
 
 /* ------------------------- 변환 ------------------------- */
@@ -673,6 +784,7 @@ async function loadSource(ns, file) {
   buildTable(src);
   S[ns].src = src;
   S[ns].result = null;
+  if (ns === "inv" && !S.inv.ref && S.out.src) S.inv.ref = S.out.src;   // 원본 자동 연결
   $(`#${ns}Dl`).disabled = true;
   $(`#${ns}Result`).textContent = "";
   $(`#${ns}Prev`).innerHTML = "";
@@ -900,10 +1012,10 @@ function bindProfile(ns) {
   $(`#${ns}TplHdr`).addEventListener("change", e => { CFG[ns].tplHdr = Math.max(1, Number(e.target.value) || 1); saveCfg(); });
   $(`#${ns}UseTpl`).addEventListener("change", e => { CFG[ns].useTpl = e.target.checked; saveCfg(); });
   $(`#${ns}Fmt`).addEventListener("change", e => { CFG[ns].fmt = e.target.value; saveCfg(); });
-  $(`#${ns}TplClear`).addEventListener("click", () => {
-    if (!confirm("등록된 양식을 삭제할까요? 매핑 설정은 유지됩니다.")) return;
-    Object.assign(CFG[ns], { tplName: "", tplB64: "", tplSheet: "", useTpl: false });
-    saveCfg(); syncTplUI(ns);
+  $(`#${ns}TplReset`).addEventListener("click", async () => {
+    if (!confirm("기본 양식과 기본 매핑으로 되돌릴까요?\n지금 매핑해 둔 내용은 사라집니다.")) return;
+    const ok = await installBuiltin(ns, true);
+    if (!ok) alert("기본 양식을 불러오지 못했습니다. 양식 파일을 직접 올려 주세요.");
   });
   $(`#${ns}Auto`).addEventListener("click", () => autoMap(ns));
   $(`#${ns}AddCol`).addEventListener("click", () => {
@@ -947,6 +1059,45 @@ function init() {
 
   bindProfile("out");
   bindProfile("inv");
+
+  /* 처음 열었을 때 기본 양식·기본값을 심어 둔다 */
+  if (!CFG.senders.length) { CFG.senders = [Object.assign({}, DEFAULT_SENDER)]; CFG.senderPick = DEFAULT_SENDER.label; }
+  if (!CFG.product.length) CFG.product = DEFAULT_PRODUCT.map(x => Object.assign({}, x));
+  renderSender();
+  Promise.all([installBuiltin("out"), installBuiltin("inv")]).then(() => {
+    if (!CFG.out.filterCol) { CFG.out.filterCol = "옵션별칭"; CFG.out.filterVals = CFG.product.map(x => x.from); }
+    saveCfg(); renderFilter("out"); renderMap("out"); renderMap("inv");
+  });
+
+  /* 보내는분 */
+  $("#senderPick").addEventListener("change", e => {
+    CFG.senderPick = e.target.value; applySender(); saveCfg();
+    renderMap("out"); renderMap("inv"); renderSender();
+  });
+  $("#senderManage").addEventListener("click", () => {
+    $$(".tab").forEach(x => x.classList.remove("active"));
+    $$(".panel").forEach(x => x.classList.remove("active"));
+    $(`.tab[data-tab="t-set"]`).classList.add("active");
+    $("#t-set").classList.add("active");
+    $("#senderStep").scrollIntoView({ behavior: "smooth", block: "start" });
+  });
+  $("#sdAdd").addEventListener("click", () => {
+    const v = k => $(`#sd${k}`).value.trim();
+    const label = v("Label") || v("Person");
+    if (!label) { alert("이름표나 성명을 입력해 주세요."); return; }
+    if (CFG.senders.some(x => x.label === label)) { alert("같은 이름표가 이미 있습니다."); return; }
+    CFG.senders.push({ label, person: v("Person"), tel: v("Tel"), addr: v("Addr"), zip: v("Zip") });
+    ["Label", "Person", "Tel", "Addr", "Zip"].forEach(k => { $(`#sd${k}`).value = ""; });
+    if (!CFG.senderPick) CFG.senderPick = label;
+    applySender(); saveCfg(); renderSender(); renderMap("out"); renderMap("inv");
+  });
+  $("#sdTable").addEventListener("click", e => {
+    const i = e.target.dataset.sddel;
+    if (i == null) return;
+    const gone = CFG.senders.splice(Number(i), 1)[0];
+    if (gone && CFG.senderPick === gone.label) CFG.senderPick = (CFG.senders[0] || {}).label || "";
+    applySender(); saveCfg(); renderSender(); renderMap("out"); renderMap("inv");
+  });
 
   $("#invSkipNoTrack").checked = CFG.inv.skipNoTrack;
   $("#invSkipNoTrack").addEventListener("change", e => { CFG.inv.skipNoTrack = e.target.checked; saveCfg(); });
@@ -1038,21 +1189,29 @@ function init() {
         out: Object.assign(defaultProfile(), o.out || {}),
         inv: Object.assign(defaultProfile(), o.inv || {}),
         courier: Array.isArray(o.courier) ? o.courier : [],
-        product: Array.isArray(o.product) ? o.product : []
+        product: Array.isArray(o.product) ? o.product : [],
+        senders: Array.isArray(o.senders) ? o.senders : [],
+        senderPick: o.senderPick || ""
       };
       saveCfg();
       syncTplUI("out"); syncTplUI("inv");
-      renderMap("out"); renderMap("inv"); renderCourier(); renderProduct(); renderFilter("out");
+      renderMap("out"); renderMap("inv"); renderCourier(); renderProduct(); renderFilter("out"); renderSender();
       info("설정을 가져왔습니다.");
     } catch (err) { alert("설정 파일을 읽지 못했습니다: " + err.message); }
     e.target.value = "";
   });
   $("#cfgReset").addEventListener("click", () => {
     if (!confirm("양식·매핑·택배사 규칙을 모두 삭제할까요?")) return;
-    CFG = { out: defaultProfile(), inv: defaultProfile(), courier: [], product: [] };
+    CFG = { out: defaultProfile(), inv: defaultProfile(), courier: [], product: [], senders: [], senderPick: "" };
     localStorage.removeItem(LS_KEY);
+    CFG.senders = [Object.assign({}, DEFAULT_SENDER)]; CFG.senderPick = DEFAULT_SENDER.label;
+    CFG.product = DEFAULT_PRODUCT.map(x => Object.assign({}, x));
+    Promise.all([installBuiltin("out", true), installBuiltin("inv", true)]).then(() => {
+      CFG.out.filterCol = "옵션별칭"; CFG.out.filterVals = CFG.product.map(x => x.from);
+      saveCfg(); renderFilter("out"); renderMap("out"); renderMap("inv");
+    });
     syncTplUI("out"); syncTplUI("inv");
-    renderMap("out"); renderMap("inv"); renderCourier(); renderProduct(); renderFilter("out");
+    renderCourier(); renderProduct(); renderSender();
     info("초기화했습니다.");
   });
 }
