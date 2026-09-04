@@ -340,7 +340,8 @@ function renderMap(ns) {
         `<optgroup label="${esc(g)}">` + groups[g].map(o =>
           `<option value="${esc(o.value)}"${c.src === o.value ? " selected" : ""}>${esc(o.label)}</option>`).join("") + `</optgroup>`).join("");
       const missing = c.src && !opts.some(o => o.value === c.src)
-        ? `<option value="${esc(c.src)}" selected>${esc(c.src.replace(/^REF:/, ""))} (없음)</option>` : "";
+        ? `<option value="${esc(c.src)}" selected>${esc(c.src.replace(/^REF:/, ""))}` +
+          (String(c.src).startsWith("REF:") ? " (원본 연결 필요)" : " (이 파일에 없음)") + `</option>` : "";
       valCell = `<select data-i="${i}" data-f="src" class="${c.src ? "" : "warn"}">
           <option value="">— 선택 —</option>${missing}${body}</select>`;
     }
@@ -634,7 +635,7 @@ function convert(ns) {
     (c.mode === "map" && String(c.src).startsWith("REF:")) ||
     (c.mode === "combine" && (c.srcs || []).some(k => String(k).startsWith("REF:"))));
   if (needsRef && !refIndex) {
-    alert("원본 출고 파일에서 값을 가져오도록 설정된 컬럼이 있습니다.\n원본 파일을 올리고 연결키(주문번호 등)를 선택해 주세요.");
+    alert("사방넷 주문번호를 채우려면 그날 사방넷 출고 파일이 필요합니다.\n① 탭에 사방넷 출고 파일을 올려 주세요. 올리면 자동으로 연결됩니다.");
     return null;
   }
 
@@ -784,7 +785,7 @@ async function loadSource(ns, file) {
   buildTable(src);
   S[ns].src = src;
   S[ns].result = null;
-  if (ns === "inv" && !S.inv.ref && S.out.src) S.inv.ref = S.out.src;   // 원본 자동 연결
+  if (ns === "inv" && !S.inv.ref && S.out.src) S.inv.ref = S.out.src;   // 원본 이어받기
   $(`#${ns}Dl`).disabled = true;
   $(`#${ns}Result`).textContent = "";
   $(`#${ns}Prev`).innerHTML = "";
@@ -809,6 +810,8 @@ async function loadSource(ns, file) {
     renderMap(ns);
   }
   if (ns === "inv") refreshJoinUI();
+  if (ns === "out") linkRef();          // ① 파일 → ② 원본 자동 연결
+  refreshRefUI();
   renderFilter(ns); renderProduct();
 }
 
@@ -836,8 +839,41 @@ async function loadRef(file) {
   ref.hdr = detectHeaderRow(sheetAoa(wb, sheet));
   buildTable(ref);
   S.inv.ref = ref;
+  CFG.inv.joinB = "";
   refreshJoinUI();
-  renderMap("inv");
+  if (CFG.inv.cols.some(c => c.mode === "map" && !c.src)) autoMap("inv");
+  else renderMap("inv");
+  refreshRefUI();
+}
+
+/* ① 탭에 올린 사방넷 파일을 ② 탭 원본으로 연결한다 */
+function linkRef(opts) {
+  const silent = !opts || !opts.alert;
+  if (!S.out.src) {
+    if (!silent) alert("① 탭에 사방넷 출고 파일을 먼저 올려주세요.");
+    refreshRefUI();
+    return false;
+  }
+  S.inv.ref = S.out.src;
+  CFG.inv.joinB = "";                 // 연결키를 다시 찾게 한다
+  refreshJoinUI();
+  /* 비어 있는 칸이 있으면 자동으로 채워준다 */
+  if (CFG.inv.cols.some(c => c.mode === "map" && !c.src)) autoMap("inv");
+  else renderMap("inv");
+  refreshRefUI();
+  return true;
+}
+
+function refreshRefUI() {
+  const badge = $("#invRefBadge"), state = $("#invRefState");
+  if (!badge || !state) return;
+  const ref = S.inv.ref;
+  badge.textContent = ref ? "연결됨" : "연결 안 됨";
+  badge.classList.toggle("ok", !!ref);
+  state.textContent = ref
+    ? `원본: ${ref.name} · ${ref.rows.length.toLocaleString()}행`
+    : "① 탭에 그날 사방넷 출고 파일을 올리면 여기에 자동으로 연결됩니다.";
+  state.classList.toggle("warn", !ref);
 }
 
 function refreshJoinUI() {
@@ -1055,6 +1091,7 @@ function init() {
     $$(".panel").forEach(x => x.classList.remove("active"));
     t.classList.add("active");
     $("#" + t.dataset.tab).classList.add("active");
+    if (t.dataset.tab === "t-inv" && !S.inv.ref && S.out.src) linkRef();
   }));
 
   bindProfile("out");
@@ -1063,7 +1100,7 @@ function init() {
   /* 처음 열었을 때 기본 양식·기본값을 심어 둔다 */
   if (!CFG.senders.length) { CFG.senders = [Object.assign({}, DEFAULT_SENDER)]; CFG.senderPick = DEFAULT_SENDER.label; }
   if (!CFG.product.length) CFG.product = DEFAULT_PRODUCT.map(x => Object.assign({}, x));
-  renderSender();
+  renderSender(); refreshRefUI();
   Promise.all([installBuiltin("out"), installBuiltin("inv")]).then(() => {
     if (!CFG.out.filterCol) { CFG.out.filterCol = "옵션별칭"; CFG.out.filterVals = CFG.product.map(x => x.from); }
     saveCfg(); renderFilter("out"); renderMap("out"); renderMap("inv");
@@ -1108,13 +1145,9 @@ function init() {
     if (f) await loadRef(f).catch(err => alert("파일을 읽지 못했습니다: " + err.message));
     e.target.value = "";
   });
-  $("#invRefUseOut").addEventListener("click", () => {
-    if (!S.out.src) { alert("① 탭에 사방넷 출고 파일을 먼저 올려주세요."); return; }
-    S.inv.ref = S.out.src;
-    refreshJoinUI(); renderMap("inv");
-  });
+  $("#invRefUseOut").addEventListener("click", () => linkRef({ alert: true }));
   $("#invRefClear").addEventListener("click", () => {
-    S.inv.ref = null; $("#invJoinRow").hidden = true; renderMap("inv");
+    S.inv.ref = null; $("#invJoinRow").hidden = true; renderMap("inv"); refreshRefUI();
   });
   $("#invJoinA").addEventListener("change", e => { CFG.inv.joinA = e.target.value; CFG.inv.joinB = ""; saveCfg(); refreshJoinUI(); });
   $("#invJoinB").addEventListener("change", e => { CFG.inv.joinB = e.target.value; saveCfg(); });
