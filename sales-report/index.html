@@ -967,6 +967,48 @@ function summarize(items) {
     from, to };
 }
 
+/* -------------------- 날짜·채널별 매출 (선택 삭제) -------------------- */
+function dayChannelCardHtml() {
+  const sales = DB.list('sales');
+  const keys = [...new Set(sales.map(s => s.orderDate + '||' + s.channelId))];
+  if (!keys.length) return '';
+  const rows = keys.map(k => {
+    const bar = k.indexOf('||'); const date = k.slice(0,bar), ch = k.slice(bar+2);
+    const sub = sales.filter(s => s.orderDate === date && s.channelId === ch);
+    const a = aggregate(sub);
+    return { date, ch, chName:(DB.get('channels',ch)||{}).name||ch, items:sub.length, gross:a.gross, net:a.net, cancel:a.cancelCnt };
+  }).sort((x,y) => x.date < y.date ? 1 : x.date > y.date ? -1 : (x.chName<y.chName?-1:1));
+  return `<div class="bg-white rounded-2xl border border-slate-200 p-5 mt-4">
+    <h3 class="font-bold text-sm mb-1">일자 · 채널별 매출</h3>
+    <p class="text-xs text-slate-400 mb-3">특정 날짜의 특정 채널 매출만 골라서 삭제할 수 있습니다.</p>
+    <div class="overflow-x-auto"><table class="w-full text-sm">
+      <thead><tr class="text-[11px] text-slate-400 border-b border-slate-100">
+        <th class="text-left font-semibold pb-1.5">날짜</th><th class="text-left font-semibold pb-1.5">채널</th>
+        <th class="text-right font-semibold pb-1.5">품목</th><th class="text-right font-semibold pb-1.5">매출</th>
+        <th class="text-right font-semibold pb-1.5">순매출</th><th class="pb-1.5"></th></tr></thead>
+      <tbody>${rows.map(r => `<tr class="border-b border-slate-50">
+        <td class="py-2">${esc(r.date)}</td>
+        <td class="py-2">${esc(r.chName)}</td>
+        <td class="py-2 text-right num text-slate-500">${comma(r.items)}${r.cancel?` <span class="text-rose-400">(취소 ${r.cancel})</span>`:''}</td>
+        <td class="py-2 text-right num">${won(r.gross)}</td>
+        <td class="py-2 text-right num text-slate-500">${won(r.net)}</td>
+        <td class="py-2 text-right"><button onclick="deleteDayChannel('${esc(r.date)}','${esc(r.ch)}')" class="text-xs font-semibold text-rose-500 px-2 py-1 rounded hover:bg-rose-50">삭제</button></td>
+      </tr>`).join('')}</tbody>
+    </table></div></div>`;
+}
+function deleteDayChannel(date, ch) {
+  const chName = (DB.get('channels',ch)||{}).name || ch;
+  const del = DB.list('sales').filter(s => s.orderDate === date && s.channelId === ch);
+  if (!del.length) return;
+  if (!confirm(`${date} · ${chName} 매출 ${del.length}품목을 삭제할까요?\n이 날짜·채널 데이터만 지워지고 다른 날짜/채널은 그대로입니다.`)) return;
+  del.forEach(s => DB.del('sales', s.id));
+  // 남은 매출이 하나도 없는 업로드 이력은 정리
+  DB.list('uploads').forEach(u => { if (!DB.list('sales').some(s => s.uploadId === u.id)) DB.del('uploads', u.id); });
+  toast(`${date} ${chName} ${del.length}품목을 삭제했습니다`);
+  refreshBadges(); renderUpload();
+}
+window.deleteDayChannel = deleteDayChannel;
+
 /* ============================================================ 데이터 입력 화면 */
 let parsedUpload = null;   // { fileName, items, summary }
 
@@ -988,6 +1030,7 @@ function renderUpload() {
       <div id="parseMsg" class="text-sm mt-3"></div>
     </div>
     <div id="previewBox"></div>
+    ${dayChannelCardHtml()}
     <div class="bg-white rounded-2xl border border-slate-200 p-5 mt-4">
       <h3 class="font-bold text-sm mb-3">업로드 이력</h3>
       ${uploads.length ? `<div class="space-y-2">${uploads.map(u => `
