@@ -51,7 +51,14 @@
 2. **업로드 파일** 단위 — 업로드 이력의 되돌리기
 3. **전체** — 셋팅 › 기타 › 전체 초기화
 
-## 기술 / 저장
+## 클라우드(Firebase) · 로그인
 
-- 단일 HTML + Tailwind(CDN) + SheetJS(xlsx). 데이터 계층은 Firestore 호환 구조로 설계, 현재는 브라우저 localStorage(`saleshub:v2`) 로컬 모드.
-- `firebaseConfig`(주석)를 채우면 Firestore 로 전환 예정. 다른 기기 공유 전에는 셋팅 › 기타의 JSON 백업/복원 사용.
+- Firebase(Firestore)에 연결되어 **회사·집·폰 어디서 넣어도 실시간 공유**됩니다.
+- 개인정보(구매자명) 보호를 위해 **이메일·비밀번호 로그인**을 거칩니다(계정은 Firebase Authentication 에서 등록).
+- 처음 전환 시 로컬에 넣어둔 데이터가 있으면 `셋팅 › 기타 › 이 브라우저 로컬 데이터 올리기`로 클라우드에 올립니다.
+- Firebase 미로딩 환경에서는 자동으로 로컬(localStorage) 모드로 동작.
+
+## 기술
+
+- 단일 HTML + Tailwind(CDN) + SheetJS(xlsx) + Firebase(compat SDK).
+- 로컬·클라우드 데이터 계층 동일 인터페이스. 클라우드는 전체를 메모리 캐시에 미러링(읽기 동기), 쓰기는 Firestore 반영 + 실시간 구독.
