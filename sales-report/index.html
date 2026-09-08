@@ -31,10 +31,13 @@
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
 -->
 
-<!-- SheetJS / Chart.js 는 Phase 3·8 에서 사용 예정 -->
+<!-- SheetJS — 엑셀(xlsx) 파싱용. CSV 는 내부 파서 사용 -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 
 <style>
   [x-cloak]{display:none}
+  /* Tailwind CDN 이 늦게 뜨거나 차단돼도 탭/패널 전환이 깨지지 않도록 최소 보장 */
+  .hidden{ display:none !important; }
   .tabbtn.active{ color:#2f6fed; border-color:#2f6fed; }
   .subtab.active{ background:#eef4ff; color:#1d5ce0; font-weight:700; }
   .num{ font-variant-numeric: tabular-nums; }
@@ -82,33 +85,13 @@
 <main class="max-w-6xl mx-auto px-4 py-6">
 
   <!-- ===== 메인 (Phase 7) ===== -->
-  <section data-panel="main" class="tab-panel">
-    <div class="rounded-2xl border border-dashed border-slate-300 bg-white p-10 text-center">
-      <div class="text-4xl mb-3">🏠</div>
-      <h2 class="text-base font-bold mb-1">메인 대시보드</h2>
-      <p class="text-sm text-slate-500 max-w-md mx-auto">당일 총매출 · 브랜드별 · 상품별 집계와 증감률이 여기 표시됩니다. <br><b>Phase 7</b> 에서 구현 예정입니다.</p>
-      <button class="mt-4 text-sm font-semibold text-brand" onclick="goTab('upload')">데이터 입력하러 가기 →</button>
-    </div>
-  </section>
+  <section data-panel="main" class="tab-panel"></section>
 
   <!-- ===== 매출 (Phase 8) ===== -->
-  <section data-panel="sales" class="tab-panel hidden">
-    <div class="rounded-2xl border border-dashed border-slate-300 bg-white p-10 text-center">
-      <div class="text-4xl mb-3">📈</div>
-      <h2 class="text-base font-bold mb-1">매출 조회</h2>
-      <p class="text-sm text-slate-500 max-w-md mx-auto">기간 선택 · 채널/브랜드 필터 · 추이 차트 · CSV 내보내기가 여기 들어갑니다. <br><b>Phase 8</b> 에서 구현 예정입니다.</p>
-    </div>
-  </section>
+  <section data-panel="sales" class="tab-panel hidden"></section>
 
   <!-- ===== 데이터 입력 (Phase 3~5) ===== -->
-  <section data-panel="upload" class="tab-panel hidden">
-    <div class="rounded-2xl border border-dashed border-slate-300 bg-white p-10 text-center">
-      <div class="text-4xl mb-3">📥</div>
-      <h2 class="text-base font-bold mb-1">데이터 입력</h2>
-      <p class="text-sm text-slate-500 max-w-md mx-auto">엑셀/CSV 업로드 → 파싱 → 매칭 미리보기(정상/확인필요/미매칭) → 저장. <br><b>Phase 3~5</b> 에서 구현 예정입니다.</p>
-      <p class="text-xs text-slate-400 mt-3">먼저 <button class="font-semibold text-brand" onclick="goTab('settings')">셋팅</button> 에서 채널·브랜드·상품을 등록해 주세요.</p>
-    </div>
-  </section>
+  <section data-panel="upload" class="tab-panel hidden"></section>
 
   <!-- ===== 셋팅 (Phase 2 = 이번 구현) ===== -->
   <section data-panel="settings" class="tab-panel hidden">
@@ -265,6 +248,9 @@ function goTab(name) {
   $$('.tabbtn').forEach(b => b.classList.toggle('active', b.dataset.tab === name));
   $$('.tab-panel').forEach(p => p.classList.toggle('hidden', p.dataset.panel !== name));
   if (name === 'settings') renderSub(curSub);
+  else if (name === 'main') renderMain();
+  else if (name === 'sales') renderSales();
+  else if (name === 'upload') renderUpload();
 }
 window.goTab = goTab;
 
@@ -796,11 +782,564 @@ function seedSample() {
 }
 window.seedSample = seedSample;
 
+/* ============================================================================
+ * Phase 3~5 (자사몰 카페24 우선) — 업로드·파싱·집계
+ *   현재 카페24(몽프루이 자사몰) 전용. 다른 채널은 이후 같은 틀로 추가.
+ * ==========================================================================*/
+
+// 결정적 ID (재업로드해도 같은 상품/규격이 중복 생성되지 않도록)
+function hashId(prefix, str) {
+  let h = 5381;
+  for (let i = 0; i < str.length; i++) h = ((h << 5) + h + str.charCodeAt(i)) | 0;
+  return prefix + '_' + (h >>> 0).toString(36);
+}
+function parseNum(v) {
+  const s = String(v==null?'':v).replace(/[^0-9.\-]/g, '');
+  const n = parseFloat(s);
+  return isNaN(n) ? 0 : n;
+}
+
+/* -------------------------------------------------- 카페24 채널/브랜드 보장 */
+const CAFE24_CH_ID = 'ch_cafe24';
+function ensureCafe24() {
+  let ch = DB.get('channels', CAFE24_CH_ID);
+  if (!ch) {
+    ch = DB.put('channels', { id: CAFE24_CH_ID, name:'카페24 (자사몰)', code:'cafe24',
+      dateBasis:'orderDate', active:true, hasProductCode:true, hasOptionCode:true,
+      builtin:'cafe24', defaultBrandName:'몽프루이',
+      columnMap:{ orderNo:'주문번호', orderDate:'주문일시', productCode:'상품코드', productName:'상품명',
+        optionCode:'상품품목코드', optionName:'상품옵션', qty:'수량', amount:'품목별 결제금액', status:'취소구분' },
+      cancelStatuses:['취소','반품','환불','반품완료'] });
+  }
+  return ch;
+}
+function ensureBrand(name) {
+  const id = hashId('b', name);
+  let b = DB.get('brands', id);
+  if (!b) b = DB.put('brands', { id, name, active:true, channelIds:[CAFE24_CH_ID] });
+  else if (!(b.channelIds||[]).includes(CAFE24_CH_ID)) {
+    DB.put('brands', { id, channelIds:[...(b.channelIds||[]), CAFE24_CH_ID] });
+  }
+  return DB.get('brands', id);
+}
+
+/* -------------------------------------------------- 파일 읽기 (CSV/XLSX) */
+function decodeBuf(buf) {
+  let s = new TextDecoder('utf-8').decode(buf);
+  if (s.indexOf('�') >= 0) { try { s = new TextDecoder('euc-kr').decode(buf); } catch (e) {} }
+  return s;
+}
+function parseCsvText(txt) {
+  const lines = txt.replace(/\r\n?/g, '\n').split('\n').filter(l => l.trim() !== '');
+  return lines.map(line => {
+    const out = []; let cur = '', q = false;
+    for (let i = 0; i < line.length; i++) {
+      const c = line[i];
+      if (q) { if (c === '"') { if (line[i+1] === '"') { cur += '"'; i++; } else q = false; } else cur += c; }
+      else if (c === '"') q = true;
+      else if (c === ',') { out.push(cur); cur = ''; }
+      else cur += c;
+    }
+    out.push(cur);
+    return out.map(s => s.trim());
+  });
+}
+function readFileRows(file) {
+  return new Promise((res, rej) => {
+    const name = (file.name || '').toLowerCase();
+    const r = new FileReader();
+    r.onerror = () => rej(new Error('파일을 읽지 못했습니다'));
+    if (name.endsWith('.xlsx') || name.endsWith('.xls')) {
+      if (typeof XLSX === 'undefined') { rej(new Error('엑셀(xlsx) 파싱 모듈을 불러오지 못했습니다. 인터넷 연결 후 다시 시도하거나 CSV로 올려주세요.')); return; }
+      r.onload = () => { try {
+        const wb = XLSX.read(new Uint8Array(r.result), { type:'array' });
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        res(XLSX.utils.sheet_to_json(ws, { header:1, raw:false, defval:'' }));
+      } catch (e) { rej(e); } };
+      r.readAsArrayBuffer(file);
+    } else {
+      r.onload = () => { try { res(parseCsvText(decodeBuf(r.result))); } catch (e) { rej(e); } };
+      r.readAsArrayBuffer(file);
+    }
+  });
+}
+
+/* -------------------------------------------------- 카페24 파서 */
+function cafe24ColIndex(headers) {
+  const norm = headers.map(h => String(h).replace(/\s/g, ''));
+  const eq = v => norm.indexOf(v);
+  const sw = v => norm.findIndex(x => x.indexOf(v) === 0);
+  return {
+    orderDateTime: eq('주문일시'),
+    orderNo:       eq('주문번호'),
+    itemOrderNo:   eq('품목별주문번호'),
+    buyerName:     eq('주문자명'),
+    productCode:   eq('상품코드'),
+    optionCode:    eq('상품품목코드'),
+    productName:   sw('상품명'),
+    optionName:    eq('상품옵션'),
+    qty:           eq('수량'),
+    cancelFlag:    eq('취소구분'),
+    listPrice:     eq('소비자가격'),
+    addDiscount:   eq('상품별추가할인금액'),
+    orderTotal:    eq('총결제금액'),
+    netAmount:     eq('품목별결제금액'),
+    usedPoints:    sw('사용한적립금액'),
+    coupon:        sw('쿠폰할인금액'),
+    shipping:      norm.findIndex(x => x.indexOf('총배송비') === 0 && x.indexOf('첫품목') >= 0),
+  };
+}
+function cleanOption(raw) {
+  let s = String(raw || '').trim();
+  if (!s) return '기본';
+  if (s.indexOf('=') >= 0) s = s.split('=').pop().trim();   // "수량/중량=1.5kg (9-10입)" → "1.5kg (9-10입)"
+  return s || '기본';
+}
+function parseCafe24(matrix) {
+  if (!matrix || !matrix.length) throw new Error('빈 파일입니다');
+  // 헤더 행 = '주문번호' 를 포함한 첫 행
+  let hi = matrix.findIndex(r => r.some(c => String(c).replace(/\s/g,'') === '주문번호'));
+  if (hi < 0) hi = 0;
+  const col = cafe24ColIndex(matrix[hi]);
+  const required = ['orderNo','itemOrderNo','productCode','qty','netAmount','orderTotal'];
+  const missing = required.filter(k => col[k] < 0);
+  if (missing.length) throw new Error('카페24 양식이 아닌 것 같습니다. 찾지 못한 열: ' + missing.join(', '));
+
+  const get = (r, k) => col[k] >= 0 ? (r[col[k]] || '') : '';
+  const items = [];
+  for (let i = hi + 1; i < matrix.length; i++) {
+    const r = matrix[i];
+    if (!r || !String(get(r,'itemOrderNo')).trim()) continue;
+    const dt = String(get(r,'orderDateTime')).trim();
+    const date = (dt.match(/(\d{4})[-.\/](\d{1,2})[-.\/](\d{1,2})/) || [])
+      .slice(1).map((x,ix)=> ix===0?x:('0'+x).slice(-2)).join('-') || dt.slice(0,10);
+    const cancelFlag = String(get(r,'cancelFlag')).trim();
+    items.push({
+      orderNo: String(get(r,'orderNo')).trim(),
+      itemOrderNo: String(get(r,'itemOrderNo')).trim(),
+      orderDateTime: dt, orderDate: date,
+      buyerName: String(get(r,'buyerName')).trim(),
+      productCode: String(get(r,'productCode')).trim() || '(코드없음)',
+      optionCode: String(get(r,'optionCode')).trim() || '__NONE__',
+      productName: String(get(r,'productName')).trim(),
+      optionName: cleanOption(get(r,'optionName')),
+      qty: parseNum(get(r,'qty')) || 1,
+      listPrice: parseNum(get(r,'listPrice')),
+      addDiscount: parseNum(get(r,'addDiscount')),
+      orderTotal: parseNum(get(r,'orderTotal')),
+      netAmount: parseNum(get(r,'netAmount')),
+      usedPoints: parseNum(get(r,'usedPoints')),
+      coupon: parseNum(get(r,'coupon')),
+      shipping: parseNum(get(r,'shipping')),
+      isCancelled: cancelFlag !== '' && cancelFlag !== '취소안함',
+      cancelFlag,
+    });
+  }
+  if (!items.length) throw new Error('데이터 행을 찾지 못했습니다');
+  return items;
+}
+
+/* -------------------------------------------------- 집계 요약 */
+function summarize(items) {
+  const orderTotals = {};   // 총매출 dedup: 주문번호 → 총결제금액
+  let net = 0, qty = 0, cancelNet = 0, cancelCnt = 0;
+  let from = null, to = null;
+  const orderSet = new Set(), cancelOrderSet = new Set();
+  items.forEach(it => {
+    if (it.orderDate) { if (!from || it.orderDate < from) from = it.orderDate; if (!to || it.orderDate > to) to = it.orderDate; }
+    if (it.isCancelled) { cancelNet += it.netAmount; cancelCnt++; cancelOrderSet.add(it.orderNo); return; }
+    orderSet.add(it.orderNo);
+    if (orderTotals[it.orderNo] == null) orderTotals[it.orderNo] = it.orderTotal;
+    net += it.netAmount; qty += it.qty;
+  });
+  const gross = Object.values(orderTotals).reduce((a,b)=>a+b, 0);
+  return { gross, net, qty, cancelNet, cancelCnt,
+    orderCount: orderSet.size, itemCount: items.filter(i=>!i.isCancelled).length,
+    from, to };
+}
+
+/* ============================================================ 데이터 입력 화면 */
+let parsedUpload = null;   // { fileName, items, summary }
+
+function renderUpload() {
+  const sec = $('[data-panel="upload"]');
+  const uploads = DB.list('uploads').sort((a,b)=>(b.uploadedAt||0)-(a.uploadedAt||0));
+  sec.innerHTML = `
+    <div class="bg-white rounded-2xl border border-slate-200 p-5 mb-4">
+      <div class="flex items-center gap-2 mb-3">
+        <h2 class="font-bold">데이터 입력</h2>
+        <span class="text-xs text-slate-400">현재 채널: <b class="text-slate-600">카페24 (자사몰 · 몽프루이)</b></span>
+      </div>
+      <div id="dropzone" class="border-2 border-dashed border-slate-300 rounded-xl p-8 text-center cursor-pointer hover:border-brand hover:bg-brand-soft/40 transition">
+        <div class="text-3xl mb-2">📄</div>
+        <p class="text-sm font-semibold">여기로 파일을 끌어다 놓거나 클릭해서 선택</p>
+        <p class="text-xs text-slate-400 mt-1">카페24 주문내역 · .csv / .xlsx (여러 파일 가능)</p>
+        <input id="fileInput" type="file" accept=".csv,.xls,.xlsx" multiple class="hidden">
+      </div>
+      <div id="parseMsg" class="text-sm mt-3"></div>
+    </div>
+    <div id="previewBox"></div>
+    <div class="bg-white rounded-2xl border border-slate-200 p-5 mt-4">
+      <h3 class="font-bold text-sm mb-3">업로드 이력</h3>
+      ${uploads.length ? `<div class="space-y-2">${uploads.map(u => `
+        <div class="flex items-center gap-3 text-sm border-b border-slate-50 pb-2">
+          <span class="font-semibold">${esc(u.fileName)}</span>
+          <span class="text-xs text-slate-400">${esc(u.channelName||'')}</span>
+          <span class="text-xs text-slate-400">${new Date(u.uploadedAt).toLocaleString('ko-KR')}</span>
+          <span class="text-xs text-slate-500">${comma(u.itemCount)}품목 · ${won(u.net)}</span>
+          <button onclick="undoUpload('${u.id}')" class="ml-auto text-xs font-semibold text-rose-500 px-2 py-1 rounded hover:bg-rose-50">되돌리기</button>
+        </div>`).join('')}</div>`
+      : '<p class="text-xs text-slate-400">아직 업로드한 내역이 없습니다.</p>'}
+    </div>`;
+
+  const dz = $('#dropzone'), fi = $('#fileInput');
+  dz.addEventListener('click', () => fi.click());
+  fi.addEventListener('change', () => { if (fi.files.length) handleFiles(fi.files); });
+  ['dragover','dragenter'].forEach(ev => dz.addEventListener(ev, e => { e.preventDefault(); dz.classList.add('border-brand','bg-brand-soft'); }));
+  ['dragleave','drop'].forEach(ev => dz.addEventListener(ev, e => { e.preventDefault(); dz.classList.remove('border-brand','bg-brand-soft'); }));
+  dz.addEventListener('drop', e => { if (e.dataTransfer.files.length) handleFiles(e.dataTransfer.files); });
+
+  if (parsedUpload) renderPreview();
+}
+
+async function handleFiles(fileList) {
+  const files = Array.from(fileList);
+  $('#parseMsg').innerHTML = '<span class="text-slate-500">파일 읽는 중…</span>';
+  try {
+    let all = [];
+    for (const f of files) {
+      const rows = await readFileRows(f);
+      const items = parseCafe24(rows);
+      all = all.concat(items);
+    }
+    parsedUpload = { fileName: files.map(f=>f.name).join(', '), items: all, summary: summarize(all) };
+    $('#parseMsg').innerHTML = `<span class="text-emerald-600 font-semibold">${comma(all.length)}개 품목을 읽었습니다. 아래 미리보기를 확인하고 저장하세요.</span>`;
+    renderPreview();
+  } catch (e) {
+    parsedUpload = null;
+    $('#parseMsg').innerHTML = `<span class="text-rose-600 font-semibold">읽기 실패: ${esc(e.message)}</span>`;
+    $('#previewBox').innerHTML = '';
+  }
+}
+
+function renderPreview() {
+  const box = $('#previewBox');
+  if (!parsedUpload) { box.innerHTML = ''; return; }
+  const { items, summary } = parsedUpload;
+  const dup = items.filter(it => DB.get('sales', hashId('s', CAFE24_CH_ID + '|' + it.itemOrderNo))).length;
+
+  const cell = (label, val, sub, cls='') => `
+    <div class="rounded-xl border border-slate-200 p-3">
+      <div class="text-[11px] text-slate-400 font-semibold">${label}</div>
+      <div class="text-lg font-bold num ${cls}">${val}</div>
+      ${sub?`<div class="text-[11px] text-slate-400">${sub}</div>`:''}
+    </div>`;
+
+  box.innerHTML = `
+    <div class="bg-white rounded-2xl border border-slate-200 p-5">
+      <div class="flex items-center justify-between mb-3 flex-wrap gap-2">
+        <h3 class="font-bold text-sm">미리보기 <span class="font-normal text-slate-400">${esc(summary.from||'')} ~ ${esc(summary.to||'')}</span></h3>
+        <div class="flex gap-2">
+          <button onclick="cancelUpload()" class="px-3.5 py-2 text-sm font-semibold rounded-lg bg-white text-slate-500 border border-slate-200 hover:bg-slate-50">취소</button>
+          <button onclick="commitUpload()" class="px-4 py-2 text-sm font-semibold rounded-lg bg-brand text-white hover:bg-brand-dark">저장하기</button>
+        </div>
+      </div>
+      <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-2">
+        ${cell('매출 (총 결제금액)', won(summary.gross), '주문 '+comma(summary.orderCount)+'건 · 중복제외')}
+        ${cell('순매출 (품목별 결제금액)', won(summary.net), '품목 '+comma(summary.itemCount)+'건')}
+        ${cell('수량', comma(summary.qty)+'개', '')}
+        ${cell('취소', summary.cancelCnt? comma(summary.cancelCnt)+'건':'0건', summary.cancelCnt?won(summary.cancelNet)+' 제외':'', summary.cancelCnt?'text-rose-500':'')}
+      </div>
+      ${dup ? `<p class="text-xs text-amber-600 mb-2">※ 이미 저장된 품목 ${comma(dup)}건이 포함되어 있습니다. 저장 시 덮어써지며 매출이 2배로 늘지 않습니다.</p>` : ''}
+      <div class="overflow-x-auto border border-slate-100 rounded-xl">
+        <table class="w-full text-xs">
+          <thead class="bg-slate-50 text-slate-500">
+            <tr><th class="px-2 py-2 text-left">주문일</th><th class="px-2 py-2 text-left">품목별주문번호</th><th class="px-2 py-2 text-left">주문자</th>
+            <th class="px-2 py-2 text-left">상품</th><th class="px-2 py-2 text-left">옵션</th><th class="px-2 py-2 text-right">수량</th>
+            <th class="px-2 py-2 text-right">순매출</th><th class="px-2 py-2 text-center">상태</th></tr>
+          </thead>
+          <tbody>
+            ${items.slice(0,50).map(it => `<tr class="border-t border-slate-50 ${it.isCancelled?'bg-rose-50/40 text-slate-400':''}">
+              <td class="px-2 py-1.5">${esc(it.orderDate)}</td>
+              <td class="px-2 py-1.5 text-slate-400">${esc(it.itemOrderNo)}</td>
+              <td class="px-2 py-1.5">${esc(it.buyerName)}</td>
+              <td class="px-2 py-1.5">${esc((it.productName||'').slice(0,22))}</td>
+              <td class="px-2 py-1.5">${esc(it.optionName)}</td>
+              <td class="px-2 py-1.5 text-right num">${comma(it.qty)}</td>
+              <td class="px-2 py-1.5 text-right num">${comma(it.netAmount)}</td>
+              <td class="px-2 py-1.5 text-center">${it.isCancelled?'<span class="text-rose-500">취소</span>':'<span class="text-emerald-600">정상</span>'}</td>
+            </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>
+      ${items.length>50?`<p class="text-[11px] text-slate-400 mt-2">상위 50건만 표시 (전체 ${comma(items.length)}건)</p>`:''}
+    </div>`;
+}
+window.cancelUpload = () => { parsedUpload = null; renderUpload(); };
+
+function commitUpload() {
+  if (!parsedUpload) return;
+  const ch = ensureCafe24();
+  const brand = ensureBrand(ch.defaultBrandName || '몽프루이');
+  const uploadId = genId('upl');
+  const { items, summary, fileName } = parsedUpload;
+
+  items.forEach(it => {
+    const productId = hashId('p', CAFE24_CH_ID + '|' + it.productCode);
+    const itemId    = hashId('i', CAFE24_CH_ID + '|' + it.productCode + '|' + it.optionCode);
+    const matchKey  = CAFE24_CH_ID + '|' + it.productCode + '|' + it.optionCode;
+    // 상품 마스터 자동 등록/갱신
+    if (!DB.get('products', productId))
+      DB.put('products', { id:productId, brandId:brand.id, name:it.productName || it.productCode, active:true, source:'cafe24', channelProductCode:it.productCode });
+    if (!DB.get('productItems', itemId))
+      DB.put('productItems', { id:itemId, productId, brandId:brand.id, spec:it.optionName, sku:'', unitType:'ea', unitValue:null, price:it.listPrice||null, active:true, source:'cafe24', channelOptionCode:it.optionCode });
+    // 매칭(자기 자신) 등록
+    if (!DB.get('channelMappings', matchKey))
+      DB.put('channelMappings', { id:matchKey, matchKey, channelId:CAFE24_CH_ID, channelProductCode:it.productCode,
+        channelOptionCode:it.optionCode, keyMode:'code', productItemId:itemId, status:'confirmed',
+        snapProductName:it.productName, snapOptionName:it.optionName });
+    // 매출 저장 (saleId = 품목별주문번호 해시 → 중복 자동 방지)
+    const saleId = hashId('s', CAFE24_CH_ID + '|' + it.itemOrderNo);
+    DB.put('sales', {
+      id:saleId, uploadId, channelId:CAFE24_CH_ID,
+      orderNo:it.orderNo, itemOrderNo:it.itemOrderNo, orderDate:it.orderDate, orderDateTime:it.orderDateTime,
+      buyerName:it.buyerName,
+      channelProductCode:it.productCode, channelOptionCode:it.optionCode, rawProductName:it.productName, rawOptionName:it.optionName,
+      brandId:brand.id, productId, productItemId:itemId, matchKey, matchStatus:'matched',
+      qty:it.qty, netAmount:it.netAmount, listPrice:it.listPrice, addDiscount:it.addDiscount,
+      orderTotal:it.orderTotal, usedPoints:it.usedPoints, coupon:it.coupon, shipping:it.shipping,
+      isCancelled:it.isCancelled,
+    });
+  });
+
+  DB.put('uploads', { id:uploadId, channelId:CAFE24_CH_ID, channelName:ch.name, fileName, uploadedAt:Date.now(),
+    itemCount:summary.itemCount, orderCount:summary.orderCount, net:summary.net, gross:summary.gross,
+    qty:summary.qty, cancelCnt:summary.cancelCnt, from:summary.from, to:summary.to,
+    saleIds: items.map(it => hashId('s', CAFE24_CH_ID + '|' + it.itemOrderNo)) });
+
+  parsedUpload = null;
+  toast(comma(summary.itemCount) + '품목 저장 완료 · ' + won(summary.net));
+  refreshBadges();
+  goTab('main');
+}
+window.commitUpload = commitUpload;
+
+function undoUpload(uploadId) {
+  const u = DB.get('uploads', uploadId);
+  if (!u) return;
+  if (!confirm(`"${u.fileName}" 업로드(${comma(u.itemCount)}품목)를 되돌릴까요?\n이 업로드로 저장된 매출이 삭제됩니다.`)) return;
+  DB.list('sales').filter(s => s.uploadId === uploadId).forEach(s => DB.del('sales', s.id));
+  DB.del('uploads', uploadId);
+  toast('되돌렸습니다');
+  refreshBadges(); renderUpload();
+}
+window.undoUpload = undoUpload;
+
+/* ============================================================ 집계 (메인/매출 공용) */
+function filteredSales(from, to, chSet, brSet) {
+  return DB.list('sales').filter(s => {
+    if (from && s.orderDate < from) return false;
+    if (to && s.orderDate > to) return false;
+    if (chSet && chSet.size && !chSet.has(s.channelId)) return false;
+    if (brSet && brSet.size && !brSet.has(s.brandId)) return false;
+    return true;
+  });
+}
+function aggregate(sales) {
+  const orderTotals = {};   // 채널|주문번호 → 총결제 (dedup)
+  let net = 0, qty = 0, cancelNet = 0, cancelCnt = 0;
+  const brand = {}, product = {}, item = {}, channel = {};
+  const orderSet = new Set();
+  sales.forEach(s => {
+    if (s.isCancelled) { cancelNet += s.netAmount||0; cancelCnt++; return; }
+    const ok = s.channelId + '|' + s.orderNo;
+    if (orderTotals[ok] == null) orderTotals[ok] = s.orderTotal||0;
+    orderSet.add(ok);
+    net += s.netAmount||0; qty += s.qty||0;
+    const add = (m, k) => { (m[k] = m[k] || { net:0, qty:0 }); m[k].net += s.netAmount||0; m[k].qty += s.qty||0; };
+    add(brand, s.brandId); add(product, s.productId); add(item, s.productItemId); add(channel, s.channelId);
+  });
+  const gross = Object.values(orderTotals).reduce((a,b)=>a+b, 0);
+  return { gross, net, qty, cancelNet, cancelCnt, orderCount:orderSet.size, brand, product, item, channel };
+}
+function statCard(label, value, sub, accent) {
+  return `<div class="bg-white rounded-2xl border border-slate-200 p-4">
+    <div class="text-xs text-slate-400 font-semibold">${label}</div>
+    <div class="text-2xl font-bold num mt-1 ${accent||''}">${value}</div>
+    ${sub?`<div class="text-xs text-slate-400 mt-0.5">${sub}</div>`:''}</div>`;
+}
+// 브랜드/상품 분해 표 (agg 기준, 순매출)
+function breakdownTables(agg, opts={}) {
+  const brands = DB.list('brands'), products = DB.list('products'), items = DB.list('productItems');
+  const total = agg.net || 1;
+  // 브랜드별
+  const brRows = Object.keys(agg.brand).map(bid => ({ id:bid, name:(brands.find(b=>b.id===bid)||{}).name||'(브랜드)', ...agg.brand[bid] }))
+    .sort((a,b)=>b.net-a.net);
+  // 상품별 (+ 규격 하위)
+  const prRows = Object.keys(agg.product).map(pid => {
+    const p = products.find(x=>x.id===pid) || {};
+    const kids = items.filter(it => it.productId === pid && agg.item[it.id])
+      .map(it => ({ id:it.id, spec:it.spec, ...agg.item[it.id] })).sort((a,b)=>b.net-a.net);
+    return { id:pid, name:p.name||'(상품)', ...agg.product[pid], kids };
+  }).sort((a,b)=>b.net-a.net);
+
+  const bar = (v) => `<div class="h-1.5 bg-slate-100 rounded"><i class="block h-full bg-brand rounded" style="width:${(v/total*100).toFixed(1)}%"></i></div>`;
+
+  const brandTable = `<div class="bg-white rounded-2xl border border-slate-200 p-4">
+    <h3 class="font-bold text-sm mb-3">브랜드별</h3>
+    <table class="w-full text-sm"><tbody>
+    ${brRows.length? brRows.map(r=>`<tr class="border-b border-slate-50">
+      <td class="py-2 font-semibold">${esc(r.name)}</td>
+      <td class="py-2 text-right num">${won(r.net)}</td>
+      <td class="py-2 text-right num text-slate-500">${comma(r.qty)}개</td>
+      <td class="py-2 pl-3 w-28">${bar(r.net)}</td>
+      <td class="py-2 pl-2 text-right text-xs text-slate-400 num">${(r.net/total*100).toFixed(1)}%</td></tr>`).join('')
+    : '<tr><td class="py-6 text-center text-slate-400 text-sm">데이터 없음</td></tr>'}
+    </tbody></table></div>`;
+
+  const showSpec = opts.specMode;
+  const prodTable = `<div class="bg-white rounded-2xl border border-slate-200 p-4">
+    <div class="flex items-center justify-between mb-3">
+      <h3 class="font-bold text-sm">상품별</h3>
+      ${opts.toggle? `<div class="inline-flex rounded-lg border border-slate-200 overflow-hidden text-xs">
+        <button onclick="setSpecMode(false)" class="px-3 py-1.5 ${!showSpec?'bg-brand text-white':'bg-white text-slate-500'}">상품 기준</button>
+        <button onclick="setSpecMode(true)" class="px-3 py-1.5 ${showSpec?'bg-brand text-white':'bg-white text-slate-500'}">규격 기준</button></div>`:''}
+    </div>
+    <table class="w-full text-sm"><tbody>
+    ${prRows.length? prRows.map(r=>{
+      let html = `<tr class="border-b border-slate-50">
+        <td class="py-2 font-semibold">${esc(r.name)}${r.kids.length>1?`<span class="ml-1 text-[10px] text-slate-400">규격 ${r.kids.length}</span>`:''}</td>
+        <td class="py-2 text-right num">${won(r.net)}</td>
+        <td class="py-2 text-right num text-slate-500">${comma(r.qty)}개</td>
+        <td class="py-2 pl-3 w-28">${bar(r.net)}</td>
+        <td class="py-2 pl-2 text-right text-xs text-slate-400 num">${(r.net/total*100).toFixed(1)}%</td></tr>`;
+      if (showSpec) r.kids.forEach(k => { html += `<tr class="border-b border-slate-50 text-xs text-slate-500">
+        <td class="py-1.5 pl-4">└ ${esc(k.spec)}</td>
+        <td class="py-1.5 text-right num">${won(k.net)}</td>
+        <td class="py-1.5 text-right num">${comma(k.qty)}개</td><td></td><td></td></tr>`; });
+      return html;
+    }).join('') : '<tr><td class="py-6 text-center text-slate-400 text-sm">데이터 없음</td></tr>'}
+    </tbody></table></div>`;
+
+  return `<div class="grid gap-4 lg:grid-cols-2">${brandTable}${prodTable}</div>`;
+}
+let _specMode = false;
+window.setSpecMode = (v) => { _specMode = v; if (curTab==='sales') renderSales(); else renderMain(); };
+
+/* ============================================================ 메인 화면 */
+function renderMain() {
+  const sec = $('[data-panel="main"]');
+  const sales = DB.list('sales');
+  if (!sales.length) {
+    sec.innerHTML = emptyCard('🏠', '아직 매출 데이터가 없습니다', '데이터 입력에서 카페24 주문내역(CSV/엑셀)을 올리면 여기에 집계됩니다.', '데이터 입력하러 가기', "goTab('upload')");
+    return;
+  }
+  // 데이터가 있는 가장 최근 날짜 기준
+  const dates = [...new Set(sales.map(s=>s.orderDate))].sort();
+  const day = dates[dates.length-1];
+  const isToday = day === new Date().toISOString().slice(0,10);
+  const agg = aggregate(sales.filter(s => s.orderDate === day));
+  const chNames = [...new Set(sales.filter(s=>s.orderDate===day && !s.isCancelled).map(s=>s.channelId))]
+    .map(cid => (DB.get('channels',cid)||{}).name).filter(Boolean);
+
+  sec.innerHTML = `
+    <div class="flex items-center gap-2 mb-4 flex-wrap">
+      <h2 class="font-bold text-base">${isToday?'오늘':'최근 판매일'} <span class="text-brand">${esc(day)}</span></h2>
+      ${!isToday?`<span class="text-xs text-slate-400">오늘(${new Date().toISOString().slice(0,10)}) 데이터는 아직 없습니다</span>`:''}
+      <button onclick="goTab('sales')" class="ml-auto text-xs font-semibold text-brand">기간별로 보기 →</button>
+    </div>
+    <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
+      ${statCard('매출 <span class="font-normal text-slate-300">(총 결제)</span>', won(agg.gross), '주문 '+comma(agg.orderCount)+'건')}
+      ${statCard('순매출 <span class="font-normal text-slate-300">(품목별)</span>', won(agg.net), '')}
+      ${statCard('수량', comma(agg.qty)+'개', chNames.join(', '))}
+      ${statCard('취소', agg.cancelCnt?comma(agg.cancelCnt)+'건':'0건', agg.cancelCnt?won(agg.cancelNet)+' 제외':'', agg.cancelCnt?'text-rose-500':'')}
+    </div>
+    ${breakdownTables(agg, { toggle:true, specMode:_specMode })}`;
+}
+
+/* ============================================================ 매출 화면 */
+const salesState = { from:null, to:null, chSet:new Set(), brSet:new Set() };
+function todayStr() { return new Date().toISOString().slice(0,10); }
+function shiftDate(str, days) { const d = new Date(str+'T00:00'); d.setDate(d.getDate()+days); return d.toISOString().slice(0,10); }
+
+function renderSales() {
+  const sec = $('[data-panel="sales"]');
+  const sales = DB.list('sales');
+  if (!sales.length) {
+    sec.innerHTML = emptyCard('📈', '매출 데이터가 없습니다', '데이터 입력에서 주문내역을 먼저 올려주세요.', '데이터 입력하러 가기', "goTab('upload')");
+    return;
+  }
+  const dates = [...new Set(sales.map(s=>s.orderDate))].sort();
+  if (!salesState.from) { salesState.from = dates[0]; salesState.to = dates[dates.length-1]; }
+  const channels = DB.list('channels').filter(c => sales.some(s=>s.channelId===c.id));
+  const brands = DB.list('brands').filter(b => sales.some(s=>s.brandId===b.id));
+
+  const chip = (on, label, onclick) => `<button onclick="${onclick}" class="px-3 py-1.5 rounded-full text-xs font-semibold border ${on?'bg-brand text-white border-brand':'bg-white text-slate-500 border-slate-200'}">${esc(label)}</button>`;
+  const quick = [['오늘',0,0],['어제',-1,-1],['최근 7일',-6,0],['최근 30일',-29,0]];
+
+  const agg = aggregate(filteredSales(salesState.from, salesState.to, salesState.chSet, salesState.brSet));
+  const days = Math.max(1, Math.round((new Date(salesState.to)-new Date(salesState.from))/86400000)+1);
+
+  sec.innerHTML = `
+    <div class="bg-white rounded-2xl border border-slate-200 p-4 mb-4 space-y-3">
+      <div class="flex items-center gap-2 flex-wrap">
+        <span class="text-xs font-bold text-slate-500 w-12">기간</span>
+        <input type="date" id="sFrom" value="${salesState.from}" class="px-3 py-1.5 text-sm border border-slate-200 rounded-lg">
+        <span class="text-slate-400">~</span>
+        <input type="date" id="sTo" value="${salesState.to}" class="px-3 py-1.5 text-sm border border-slate-200 rounded-lg">
+        <div class="flex gap-1.5 flex-wrap">
+          ${quick.map(q=>`<button onclick="salesQuick(${q[1]},${q[2]})" class="px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-slate-100 text-slate-500 hover:bg-slate-200">${q[0]}</button>`).join('')}
+          <button onclick="salesQuickAll()" class="px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-slate-100 text-slate-500 hover:bg-slate-200">전체</button>
+        </div>
+      </div>
+      ${channels.length>1?`<div class="flex items-center gap-2 flex-wrap"><span class="text-xs font-bold text-slate-500 w-12">채널</span>
+        ${chip(salesState.chSet.size===0,'전체','salesToggleCh(null)')}
+        ${channels.map(c=>chip(salesState.chSet.has(c.id),c.name,`salesToggleCh('${c.id}')`)).join('')}</div>`:''}
+      ${brands.length>1?`<div class="flex items-center gap-2 flex-wrap"><span class="text-xs font-bold text-slate-500 w-12">브랜드</span>
+        ${chip(salesState.brSet.size===0,'전체','salesToggleBr(null)')}
+        ${brands.map(b=>chip(salesState.brSet.has(b.id),b.name,`salesToggleBr('${b.id}')`)).join('')}</div>`:''}
+    </div>
+    <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
+      ${statCard('매출 <span class="font-normal text-slate-300">(총 결제)</span>', won(agg.gross), '주문 '+comma(agg.orderCount)+'건 · '+days+'일')}
+      ${statCard('순매출', won(agg.net), '일평균 '+won(Math.round(agg.net/days)))}
+      ${statCard('수량', comma(agg.qty)+'개', '')}
+      ${statCard('취소', agg.cancelCnt?comma(agg.cancelCnt)+'건':'0건', agg.cancelCnt?won(agg.cancelNet)+' 제외':'', agg.cancelCnt?'text-rose-500':'')}
+    </div>
+    <div class="flex justify-end mb-2"><button onclick="exportSalesCsv()" class="text-xs font-semibold text-brand px-2 py-1 rounded hover:bg-brand-soft">CSV 내보내기</button></div>
+    ${breakdownTables(agg, { toggle:true, specMode:_specMode })}`;
+
+  $('#sFrom').addEventListener('change', e => { salesState.from = e.target.value; renderSales(); });
+  $('#sTo').addEventListener('change', e => { salesState.to = e.target.value; renderSales(); });
+}
+window.salesQuick = (a,b) => { salesState.from = shiftDate(todayStr(),a); salesState.to = shiftDate(todayStr(),b); renderSales(); };
+window.salesQuickAll = () => { const d=[...new Set(DB.list('sales').map(s=>s.orderDate))].sort(); salesState.from=d[0]; salesState.to=d[d.length-1]; renderSales(); };
+window.salesToggleCh = (id) => { if (!id) salesState.chSet.clear(); else { salesState.chSet.has(id)?salesState.chSet.delete(id):salesState.chSet.add(id); } renderSales(); };
+window.salesToggleBr = (id) => { if (!id) salesState.brSet.clear(); else { salesState.brSet.has(id)?salesState.brSet.delete(id):salesState.brSet.add(id); } renderSales(); };
+
+function exportSalesCsv() {
+  const sales = filteredSales(salesState.from, salesState.to, salesState.chSet, salesState.brSet)
+    .sort((a,b)=> a.orderDate<b.orderDate?-1:1);
+  const q = s => { s = String(s==null?'':s); return /[",\n]/.test(s) ? '"'+s.replace(/"/g,'""')+'"' : s; };
+  const head = '주문일,채널,브랜드,상품,옵션,수량,순매출,취소여부\n';
+  const body = sales.map(s => [s.orderDate, (DB.get('channels',s.channelId)||{}).name||'',
+    (DB.get('brands',s.brandId)||{}).name||'', q(s.rawProductName), q(s.rawOptionName),
+    s.qty, s.netAmount, s.isCancelled?'취소':'정상'].join(',')).join('\n');
+  const blob = new Blob(['﻿'+head+body], { type:'text/csv;charset=utf-8;' });
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+  a.download = '매출_' + salesState.from + '_' + salesState.to + '.csv';
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(()=>URL.revokeObjectURL(a.href), 1000);
+  toast('CSV 를 내보냈습니다');
+}
+window.exportSalesCsv = exportSalesCsv;
+
 /* ============================================================ 초기화 */
 function init() {
   // 탭 클릭
   $$('.tabbtn').forEach(b => b.addEventListener('click', () => goTab(b.dataset.tab)));
   $$('.subtab').forEach(b => b.addEventListener('click', () => renderSub(b.dataset.sub)));
+  // 카페24(자사몰) 채널을 미리 보장
+  ensureCafe24();
   // 모드 배지
   $('#mode-badge').textContent = DB.mode === 'local' ? '로컬 모드' : 'Firebase';
   refreshBadges();
