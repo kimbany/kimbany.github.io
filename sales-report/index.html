@@ -499,7 +499,7 @@ function renderProducts() {
         html += '<table class="w-full text-sm"><tbody>';
         items.forEach(it => {
           html += `<tr class="border-b border-slate-50 ${it.active===false?'opacity-50':''}">
-            <td class="px-4 py-2 font-semibold">${esc(it.spec)}</td>
+            <td class="px-4 py-2 font-semibold">${esc(itemLabel(it))}</td>
             <td class="px-2 py-2 text-xs text-slate-400">${esc(it.sku||'-')}</td>
             <td class="px-2 py-2 text-xs text-slate-500 text-right">${it.unitValue?comma(it.unitValue)+esc(it.unitType||''):'-'}</td>
             <td class="px-2 py-2 text-right num">${it.price?won(it.price):'<span class="text-slate-300">-</span>'}</td>
@@ -557,8 +557,9 @@ function openItemForm(productId, itemId) {
   const p = DB.get('products', productId);
   const body = `
     <p class="text-xs text-slate-400">상품 <b class="text-slate-600">${esc(p?.name||'')}</b> 의 규격</p>
-    ${F.text('it-spec','규격명', it.spec||'', '예: 3kg / 12개입')}
-    ${F.text('it-sku','SKU', it.sku||'', '예: MF-APPLE-3KG')}
+    ${F.text('it-grade','등급/종류 (선택)', it.grade||'', '예: 대과 / 중과 / 점보 / 왕점보')}
+    ${F.text('it-spec','규격(용량)', it.spec||'', '예: 3kg / 5.5kg / 12개입')}
+    ${F.text('it-sku','SKU (선택)', it.sku||'', '예: MF-APPLE-3KG')}
     <div class="grid grid-cols-2 gap-3">
       ${F.sel('it-utype','단위 타입', UNIT_TYPES, it.unitType||'g')}
       ${F.num('it-uval','단위 값', it.unitValue!=null?it.unitValue:'', '예: 3000')}
@@ -576,6 +577,7 @@ function saveItem(productId, itemId) {
   DB.put('productItems', {
     id: itemId||undefined,
     productId, brandId: p?.brandId || '',
+    grade: $('#it-grade').value.trim(),
     spec,
     sku: $('#it-sku').value.trim(),
     unitType: $('#it-utype').value,
@@ -602,7 +604,7 @@ function masterItemOptions(sel) {
   const products = DB.list('products');
   return DB.list('productItems').filter(it=>it.active!==false).map(it => {
     const p = products.find(x=>x.id===it.productId)||{};
-    return `<option value="${it.id}" ${it.id===sel?'selected':''}>${esc((p.name||'?')+' · '+it.spec)}</option>`;
+    return `<option value="${it.id}" ${it.id===sel?'selected':''}>${esc((p.name||'?')+' · '+itemLabel(it))}</option>`;
   }).join('');
 }
 function renderMatch() {
@@ -795,6 +797,8 @@ function parseNum(v) {
   const s = String(v==null?'':v).replace(/[^0-9.\-]/g, '');
   const n = parseFloat(s); return isNaN(n) ? 0 : n;
 }
+// 규격 표시 라벨 = 등급 + 규격 (예: "대과 3kg")
+function itemLabel(it) { return (((it&&it.grade)?it.grade+' ':'')+((it&&it.spec)||'')).trim() || '기본'; }
 // 기존 데이터 마이그레이션: 예전 카페24 채널에 format 부여
 function migrateChannels() {
   DB.list('channels').forEach(ch => {
@@ -1190,54 +1194,48 @@ function simpleTable(title, rows, total) {
       :'<tr><td colspan="6" class="py-6 text-center text-slate-400 text-sm">데이터 없음</td></tr>'}
     </tbody></table></div>`;
 }
-function productTable(sales, total, opts={}) {
+function productTable(sales, total) {
   const map = {};
   sales.forEach(s=>{ if(s.isCancelled) return;
-    let pk,pl,kk,kl;
-    if(s.productItemId){ const it=DB.get('productItems',s.productItemId)||{}; const p=DB.get('products',it.productId)||{}; pk='p:'+it.productId; pl=p.name||'(상품)'; kk='i:'+s.productItemId; kl=it.spec||'기본'; }
-    else { pk='u:'+s.channelId+'|'+s.channelProductCode; pl='⚠ '+((s.rawProductName||'미매칭').slice(0,28)); kk='uo:'+(s.channelOptionCode||''); kl=s.rawOptionName||'기본'; }
-    const g=(map[pk]=map[pk]||{label:pl,matched:!!s.productItemId,gross:0,net:0,qty:0,kids:{}});
+    let pk,pl,kk,kl,matched;
+    if(s.productItemId){ const it=DB.get('productItems',s.productItemId)||{}; const p=DB.get('products',it.productId)||{}; pk='p:'+it.productId; pl=p.name||'(상품)'; kk='i:'+s.productItemId; kl=itemLabel(it); matched=true; }
+    else { pk='u:'+s.channelId+'|'+s.channelProductCode; pl='⚠ '+((s.rawProductName||'미매칭').slice(0,28)); kk='uo:'+(s.channelOptionCode||''); kl=s.rawOptionName||'기본'; matched=false; }
+    const g=(map[pk]=map[pk]||{label:pl,matched,gross:0,net:0,qty:0,kids:{}});
     g.gross+=s.grossAmount||0; g.net+=s.netAmount||0; g.qty+=s.qty||0;
     const k=(g.kids[kk]=g.kids[kk]||{label:kl,gross:0,net:0,qty:0}); k.gross+=s.grossAmount||0; k.net+=s.netAmount||0; k.qty+=s.qty||0;
   });
   const rows = Object.values(map).sort((a,b)=>b.gross-a.gross);
   const bar=v=>`<div class="h-1.5 bg-slate-100 rounded"><i class="block h-full bg-brand rounded" style="width:${(v/(total||1)*100).toFixed(1)}%"></i></div>`;
-  const showSpec = opts.specMode;
   return `<div class="bg-white rounded-2xl border border-slate-200 p-4">
-    <div class="flex items-center justify-between mb-3"><h3 class="font-bold text-sm">상품별</h3>
-      <div class="inline-flex rounded-lg border border-slate-200 overflow-hidden text-xs">
-        <button onclick="setSpecMode(false)" class="px-3 py-1.5 ${!showSpec?'bg-brand text-white':'bg-white text-slate-500'}">상품 기준</button>
-        <button onclick="setSpecMode(true)" class="px-3 py-1.5 ${showSpec?'bg-brand text-white':'bg-white text-slate-500'}">규격 기준</button></div></div>
+    <h3 class="font-bold text-sm mb-3">상품별 <span class="font-normal text-slate-400">상품 합계와 등급·규격별 매출</span></h3>
     <table class="w-full text-sm"><thead><tr class="text-[11px] text-slate-400 border-b border-slate-100">
-      <th class="text-left font-semibold pb-1.5">상품</th><th class="text-right font-semibold pb-1.5">매출</th>
+      <th class="text-left font-semibold pb-1.5">상품 · 규격</th><th class="text-right font-semibold pb-1.5">매출</th>
       <th class="text-right font-semibold pb-1.5">순매출</th><th class="text-right font-semibold pb-1.5">수량</th>
       <th class="pb-1.5"></th><th class="text-right font-semibold pb-1.5">비중</th></tr></thead><tbody>
     ${rows.length?rows.map(r=>{
       const kids=Object.values(r.kids).sort((a,b)=>b.gross-a.gross);
-      let h=`<tr class="border-b border-slate-50">
-        <td class="py-2 font-semibold ${r.matched?'':'text-rose-600'}">${esc(r.label)}${kids.length>1?`<span class="ml-1 text-[10px] text-slate-400">규격 ${kids.length}</span>`:''}</td>
-        <td class="py-2 text-right num">${won(r.gross)}</td><td class="py-2 text-right num text-slate-500">${won(r.net)}</td>
+      let h=`<tr class="bg-slate-50/60 border-b border-slate-100">
+        <td class="py-2 font-bold ${r.matched?'':'text-rose-600'}">${esc(r.label)}</td>
+        <td class="py-2 text-right num font-semibold">${won(r.gross)}</td><td class="py-2 text-right num text-slate-500">${won(r.net)}</td>
         <td class="py-2 text-right num text-slate-500">${comma(r.qty)}개</td><td class="py-2 pl-3 w-24">${bar(r.gross)}</td>
         <td class="py-2 pl-2 text-right text-xs text-slate-400 num">${(r.gross/(total||1)*100).toFixed(1)}%</td></tr>`;
-      if(showSpec) kids.forEach(k=>{ h+=`<tr class="border-b border-slate-50 text-xs text-slate-500">
-        <td class="py-1.5 pl-4">└ ${esc(k.label)}</td><td class="py-1.5 text-right num">${won(k.gross)}</td>
-        <td class="py-1.5 text-right num">${won(k.net)}</td><td class="py-1.5 text-right num">${comma(k.qty)}개</td><td></td><td></td></tr>`; });
+      kids.forEach(k=>{ h+=`<tr class="border-b border-slate-50 text-slate-600">
+        <td class="py-1.5 pl-5">└ ${esc(k.label)}</td><td class="py-1.5 text-right num">${won(k.gross)}</td>
+        <td class="py-1.5 text-right num text-slate-400">${won(k.net)}</td><td class="py-1.5 text-right num text-slate-400">${comma(k.qty)}개</td><td></td><td></td></tr>`; });
       return h;
     }).join('') : '<tr><td colspan="6" class="py-6 text-center text-slate-400 text-sm">데이터 없음</td></tr>'}
     </tbody></table></div>`;
 }
+
 function statCard(label, value, sub, accent) {
   return `<div class="bg-white rounded-2xl border border-slate-200 p-4"><div class="text-xs text-slate-400 font-semibold">${label}</div>
     <div class="text-2xl font-bold num mt-1 ${accent||''}">${value}</div>${sub?`<div class="text-xs text-slate-400 mt-0.5">${sub}</div>`:''}</div>`;
 }
-let _specMode = false;
-window.setSpecMode = v => { _specMode=v; if(curTab==='sales') renderSales(); else renderMain(); };
-
 function breakdownHtml(sales, total) {
   const chRows = groupSum(sales, s=>s.channelId, s=>(DB.get('channels',s.channelId)||{}).name||'(채널)');
   const brRows = groupSum(sales, s=>s.brandId, s=>(DB.get('brands',s.brandId)||{}).name||'(브랜드)');
   return `<div class="grid gap-4 lg:grid-cols-2 mb-4">${simpleTable('채널별', chRows, total)}${simpleTable('브랜드별', brRows, total)}</div>
-    ${productTable(sales, total, { specMode:_specMode })}`;
+    ${productTable(sales, total)}`;
 }
 
 /* ============================================================ 메인 화면 */
