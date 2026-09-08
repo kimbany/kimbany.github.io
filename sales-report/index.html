@@ -319,112 +319,64 @@ function sectionHead(title, sub, btnLabel, btnOnclick) {
 }
 
 /* ============================================================================
- * (a) 채널 관리
+ * (a) 채널 관리 — 채널 유형(파일 양식) 기반
  * ==========================================================================*/
-const DATE_BASIS = [
-  { v:'orderDate', t:'주문일' }, { v:'payDate', t:'결제일' }, { v:'shipDate', t:'발송일' },
+const CHANNEL_FORMATS = [
+  { v:'cafe24',     t:'카페24 (자사몰)' },
+  { v:'smartstore', t:'스마트스토어' },
+  { v:'coupang',    t:'쿠팡' },
+  { v:'11st',       t:'11번가' },
+  { v:'ssg',        t:'SSG' },
+  { v:'custom',     t:'기타' },
 ];
-const COLMAP_FIELDS = [
-  ['orderNo','주문번호'], ['orderDate','주문일(기준일)'], ['productCode','상품코드'], ['productName','상품명'],
-  ['optionCode','옵션코드'], ['optionName','옵션명'], ['qty','수량'], ['amount','판매금액'], ['status','주문상태'],
-];
+function formatLabel(f) { return (CHANNEL_FORMATS.find(x=>x.v===f)||{}).t || '기타'; }
 
 function renderChannels() {
   const box = $('[data-sub-panel="channel"]');
   const list = DB.list('channels');
-  let html = sectionHead('채널 관리', '쿠팡 · 스마트스토어 등 판매 채널과 엑셀 컬럼 매핑을 등록합니다.', '+ 채널 추가', 'openChannelForm()');
-
-  if (!list.length) {
-    html += emptyCard('🛒', '등록된 채널이 없습니다', '먼저 매출 엑셀을 내려받는 채널을 등록하세요.', '+ 채널 추가', 'openChannelForm()');
-    box.innerHTML = html; return;
-  }
-  html += '<div class="grid gap-3">';
+  let html = sectionHead('채널 관리', '판매 채널을 등록합니다. 스마트스토어처럼 계정이 브랜드별로 여러 개면 이름을 다르게 해서 각각 등록하세요.', '+ 채널 추가', 'openChannelForm()');
+  if (!list.length) { html += emptyCard('🛒','등록된 채널이 없습니다','매출 엑셀을 내려받는 채널을 등록하세요.','+ 채널 추가','openChannelForm()'); box.innerHTML=html; return; }
+  html += '<div class="grid gap-3 sm:grid-cols-2">';
   list.forEach(ch => {
-    const mapped = COLMAP_FIELDS.filter(([k]) => (ch.columnMap||{})[k]).length;
-    const warnName = (!ch.hasProductCode || !ch.hasOptionCode);
+    const cnt = DB.list('sales').filter(s=>s.channelId===ch.id).length;
     html += `<div class="bg-white rounded-2xl border border-slate-200 p-4">
       <div class="flex items-center gap-2 flex-wrap">
         <span class="font-bold">${esc(ch.name)}</span>
-        <span class="text-xs text-slate-400">${esc(ch.code||'-')}</span>
-        ${ch.active===false ? '<span class="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 text-slate-400">사용안함</span>' : '<span class="text-[10px] px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-600">사용중</span>'}
-        ${warnName ? '<span class="text-[10px] px-1.5 py-0.5 rounded bg-amber-100 text-amber-700">⚠ 이름 기반 매칭</span>' : ''}
+        <span class="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 text-slate-500">${esc(formatLabel(ch.format))}</span>
+        ${ch.active===false?'<span class="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 text-slate-400">사용안함</span>':''}
         <div class="ml-auto flex gap-1.5">
           <button onclick="openChannelForm('${ch.id}')" class="text-xs font-semibold text-brand px-2 py-1 rounded hover:bg-brand-soft">수정</button>
           <button onclick="delChannel('${ch.id}')" class="text-xs font-semibold text-rose-500 px-2 py-1 rounded hover:bg-rose-50">삭제</button>
         </div>
       </div>
-      <div class="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500">
-        <span>기준일: <b class="text-slate-700">${esc((DATE_BASIS.find(d=>d.v===ch.dateBasis)||{}).t || '주문일')}</b></span>
-        <span>컬럼 매핑: <b class="text-slate-700">${mapped}/9</b></span>
-        <span>상품코드 ${ch.hasProductCode?'✅':'❌'} · 옵션코드 ${ch.hasOptionCode?'✅':'❌'}</span>
-        <span>취소상태: ${(ch.cancelStatuses||[]).map(esc).join(', ')||'-'}</span>
-      </div></div>`;
+      <div class="mt-1 text-xs text-slate-400">매출 ${comma(cnt)}품목 저장됨</div>
+    </div>`;
   });
-  html += '</div>';
-  box.innerHTML = html;
+  html += '</div>'; box.innerHTML = html;
 }
-
 function openChannelForm(id) {
-  const ch = id ? DB.get('channels', id) : { columnMap:{}, hasProductCode:true, hasOptionCode:true, active:true, dateBasis:'orderDate', cancelStatuses:[] };
-  const cm = ch.columnMap || {};
+  const ch = id ? DB.get('channels',id) : { active:true, format:'smartstore' };
   const body = `
-    ${F.text('ch-name','채널명', ch.name||'', '예: 쿠팡')}
-    ${F.text('ch-code','채널코드(영문)', ch.code||'', '예: coupang')}
-    ${F.sel('ch-basis','매출 기준일', DATE_BASIS, ch.dateBasis||'orderDate')}
+    ${F.text('ch-name','채널명', ch.name||'', '예: 스마트스토어(몽프루이)')}
+    ${F.sel('ch-format','채널 유형 (파일 양식)', CHANNEL_FORMATS, ch.format||'smartstore')}
     ${F.toggle('ch-active','사용 여부', ch.active!==false)}
-    <div class="pt-2 border-t border-slate-100">
-      <p class="text-xs font-bold text-slate-600 mb-1">코드 제공 여부</p>
-      ${F.toggle('ch-hasprod','상품코드 컬럼 있음', ch.hasProductCode!==false)}
-      <div class="h-2"></div>
-      ${F.toggle('ch-hasopt','옵션코드 컬럼 있음', ch.hasOptionCode!==false)}
-      <p class="text-[11px] text-amber-600 mt-1.5">※ 코드가 없으면 이름 기반 대체 매칭으로 동작하며, 채널 목록에 ⚠ 표시가 붙습니다.</p>
-    </div>
-    <div class="pt-2 border-t border-slate-100">
-      <p class="text-xs font-bold text-slate-600 mb-2">엑셀 컬럼 매핑 <span class="font-normal text-slate-400">(채널 파일의 실제 헤더명)</span></p>
-      <div class="grid grid-cols-2 gap-2">
-        ${COLMAP_FIELDS.map(([k,label]) => `<div>
-          <label class="block text-[11px] font-semibold text-slate-500 mb-1">${esc(label)}</label>
-          <input id="cm-${k}" value="${esc(cm[k]||'')}" placeholder="${esc(label)}"
-            class="w-full px-2.5 py-1.5 text-xs border border-slate-200 rounded-lg"></div>`).join('')}
-      </div>
-      <p class="text-[11px] text-slate-400 mt-2">※ 정확한 헤더명은 Phase 3(업로드)에서 파일을 올리면 드롭다운으로 자동 지정됩니다. 지금은 아는 값만 채워두세요.</p>
-    </div>
-    ${F.text('ch-cancel','취소로 간주할 주문상태 (쉼표 구분)', (ch.cancelStatuses||[]).join(', '), '취소, 반품완료, 환불')}
-  `;
-  const foot = F.btnGhost('취소','closeModal()') + F.btnPrimary('저장', `saveChannel('${id||''}')`);
-  openModal(F.wrap(id?'채널 수정':'채널 추가', body, foot));
+    <p class="text-[11px] text-slate-400">유형은 업로드한 엑셀을 어떤 양식으로 읽을지 결정합니다. 현재 <b>카페24 · 스마트스토어</b> 를 지원합니다.</p>`;
+  openModal(F.wrap(id?'채널 수정':'채널 추가', body, F.btnGhost('취소','closeModal()')+F.btnPrimary('저장',`saveChannel('${id||''}')`)));
 }
-window.openChannelForm = openChannelForm;
-
 function saveChannel(id) {
   const name = $('#ch-name').value.trim();
   if (!name) { toast('채널명을 입력하세요','err'); return; }
-  const columnMap = {};
-  COLMAP_FIELDS.forEach(([k]) => { const v = $('#cm-'+k).value.trim(); if (v) columnMap[k] = v; });
-  const doc = {
-    id: id || undefined,
-    name,
-    code: $('#ch-code').value.trim(),
-    dateBasis: $('#ch-basis').value,
-    active: $('#ch-active').checked,
-    hasProductCode: $('#ch-hasprod').checked,
-    hasOptionCode: $('#ch-hasopt').checked,
-    columnMap,
-    cancelStatuses: $('#ch-cancel').value.split(',').map(s=>s.trim()).filter(Boolean),
-    headerSignature: (id && DB.get('channels',id)?.headerSignature) || [],
-  };
-  DB.put('channels', doc);
+  DB.put('channels', { id:id||undefined, name, format:$('#ch-format').value, active:$('#ch-active').checked });
   closeModal(); renderChannels(); toast('저장했습니다');
 }
-window.saveChannel = saveChannel;
-
+window.openChannelForm = openChannelForm; window.saveChannel = saveChannel;
 function delChannel(id) {
   const ch = DB.get('channels', id);
-  const mapped = DB.list('channelMappings').filter(m => m.channelId === id).length;
-  if (!confirm(`채널 "${ch?.name}" 을(를) 삭제할까요?` + (mapped ? `\n연결된 매칭 ${mapped}건도 함께 사라집니다.` : ''))) return;
-  DB.list('channelMappings').filter(m => m.channelId === id).forEach(m => DB.del('channelMappings', m.id));
-  DB.del('channels', id);
-  renderChannels(); toast('삭제했습니다');
+  const cnt = DB.list('sales').filter(s=>s.channelId===id).length;
+  if (cnt) { toast(`이 채널에 매출 ${cnt}품목이 있어 삭제할 수 없습니다. 데이터 입력에서 해당 매출을 먼저 삭제하세요.`,'err'); return; }
+  if (!confirm(`채널 "${ch?.name}" 을(를) 삭제할까요?`)) return;
+  DB.list('channelMappings').filter(m=>m.channelId===id).forEach(m=>DB.del('channelMappings',m.id));
+  DB.del('channels', id); renderChannels(); toast('삭제했습니다');
 }
 window.delChannel = delChannel;
 
@@ -644,41 +596,90 @@ function delItem(id) {
 window.delItem = delItem;
 
 /* ============================================================================
- * (d) 매칭 관리 — Phase 6 에서 트리 뷰/재매칭 구현. 지금은 구조만.
+ * (d) 매칭 관리 — 채널 상품코드 → 내 규격 연결
  * ==========================================================================*/
+function masterItemOptions(sel) {
+  const products = DB.list('products');
+  return DB.list('productItems').filter(it=>it.active!==false).map(it => {
+    const p = products.find(x=>x.id===it.productId)||{};
+    return `<option value="${it.id}" ${it.id===sel?'selected':''}>${esc((p.name||'?')+' · '+it.spec)}</option>`;
+  }).join('');
+}
 function renderMatch() {
   const box = $('[data-sub-panel="match"]');
-  const maps = DB.list('channelMappings');
-  let html = sectionHead('매칭 관리', '채널 상품·옵션 ↔ 내 상품 규격 연결을 관리합니다. (트리 뷰·재매칭은 Phase 6)');
-  if (!maps.length) {
-    html += emptyCard('🔗', '아직 매칭 데이터가 없습니다',
-      '데이터 입력에서 채널 엑셀을 업로드하면 여기에 채널 상품↔내 규격 매핑이 쌓입니다.', '', '');
-  } else {
-    // 채널별 그룹으로 간단 리스트(읽기 전용 프리뷰)
-    const channels = DB.list('channels');
-    html += '<div class="space-y-4">';
-    channels.forEach(ch => {
-      const rows = maps.filter(m => m.channelId === ch.id);
-      if (!rows.length) return;
-      html += `<div class="bg-white rounded-2xl border border-slate-200 p-4">
-        <h3 class="font-bold text-sm mb-2">${esc(ch.name)}</h3>
-        <div class="space-y-1 text-xs">`;
-      rows.forEach(m => {
-        const it = DB.get('productItems', m.productItemId);
-        const badge = m.status==='review' ? '<span class="text-amber-600">⚠ 이름변경</span>'
-          : m.status==='ignored' ? '<span class="text-slate-400">무시됨</span>'
-          : it ? '<span class="text-emerald-600">✅</span>' : '<span class="text-rose-500">❌ 미매칭</span>';
-        html += `<div class="flex items-center gap-2 py-1 border-b border-slate-50">
-          <span class="text-slate-400">${esc(m.channelProductCode||'')}/${esc(m.channelOptionCode||'')}</span>
-          <span>${esc(m.snapOptionName||m.lastSeenOptionName||'')}</span>
-          <span class="ml-auto">${it?esc(it.spec):''} ${badge}</span></div>`;
-      });
-      html += '</div></div>';
-    });
-    html += '</div>';
+  const channels = DB.list('channels');
+  const sales = DB.list('sales');
+  const items = DB.list('productItems');
+  let html = sectionHead('매칭 관리', '채널마다 상품코드가 다릅니다. 업로드된 채널 상품코드를 상품 관리에 등록한 규격에 연결하세요. 연결하면 과거 매출도 함께 갱신됩니다. 등록해둔 규격이 없으면 "+ 새로 만들기"로 바로 만들 수 있습니다.');
+
+  if (!sales.length) {
+    html += emptyCard('🔗','아직 매칭할 채널 상품이 없습니다','데이터 입력에서 파일을 올리면 채널 상품코드가 여기에 나타납니다.','데이터 입력하러 가기',"goTab('upload')");
+    box.innerHTML = html; return;
   }
+  let any = false;
+  channels.forEach(ch => {
+    const seen = {};
+    sales.filter(s=>s.channelId===ch.id).forEach(s => {
+      const key = (s.channelProductCode||'')+'|'+(s.channelOptionCode||'__NONE__');
+      if (!seen[key]) seen[key] = { code:s.channelProductCode, opt:s.channelOptionCode||'__NONE__', name:s.rawProductName, optName:s.rawOptionName, brandId:s.brandId };
+    });
+    const rows = Object.values(seen);
+    if (!rows.length) return;
+    any = true;
+    const unmatched = rows.filter(r => { const m = DB.get('channelMappings', ch.id+'|'+r.code+'|'+r.opt); return !m || !m.productItemId; }).length;
+    html += `<div class="bg-white rounded-2xl border border-slate-200 p-4 mb-3">
+      <h3 class="font-bold text-sm mb-2">${esc(ch.name)} · ${unmatched?`<span class="text-rose-500">미매칭 ${unmatched}건</span>`:'<span class="text-emerald-600">전부 매칭됨</span>'}</h3>
+      <div class="overflow-x-auto"><table class="w-full text-sm"><thead><tr class="text-[11px] text-slate-400 border-b border-slate-100">
+        <th class="text-left font-semibold pb-1.5">채널 상품코드</th><th class="text-left font-semibold pb-1.5">채널 상품/옵션명</th><th class="text-left font-semibold pb-1.5">→ 내 규격</th></tr></thead><tbody>
+      ${rows.map(r => {
+        const mk = ch.id+'|'+r.code+'|'+r.opt;
+        const m = DB.get('channelMappings', mk);
+        const cur = m && m.productItemId ? m.productItemId : '';
+        return `<tr class="border-b border-slate-50">
+          <td class="py-2 text-xs text-slate-500 whitespace-nowrap">${esc(r.code)}${r.opt!=='__NONE__'?'<br>'+esc(r.opt):''}</td>
+          <td class="py-2">${esc((r.name||'').slice(0,28))}${r.optName&&r.optName!=='기본'?`<span class="text-slate-400"> · ${esc(r.optName)}</span>`:''}</td>
+          <td class="py-2"><div class="flex items-center gap-1.5">
+            <select onchange="assignMatch('${ch.id}','${esc(r.code)}','${esc(r.opt)}',this.value)" class="px-2 py-1.5 text-sm border ${cur?'border-slate-200':'border-rose-300 bg-rose-50'} rounded-lg bg-white max-w-[220px]">
+              <option value="">${cur?'(연결 해제)':'— 선택 —'}</option>${masterItemOptions(cur)}
+            </select>
+            ${cur?'':`<button onclick="quickCreateMaster('${ch.id}','${esc(r.code)}','${esc(r.opt)}')" class="text-[11px] font-semibold text-brand whitespace-nowrap px-1.5 py-1 rounded hover:bg-brand-soft">+ 새로 만들기</button>`}
+          </div></td></tr>`;
+      }).join('')}
+      </tbody></table></div></div>`;
+  });
+  if (!any) html += `<p class="text-xs text-slate-400">아직 업로드된 채널 상품이 없습니다. 데이터 입력에서 파일을 올리면 여기에 채널 상품코드가 나타납니다.</p>`;
   box.innerHTML = html;
 }
+function applyMatchToSales(mk, itemId) {
+  const it = itemId ? (DB.get('productItems', itemId)||{}) : {};
+  DB.list('sales').filter(s => s.matchKey === mk).forEach(s => {
+    DB.put('sales', { id:s.id, productItemId: itemId||null, productId: itemId?(it.productId||null):null, matchStatus: itemId?'matched':'unmatched' });
+  });
+}
+function assignMatch(channelId, code, opt, itemId) {
+  const mk = channelId+'|'+code+'|'+opt;
+  if (!itemId) { if (DB.get('channelMappings',mk)) DB.del('channelMappings',mk); applyMatchToSales(mk, null); }
+  else {
+    DB.put('channelMappings', { id:mk, matchKey:mk, channelId, channelProductCode:code, channelOptionCode:opt, keyMode:'code', productItemId:itemId, status:'confirmed' });
+    applyMatchToSales(mk, itemId);
+  }
+  toast('매칭을 저장했습니다'); refreshBadges(); renderMatch();
+}
+window.assignMatch = assignMatch;
+// 미매칭 코드를 채널 상품명 그대로 새 상품/규격으로 만들어 바로 연결
+function quickCreateMaster(channelId, code, opt) {
+  const s = DB.list('sales').find(x => x.channelId===channelId && x.channelProductCode===code && (x.channelOptionCode||'__NONE__')===opt);
+  if (!s) return;
+  const brandId = s.brandId;
+  if (!brandId) { toast('브랜드 정보가 없어 만들 수 없습니다','err'); return; }
+  const pname = (s.rawProductName||code).slice(0,40);
+  const spec = (s.rawOptionName && s.rawOptionName!=='기본') ? s.rawOptionName : '기본';
+  if (!confirm(`"${pname}" (${spec}) 를 새 상품/규격으로 등록하고 연결할까요?\n(상품 관리에서 나중에 이름을 사과·감귤처럼 정리할 수 있습니다)`)) return;
+  const product = DB.put('products', { brandId, name:pname, active:true });
+  const item = DB.put('productItems', { productId:product.id, brandId, spec, sku:'', unitType:'ea', unitValue:null, price:s.listPrice||null, active:true });
+  assignMatch(channelId, code, opt, item.id);
+}
+window.quickCreateMaster = quickCreateMaster;
 
 /* ============================================================================
  * (e) 기타 — 백업/내보내기, 가져오기, 초기화, 계정
@@ -757,7 +758,7 @@ function refreshBadges() {
   ub.classList.toggle('hidden', !unmatched); ub.querySelector('[data-n]').textContent = unmatched;
 }
 $('#badge-review').addEventListener('click', () => { goTab('settings'); renderSub('match'); });
-$('#badge-unmatched').addEventListener('click', () => goTab('upload'));
+$('#badge-unmatched').addEventListener('click', () => { goTab('settings'); renderSub('match'); });
 
 /* ============================================================ 샘플 시드(개발 확인용) */
 function seedSample() {
@@ -783,11 +784,8 @@ function seedSample() {
 window.seedSample = seedSample;
 
 /* ============================================================================
- * Phase 3~5 (자사몰 카페24 우선) — 업로드·파싱·집계
- *   현재 카페24(몽프루이 자사몰) 전용. 다른 채널은 이후 같은 틀로 추가.
+ * Phase 3~5 — 업로드 · 파싱 · 매칭 · 집계  (카페24 / 스마트스토어)
  * ==========================================================================*/
-
-// 결정적 ID (재업로드해도 같은 상품/규격이 중복 생성되지 않도록)
 function hashId(prefix, str) {
   let h = 5381;
   for (let i = 0; i < str.length; i++) h = ((h << 5) + h + str.charCodeAt(i)) | 0;
@@ -795,32 +793,13 @@ function hashId(prefix, str) {
 }
 function parseNum(v) {
   const s = String(v==null?'':v).replace(/[^0-9.\-]/g, '');
-  const n = parseFloat(s);
-  return isNaN(n) ? 0 : n;
+  const n = parseFloat(s); return isNaN(n) ? 0 : n;
 }
-
-/* -------------------------------------------------- 카페24 채널/브랜드 보장 */
-const CAFE24_CH_ID = 'ch_cafe24';
-function ensureCafe24() {
-  let ch = DB.get('channels', CAFE24_CH_ID);
-  if (!ch) {
-    ch = DB.put('channels', { id: CAFE24_CH_ID, name:'카페24 (자사몰)', code:'cafe24',
-      dateBasis:'orderDate', active:true, hasProductCode:true, hasOptionCode:true,
-      builtin:'cafe24', defaultBrandName:'몽프루이',
-      columnMap:{ orderNo:'주문번호', orderDate:'주문일시', productCode:'상품코드', productName:'상품명',
-        optionCode:'상품품목코드', optionName:'상품옵션', qty:'수량', amount:'품목별 결제금액', status:'취소구분' },
-      cancelStatuses:['취소','반품','환불','반품완료'] });
-  }
-  return ch;
-}
-function ensureBrand(name) {
-  const id = hashId('b', name);
-  let b = DB.get('brands', id);
-  if (!b) b = DB.put('brands', { id, name, active:true, channelIds:[CAFE24_CH_ID] });
-  else if (!(b.channelIds||[]).includes(CAFE24_CH_ID)) {
-    DB.put('brands', { id, channelIds:[...(b.channelIds||[]), CAFE24_CH_ID] });
-  }
-  return DB.get('brands', id);
+// 기존 데이터 마이그레이션: 예전 카페24 채널에 format 부여
+function migrateChannels() {
+  DB.list('channels').forEach(ch => {
+    if (!ch.format) DB.put('channels', { id:ch.id, format: (ch.builtin==='cafe24'||ch.code==='cafe24') ? 'cafe24' : 'custom' });
+  });
 }
 
 /* -------------------------------------------------- 파일 읽기 (CSV/XLSX) */
@@ -830,19 +809,18 @@ function decodeBuf(buf) {
   return s;
 }
 function parseCsvText(txt) {
-  const lines = txt.replace(/\r\n?/g, '\n').split('\n').filter(l => l.trim() !== '');
-  return lines.map(line => {
-    const out = []; let cur = '', q = false;
-    for (let i = 0; i < line.length; i++) {
-      const c = line[i];
-      if (q) { if (c === '"') { if (line[i+1] === '"') { cur += '"'; i++; } else q = false; } else cur += c; }
-      else if (c === '"') q = true;
-      else if (c === ',') { out.push(cur); cur = ''; }
-      else cur += c;
-    }
-    out.push(cur);
-    return out.map(s => s.trim());
-  });
+  txt = txt.replace(/\r\n?/g, '\n');
+  const rows = []; let row = [], cur = '', q = false;
+  for (let i = 0; i < txt.length; i++) {
+    const c = txt[i];
+    if (q) { if (c === '"') { if (txt[i+1] === '"') { cur += '"'; i++; } else q = false; } else cur += c; }
+    else if (c === '"') q = true;
+    else if (c === ',') { row.push(cur); cur = ''; }
+    else if (c === '\n') { row.push(cur); rows.push(row); row = []; cur = ''; }
+    else cur += c;
+  }
+  if (cur !== '' || row.length) { row.push(cur); rows.push(row); }
+  return rows.map(r => r.map(x => x.trim())).filter(r => r.some(x => x !== ''));
 }
 function readFileRows(file) {
   return new Promise((res, rej) => {
@@ -850,12 +828,19 @@ function readFileRows(file) {
     const r = new FileReader();
     r.onerror = () => rej(new Error('파일을 읽지 못했습니다'));
     if (name.endsWith('.xlsx') || name.endsWith('.xls')) {
-      if (typeof XLSX === 'undefined') { rej(new Error('엑셀(xlsx) 파싱 모듈을 불러오지 못했습니다. 인터넷 연결 후 다시 시도하거나 CSV로 올려주세요.')); return; }
-      r.onload = () => { try {
-        const wb = XLSX.read(new Uint8Array(r.result), { type:'array' });
+      if (typeof XLSX === 'undefined') { rej(new Error('엑셀 파싱 모듈을 불러오지 못했습니다. 인터넷 연결 후 다시 시도하거나 CSV로 올려주세요.')); return; }
+      r.onload = () => {
+        const u8 = new Uint8Array(r.result);
+        let wb;
+        try { wb = XLSX.read(u8, { type:'array' }); }
+        catch (err) {
+          const cfb = u8[0]===0xD0 && u8[1]===0xCF && u8[2]===0x11 && u8[3]===0xE0;
+          rej(new Error(cfb ? '비밀번호가 걸린 엑셀 파일입니다. 엑셀에서 파일을 연 뒤 "다른 이름으로 저장"에서 비밀번호를 지우고 다시 저장(또는 CSV로 저장)해서 올려주세요.' : ('엑셀을 읽지 못했습니다: '+err.message)));
+          return;
+        }
         const ws = wb.Sheets[wb.SheetNames[0]];
         res(XLSX.utils.sheet_to_json(ws, { header:1, raw:false, defval:'' }));
-      } catch (e) { rej(e); } };
+      };
       r.readAsArrayBuffer(file);
     } else {
       r.onload = () => { try { res(parseCsvText(decodeBuf(r.result))); } catch (e) { rej(e); } };
@@ -863,208 +848,198 @@ function readFileRows(file) {
     }
   });
 }
-
-/* -------------------------------------------------- 카페24 파서 */
-function cafe24ColIndex(headers) {
-  const norm = headers.map(h => String(h).replace(/\s/g, ''));
-  const eq = v => norm.indexOf(v);
-  const sw = v => norm.findIndex(x => x.indexOf(v) === 0);
-  return {
-    orderDateTime: eq('주문일시'),
-    orderNo:       eq('주문번호'),
-    itemOrderNo:   eq('품목별주문번호'),
-    buyerName:     eq('주문자명'),
-    productCode:   eq('상품코드'),
-    optionCode:    eq('상품품목코드'),
-    productName:   sw('상품명'),
-    optionName:    eq('상품옵션'),
-    qty:           eq('수량'),
-    cancelFlag:    eq('취소구분'),
-    listPrice:     eq('소비자가격'),
-    addDiscount:   eq('상품별추가할인금액'),
-    orderGross:    eq('총상품구매금액'),
-    orderTotal:    eq('총결제금액'),
-    netAmount:     eq('품목별결제금액'),
-    unitSalePrice: eq('옵션+판매가'),
-    usedPoints:    sw('사용한적립금액'),
-    coupon:        sw('쿠폰할인금액'),
-    shipping:      norm.findIndex(x => x.indexOf('총배송비') === 0 && x.indexOf('첫품목') >= 0),
-  };
-}
 function cleanOption(raw) {
   let s = String(raw || '').trim();
   if (!s) return '기본';
-  if (s.indexOf('=') >= 0) s = s.split('=').pop().trim();   // "수량/중량=1.5kg (9-10입)" → "1.5kg (9-10입)"
+  if (s.indexOf('=') >= 0) s = s.split('=').pop().trim();
+  if (s.indexOf(':') >= 0 && s.length < 40) s = s.split(':').pop().trim();
   return s || '기본';
 }
-function parseCafe24(matrix) {
-  if (!matrix || !matrix.length) throw new Error('빈 파일입니다');
-  // 헤더 행 = '주문번호' 를 포함한 첫 행
-  let hi = matrix.findIndex(r => r.some(c => String(c).replace(/\s/g,'') === '주문번호'));
-  if (hi < 0) hi = 0;
-  const col = cafe24ColIndex(matrix[hi]);
-  const required = ['orderNo','itemOrderNo','productCode','qty','netAmount','orderTotal'];
-  const missing = required.filter(k => col[k] < 0);
-  if (missing.length) throw new Error('카페24 양식이 아닌 것 같습니다. 찾지 못한 열: ' + missing.join(', '));
+function normDateStr(v) {
+  const s = String(v||'').trim();
+  const m = s.match(/(\d{4})[-.\/](\d{1,2})[-.\/](\d{1,2})/);
+  if (m) return m[1] + '-' + ('0'+m[2]).slice(-2) + '-' + ('0'+m[3]).slice(-2);
+  const m2 = s.match(/^(\d{4})(\d{2})(\d{2})/);
+  if (m2) return m2[1]+'-'+m2[2]+'-'+m2[3];
+  return s.slice(0,10);
+}
+function headerIndex(matrix, mustHave) {
+  for (let i = 0; i < Math.min(matrix.length, 8); i++) {
+    const norm = matrix[i].map(c => String(c).replace(/\s/g,''));
+    if (mustHave.every(h => norm.some(x => x.indexOf(h) === 0 || x === h))) return i;
+  }
+  return -1;
+}
+function colFinder(headerRow) {
+  const norm = headerRow.map(c => String(c).replace(/\s/g,''));
+  return {
+    eq: v => norm.indexOf(v),
+    sw: v => norm.findIndex(x => x.indexOf(v) === 0),
+  };
+}
 
-  const get = (r, k) => col[k] >= 0 ? (r[col[k]] || '') : '';
+/* -------------------------------------------------- 파서: 카페24 */
+function parseCafe24(matrix) {
+  const hi = headerIndex(matrix, ['주문번호']);
+  if (hi < 0) throw new Error('카페24 양식(주문번호 열)을 찾지 못했습니다');
+  const f = colFinder(matrix[hi]);
+  const col = {
+    orderDateTime:f.eq('주문일시'), orderNo:f.eq('주문번호'), itemOrderNo:f.eq('품목별주문번호'),
+    buyerName:f.eq('주문자명'), productCode:f.eq('상품코드'), optionCode:f.eq('상품품목코드'),
+    productName:f.sw('상품명'), optionName:f.eq('상품옵션'), qty:f.eq('수량'), cancelFlag:f.eq('취소구분'),
+    listPrice:f.eq('소비자가격'), unitSalePrice:f.eq('옵션+판매가'), netAmount:f.eq('품목별결제금액'),
+  };
+  const need = ['orderNo','itemOrderNo','productCode','qty','netAmount'];
+  const miss = need.filter(k => col[k] < 0);
+  if (miss.length) throw new Error('카페24 열을 찾지 못했습니다: '+miss.join(','));
+  const g = (r,k) => col[k]>=0 ? (r[col[k]]||'') : '';
   const items = [];
-  for (let i = hi + 1; i < matrix.length; i++) {
-    const r = matrix[i];
-    if (!r || !String(get(r,'itemOrderNo')).trim()) continue;
-    const dt = String(get(r,'orderDateTime')).trim();
-    const date = (dt.match(/(\d{4})[-.\/](\d{1,2})[-.\/](\d{1,2})/) || [])
-      .slice(1).map((x,ix)=> ix===0?x:('0'+x).slice(-2)).join('-') || dt.slice(0,10);
-    const cancelFlag = String(get(r,'cancelFlag')).trim();
-    const qty = parseNum(get(r,'qty')) || 1;
-    const unitSalePrice = parseNum(get(r,'unitSalePrice'));   // 옵션+판매가 (1개 판매가)
-    const orderGross = parseNum(get(r,'orderGross'));          // 총 상품구매금액 (주문 단위)
-    const netAmount = parseNum(get(r,'netAmount'));            // 품목별 결제금액 (순매출)
+  for (let i=hi+1;i<matrix.length;i++) {
+    const r = matrix[i]; if (!r || !String(g(r,'itemOrderNo')).trim()) continue;
+    const qty = parseNum(g(r,'qty'))||1;
+    const unit = parseNum(g(r,'unitSalePrice'));
+    const net = parseNum(g(r,'netAmount'));
+    const cancel = String(g(r,'cancelFlag')).trim();
     items.push({
-      orderNo: String(get(r,'orderNo')).trim(),
-      itemOrderNo: String(get(r,'itemOrderNo')).trim(),
-      orderDateTime: dt, orderDate: date,
-      buyerName: String(get(r,'buyerName')).trim(),
-      productCode: String(get(r,'productCode')).trim() || '(코드없음)',
-      optionCode: String(get(r,'optionCode')).trim() || '__NONE__',
-      productName: String(get(r,'productName')).trim(),
-      optionName: cleanOption(get(r,'optionName')),
-      qty,
-      listPrice: parseNum(get(r,'listPrice')),
-      addDiscount: parseNum(get(r,'addDiscount')),
-      unitSalePrice,
-      orderGross,
-      grossAmount: unitSalePrice > 0 ? unitSalePrice * qty : netAmount,  // 품목 매출(판매가×수량)
-      orderTotal: parseNum(get(r,'orderTotal')),
-      netAmount,
-      usedPoints: parseNum(get(r,'usedPoints')),
-      coupon: parseNum(get(r,'coupon')),
-      shipping: parseNum(get(r,'shipping')),
-      isCancelled: cancelFlag !== '' && cancelFlag !== '취소안함',
-      cancelFlag,
+      orderNo:String(g(r,'orderNo')).trim(), itemOrderNo:String(g(r,'itemOrderNo')).trim(),
+      orderDateTime:String(g(r,'orderDateTime')).trim(), orderDate:normDateStr(g(r,'orderDateTime')),
+      buyerName:String(g(r,'buyerName')).trim(),
+      productCode:String(g(r,'productCode')).trim()||'(코드없음)', optionCode:String(g(r,'optionCode')).trim()||'__NONE__',
+      productName:String(g(r,'productName')).trim(), optionName:cleanOption(g(r,'optionName')),
+      qty, listPrice:parseNum(g(r,'listPrice')),
+      grossAmount: unit>0 ? unit*qty : net, netAmount:net,
+      isCancelled: cancel!=='' && cancel!=='취소안함',
     });
   }
   if (!items.length) throw new Error('데이터 행을 찾지 못했습니다');
   return items;
 }
 
-/* -------------------------------------------------- 집계 요약 */
-function summarize(items) {
-  const orderGrossMap = {};   // 매출 dedup: 주문번호 → 총 상품구매금액
-  let net = 0, qty = 0, cancelNet = 0, cancelCnt = 0;
-  let from = null, to = null;
-  const orderSet = new Set(), cancelOrderSet = new Set();
-  items.forEach(it => {
-    if (it.orderDate) { if (!from || it.orderDate < from) from = it.orderDate; if (!to || it.orderDate > to) to = it.orderDate; }
-    if (it.isCancelled) { cancelNet += it.netAmount; cancelCnt++; cancelOrderSet.add(it.orderNo); return; }
-    orderSet.add(it.orderNo);
-    if (orderGrossMap[it.orderNo] == null) orderGrossMap[it.orderNo] = it.orderGross;
-    net += it.netAmount; qty += it.qty;
-  });
-  const gross = Object.values(orderGrossMap).reduce((a,b)=>a+b, 0);
-  return { gross, net, qty, cancelNet, cancelCnt,
-    orderCount: orderSet.size, itemCount: items.filter(i=>!i.isCancelled).length,
-    from, to };
+/* -------------------------------------------------- 파서: 스마트스토어 */
+const SS_CANCEL = ['취소','반품','환불','교환','미결제'];
+function parseSmartstore(matrix) {
+  const hi = headerIndex(matrix, ['상품주문번호']);
+  if (hi < 0) throw new Error('스마트스토어 양식(상품주문번호 열)을 찾지 못했습니다');
+  const f = colFinder(matrix[hi]);
+  const col = {
+    itemOrderNo:f.eq('상품주문번호'), orderNo:f.eq('주문번호'), buyerName:f.eq('구매자명'),
+    payDate:f.eq('결제일'), orderDateTime:f.eq('주문일시'), status:f.eq('주문상태'), detail:f.eq('주문세부상태'),
+    productCode:f.eq('상품번호'), productName:f.eq('상품명'), optionName:f.eq('옵션정보'), optionCode:f.eq('옵션관리코드'),
+    qty:f.eq('수량'), listPrice:f.eq('상품가격'), total:f.sw('최종상품별총주문금액'),
+  };
+  const need = ['itemOrderNo','productCode','qty','total'];
+  const miss = need.filter(k => col[k] < 0);
+  if (miss.length) throw new Error('스마트스토어 열을 찾지 못했습니다: '+miss.join(','));
+  const g = (r,k) => col[k]>=0 ? (r[col[k]]||'') : '';
+  const items = [];
+  for (let i=hi+1;i<matrix.length;i++) {
+    const r = matrix[i]; if (!r || !String(g(r,'itemOrderNo')).trim()) continue;
+    const qty = parseNum(g(r,'qty'))||1;
+    const total = parseNum(g(r,'total'));   // 최종 상품별 총 주문금액 = 판매가×수량 (고객 구매가)
+    const status = String(g(r,'status')).trim() + ' ' + String(g(r,'detail')).trim();
+    items.push({
+      orderNo:String(g(r,'orderNo')).trim(), itemOrderNo:String(g(r,'itemOrderNo')).trim(),
+      orderDateTime:String(g(r,'payDate')||g(r,'orderDateTime')).trim(), orderDate:normDateStr(g(r,'payDate')||g(r,'orderDateTime')),
+      buyerName:String(g(r,'buyerName')).trim(),
+      productCode:String(g(r,'productCode')).trim()||'(코드없음)', optionCode:String(g(r,'optionCode')).trim()||'__NONE__',
+      productName:String(g(r,'productName')).trim(), optionName:cleanOption(g(r,'optionName')),
+      qty, listPrice:parseNum(g(r,'listPrice')),
+      grossAmount: total, netAmount: total,
+      isCancelled: SS_CANCEL.some(w => status.indexOf(w) >= 0),
+    });
+  }
+  if (!items.length) throw new Error('데이터 행을 찾지 못했습니다');
+  return items;
 }
+const PARSERS = { cafe24:parseCafe24, smartstore:parseSmartstore };
+window.__PARSERS = PARSERS;
 
-/* -------------------- 날짜·채널별 매출 (선택 삭제) -------------------- */
-function dayChannelCardHtml() {
-  const sales = DB.list('sales');
-  const keys = [...new Set(sales.map(s => s.orderDate + '||' + s.channelId))];
-  if (!keys.length) return '';
-  const rows = keys.map(k => {
-    const bar = k.indexOf('||'); const date = k.slice(0,bar), ch = k.slice(bar+2);
-    const sub = sales.filter(s => s.orderDate === date && s.channelId === ch);
-    const a = aggregate(sub);
-    return { date, ch, chName:(DB.get('channels',ch)||{}).name||ch, items:sub.length, gross:a.gross, net:a.net, cancel:a.cancelCnt };
-  }).sort((x,y) => x.date < y.date ? 1 : x.date > y.date ? -1 : (x.chName<y.chName?-1:1));
-  return `<div class="bg-white rounded-2xl border border-slate-200 p-5 mt-4">
-    <h3 class="font-bold text-sm mb-1">일자 · 채널별 매출</h3>
-    <p class="text-xs text-slate-400 mb-3">특정 날짜의 특정 채널 매출만 골라서 삭제할 수 있습니다.</p>
-    <div class="overflow-x-auto"><table class="w-full text-sm">
-      <thead><tr class="text-[11px] text-slate-400 border-b border-slate-100">
-        <th class="text-left font-semibold pb-1.5">날짜</th><th class="text-left font-semibold pb-1.5">채널</th>
-        <th class="text-right font-semibold pb-1.5">품목</th><th class="text-right font-semibold pb-1.5">매출</th>
-        <th class="text-right font-semibold pb-1.5">순매출</th><th class="pb-1.5"></th></tr></thead>
-      <tbody>${rows.map(r => `<tr class="border-b border-slate-50">
-        <td class="py-2">${esc(r.date)}</td>
-        <td class="py-2">${esc(r.chName)}</td>
-        <td class="py-2 text-right num text-slate-500">${comma(r.items)}${r.cancel?` <span class="text-rose-400">(취소 ${r.cancel})</span>`:''}</td>
-        <td class="py-2 text-right num">${won(r.gross)}</td>
-        <td class="py-2 text-right num text-slate-500">${won(r.net)}</td>
-        <td class="py-2 text-right"><button onclick="deleteDayChannel('${esc(r.date)}','${esc(r.ch)}')" class="text-xs font-semibold text-rose-500 px-2 py-1 rounded hover:bg-rose-50">삭제</button></td>
-      </tr>`).join('')}</tbody>
-    </table></div></div>`;
+/* -------------------------------------------------- 요약 */
+function summarize(items) {
+  let gross=0, net=0, qty=0, cancelNet=0, cancelCnt=0, from=null, to=null;
+  const orderSet=new Set();
+  items.forEach(it=>{
+    if (it.orderDate) { if(!from||it.orderDate<from)from=it.orderDate; if(!to||it.orderDate>to)to=it.orderDate; }
+    if (it.isCancelled) { cancelNet+=it.grossAmount; cancelCnt++; return; }
+    orderSet.add(it.orderNo); gross+=it.grossAmount; net+=it.netAmount; qty+=it.qty;
+  });
+  return { gross, net, qty, cancelNet, cancelCnt, orderCount:orderSet.size, itemCount:items.filter(i=>!i.isCancelled).length, from, to };
 }
-function deleteDayChannel(date, ch) {
-  const chName = (DB.get('channels',ch)||{}).name || ch;
-  const del = DB.list('sales').filter(s => s.orderDate === date && s.channelId === ch);
-  if (!del.length) return;
-  if (!confirm(`${date} · ${chName} 매출 ${del.length}품목을 삭제할까요?\n이 날짜·채널 데이터만 지워지고 다른 날짜/채널은 그대로입니다.`)) return;
-  del.forEach(s => DB.del('sales', s.id));
-  // 남은 매출이 하나도 없는 업로드 이력은 정리
-  DB.list('uploads').forEach(u => { if (!DB.list('sales').some(s => s.uploadId === u.id)) DB.del('uploads', u.id); });
-  toast(`${date} ${chName} ${del.length}품목을 삭제했습니다`);
-  refreshBadges(); renderUpload();
-}
-window.deleteDayChannel = deleteDayChannel;
 
 /* ============================================================ 데이터 입력 화면 */
-let parsedUpload = null;   // { fileName, items, summary }
+let parsedUpload = null;
+let lastChannelId = '', lastBrandId = '';
 
 function renderUpload() {
   const sec = $('[data-panel="upload"]');
+  const channels = DB.list('channels').filter(c=>c.active!==false);
+  const brands = DB.list('brands').filter(b=>b.active!==false);
   const uploads = DB.list('uploads').sort((a,b)=>(b.uploadedAt||0)-(a.uploadedAt||0));
+  if (!lastChannelId && channels[0]) lastChannelId = channels[0].id;
+  if (!lastBrandId && brands[0]) lastBrandId = brands[0].id;
+
+  const needSetup = !channels.length || !brands.length;
   sec.innerHTML = `
     <div class="bg-white rounded-2xl border border-slate-200 p-5 mb-4">
-      <div class="flex items-center gap-2 mb-3">
-        <h2 class="font-bold">데이터 입력</h2>
-        <span class="text-xs text-slate-400">현재 채널: <b class="text-slate-600">카페24 (자사몰 · 몽프루이)</b></span>
+      <h2 class="font-bold mb-3">데이터 입력</h2>
+      ${needSetup ? `<div class="rounded-xl bg-amber-50 border border-amber-200 p-3 text-sm text-amber-700">
+        먼저 <button class="font-bold underline" onclick="goTab('settings');renderSub('channel')">셋팅 › 채널</button> 과
+        <button class="font-bold underline" onclick="goTab('settings');renderSub('brand')">브랜드</button> 를 등록해 주세요.</div>` : `
+      <div class="flex gap-3 flex-wrap mb-3">
+        <div><label class="block text-xs font-semibold text-slate-500 mb-1">채널</label>
+          <select id="selChannel" class="px-3 py-2 text-sm border border-slate-200 rounded-lg bg-white min-w-[180px]">
+            ${channels.map(c=>`<option value="${c.id}" ${c.id===lastChannelId?'selected':''}>${esc(c.name)} · ${esc(formatLabel(c.format))}</option>`).join('')}
+          </select></div>
+        <div><label class="block text-xs font-semibold text-slate-500 mb-1">브랜드</label>
+          <select id="selBrand" class="px-3 py-2 text-sm border border-slate-200 rounded-lg bg-white min-w-[140px]">
+            ${brands.map(b=>`<option value="${b.id}" ${b.id===lastBrandId?'selected':''}>${esc(b.name)}</option>`).join('')}
+          </select></div>
       </div>
       <div id="dropzone" class="border-2 border-dashed border-slate-300 rounded-xl p-8 text-center cursor-pointer hover:border-brand hover:bg-brand-soft/40 transition">
         <div class="text-3xl mb-2">📄</div>
         <p class="text-sm font-semibold">여기로 파일을 끌어다 놓거나 클릭해서 선택</p>
-        <p class="text-xs text-slate-400 mt-1">카페24 주문내역 · .csv / .xlsx (여러 파일 가능)</p>
+        <p class="text-xs text-slate-400 mt-1">.csv / .xlsx (스마트스토어는 비밀번호를 푼 파일이어야 합니다)</p>
         <input id="fileInput" type="file" accept=".csv,.xls,.xlsx" multiple class="hidden">
       </div>
-      <div id="parseMsg" class="text-sm mt-3"></div>
+      <div id="parseMsg" class="text-sm mt-3"></div>`}
     </div>
     <div id="previewBox"></div>
     ${dayChannelCardHtml()}
     <div class="bg-white rounded-2xl border border-slate-200 p-5 mt-4">
       <h3 class="font-bold text-sm mb-3">업로드 이력</h3>
-      ${uploads.length ? `<div class="space-y-2">${uploads.map(u => `
-        <div class="flex items-center gap-3 text-sm border-b border-slate-50 pb-2">
+      ${uploads.length ? `<div class="space-y-2">${uploads.map(u=>`
+        <div class="flex items-center gap-3 text-sm border-b border-slate-50 pb-2 flex-wrap">
           <span class="font-semibold">${esc(u.fileName)}</span>
           <span class="text-xs text-slate-400">${esc(u.channelName||'')}</span>
           <span class="text-xs text-slate-400">${new Date(u.uploadedAt).toLocaleString('ko-KR')}</span>
-          <span class="text-xs text-slate-500">${comma(u.itemCount)}품목 · ${won(u.net)}</span>
+          <span class="text-xs text-slate-500">${comma(u.itemCount)}품목 · ${won(u.gross)}</span>
           <button onclick="undoUpload('${u.id}')" class="ml-auto text-xs font-semibold text-rose-500 px-2 py-1 rounded hover:bg-rose-50">되돌리기</button>
-        </div>`).join('')}</div>`
-      : '<p class="text-xs text-slate-400">아직 업로드한 내역이 없습니다.</p>'}
+        </div>`).join('')}</div>` : '<p class="text-xs text-slate-400">아직 업로드한 내역이 없습니다.</p>'}
     </div>`;
 
-  const dz = $('#dropzone'), fi = $('#fileInput');
-  dz.addEventListener('click', () => fi.click());
-  fi.addEventListener('change', () => { if (fi.files.length) handleFiles(fi.files); });
-  ['dragover','dragenter'].forEach(ev => dz.addEventListener(ev, e => { e.preventDefault(); dz.classList.add('border-brand','bg-brand-soft'); }));
-  ['dragleave','drop'].forEach(ev => dz.addEventListener(ev, e => { e.preventDefault(); dz.classList.remove('border-brand','bg-brand-soft'); }));
-  dz.addEventListener('drop', e => { if (e.dataTransfer.files.length) handleFiles(e.dataTransfer.files); });
-
-  if (parsedUpload) renderPreview();
+  if (!needSetup) {
+    $('#selChannel').addEventListener('change', e=>{ lastChannelId=e.target.value; });
+    $('#selBrand').addEventListener('change', e=>{ lastBrandId=e.target.value; });
+    const dz=$('#dropzone'), fi=$('#fileInput');
+    dz.addEventListener('click',()=>fi.click());
+    fi.addEventListener('change',()=>{ if(fi.files.length) handleFiles(fi.files); });
+    ['dragover','dragenter'].forEach(ev=>dz.addEventListener(ev,e=>{e.preventDefault();dz.classList.add('border-brand','bg-brand-soft');}));
+    ['dragleave','drop'].forEach(ev=>dz.addEventListener(ev,e=>{e.preventDefault();dz.classList.remove('border-brand','bg-brand-soft');}));
+    dz.addEventListener('drop',e=>{ if(e.dataTransfer.files.length) handleFiles(e.dataTransfer.files); });
+    if (parsedUpload) renderPreview();
+  }
 }
 
 async function handleFiles(fileList) {
-  const files = Array.from(fileList);
+  const channelId = $('#selChannel').value;
+  const ch = DB.get('channels', channelId);
+  const parser = PARSERS[ch && ch.format];
+  if (!parser) { $('#parseMsg').innerHTML = `<span class="text-rose-600 font-semibold">이 채널 유형(${esc(formatLabel(ch&&ch.format))})은 아직 파일 파서가 없습니다. 카페24·스마트스토어만 지원합니다.</span>`; return; }
   $('#parseMsg').innerHTML = '<span class="text-slate-500">파일 읽는 중…</span>';
   try {
     let all = [];
-    for (const f of files) {
-      const rows = await readFileRows(f);
-      const items = parseCafe24(rows);
-      all = all.concat(items);
-    }
-    parsedUpload = { fileName: files.map(f=>f.name).join(', '), items: all, summary: summarize(all) };
+    for (const file of Array.from(fileList)) { const rows = await readFileRows(file); all = all.concat(parser(rows)); }
+    parsedUpload = { fileName: Array.from(fileList).map(f=>f.name).join(', '), channelId, brandId: $('#selBrand').value, items: all, summary: summarize(all) };
     $('#parseMsg').innerHTML = `<span class="text-emerald-600 font-semibold">${comma(all.length)}개 품목을 읽었습니다. 아래 미리보기를 확인하고 저장하세요.</span>`;
     renderPreview();
   } catch (e) {
@@ -1076,263 +1051,240 @@ async function handleFiles(fileList) {
 
 function renderPreview() {
   const box = $('#previewBox');
-  if (!parsedUpload) { box.innerHTML = ''; return; }
-  const { items, summary } = parsedUpload;
-  const dup = items.filter(it => DB.get('sales', hashId('s', CAFE24_CH_ID + '|' + it.itemOrderNo))).length;
-
-  const cell = (label, val, sub, cls='') => `
-    <div class="rounded-xl border border-slate-200 p-3">
-      <div class="text-[11px] text-slate-400 font-semibold">${label}</div>
-      <div class="text-lg font-bold num ${cls}">${val}</div>
-      ${sub?`<div class="text-[11px] text-slate-400">${sub}</div>`:''}
-    </div>`;
-
-  box.innerHTML = `
-    <div class="bg-white rounded-2xl border border-slate-200 p-5">
-      <div class="flex items-center justify-between mb-3 flex-wrap gap-2">
-        <h3 class="font-bold text-sm">미리보기 <span class="font-normal text-slate-400">${esc(summary.from||'')} ~ ${esc(summary.to||'')}</span></h3>
-        <div class="flex gap-2">
-          <button onclick="cancelUpload()" class="px-3.5 py-2 text-sm font-semibold rounded-lg bg-white text-slate-500 border border-slate-200 hover:bg-slate-50">취소</button>
-          <button onclick="commitUpload()" class="px-4 py-2 text-sm font-semibold rounded-lg bg-brand text-white hover:bg-brand-dark">저장하기</button>
-        </div>
+  if (!parsedUpload) { box.innerHTML=''; return; }
+  const { items, summary, channelId, brandId } = parsedUpload;
+  const dup = items.filter(it => DB.get('sales', hashId('s', channelId+'|'+it.itemOrderNo))).length;
+  const unmatched = items.filter(it => { const m = DB.get('channelMappings', channelId+'|'+it.productCode+'|'+(it.optionCode||'__NONE__')); return !m||!m.productItemId; }).length;
+  const chName = (DB.get('channels',channelId)||{}).name, brName = (DB.get('brands',brandId)||{}).name;
+  const cell = (l,v,s,cls='') => `<div class="rounded-xl border border-slate-200 p-3"><div class="text-[11px] text-slate-400 font-semibold">${l}</div><div class="text-lg font-bold num ${cls}">${v}</div>${s?`<div class="text-[11px] text-slate-400">${s}</div>`:''}</div>`;
+  box.innerHTML = `<div class="bg-white rounded-2xl border border-slate-200 p-5">
+    <div class="flex items-center justify-between mb-3 flex-wrap gap-2">
+      <h3 class="font-bold text-sm">미리보기 <span class="font-normal text-slate-400">${esc(chName)} · ${esc(brName)} · ${esc(summary.from||'')}~${esc(summary.to||'')}</span></h3>
+      <div class="flex gap-2">
+        <button onclick="cancelUpload()" class="px-3.5 py-2 text-sm font-semibold rounded-lg bg-white text-slate-500 border border-slate-200 hover:bg-slate-50">취소</button>
+        <button onclick="commitUpload()" class="px-4 py-2 text-sm font-semibold rounded-lg bg-brand text-white hover:bg-brand-dark">저장하기</button>
       </div>
-      <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-2">
-        ${cell('매출 (총 상품구매금액)', won(summary.gross), '주문 '+comma(summary.orderCount)+'건 · 중복제외')}
-        ${cell('순매출 (품목별 결제금액)', won(summary.net), '품목 '+comma(summary.itemCount)+'건')}
-        ${cell('수량', comma(summary.qty)+'개', '')}
-        ${cell('취소', summary.cancelCnt? comma(summary.cancelCnt)+'건':'0건', summary.cancelCnt?won(summary.cancelNet)+' 제외':'', summary.cancelCnt?'text-rose-500':'')}
-      </div>
-      ${dup ? `<p class="text-xs text-amber-600 mb-2">※ 이미 저장된 품목 ${comma(dup)}건이 포함되어 있습니다. 저장 시 덮어써지며 매출이 2배로 늘지 않습니다.</p>` : ''}
-      <div class="overflow-x-auto border border-slate-100 rounded-xl">
-        <table class="w-full text-xs">
-          <thead class="bg-slate-50 text-slate-500">
-            <tr><th class="px-2 py-2 text-left">주문일</th><th class="px-2 py-2 text-left">품목별주문번호</th><th class="px-2 py-2 text-left">주문자</th>
-            <th class="px-2 py-2 text-left">상품</th><th class="px-2 py-2 text-left">옵션</th><th class="px-2 py-2 text-right">수량</th>
-            <th class="px-2 py-2 text-right">순매출</th><th class="px-2 py-2 text-center">상태</th></tr>
-          </thead>
-          <tbody>
-            ${items.slice(0,50).map(it => `<tr class="border-t border-slate-50 ${it.isCancelled?'bg-rose-50/40 text-slate-400':''}">
-              <td class="px-2 py-1.5">${esc(it.orderDate)}</td>
-              <td class="px-2 py-1.5 text-slate-400">${esc(it.itemOrderNo)}</td>
-              <td class="px-2 py-1.5">${esc(it.buyerName)}</td>
-              <td class="px-2 py-1.5">${esc((it.productName||'').slice(0,22))}</td>
-              <td class="px-2 py-1.5">${esc(it.optionName)}</td>
-              <td class="px-2 py-1.5 text-right num">${comma(it.qty)}</td>
-              <td class="px-2 py-1.5 text-right num">${comma(it.netAmount)}</td>
-              <td class="px-2 py-1.5 text-center">${it.isCancelled?'<span class="text-rose-500">취소</span>':'<span class="text-emerald-600">정상</span>'}</td>
-            </tr>`).join('')}
-          </tbody>
-        </table>
-      </div>
-      ${items.length>50?`<p class="text-[11px] text-slate-400 mt-2">상위 50건만 표시 (전체 ${comma(items.length)}건)</p>`:''}
-    </div>`;
+    </div>
+    <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-2">
+      ${cell('매출 (판매가)', won(summary.gross), '주문 '+comma(summary.orderCount)+'건')}
+      ${cell('순매출', won(summary.net), '품목 '+comma(summary.itemCount)+'건')}
+      ${cell('수량', comma(summary.qty)+'개','')}
+      ${cell('취소', summary.cancelCnt?comma(summary.cancelCnt)+'건':'0건', summary.cancelCnt?won(summary.cancelNet)+' 제외':'', summary.cancelCnt?'text-rose-500':'')}
+    </div>
+    ${dup?`<p class="text-xs text-amber-600 mb-1">※ 이미 저장된 품목 ${comma(dup)}건 포함 — 저장 시 덮어써져 매출이 2배가 되지 않습니다.</p>`:''}
+    ${unmatched?`<p class="text-xs text-rose-500 mb-2">※ 미매칭 ${comma(unmatched)}건 — 저장 후 <b>매칭 관리</b>에서 상품에 연결하면 상품별 집계에 반영됩니다.</p>`:''}
+    <div class="overflow-x-auto border border-slate-100 rounded-xl">
+      <table class="w-full text-xs"><thead class="bg-slate-50 text-slate-500"><tr>
+        <th class="px-2 py-2 text-left">주문일</th><th class="px-2 py-2 text-left">상품</th><th class="px-2 py-2 text-left">옵션</th>
+        <th class="px-2 py-2 text-right">수량</th><th class="px-2 py-2 text-right">매출</th><th class="px-2 py-2 text-center">상태</th></tr></thead><tbody>
+      ${items.slice(0,50).map(it=>`<tr class="border-t border-slate-50 ${it.isCancelled?'bg-rose-50/40 text-slate-400':''}">
+        <td class="px-2 py-1.5">${esc(it.orderDate)}</td><td class="px-2 py-1.5">${esc((it.productName||'').slice(0,24))}</td>
+        <td class="px-2 py-1.5">${esc(it.optionName)}</td><td class="px-2 py-1.5 text-right num">${comma(it.qty)}</td>
+        <td class="px-2 py-1.5 text-right num">${comma(it.grossAmount)}</td>
+        <td class="px-2 py-1.5 text-center">${it.isCancelled?'<span class="text-rose-500">취소</span>':'<span class="text-emerald-600">정상</span>'}</td></tr>`).join('')}
+      </tbody></table></div>
+    ${items.length>50?`<p class="text-[11px] text-slate-400 mt-2">상위 50건 표시 (전체 ${comma(items.length)}건)</p>`:''}
+  </div>`;
 }
-window.cancelUpload = () => { parsedUpload = null; renderUpload(); };
+window.cancelUpload = () => { parsedUpload=null; renderUpload(); };
 
 function commitUpload() {
   if (!parsedUpload) return;
-  const ch = ensureCafe24();
-  const brand = ensureBrand(ch.defaultBrandName || '몽프루이');
+  const { items, summary, fileName, channelId, brandId } = parsedUpload;
   const uploadId = genId('upl');
-  const { items, summary, fileName } = parsedUpload;
-
+  let unmatched = 0;
   items.forEach(it => {
-    const productId = hashId('p', CAFE24_CH_ID + '|' + it.productCode);
-    const itemId    = hashId('i', CAFE24_CH_ID + '|' + it.productCode + '|' + it.optionCode);
-    const matchKey  = CAFE24_CH_ID + '|' + it.productCode + '|' + it.optionCode;
-    // 상품 마스터 자동 등록/갱신
-    if (!DB.get('products', productId))
-      DB.put('products', { id:productId, brandId:brand.id, name:it.productName || it.productCode, active:true, source:'cafe24', channelProductCode:it.productCode });
-    if (!DB.get('productItems', itemId))
-      DB.put('productItems', { id:itemId, productId, brandId:brand.id, spec:it.optionName, sku:'', unitType:'ea', unitValue:null, price:it.listPrice||null, active:true, source:'cafe24', channelOptionCode:it.optionCode });
-    // 매칭(자기 자신) 등록
-    if (!DB.get('channelMappings', matchKey))
-      DB.put('channelMappings', { id:matchKey, matchKey, channelId:CAFE24_CH_ID, channelProductCode:it.productCode,
-        channelOptionCode:it.optionCode, keyMode:'code', productItemId:itemId, status:'confirmed',
-        snapProductName:it.productName, snapOptionName:it.optionName });
-    // 매출 저장 (saleId = 품목별주문번호 해시 → 중복 자동 방지)
-    const saleId = hashId('s', CAFE24_CH_ID + '|' + it.itemOrderNo);
+    const opt = it.optionCode||'__NONE__';
+    const mk = channelId+'|'+it.productCode+'|'+opt;
+    const m = DB.get('channelMappings', mk);
+    const pid = m&&m.productItemId ? m.productItemId : null;
+    const prod = pid ? (DB.get('productItems',pid)||{}).productId : null;
+    if (!pid) unmatched++;
     DB.put('sales', {
-      id:saleId, uploadId, channelId:CAFE24_CH_ID,
-      orderNo:it.orderNo, itemOrderNo:it.itemOrderNo, orderDate:it.orderDate, orderDateTime:it.orderDateTime,
-      buyerName:it.buyerName,
-      channelProductCode:it.productCode, channelOptionCode:it.optionCode, rawProductName:it.productName, rawOptionName:it.optionName,
-      brandId:brand.id, productId, productItemId:itemId, matchKey, matchStatus:'matched',
-      qty:it.qty, netAmount:it.netAmount, grossAmount:it.grossAmount, orderGross:it.orderGross,
-      unitSalePrice:it.unitSalePrice, listPrice:it.listPrice, addDiscount:it.addDiscount,
-      orderTotal:it.orderTotal, usedPoints:it.usedPoints, coupon:it.coupon, shipping:it.shipping,
-      isCancelled:it.isCancelled,
+      id: hashId('s', channelId+'|'+it.itemOrderNo), uploadId, channelId, brandId,
+      orderNo:it.orderNo, itemOrderNo:it.itemOrderNo, orderDate:it.orderDate, orderDateTime:it.orderDateTime, buyerName:it.buyerName,
+      channelProductCode:it.productCode, channelOptionCode:opt, rawProductName:it.productName, rawOptionName:it.optionName,
+      matchKey:mk, productItemId:pid, productId:prod, matchStatus: pid?'matched':'unmatched',
+      qty:it.qty, grossAmount:it.grossAmount, netAmount:it.netAmount, listPrice:it.listPrice, isCancelled:it.isCancelled,
     });
   });
-
-  DB.put('uploads', { id:uploadId, channelId:CAFE24_CH_ID, channelName:ch.name, fileName, uploadedAt:Date.now(),
-    itemCount:summary.itemCount, orderCount:summary.orderCount, net:summary.net, gross:summary.gross,
-    qty:summary.qty, cancelCnt:summary.cancelCnt, from:summary.from, to:summary.to,
-    saleIds: items.map(it => hashId('s', CAFE24_CH_ID + '|' + it.itemOrderNo)) });
-
+  DB.put('uploads', { id:uploadId, channelId, brandId, channelName:(DB.get('channels',channelId)||{}).name, fileName, uploadedAt:Date.now(),
+    itemCount:summary.itemCount, gross:summary.gross, net:summary.net, qty:summary.qty, cancelCnt:summary.cancelCnt, from:summary.from, to:summary.to });
   parsedUpload = null;
-  toast(comma(summary.itemCount) + '품목 저장 완료 · ' + won(summary.net));
+  toast(`저장 완료 · 매출 ${won(summary.gross)}` + (unmatched?` · 미매칭 ${unmatched}건`:''));
   refreshBadges();
-  goTab('main');
+  if (unmatched) { goTab('settings'); renderSub('match'); } else goTab('main');
 }
 window.commitUpload = commitUpload;
 
 function undoUpload(uploadId) {
-  const u = DB.get('uploads', uploadId);
-  if (!u) return;
-  if (!confirm(`"${u.fileName}" 업로드(${comma(u.itemCount)}품목)를 되돌릴까요?\n이 업로드로 저장된 매출이 삭제됩니다.`)) return;
-  DB.list('sales').filter(s => s.uploadId === uploadId).forEach(s => DB.del('sales', s.id));
+  const u = DB.get('uploads', uploadId); if (!u) return;
+  if (!confirm(`"${u.fileName}" 업로드(${comma(u.itemCount)}품목)를 되돌릴까요?`)) return;
+  DB.list('sales').filter(s=>s.uploadId===uploadId).forEach(s=>DB.del('sales',s.id));
   DB.del('uploads', uploadId);
-  toast('되돌렸습니다');
-  refreshBadges(); renderUpload();
+  toast('되돌렸습니다'); refreshBadges(); renderUpload();
 }
 window.undoUpload = undoUpload;
 
-/* ============================================================ 집계 (메인/매출 공용) */
-function filteredSales(from, to, chSet, brSet) {
-  return DB.list('sales').filter(s => {
-    if (from && s.orderDate < from) return false;
-    if (to && s.orderDate > to) return false;
-    if (chSet && chSet.size && !chSet.has(s.channelId)) return false;
-    if (brSet && brSet.size && !brSet.has(s.brandId)) return false;
-    return true;
-  });
+/* -------------------- 날짜·채널별 매출 (선택 삭제) -------------------- */
+function dayChannelCardHtml() {
+  const sales = DB.list('sales');
+  const keys = [...new Set(sales.map(s => s.orderDate + '||' + s.channelId))];
+  if (!keys.length) return '';
+  const rows = keys.map(k => {
+    const bar = k.indexOf('||'); const date=k.slice(0,bar), ch=k.slice(bar+2);
+    const sub = sales.filter(s=>s.orderDate===date && s.channelId===ch);
+    const t = totalsOf(sub);
+    return { date, ch, chName:(DB.get('channels',ch)||{}).name||ch, items:sub.length, gross:t.gross, net:t.net, cancel:t.cancelCnt };
+  }).sort((x,y)=> x.date<y.date?1:x.date>y.date?-1:(x.chName<y.chName?-1:1));
+  return `<div class="bg-white rounded-2xl border border-slate-200 p-5 mt-4">
+    <h3 class="font-bold text-sm mb-1">일자 · 채널별 매출</h3>
+    <p class="text-xs text-slate-400 mb-3">특정 날짜의 특정 채널 매출만 골라서 삭제할 수 있습니다.</p>
+    <div class="overflow-x-auto"><table class="w-full text-sm">
+      <thead><tr class="text-[11px] text-slate-400 border-b border-slate-100">
+        <th class="text-left font-semibold pb-1.5">날짜</th><th class="text-left font-semibold pb-1.5">채널</th>
+        <th class="text-right font-semibold pb-1.5">품목</th><th class="text-right font-semibold pb-1.5">매출</th>
+        <th class="text-right font-semibold pb-1.5">순매출</th><th class="pb-1.5"></th></tr></thead>
+      <tbody>${rows.map(r=>`<tr class="border-b border-slate-50">
+        <td class="py-2">${esc(r.date)}</td><td class="py-2">${esc(r.chName)}</td>
+        <td class="py-2 text-right num text-slate-500">${comma(r.items)}${r.cancel?` <span class="text-rose-400">(취소 ${r.cancel})</span>`:''}</td>
+        <td class="py-2 text-right num">${won(r.gross)}</td><td class="py-2 text-right num text-slate-500">${won(r.net)}</td>
+        <td class="py-2 text-right"><button onclick="deleteDayChannel('${esc(r.date)}','${esc(r.ch)}')" class="text-xs font-semibold text-rose-500 px-2 py-1 rounded hover:bg-rose-50">삭제</button></td>
+      </tr>`).join('')}</tbody></table></div></div>`;
 }
-function aggregate(sales) {
-  const orderGrossMap = {};   // 채널|주문번호 → 총 상품구매금액 (dedup)
-  let net = 0, qty = 0, cancelNet = 0, cancelCnt = 0;
-  const brand = {}, product = {}, item = {}, channel = {};
-  const orderSet = new Set();
-  sales.forEach(s => {
-    if (s.isCancelled) { cancelNet += s.netAmount||0; cancelCnt++; return; }
-    const ok = s.channelId + '|' + s.orderNo;
-    if (orderGrossMap[ok] == null) orderGrossMap[ok] = s.orderGross||0;
-    orderSet.add(ok);
-    net += s.netAmount||0; qty += s.qty||0;
-    const add = (m, k) => { (m[k] = m[k] || { gross:0, net:0, qty:0 }); m[k].gross += s.grossAmount||0; m[k].net += s.netAmount||0; m[k].qty += s.qty||0; };
-    add(brand, s.brandId); add(product, s.productId); add(item, s.productItemId); add(channel, s.channelId);
-  });
-  const gross = Object.values(orderGrossMap).reduce((a,b)=>a+b, 0);
-  return { gross, net, qty, cancelNet, cancelCnt, orderCount:orderSet.size, brand, product, item, channel };
+function deleteDayChannel(date, ch) {
+  const chName=(DB.get('channels',ch)||{}).name||ch;
+  const del=DB.list('sales').filter(s=>s.orderDate===date&&s.channelId===ch);
+  if(!del.length) return;
+  if(!confirm(`${date} · ${chName} 매출 ${del.length}품목을 삭제할까요?\n이 날짜·채널만 지워지고 다른 데이터는 그대로입니다.`)) return;
+  del.forEach(s=>DB.del('sales',s.id));
+  DB.list('uploads').forEach(u=>{ if(!DB.list('sales').some(s=>s.uploadId===u.id)) DB.del('uploads',u.id); });
+  toast(`${date} ${chName} ${del.length}품목 삭제`); refreshBadges(); renderUpload();
 }
-function statCard(label, value, sub, accent) {
+window.deleteDayChannel = deleteDayChannel;
+
+/* ============================================================ 집계 */
+function totalsOf(sales) {
+  let gross=0, net=0, qty=0, cancelNet=0, cancelCnt=0; const orderSet=new Set();
+  sales.forEach(s=>{ if(s.isCancelled){cancelNet+=s.grossAmount||0;cancelCnt++;return;} gross+=s.grossAmount||0; net+=s.netAmount||0; qty+=s.qty||0; orderSet.add(s.channelId+'|'+s.orderNo); });
+  return { gross, net, qty, cancelNet, cancelCnt, orderCount:orderSet.size };
+}
+function groupSum(sales, keyFn, labelFn) {
+  const m = {};
+  sales.forEach(s=>{ if(s.isCancelled) return; const k=keyFn(s); if(!k) return;
+    (m[k]=m[k]||{label:labelFn(s,k),gross:0,net:0,qty:0}); m[k].gross+=s.grossAmount||0; m[k].net+=s.netAmount||0; m[k].qty+=s.qty||0; });
+  return Object.values(m).sort((a,b)=>b.gross-a.gross);
+}
+function simpleTable(title, rows, total) {
+  const bar=v=>`<div class="h-1.5 bg-slate-100 rounded"><i class="block h-full bg-brand rounded" style="width:${(v/(total||1)*100).toFixed(1)}%"></i></div>`;
   return `<div class="bg-white rounded-2xl border border-slate-200 p-4">
-    <div class="text-xs text-slate-400 font-semibold">${label}</div>
-    <div class="text-2xl font-bold num mt-1 ${accent||''}">${value}</div>
-    ${sub?`<div class="text-xs text-slate-400 mt-0.5">${sub}</div>`:''}</div>`;
-}
-// 브랜드/상품 분해 표 (매출=총상품구매금액, 순매출=품목별결제금액)
-function breakdownTables(agg, opts={}) {
-  const brands = DB.list('brands'), products = DB.list('products'), items = DB.list('productItems');
-  const total = agg.gross || 1;
-  const brRows = Object.keys(agg.brand).map(bid => ({ id:bid, name:(brands.find(b=>b.id===bid)||{}).name||'(브랜드)', ...agg.brand[bid] })).sort((a,b)=>b.gross-a.gross);
-  const prRows = Object.keys(agg.product).map(pid => {
-    const p = products.find(x=>x.id===pid) || {};
-    const kids = items.filter(it => it.productId === pid && agg.item[it.id]).map(it => ({ id:it.id, spec:it.spec, ...agg.item[it.id] })).sort((a,b)=>b.gross-a.gross);
-    return { id:pid, name:p.name||'(상품)', ...agg.product[pid], kids };
-  }).sort((a,b)=>b.gross-a.gross);
-  const bar = (v) => `<div class="h-1.5 bg-slate-100 rounded"><i class="block h-full bg-brand rounded" style="width:${(v/total*100).toFixed(1)}%"></i></div>`;
-  const thead = `<thead><tr class="text-[11px] text-slate-400 border-b border-slate-100">
-    <th class="text-left font-semibold pb-1.5">$LABEL</th><th class="text-right font-semibold pb-1.5">매출</th>
-    <th class="text-right font-semibold pb-1.5">순매출</th><th class="text-right font-semibold pb-1.5">수량</th>
-    <th class="pb-1.5"></th><th class="text-right font-semibold pb-1.5">비중</th></tr></thead>`;
-
-  const brandTable = `<div class="bg-white rounded-2xl border border-slate-200 p-4">
-    <h3 class="font-bold text-sm mb-3">브랜드별</h3>
-    <table class="w-full text-sm">${thead.replace('$LABEL','브랜드')}<tbody>
-    ${brRows.length? brRows.map(r=>`<tr class="border-b border-slate-50">
-      <td class="py-2 font-semibold">${esc(r.name)}</td>
-      <td class="py-2 text-right num">${won(r.gross)}</td>
-      <td class="py-2 text-right num text-slate-500">${won(r.net)}</td>
-      <td class="py-2 text-right num text-slate-500">${comma(r.qty)}개</td>
-      <td class="py-2 pl-3 w-24">${bar(r.gross)}</td>
-      <td class="py-2 pl-2 text-right text-xs text-slate-400 num">${(r.gross/total*100).toFixed(1)}%</td></tr>`).join('')
-    : '<tr><td colspan="6" class="py-6 text-center text-slate-400 text-sm">데이터 없음</td></tr>'}
+    <h3 class="font-bold text-sm mb-3">${title}</h3>
+    <table class="w-full text-sm"><thead><tr class="text-[11px] text-slate-400 border-b border-slate-100">
+      <th class="text-left font-semibold pb-1.5">이름</th><th class="text-right font-semibold pb-1.5">매출</th>
+      <th class="text-right font-semibold pb-1.5">순매출</th><th class="text-right font-semibold pb-1.5">수량</th>
+      <th class="pb-1.5"></th><th class="text-right font-semibold pb-1.5">비중</th></tr></thead><tbody>
+    ${rows.length?rows.map(r=>`<tr class="border-b border-slate-50">
+      <td class="py-2 font-semibold">${esc(r.label)}</td><td class="py-2 text-right num">${won(r.gross)}</td>
+      <td class="py-2 text-right num text-slate-500">${won(r.net)}</td><td class="py-2 text-right num text-slate-500">${comma(r.qty)}개</td>
+      <td class="py-2 pl-3 w-24">${bar(r.gross)}</td><td class="py-2 pl-2 text-right text-xs text-slate-400 num">${(r.gross/(total||1)*100).toFixed(1)}%</td></tr>`).join('')
+      :'<tr><td colspan="6" class="py-6 text-center text-slate-400 text-sm">데이터 없음</td></tr>'}
     </tbody></table></div>`;
-
+}
+function productTable(sales, total, opts={}) {
+  const map = {};
+  sales.forEach(s=>{ if(s.isCancelled) return;
+    let pk,pl,kk,kl;
+    if(s.productItemId){ const it=DB.get('productItems',s.productItemId)||{}; const p=DB.get('products',it.productId)||{}; pk='p:'+it.productId; pl=p.name||'(상품)'; kk='i:'+s.productItemId; kl=it.spec||'기본'; }
+    else { pk='u:'+s.channelId+'|'+s.channelProductCode; pl='⚠ '+((s.rawProductName||'미매칭').slice(0,28)); kk='uo:'+(s.channelOptionCode||''); kl=s.rawOptionName||'기본'; }
+    const g=(map[pk]=map[pk]||{label:pl,matched:!!s.productItemId,gross:0,net:0,qty:0,kids:{}});
+    g.gross+=s.grossAmount||0; g.net+=s.netAmount||0; g.qty+=s.qty||0;
+    const k=(g.kids[kk]=g.kids[kk]||{label:kl,gross:0,net:0,qty:0}); k.gross+=s.grossAmount||0; k.net+=s.netAmount||0; k.qty+=s.qty||0;
+  });
+  const rows = Object.values(map).sort((a,b)=>b.gross-a.gross);
+  const bar=v=>`<div class="h-1.5 bg-slate-100 rounded"><i class="block h-full bg-brand rounded" style="width:${(v/(total||1)*100).toFixed(1)}%"></i></div>`;
   const showSpec = opts.specMode;
-  const prodTable = `<div class="bg-white rounded-2xl border border-slate-200 p-4">
-    <div class="flex items-center justify-between mb-3">
-      <h3 class="font-bold text-sm">상품별</h3>
-      ${opts.toggle? `<div class="inline-flex rounded-lg border border-slate-200 overflow-hidden text-xs">
+  return `<div class="bg-white rounded-2xl border border-slate-200 p-4">
+    <div class="flex items-center justify-between mb-3"><h3 class="font-bold text-sm">상품별</h3>
+      <div class="inline-flex rounded-lg border border-slate-200 overflow-hidden text-xs">
         <button onclick="setSpecMode(false)" class="px-3 py-1.5 ${!showSpec?'bg-brand text-white':'bg-white text-slate-500'}">상품 기준</button>
-        <button onclick="setSpecMode(true)" class="px-3 py-1.5 ${showSpec?'bg-brand text-white':'bg-white text-slate-500'}">규격 기준</button></div>`:''}
-    </div>
-    <table class="w-full text-sm">${thead.replace('$LABEL','상품')}<tbody>
-    ${prRows.length? prRows.map(r=>{
-      let html = `<tr class="border-b border-slate-50">
-        <td class="py-2 font-semibold">${esc(r.name)}${r.kids.length>1?`<span class="ml-1 text-[10px] text-slate-400">규격 ${r.kids.length}</span>`:''}</td>
-        <td class="py-2 text-right num">${won(r.gross)}</td>
-        <td class="py-2 text-right num text-slate-500">${won(r.net)}</td>
-        <td class="py-2 text-right num text-slate-500">${comma(r.qty)}개</td>
-        <td class="py-2 pl-3 w-24">${bar(r.gross)}</td>
-        <td class="py-2 pl-2 text-right text-xs text-slate-400 num">${(r.gross/total*100).toFixed(1)}%</td></tr>`;
-      if (showSpec) r.kids.forEach(k => { html += `<tr class="border-b border-slate-50 text-xs text-slate-500">
-        <td class="py-1.5 pl-4">└ ${esc(k.spec)}</td>
-        <td class="py-1.5 text-right num">${won(k.gross)}</td>
-        <td class="py-1.5 text-right num">${won(k.net)}</td>
-        <td class="py-1.5 text-right num">${comma(k.qty)}개</td><td></td><td></td></tr>`; });
-      return html;
+        <button onclick="setSpecMode(true)" class="px-3 py-1.5 ${showSpec?'bg-brand text-white':'bg-white text-slate-500'}">규격 기준</button></div></div>
+    <table class="w-full text-sm"><thead><tr class="text-[11px] text-slate-400 border-b border-slate-100">
+      <th class="text-left font-semibold pb-1.5">상품</th><th class="text-right font-semibold pb-1.5">매출</th>
+      <th class="text-right font-semibold pb-1.5">순매출</th><th class="text-right font-semibold pb-1.5">수량</th>
+      <th class="pb-1.5"></th><th class="text-right font-semibold pb-1.5">비중</th></tr></thead><tbody>
+    ${rows.length?rows.map(r=>{
+      const kids=Object.values(r.kids).sort((a,b)=>b.gross-a.gross);
+      let h=`<tr class="border-b border-slate-50">
+        <td class="py-2 font-semibold ${r.matched?'':'text-rose-600'}">${esc(r.label)}${kids.length>1?`<span class="ml-1 text-[10px] text-slate-400">규격 ${kids.length}</span>`:''}</td>
+        <td class="py-2 text-right num">${won(r.gross)}</td><td class="py-2 text-right num text-slate-500">${won(r.net)}</td>
+        <td class="py-2 text-right num text-slate-500">${comma(r.qty)}개</td><td class="py-2 pl-3 w-24">${bar(r.gross)}</td>
+        <td class="py-2 pl-2 text-right text-xs text-slate-400 num">${(r.gross/(total||1)*100).toFixed(1)}%</td></tr>`;
+      if(showSpec) kids.forEach(k=>{ h+=`<tr class="border-b border-slate-50 text-xs text-slate-500">
+        <td class="py-1.5 pl-4">└ ${esc(k.label)}</td><td class="py-1.5 text-right num">${won(k.gross)}</td>
+        <td class="py-1.5 text-right num">${won(k.net)}</td><td class="py-1.5 text-right num">${comma(k.qty)}개</td><td></td><td></td></tr>`; });
+      return h;
     }).join('') : '<tr><td colspan="6" class="py-6 text-center text-slate-400 text-sm">데이터 없음</td></tr>'}
     </tbody></table></div>`;
-
-  return `<div class="grid gap-4 lg:grid-cols-2">${brandTable}${prodTable}</div>`;
+}
+function statCard(label, value, sub, accent) {
+  return `<div class="bg-white rounded-2xl border border-slate-200 p-4"><div class="text-xs text-slate-400 font-semibold">${label}</div>
+    <div class="text-2xl font-bold num mt-1 ${accent||''}">${value}</div>${sub?`<div class="text-xs text-slate-400 mt-0.5">${sub}</div>`:''}</div>`;
 }
 let _specMode = false;
-window.setSpecMode = (v) => { _specMode = v; if (curTab==='sales') renderSales(); else renderMain(); };
+window.setSpecMode = v => { _specMode=v; if(curTab==='sales') renderSales(); else renderMain(); };
+
+function breakdownHtml(sales, total) {
+  const chRows = groupSum(sales, s=>s.channelId, s=>(DB.get('channels',s.channelId)||{}).name||'(채널)');
+  const brRows = groupSum(sales, s=>s.brandId, s=>(DB.get('brands',s.brandId)||{}).name||'(브랜드)');
+  return `<div class="grid gap-4 lg:grid-cols-2 mb-4">${simpleTable('채널별', chRows, total)}${simpleTable('브랜드별', brRows, total)}</div>
+    ${productTable(sales, total, { specMode:_specMode })}`;
+}
 
 /* ============================================================ 메인 화면 */
 function renderMain() {
   const sec = $('[data-panel="main"]');
   const sales = DB.list('sales');
-  if (!sales.length) {
-    sec.innerHTML = emptyCard('🏠', '아직 매출 데이터가 없습니다', '데이터 입력에서 카페24 주문내역(CSV/엑셀)을 올리면 여기에 집계됩니다.', '데이터 입력하러 가기', "goTab('upload')");
-    return;
-  }
-  // 데이터가 있는 가장 최근 날짜 기준
-  const dates = [...new Set(sales.map(s=>s.orderDate))].sort();
-  const day = dates[dates.length-1];
-  const isToday = day === new Date().toISOString().slice(0,10);
-  const agg = aggregate(sales.filter(s => s.orderDate === day));
-  const chNames = [...new Set(sales.filter(s=>s.orderDate===day && !s.isCancelled).map(s=>s.channelId))]
-    .map(cid => (DB.get('channels',cid)||{}).name).filter(Boolean);
-
+  if (!sales.length) { sec.innerHTML = emptyCard('🏠','아직 매출 데이터가 없습니다','데이터 입력에서 채널·브랜드를 고르고 주문내역을 올리면 여기에 집계됩니다.','데이터 입력하러 가기',"goTab('upload')"); return; }
+  const dates=[...new Set(sales.map(s=>s.orderDate))].sort();
+  const day=dates[dates.length-1];
+  const isToday = day===new Date().toISOString().slice(0,10);
+  const sub=sales.filter(s=>s.orderDate===day);
+  const t=totalsOf(sub);
   sec.innerHTML = `
     <div class="flex items-center gap-2 mb-4 flex-wrap">
       <h2 class="font-bold text-base">${isToday?'오늘':'최근 판매일'} <span class="text-brand">${esc(day)}</span></h2>
-      ${!isToday?`<span class="text-xs text-slate-400">오늘(${new Date().toISOString().slice(0,10)}) 데이터는 아직 없습니다</span>`:''}
+      ${!isToday?`<span class="text-xs text-slate-400">오늘(${new Date().toISOString().slice(0,10)}) 데이터는 없습니다</span>`:''}
       <button onclick="goTab('sales')" class="ml-auto text-xs font-semibold text-brand">기간별로 보기 →</button>
     </div>
     <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
-      ${statCard('매출 <span class="font-normal text-slate-300">(총 상품구매)</span>', won(agg.gross), '주문 '+comma(agg.orderCount)+'건')}
-      ${statCard('순매출 <span class="font-normal text-slate-300">(품목별 결제)</span>', won(agg.net), '')}
-      ${statCard('수량', comma(agg.qty)+'개', chNames.join(', '))}
-      ${statCard('취소', agg.cancelCnt?comma(agg.cancelCnt)+'건':'0건', agg.cancelCnt?won(agg.cancelNet)+' 제외':'', agg.cancelCnt?'text-rose-500':'')}
+      ${statCard('매출 <span class="font-normal text-slate-300">(판매가)</span>', won(t.gross), '주문 '+comma(t.orderCount)+'건')}
+      ${statCard('순매출', won(t.net), '')}
+      ${statCard('수량', comma(t.qty)+'개', '')}
+      ${statCard('취소', t.cancelCnt?comma(t.cancelCnt)+'건':'0건', t.cancelCnt?won(t.cancelNet)+' 제외':'', t.cancelCnt?'text-rose-500':'')}
     </div>
-    ${breakdownTables(agg, { toggle:true, specMode:_specMode })}`;
+    ${breakdownHtml(sub, t.gross)}`;
 }
 
 /* ============================================================ 매출 화면 */
 const salesState = { from:null, to:null, chSet:new Set(), brSet:new Set() };
-function todayStr() { return new Date().toISOString().slice(0,10); }
-function shiftDate(str, days) { const d = new Date(str+'T00:00'); d.setDate(d.getDate()+days); return d.toISOString().slice(0,10); }
+function todayStr(){ return new Date().toISOString().slice(0,10); }
+function shiftDate(str,days){ const d=new Date(str+'T00:00'); d.setDate(d.getDate()+days); return d.toISOString().slice(0,10); }
 
 function renderSales() {
   const sec = $('[data-panel="sales"]');
-  const sales = DB.list('sales');
-  if (!sales.length) {
-    sec.innerHTML = emptyCard('📈', '매출 데이터가 없습니다', '데이터 입력에서 주문내역을 먼저 올려주세요.', '데이터 입력하러 가기', "goTab('upload')");
-    return;
-  }
-  const dates = [...new Set(sales.map(s=>s.orderDate))].sort();
-  if (!salesState.from) { salesState.from = dates[0]; salesState.to = dates[dates.length-1]; }
-  const channels = DB.list('channels').filter(c => sales.some(s=>s.channelId===c.id));
-  const brands = DB.list('brands').filter(b => sales.some(s=>s.brandId===b.id));
+  const all = DB.list('sales');
+  if (!all.length) { sec.innerHTML = emptyCard('📈','매출 데이터가 없습니다','데이터 입력에서 주문내역을 먼저 올려주세요.','데이터 입력하러 가기',"goTab('upload')"); return; }
+  const dates=[...new Set(all.map(s=>s.orderDate))].sort();
+  if (!salesState.from) { salesState.from=dates[0]; salesState.to=dates[dates.length-1]; }
+  const channels=DB.list('channels').filter(c=>all.some(s=>s.channelId===c.id));
+  const brands=DB.list('brands').filter(b=>all.some(s=>s.brandId===b.id));
+  const chip=(on,label,onclick)=>`<button onclick="${onclick}" class="px-3 py-1.5 rounded-full text-xs font-semibold border ${on?'bg-brand text-white border-brand':'bg-white text-slate-500 border-slate-200'}">${esc(label)}</button>`;
+  const quick=[['오늘',0,0],['어제',-1,-1],['최근 7일',-6,0],['최근 30일',-29,0]];
 
-  const chip = (on, label, onclick) => `<button onclick="${onclick}" class="px-3 py-1.5 rounded-full text-xs font-semibold border ${on?'bg-brand text-white border-brand':'bg-white text-slate-500 border-slate-200'}">${esc(label)}</button>`;
-  const quick = [['오늘',0,0],['어제',-1,-1],['최근 7일',-6,0],['최근 30일',-29,0]];
-
-  const agg = aggregate(filteredSales(salesState.from, salesState.to, salesState.chSet, salesState.brSet));
+  const sub = all.filter(s => s.orderDate>=salesState.from && s.orderDate<=salesState.to
+    && (!salesState.chSet.size || salesState.chSet.has(s.channelId))
+    && (!salesState.brSet.size || salesState.brSet.has(s.brandId)));
+  const t = totalsOf(sub);
   const days = Math.max(1, Math.round((new Date(salesState.to)-new Date(salesState.from))/86400000)+1);
 
   sec.innerHTML = `
@@ -1342,49 +1294,40 @@ function renderSales() {
         <input type="date" id="sFrom" value="${salesState.from}" class="px-3 py-1.5 text-sm border border-slate-200 rounded-lg">
         <span class="text-slate-400">~</span>
         <input type="date" id="sTo" value="${salesState.to}" class="px-3 py-1.5 text-sm border border-slate-200 rounded-lg">
-        <div class="flex gap-1.5 flex-wrap">
-          ${quick.map(q=>`<button onclick="salesQuick(${q[1]},${q[2]})" class="px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-slate-100 text-slate-500 hover:bg-slate-200">${q[0]}</button>`).join('')}
-          <button onclick="salesQuickAll()" class="px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-slate-100 text-slate-500 hover:bg-slate-200">전체</button>
-        </div>
+        <div class="flex gap-1.5 flex-wrap">${quick.map(q=>`<button onclick="salesQuick(${q[1]},${q[2]})" class="px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-slate-100 text-slate-500 hover:bg-slate-200">${q[0]}</button>`).join('')}
+          <button onclick="salesQuickAll()" class="px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-slate-100 text-slate-500 hover:bg-slate-200">전체</button></div>
       </div>
       ${channels.length>1?`<div class="flex items-center gap-2 flex-wrap"><span class="text-xs font-bold text-slate-500 w-12">채널</span>
-        ${chip(salesState.chSet.size===0,'전체','salesToggleCh(null)')}
-        ${channels.map(c=>chip(salesState.chSet.has(c.id),c.name,`salesToggleCh('${c.id}')`)).join('')}</div>`:''}
+        ${chip(salesState.chSet.size===0,'전체','salesToggleCh(null)')}${channels.map(c=>chip(salesState.chSet.has(c.id),c.name,`salesToggleCh('${c.id}')`)).join('')}</div>`:''}
       ${brands.length>1?`<div class="flex items-center gap-2 flex-wrap"><span class="text-xs font-bold text-slate-500 w-12">브랜드</span>
-        ${chip(salesState.brSet.size===0,'전체','salesToggleBr(null)')}
-        ${brands.map(b=>chip(salesState.brSet.has(b.id),b.name,`salesToggleBr('${b.id}')`)).join('')}</div>`:''}
+        ${chip(salesState.brSet.size===0,'전체','salesToggleBr(null)')}${brands.map(b=>chip(salesState.brSet.has(b.id),b.name,`salesToggleBr('${b.id}')`)).join('')}</div>`:''}
     </div>
     <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
-      ${statCard('매출 <span class="font-normal text-slate-300">(총 상품구매)</span>', won(agg.gross), '주문 '+comma(agg.orderCount)+'건 · '+days+'일')}
-      ${statCard('순매출', won(agg.net), '일평균 '+won(Math.round(agg.net/days)))}
-      ${statCard('수량', comma(agg.qty)+'개', '')}
-      ${statCard('취소', agg.cancelCnt?comma(agg.cancelCnt)+'건':'0건', agg.cancelCnt?won(agg.cancelNet)+' 제외':'', agg.cancelCnt?'text-rose-500':'')}
+      ${statCard('매출 <span class="font-normal text-slate-300">(판매가)</span>', won(t.gross), '주문 '+comma(t.orderCount)+'건 · '+days+'일')}
+      ${statCard('순매출', won(t.net), '일평균 '+won(Math.round(t.net/days)))}
+      ${statCard('수량', comma(t.qty)+'개','')}
+      ${statCard('취소', t.cancelCnt?comma(t.cancelCnt)+'건':'0건', t.cancelCnt?won(t.cancelNet)+' 제외':'', t.cancelCnt?'text-rose-500':'')}
     </div>
     <div class="flex justify-end mb-2"><button onclick="exportSalesCsv()" class="text-xs font-semibold text-brand px-2 py-1 rounded hover:bg-brand-soft">CSV 내보내기</button></div>
-    ${breakdownTables(agg, { toggle:true, specMode:_specMode })}`;
-
-  $('#sFrom').addEventListener('change', e => { salesState.from = e.target.value; renderSales(); });
-  $('#sTo').addEventListener('change', e => { salesState.to = e.target.value; renderSales(); });
+    ${breakdownHtml(sub, t.gross)}`;
+  $('#sFrom').addEventListener('change',e=>{ salesState.from=e.target.value; renderSales(); });
+  $('#sTo').addEventListener('change',e=>{ salesState.to=e.target.value; renderSales(); });
 }
-window.salesQuick = (a,b) => { salesState.from = shiftDate(todayStr(),a); salesState.to = shiftDate(todayStr(),b); renderSales(); };
-window.salesQuickAll = () => { const d=[...new Set(DB.list('sales').map(s=>s.orderDate))].sort(); salesState.from=d[0]; salesState.to=d[d.length-1]; renderSales(); };
-window.salesToggleCh = (id) => { if (!id) salesState.chSet.clear(); else { salesState.chSet.has(id)?salesState.chSet.delete(id):salesState.chSet.add(id); } renderSales(); };
-window.salesToggleBr = (id) => { if (!id) salesState.brSet.clear(); else { salesState.brSet.has(id)?salesState.brSet.delete(id):salesState.brSet.add(id); } renderSales(); };
-
+window.salesQuick=(a,b)=>{ salesState.from=shiftDate(todayStr(),a); salesState.to=shiftDate(todayStr(),b); renderSales(); };
+window.salesQuickAll=()=>{ const d=[...new Set(DB.list('sales').map(s=>s.orderDate))].sort(); salesState.from=d[0]; salesState.to=d[d.length-1]; renderSales(); };
+window.salesToggleCh=id=>{ if(!id)salesState.chSet.clear(); else{ salesState.chSet.has(id)?salesState.chSet.delete(id):salesState.chSet.add(id);} renderSales(); };
+window.salesToggleBr=id=>{ if(!id)salesState.brSet.clear(); else{ salesState.brSet.has(id)?salesState.brSet.delete(id):salesState.brSet.add(id);} renderSales(); };
 function exportSalesCsv() {
-  const sales = filteredSales(salesState.from, salesState.to, salesState.chSet, salesState.brSet)
-    .sort((a,b)=> a.orderDate<b.orderDate?-1:1);
-  const q = s => { s = String(s==null?'':s); return /[",\n]/.test(s) ? '"'+s.replace(/"/g,'""')+'"' : s; };
-  const head = '주문일,채널,브랜드,상품,옵션,수량,매출,순매출,취소여부\n';
-  const body = sales.map(s => [s.orderDate, (DB.get('channels',s.channelId)||{}).name||'',
-    (DB.get('brands',s.brandId)||{}).name||'', q(s.rawProductName), q(s.rawOptionName),
-    s.qty, s.grossAmount, s.netAmount, s.isCancelled?'취소':'정상'].join(',')).join('\n');
-  const blob = new Blob(['﻿'+head+body], { type:'text/csv;charset=utf-8;' });
-  const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
-  a.download = '매출_' + salesState.from + '_' + salesState.to + '.csv';
-  document.body.appendChild(a); a.click(); a.remove();
-  setTimeout(()=>URL.revokeObjectURL(a.href), 1000);
-  toast('CSV 를 내보냈습니다');
+  const sub = DB.list('sales').filter(s=>s.orderDate>=salesState.from&&s.orderDate<=salesState.to
+    && (!salesState.chSet.size||salesState.chSet.has(s.channelId)) && (!salesState.brSet.size||salesState.brSet.has(s.brandId)))
+    .sort((a,b)=>a.orderDate<b.orderDate?-1:1);
+  const q=s=>{ s=String(s==null?'':s); return /[",\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s; };
+  const head='주문일,채널,브랜드,상품,옵션,수량,매출,순매출,취소여부\n';
+  const body=sub.map(s=>[s.orderDate,(DB.get('channels',s.channelId)||{}).name||'',(DB.get('brands',s.brandId)||{}).name||'',
+    q(s.rawProductName),q(s.rawOptionName),s.qty,s.grossAmount,s.netAmount,s.isCancelled?'취소':'정상'].join(',')).join('\n');
+  const blob=new Blob(['﻿'+head+body],{type:'text/csv;charset=utf-8;'});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='매출_'+salesState.from+'_'+salesState.to+'.csv';
+  document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(a.href),1000); toast('CSV 를 내보냈습니다');
 }
 window.exportSalesCsv = exportSalesCsv;
 
@@ -1393,8 +1336,8 @@ function init() {
   // 탭 클릭
   $$('.tabbtn').forEach(b => b.addEventListener('click', () => goTab(b.dataset.tab)));
   $$('.subtab').forEach(b => b.addEventListener('click', () => renderSub(b.dataset.sub)));
-  // 카페24(자사몰) 채널을 미리 보장
-  ensureCafe24();
+  // 기존 채널 데이터 마이그레이션(format 부여)
+  migrateChannels();
   // 모드 배지
   $('#mode-badge').textContent = DB.mode === 'local' ? '로컬 모드' : 'Firebase';
   refreshBadges();
