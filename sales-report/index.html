@@ -882,8 +882,10 @@ function cafe24ColIndex(headers) {
     cancelFlag:    eq('취소구분'),
     listPrice:     eq('소비자가격'),
     addDiscount:   eq('상품별추가할인금액'),
+    orderGross:    eq('총상품구매금액'),
     orderTotal:    eq('총결제금액'),
     netAmount:     eq('품목별결제금액'),
+    unitSalePrice: eq('옵션+판매가'),
     usedPoints:    sw('사용한적립금액'),
     coupon:        sw('쿠폰할인금액'),
     shipping:      norm.findIndex(x => x.indexOf('총배송비') === 0 && x.indexOf('첫품목') >= 0),
@@ -914,6 +916,10 @@ function parseCafe24(matrix) {
     const date = (dt.match(/(\d{4})[-.\/](\d{1,2})[-.\/](\d{1,2})/) || [])
       .slice(1).map((x,ix)=> ix===0?x:('0'+x).slice(-2)).join('-') || dt.slice(0,10);
     const cancelFlag = String(get(r,'cancelFlag')).trim();
+    const qty = parseNum(get(r,'qty')) || 1;
+    const unitSalePrice = parseNum(get(r,'unitSalePrice'));   // 옵션+판매가 (1개 판매가)
+    const orderGross = parseNum(get(r,'orderGross'));          // 총 상품구매금액 (주문 단위)
+    const netAmount = parseNum(get(r,'netAmount'));            // 품목별 결제금액 (순매출)
     items.push({
       orderNo: String(get(r,'orderNo')).trim(),
       itemOrderNo: String(get(r,'itemOrderNo')).trim(),
@@ -923,11 +929,14 @@ function parseCafe24(matrix) {
       optionCode: String(get(r,'optionCode')).trim() || '__NONE__',
       productName: String(get(r,'productName')).trim(),
       optionName: cleanOption(get(r,'optionName')),
-      qty: parseNum(get(r,'qty')) || 1,
+      qty,
       listPrice: parseNum(get(r,'listPrice')),
       addDiscount: parseNum(get(r,'addDiscount')),
+      unitSalePrice,
+      orderGross,
+      grossAmount: unitSalePrice > 0 ? unitSalePrice * qty : netAmount,  // 품목 매출(판매가×수량)
       orderTotal: parseNum(get(r,'orderTotal')),
-      netAmount: parseNum(get(r,'netAmount')),
+      netAmount,
       usedPoints: parseNum(get(r,'usedPoints')),
       coupon: parseNum(get(r,'coupon')),
       shipping: parseNum(get(r,'shipping')),
@@ -941,7 +950,7 @@ function parseCafe24(matrix) {
 
 /* -------------------------------------------------- 집계 요약 */
 function summarize(items) {
-  const orderTotals = {};   // 총매출 dedup: 주문번호 → 총결제금액
+  const orderGrossMap = {};   // 매출 dedup: 주문번호 → 총 상품구매금액
   let net = 0, qty = 0, cancelNet = 0, cancelCnt = 0;
   let from = null, to = null;
   const orderSet = new Set(), cancelOrderSet = new Set();
@@ -949,10 +958,10 @@ function summarize(items) {
     if (it.orderDate) { if (!from || it.orderDate < from) from = it.orderDate; if (!to || it.orderDate > to) to = it.orderDate; }
     if (it.isCancelled) { cancelNet += it.netAmount; cancelCnt++; cancelOrderSet.add(it.orderNo); return; }
     orderSet.add(it.orderNo);
-    if (orderTotals[it.orderNo] == null) orderTotals[it.orderNo] = it.orderTotal;
+    if (orderGrossMap[it.orderNo] == null) orderGrossMap[it.orderNo] = it.orderGross;
     net += it.netAmount; qty += it.qty;
   });
-  const gross = Object.values(orderTotals).reduce((a,b)=>a+b, 0);
+  const gross = Object.values(orderGrossMap).reduce((a,b)=>a+b, 0);
   return { gross, net, qty, cancelNet, cancelCnt,
     orderCount: orderSet.size, itemCount: items.filter(i=>!i.isCancelled).length,
     from, to };
@@ -1045,7 +1054,7 @@ function renderPreview() {
         </div>
       </div>
       <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-2">
-        ${cell('매출 (총 결제금액)', won(summary.gross), '주문 '+comma(summary.orderCount)+'건 · 중복제외')}
+        ${cell('매출 (총 상품구매금액)', won(summary.gross), '주문 '+comma(summary.orderCount)+'건 · 중복제외')}
         ${cell('순매출 (품목별 결제금액)', won(summary.net), '품목 '+comma(summary.itemCount)+'건')}
         ${cell('수량', comma(summary.qty)+'개', '')}
         ${cell('취소', summary.cancelCnt? comma(summary.cancelCnt)+'건':'0건', summary.cancelCnt?won(summary.cancelNet)+' 제외':'', summary.cancelCnt?'text-rose-500':'')}
@@ -1106,7 +1115,8 @@ function commitUpload() {
       buyerName:it.buyerName,
       channelProductCode:it.productCode, channelOptionCode:it.optionCode, rawProductName:it.productName, rawOptionName:it.optionName,
       brandId:brand.id, productId, productItemId:itemId, matchKey, matchStatus:'matched',
-      qty:it.qty, netAmount:it.netAmount, listPrice:it.listPrice, addDiscount:it.addDiscount,
+      qty:it.qty, netAmount:it.netAmount, grossAmount:it.grossAmount, orderGross:it.orderGross,
+      unitSalePrice:it.unitSalePrice, listPrice:it.listPrice, addDiscount:it.addDiscount,
       orderTotal:it.orderTotal, usedPoints:it.usedPoints, coupon:it.coupon, shipping:it.shipping,
       isCancelled:it.isCancelled,
     });
@@ -1146,20 +1156,20 @@ function filteredSales(from, to, chSet, brSet) {
   });
 }
 function aggregate(sales) {
-  const orderTotals = {};   // 채널|주문번호 → 총결제 (dedup)
+  const orderGrossMap = {};   // 채널|주문번호 → 총 상품구매금액 (dedup)
   let net = 0, qty = 0, cancelNet = 0, cancelCnt = 0;
   const brand = {}, product = {}, item = {}, channel = {};
   const orderSet = new Set();
   sales.forEach(s => {
     if (s.isCancelled) { cancelNet += s.netAmount||0; cancelCnt++; return; }
     const ok = s.channelId + '|' + s.orderNo;
-    if (orderTotals[ok] == null) orderTotals[ok] = s.orderTotal||0;
+    if (orderGrossMap[ok] == null) orderGrossMap[ok] = s.orderGross||0;
     orderSet.add(ok);
     net += s.netAmount||0; qty += s.qty||0;
-    const add = (m, k) => { (m[k] = m[k] || { net:0, qty:0 }); m[k].net += s.netAmount||0; m[k].qty += s.qty||0; };
+    const add = (m, k) => { (m[k] = m[k] || { gross:0, net:0, qty:0 }); m[k].gross += s.grossAmount||0; m[k].net += s.netAmount||0; m[k].qty += s.qty||0; };
     add(brand, s.brandId); add(product, s.productId); add(item, s.productItemId); add(channel, s.channelId);
   });
-  const gross = Object.values(orderTotals).reduce((a,b)=>a+b, 0);
+  const gross = Object.values(orderGrossMap).reduce((a,b)=>a+b, 0);
   return { gross, net, qty, cancelNet, cancelCnt, orderCount:orderSet.size, brand, product, item, channel };
 }
 function statCard(label, value, sub, accent) {
@@ -1168,33 +1178,33 @@ function statCard(label, value, sub, accent) {
     <div class="text-2xl font-bold num mt-1 ${accent||''}">${value}</div>
     ${sub?`<div class="text-xs text-slate-400 mt-0.5">${sub}</div>`:''}</div>`;
 }
-// 브랜드/상품 분해 표 (agg 기준, 순매출)
+// 브랜드/상품 분해 표 (매출=총상품구매금액, 순매출=품목별결제금액)
 function breakdownTables(agg, opts={}) {
   const brands = DB.list('brands'), products = DB.list('products'), items = DB.list('productItems');
-  const total = agg.net || 1;
-  // 브랜드별
-  const brRows = Object.keys(agg.brand).map(bid => ({ id:bid, name:(brands.find(b=>b.id===bid)||{}).name||'(브랜드)', ...agg.brand[bid] }))
-    .sort((a,b)=>b.net-a.net);
-  // 상품별 (+ 규격 하위)
+  const total = agg.gross || 1;
+  const brRows = Object.keys(agg.brand).map(bid => ({ id:bid, name:(brands.find(b=>b.id===bid)||{}).name||'(브랜드)', ...agg.brand[bid] })).sort((a,b)=>b.gross-a.gross);
   const prRows = Object.keys(agg.product).map(pid => {
     const p = products.find(x=>x.id===pid) || {};
-    const kids = items.filter(it => it.productId === pid && agg.item[it.id])
-      .map(it => ({ id:it.id, spec:it.spec, ...agg.item[it.id] })).sort((a,b)=>b.net-a.net);
+    const kids = items.filter(it => it.productId === pid && agg.item[it.id]).map(it => ({ id:it.id, spec:it.spec, ...agg.item[it.id] })).sort((a,b)=>b.gross-a.gross);
     return { id:pid, name:p.name||'(상품)', ...agg.product[pid], kids };
-  }).sort((a,b)=>b.net-a.net);
-
+  }).sort((a,b)=>b.gross-a.gross);
   const bar = (v) => `<div class="h-1.5 bg-slate-100 rounded"><i class="block h-full bg-brand rounded" style="width:${(v/total*100).toFixed(1)}%"></i></div>`;
+  const thead = `<thead><tr class="text-[11px] text-slate-400 border-b border-slate-100">
+    <th class="text-left font-semibold pb-1.5">$LABEL</th><th class="text-right font-semibold pb-1.5">매출</th>
+    <th class="text-right font-semibold pb-1.5">순매출</th><th class="text-right font-semibold pb-1.5">수량</th>
+    <th class="pb-1.5"></th><th class="text-right font-semibold pb-1.5">비중</th></tr></thead>`;
 
   const brandTable = `<div class="bg-white rounded-2xl border border-slate-200 p-4">
     <h3 class="font-bold text-sm mb-3">브랜드별</h3>
-    <table class="w-full text-sm"><tbody>
+    <table class="w-full text-sm">${thead.replace('$LABEL','브랜드')}<tbody>
     ${brRows.length? brRows.map(r=>`<tr class="border-b border-slate-50">
       <td class="py-2 font-semibold">${esc(r.name)}</td>
-      <td class="py-2 text-right num">${won(r.net)}</td>
+      <td class="py-2 text-right num">${won(r.gross)}</td>
+      <td class="py-2 text-right num text-slate-500">${won(r.net)}</td>
       <td class="py-2 text-right num text-slate-500">${comma(r.qty)}개</td>
-      <td class="py-2 pl-3 w-28">${bar(r.net)}</td>
-      <td class="py-2 pl-2 text-right text-xs text-slate-400 num">${(r.net/total*100).toFixed(1)}%</td></tr>`).join('')
-    : '<tr><td class="py-6 text-center text-slate-400 text-sm">데이터 없음</td></tr>'}
+      <td class="py-2 pl-3 w-24">${bar(r.gross)}</td>
+      <td class="py-2 pl-2 text-right text-xs text-slate-400 num">${(r.gross/total*100).toFixed(1)}%</td></tr>`).join('')
+    : '<tr><td colspan="6" class="py-6 text-center text-slate-400 text-sm">데이터 없음</td></tr>'}
     </tbody></table></div>`;
 
   const showSpec = opts.specMode;
@@ -1205,20 +1215,22 @@ function breakdownTables(agg, opts={}) {
         <button onclick="setSpecMode(false)" class="px-3 py-1.5 ${!showSpec?'bg-brand text-white':'bg-white text-slate-500'}">상품 기준</button>
         <button onclick="setSpecMode(true)" class="px-3 py-1.5 ${showSpec?'bg-brand text-white':'bg-white text-slate-500'}">규격 기준</button></div>`:''}
     </div>
-    <table class="w-full text-sm"><tbody>
+    <table class="w-full text-sm">${thead.replace('$LABEL','상품')}<tbody>
     ${prRows.length? prRows.map(r=>{
       let html = `<tr class="border-b border-slate-50">
         <td class="py-2 font-semibold">${esc(r.name)}${r.kids.length>1?`<span class="ml-1 text-[10px] text-slate-400">규격 ${r.kids.length}</span>`:''}</td>
-        <td class="py-2 text-right num">${won(r.net)}</td>
+        <td class="py-2 text-right num">${won(r.gross)}</td>
+        <td class="py-2 text-right num text-slate-500">${won(r.net)}</td>
         <td class="py-2 text-right num text-slate-500">${comma(r.qty)}개</td>
-        <td class="py-2 pl-3 w-28">${bar(r.net)}</td>
-        <td class="py-2 pl-2 text-right text-xs text-slate-400 num">${(r.net/total*100).toFixed(1)}%</td></tr>`;
+        <td class="py-2 pl-3 w-24">${bar(r.gross)}</td>
+        <td class="py-2 pl-2 text-right text-xs text-slate-400 num">${(r.gross/total*100).toFixed(1)}%</td></tr>`;
       if (showSpec) r.kids.forEach(k => { html += `<tr class="border-b border-slate-50 text-xs text-slate-500">
         <td class="py-1.5 pl-4">└ ${esc(k.spec)}</td>
+        <td class="py-1.5 text-right num">${won(k.gross)}</td>
         <td class="py-1.5 text-right num">${won(k.net)}</td>
         <td class="py-1.5 text-right num">${comma(k.qty)}개</td><td></td><td></td></tr>`; });
       return html;
-    }).join('') : '<tr><td class="py-6 text-center text-slate-400 text-sm">데이터 없음</td></tr>'}
+    }).join('') : '<tr><td colspan="6" class="py-6 text-center text-slate-400 text-sm">데이터 없음</td></tr>'}
     </tbody></table></div>`;
 
   return `<div class="grid gap-4 lg:grid-cols-2">${brandTable}${prodTable}</div>`;
@@ -1249,8 +1261,8 @@ function renderMain() {
       <button onclick="goTab('sales')" class="ml-auto text-xs font-semibold text-brand">기간별로 보기 →</button>
     </div>
     <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
-      ${statCard('매출 <span class="font-normal text-slate-300">(총 결제)</span>', won(agg.gross), '주문 '+comma(agg.orderCount)+'건')}
-      ${statCard('순매출 <span class="font-normal text-slate-300">(품목별)</span>', won(agg.net), '')}
+      ${statCard('매출 <span class="font-normal text-slate-300">(총 상품구매)</span>', won(agg.gross), '주문 '+comma(agg.orderCount)+'건')}
+      ${statCard('순매출 <span class="font-normal text-slate-300">(품목별 결제)</span>', won(agg.net), '')}
       ${statCard('수량', comma(agg.qty)+'개', chNames.join(', '))}
       ${statCard('취소', agg.cancelCnt?comma(agg.cancelCnt)+'건':'0건', agg.cancelCnt?won(agg.cancelNet)+' 제외':'', agg.cancelCnt?'text-rose-500':'')}
     </div>
@@ -1300,7 +1312,7 @@ function renderSales() {
         ${brands.map(b=>chip(salesState.brSet.has(b.id),b.name,`salesToggleBr('${b.id}')`)).join('')}</div>`:''}
     </div>
     <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
-      ${statCard('매출 <span class="font-normal text-slate-300">(총 결제)</span>', won(agg.gross), '주문 '+comma(agg.orderCount)+'건 · '+days+'일')}
+      ${statCard('매출 <span class="font-normal text-slate-300">(총 상품구매)</span>', won(agg.gross), '주문 '+comma(agg.orderCount)+'건 · '+days+'일')}
       ${statCard('순매출', won(agg.net), '일평균 '+won(Math.round(agg.net/days)))}
       ${statCard('수량', comma(agg.qty)+'개', '')}
       ${statCard('취소', agg.cancelCnt?comma(agg.cancelCnt)+'건':'0건', agg.cancelCnt?won(agg.cancelNet)+' 제외':'', agg.cancelCnt?'text-rose-500':'')}
@@ -1320,10 +1332,10 @@ function exportSalesCsv() {
   const sales = filteredSales(salesState.from, salesState.to, salesState.chSet, salesState.brSet)
     .sort((a,b)=> a.orderDate<b.orderDate?-1:1);
   const q = s => { s = String(s==null?'':s); return /[",\n]/.test(s) ? '"'+s.replace(/"/g,'""')+'"' : s; };
-  const head = '주문일,채널,브랜드,상품,옵션,수량,순매출,취소여부\n';
+  const head = '주문일,채널,브랜드,상품,옵션,수량,매출,순매출,취소여부\n';
   const body = sales.map(s => [s.orderDate, (DB.get('channels',s.channelId)||{}).name||'',
     (DB.get('brands',s.brandId)||{}).name||'', q(s.rawProductName), q(s.rawOptionName),
-    s.qty, s.netAmount, s.isCancelled?'취소':'정상'].join(',')).join('\n');
+    s.qty, s.grossAmount, s.netAmount, s.isCancelled?'취소':'정상'].join(',')).join('\n');
   const blob = new Blob(['﻿'+head+body], { type:'text/csv;charset=utf-8;' });
   const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
   a.download = '매출_' + salesState.from + '_' + salesState.to + '.csv';
