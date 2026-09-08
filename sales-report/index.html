@@ -20,16 +20,10 @@
   }
 </script>
 
-<!--
-  Firebase SDK (compat) — Phase 1: 연결 준비.
-  ※ 실제 firebaseConfig 는 아직 전달 전이라 아래를 주석 처리해 둡니다.
-     설정값을 채워 주석을 풀면 자동으로 Firestore 모드로 전환되고,
-     그 전까지는 브라우저 localStorage 로컬 모드로 동작합니다(데이터 구조 동일).
-
-  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
--->
+<!-- Firebase SDK (compat) — 클라우드 저장·기기 공유 -->
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
 
 <!-- SheetJS — 엑셀(xlsx) 파싱용. CSV 는 내부 파서 사용 -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -112,6 +106,21 @@
   </section>
 
 </main>
+
+<!-- ===== 로그인 (클라우드 모드) ===== -->
+<div id="loginBox" class="hidden fixed inset-0 z-50 bg-slate-50 flex items-center justify-center p-4">
+  <div class="bg-white rounded-2xl shadow-xl border border-slate-200 w-full max-w-sm p-6">
+    <div class="text-center mb-4">
+      <div class="w-12 h-12 rounded-xl bg-brand text-white text-2xl flex items-center justify-center mx-auto mb-2">🔒</div>
+      <h2 class="font-bold">매출 대시보드 로그인</h2>
+      <p class="text-xs text-slate-400 mt-1">등록한 이메일·비밀번호로 로그인하세요</p>
+    </div>
+    <input id="loginEmail" type="email" autocomplete="username" placeholder="이메일" class="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg mb-2">
+    <input id="loginPw" type="password" autocomplete="current-password" placeholder="비밀번호" class="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg mb-3">
+    <button id="loginBtn" class="w-full px-4 py-2.5 text-sm font-bold rounded-lg bg-brand text-white hover:bg-brand-dark">로그인</button>
+    <p id="loginErr" class="text-xs text-rose-500 mt-2 text-center min-h-[1em]"></p>
+  </div>
+</div>
 
 <!-- ===== 모달 ===== -->
 <div id="modal" class="hidden fixed inset-0 z-50 bg-slate-900/40 flex items-start justify-center p-4 overflow-y-auto">
@@ -237,7 +246,7 @@ const LocalDB = (function () {
 })();
 
 // firebaseConfig 가 채워지면 여기서 FirestoreDB 로 교체 (Phase 후속).
-const DB = LocalDB;
+let DB = LocalDB;
 window.__DB = DB;   // 콘솔 디버깅용
 
 /* ============================================================ 탭/서브탭 네비 */
@@ -703,11 +712,20 @@ function renderEtc() {
           </label>
         </div>
       </div>
+      ${DB.mode==='cloud' ? `
+      <div class="bg-white rounded-2xl border border-emerald-200 p-4">
+        <h3 class="font-bold text-sm mb-1 text-emerald-700">☁ 클라우드 연결됨</h3>
+        <p class="text-xs text-slate-500 mb-3">데이터가 모든 기기에서 실시간으로 공유됩니다. 회사·집·폰 어디서 넣어도 함께 보입니다.</p>
+        <div class="flex gap-2 flex-wrap">
+          <button onclick="uploadLocalToCloud()" class="px-3.5 py-2 text-sm font-semibold rounded-lg bg-white text-brand border border-slate-200 hover:bg-brand-soft">이 브라우저 로컬 데이터 올리기</button>
+          <button onclick="cloudLogout()" class="px-3.5 py-2 text-sm font-semibold rounded-lg bg-white text-slate-500 border border-slate-200 hover:bg-slate-50">로그아웃</button>
+        </div>
+        <p class="text-[11px] text-slate-400 mt-2">※ 예전에 이 브라우저(로컬 모드)에 넣어둔 데이터가 있으면 "올리기"로 클라우드에 한 번 올려주세요.</p>
+      </div>` : `
       <div class="bg-white rounded-2xl border border-slate-200 p-4">
         <h3 class="font-bold text-sm mb-1">계정 / 저장 위치</h3>
-        <p class="text-xs text-slate-500">현재 <b>로컬 모드</b> — 데이터는 이 브라우저(localStorage)에만 저장됩니다.
-        Firebase 설정을 붙이면 Firestore 로 전환되고 여러 기기에서 공유됩니다. (스펙 1·9)</p>
-      </div>
+        <p class="text-xs text-slate-500">현재 <b>로컬 모드</b> — 데이터는 이 브라우저에만 저장됩니다.</p>
+      </div>`}
       <div class="bg-white rounded-2xl border border-rose-200 p-4">
         <h3 class="font-bold text-sm mb-1 text-rose-600">전체 초기화</h3>
         <p class="text-xs text-slate-400 mb-3">채널·브랜드·상품·매칭·매출 모든 데이터를 삭제합니다. 되돌릴 수 없습니다.</p>
@@ -1329,6 +1347,126 @@ function exportSalesCsv() {
 }
 window.exportSalesCsv = exportSalesCsv;
 
+/* ============================================================ Firebase(클라우드) */
+var firebaseConfig = {
+  apiKey: "AIzaSyAQSp-HukEK-U5OElWr8jzoXzXqzI-MQNc",
+  authDomain: "monfruit-sales.firebaseapp.com",
+  projectId: "monfruit-sales",
+  storageBucket: "monfruit-sales.firebasestorage.app",
+  messagingSenderId: "120882085426",
+  appId: "1:120882085426:web:2388fcac8bde3fb2ca862b"
+};
+var FIREBASE_ENABLED = (typeof firebase !== 'undefined') && !!firebaseConfig.apiKey;
+var fs = null, fbAuth = null, _inited = false;
+
+// Firestore 미러 캐시 어댑터 (LocalDB 와 동일 인터페이스, 읽기는 동기)
+var CloudDB = {
+  mode: 'cloud', cache: {},
+  _c: function (coll) { return this.cache[coll] || (this.cache[coll] = {}); },
+  list: function (coll) { return Object.values(this._c(coll)); },
+  get: function (coll, id) { return this._c(coll)[id] || null; },
+  put: function (coll, doc) {
+    if (!doc.id) doc.id = genId(coll.slice(0, 4));
+    var c = this._c(coll);
+    if (!c[doc.id] && !doc.createdAt) doc.createdAt = Date.now();
+    doc.updatedAt = Date.now();
+    var merged = Object.assign({}, c[doc.id], doc);
+    c[doc.id] = merged;
+    try { fs.collection(coll).doc(String(doc.id)).set(merged, { merge: true })
+      .catch(function (e) { console.warn('save fail', coll, e); toast('클라우드 저장 실패 — 네트워크 확인', 'err'); }); } catch (e) {}
+    return merged;
+  },
+  del: function (coll, id) {
+    delete this._c(coll)[id];
+    try { fs.collection(coll).doc(String(id)).delete().catch(function () {}); } catch (e) {}
+  },
+  clearAll: function () {
+    var self = this;
+    COLLECTIONS.forEach(function (coll) {
+      Object.keys(self._c(coll)).forEach(function (id) { try { fs.collection(coll).doc(String(id)).delete(); } catch (e) {} });
+      self.cache[coll] = {};
+    });
+  },
+  exportAll: function () { return JSON.stringify(this.cache, null, 2); },
+  importAll: function (json) {
+    var obj = JSON.parse(json), self = this;
+    COLLECTIONS.forEach(function (coll) {
+      var docs = obj[coll] || {}; self.cache[coll] = {};
+      Object.keys(docs).forEach(function (id) { self.put(coll, docs[id]); });
+    });
+  }
+};
+
+async function cloudLoadAll() {
+  for (var i = 0; i < COLLECTIONS.length; i++) {
+    var coll = COLLECTIONS[i];
+    var snap = await fs.collection(coll).get();
+    var m = {}; snap.forEach(function (d) { m[d.id] = Object.assign({ id: d.id }, d.data()); });
+    CloudDB.cache[coll] = m;
+  }
+}
+function cloudSubscribe() {
+  COLLECTIONS.forEach(function (coll) {
+    try {
+      fs.collection(coll).onSnapshot(function (snap) {
+        var m = {}; snap.forEach(function (d) { m[d.id] = Object.assign({ id: d.id }, d.data()); });
+        CloudDB.cache[coll] = m; scheduleRerender();
+      }, function (e) { console.warn('snapshot', coll, e); });
+    } catch (e) {}
+  });
+}
+var _rerenderT = null;
+function scheduleRerender() { clearTimeout(_rerenderT); _rerenderT = setTimeout(rerender, 250); }
+function rerender() {
+  refreshBadges();
+  if (curTab === 'settings') renderSub(curSub);
+  else if (curTab === 'sales') renderSales();
+  else if (curTab === 'upload') renderUpload();
+  else renderMain();
+}
+
+/* 로그인 */
+function showLogin(msg) { $('#loginBox').classList.remove('hidden'); if (msg) $('#loginErr').textContent = msg; }
+function hideLogin() { $('#loginBox').classList.add('hidden'); }
+function doLogin() {
+  var email = $('#loginEmail').value.trim(), pw = $('#loginPw').value;
+  $('#loginErr').textContent = '로그인 중…';
+  fbAuth.signInWithEmailAndPassword(email, pw).catch(function (e) {
+    var msg = (e.code === 'auth/invalid-credential' || e.code === 'auth/wrong-password' || e.code === 'auth/user-not-found')
+      ? '이메일 또는 비밀번호가 틀렸습니다' : (e.code === 'auth/invalid-email' ? '이메일 형식이 아닙니다' : e.message);
+    $('#loginErr').textContent = '로그인 실패: ' + msg;
+  });
+}
+window.cloudLogout = function () { if (fbAuth) fbAuth.signOut(); location.reload(); };
+// 이 브라우저의 로컬(localStorage) 데이터를 클라우드로 업로드
+window.uploadLocalToCloud = function () {
+  var raw; try { raw = JSON.parse(localStorage.getItem(STORE_KEY)); } catch (e) {}
+  if (!raw) { toast('이 브라우저에 올릴 로컬 데이터가 없습니다', 'err'); return; }
+  if (!confirm('이 브라우저(로컬)에 저장된 데이터를 클라우드로 올릴까요?\\n같은 항목은 덮어써집니다.')) return;
+  var n = 0;
+  COLLECTIONS.forEach(function (coll) { var docs = raw[coll] || {}; Object.keys(docs).forEach(function (id) { CloudDB.put(coll, docs[id]); n++; }); });
+  toast(n + '건을 클라우드로 올렸습니다'); rerender();
+};
+
+function cloudBootstrap() {
+  try { firebase.initializeApp(firebaseConfig); }
+  catch (e) { console.error('firebase init', e); init(); return; }   // 실패 시 로컬 모드로
+  fs = firebase.firestore(); fbAuth = firebase.auth();
+  $('#loginBtn').addEventListener('click', doLogin);
+  $('#loginPw').addEventListener('keydown', function (e) { if (e.key === 'Enter') doLogin(); });
+  fbAuth.onAuthStateChanged(async function (user) {
+    if (user) {
+      hideLogin();
+      DB = CloudDB; window.__DB = CloudDB;
+      try { await cloudLoadAll(); } catch (e) { toast('클라우드 로딩 실패: ' + e.message, 'err'); }
+      if (!_inited) { init(); _inited = true; } else rerender();
+      cloudSubscribe();
+    } else {
+      showLogin();
+    }
+  });
+}
+
 /* ============================================================ 초기화 */
 function init() {
   // 탭 클릭
@@ -1347,7 +1485,8 @@ function init() {
       '<div class="mt-4"><button onclick="seedSample();goTab(\'settings\')" class="text-sm font-semibold text-slate-500 underline">또는 샘플 데이터로 먼저 둘러보기</button></div>');
   }
 }
-init();
+// 시작: Firebase 설정이 있으면 로그인→클라우드, 없으면 로컬 모드
+if (FIREBASE_ENABLED) { cloudBootstrap(); } else { init(); }
 
 })();
 </script>
