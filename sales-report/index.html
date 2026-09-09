@@ -801,6 +801,19 @@ function decodeBuf(buf) {
   if (s.indexOf('�') >= 0) { try { s = new TextDecoder('euc-kr').decode(buf); } catch (e) {} }
   return s;
 }
+// SSG 등 일부 채널은 .xls 확장자지만 실제로는 HTML 표
+function looksHtml(u8) {
+  const head = new TextDecoder('utf-8').decode(u8.slice(0, 2048)).toLowerCase();
+  return head.indexOf('<table') >= 0 || head.indexOf('<html') >= 0 || head.indexOf('<!doctype html') >= 0;
+}
+function parseHtmlTable(text) {
+  const doc = new DOMParser().parseFromString(text, 'text/html');
+  const table = doc.querySelector('table');
+  if (!table) return [];
+  return Array.prototype.map.call(table.rows, function (tr) {
+    return Array.prototype.map.call(tr.cells, function (td) { return (td.textContent || '').trim(); });
+  });
+}
 function parseCsvText(txt) {
   txt = txt.replace(/\r\n?/g, '\n');
   const rows = []; let row = [], cur = '', q = false;
@@ -820,25 +833,27 @@ function readFileRows(file) {
     const name = (file.name || '').toLowerCase();
     const r = new FileReader();
     r.onerror = () => rej(new Error('파일을 읽지 못했습니다'));
-    if (name.endsWith('.xlsx') || name.endsWith('.xls')) {
-      if (typeof XLSX === 'undefined') { rej(new Error('엑셀 파싱 모듈을 불러오지 못했습니다. 인터넷 연결 후 다시 시도하거나 CSV로 올려주세요.')); return; }
-      r.onload = () => {
+    r.onload = () => {
+      try {
         const u8 = new Uint8Array(r.result);
-        let wb;
-        try { wb = XLSX.read(u8, { type:'array' }); }
-        catch (err) {
-          const cfb = u8[0]===0xD0 && u8[1]===0xCF && u8[2]===0x11 && u8[3]===0xE0;
-          rej(new Error(cfb ? '비밀번호가 걸린 엑셀 파일입니다. 엑셀에서 파일을 연 뒤 "다른 이름으로 저장"에서 비밀번호를 지우고 다시 저장(또는 CSV로 저장)해서 올려주세요.' : ('엑셀을 읽지 못했습니다: '+err.message)));
-          return;
+        if (looksHtml(u8)) { res(parseHtmlTable(decodeBuf(r.result))); return; }   // SSG 등 HTML표(.xls)
+        if (name.endsWith('.xlsx') || name.endsWith('.xls')) {
+          if (typeof XLSX === 'undefined') { rej(new Error('엑셀 파싱 모듈을 불러오지 못했습니다. 인터넷 연결 후 다시 시도하거나 CSV로 올려주세요.')); return; }
+          let wb;
+          try { wb = XLSX.read(u8, { type:'array' }); }
+          catch (err) {
+            const cfb = u8[0]===0xD0 && u8[1]===0xCF && u8[2]===0x11 && u8[3]===0xE0;
+            rej(new Error(cfb ? '비밀번호가 걸린 엑셀 파일입니다. 엑셀에서 파일을 연 뒤 "다른 이름으로 저장"에서 비밀번호를 지우고 다시 저장(또는 CSV로 저장)해서 올려주세요.' : ('엑셀을 읽지 못했습니다: '+err.message)));
+            return;
+          }
+          const ws = wb.Sheets[wb.SheetNames[0]];
+          res(XLSX.utils.sheet_to_json(ws, { header:1, raw:false, defval:'' }));
+        } else {
+          res(parseCsvText(decodeBuf(r.result)));
         }
-        const ws = wb.Sheets[wb.SheetNames[0]];
-        res(XLSX.utils.sheet_to_json(ws, { header:1, raw:false, defval:'' }));
-      };
-      r.readAsArrayBuffer(file);
-    } else {
-      r.onload = () => { try { res(parseCsvText(decodeBuf(r.result))); } catch (e) { rej(e); } };
-      r.readAsArrayBuffer(file);
-    }
+      } catch (e) { rej(e); }
+    };
+    r.readAsArrayBuffer(file);
   });
 }
 function cleanOption(raw) {
@@ -944,7 +959,51 @@ function parseSmartstore(matrix) {
   if (!items.length) throw new Error('데이터 행을 찾지 못했습니다');
   return items;
 }
-const PARSERS = { cafe24:parseCafe24, smartstore:parseSmartstore };
+/* -------------------------------------------------- 파서: SSG (벤더센터 배송관리, HTML표) */
+const SSG_CANCEL = ['취소','반품','환불','교환'];
+function parseSsg(matrix) {
+  const hi = headerIndex(matrix, ['주문번호','판매가']);
+  if (hi < 0) throw new Error('SSG 양식(주문번호·판매가 열)을 찾지 못했습니다');
+  const f = colFinder(matrix[hi]);
+  const col = {
+    orderNo:f.eq('주문번호'), deliveryNo:f.eq('배송번호'), deliverySeq:f.eq('배송순번'),
+    payDate:f.sw('결제'), baseDate:f.eq('출고기준일'),
+    productCode:f.eq('상품번호'), productName:f.eq('상품명'), optionCode:f.eq('옵션번호'), optionName:f.eq('옵션명'),
+    qty:f.eq('주문수량'), cancelQty:f.eq('취소수량'), total:f.eq('판매가합계'), unit:f.eq('판매가'),
+    buyerName:f.eq('주문자'), status:f.eq('배송상태'), claim:f.eq('교환반품진행상태'), cancelDate:f.eq('주문취소일'),
+  };
+  const need = ['orderNo','productCode','qty','total'];
+  const miss = need.filter(k => col[k] < 0);
+  if (miss.length) throw new Error('SSG 열을 찾지 못했습니다: '+miss.join(','));
+  const g = (r,k) => col[k]>=0 ? (r[col[k]]||'') : '';
+  const items = [];
+  for (let i=hi+1;i<matrix.length;i++) {
+    const r = matrix[i]; if (!r || !String(g(r,'orderNo')).trim()) continue;
+    const qty = parseNum(g(r,'qty'))||1;
+    const cancelQty = parseNum(g(r,'cancelQty'));
+    const total = parseNum(g(r,'total')) || parseNum(g(r,'unit'))*qty;
+    const dn = String(g(r,'deliveryNo')).trim(), ds = String(g(r,'deliverySeq')).trim();
+    const pc = String(g(r,'productCode')).trim()||'(코드없음)';
+    const oc = String(g(r,'optionCode')).trim()||'__NONE__';
+    const claim = String(g(r,'claim')), status = String(g(r,'status'));
+    const cancelled = (cancelQty>=qty && qty>0) || String(g(r,'cancelDate')).trim()!=='' || SSG_CANCEL.some(w=>claim.indexOf(w)>=0 || status.indexOf(w)>=0);
+    const dateRaw = String(g(r,'payDate')||g(r,'baseDate')).trim();
+    items.push({
+      orderNo:String(g(r,'orderNo')).trim(),
+      itemOrderNo: dn ? (dn+'-'+ds) : (String(g(r,'orderNo')).trim()+'-'+pc+'-'+oc),
+      orderDateTime:dateRaw, orderDate:normDateStr(dateRaw),
+      buyerName:String(g(r,'buyerName')).trim(),
+      productCode:pc, optionCode:oc,
+      productName:String(g(r,'productName')).trim(), optionName:cleanOption(g(r,'optionName')),
+      qty, listPrice:parseNum(g(r,'unit')),
+      grossAmount:total, netAmount:total,
+      isCancelled:cancelled,
+    });
+  }
+  if (!items.length) throw new Error('데이터 행을 찾지 못했습니다');
+  return items;
+}
+const PARSERS = { cafe24:parseCafe24, smartstore:parseSmartstore, ssg:parseSsg };
 window.__PARSERS = PARSERS;
 
 /* -------------------------------------------------- 요약 */
