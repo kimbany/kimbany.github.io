@@ -1095,11 +1095,15 @@ function renderPreview() {
     <div class="overflow-auto max-h-[420px] border border-slate-100 rounded-xl">
       <table class="w-full text-xs"><thead class="bg-slate-50 text-slate-500 sticky top-0"><tr>
         <th class="px-2 py-2 text-center"><input type="checkbox" id="prevSelAll" checked class="w-4 h-4 accent-brand"></th>
-        <th class="px-2 py-2 text-left">주문일</th><th class="px-2 py-2 text-left">상품</th><th class="px-2 py-2 text-left">옵션</th>
+        <th class="px-2 py-2 text-left">주문일</th><th class="px-2 py-2 text-left">주문번호</th><th class="px-2 py-2 text-left">주문자</th>
+        <th class="px-2 py-2 text-left">상품</th><th class="px-2 py-2 text-left">옵션</th>
         <th class="px-2 py-2 text-right">수량</th><th class="px-2 py-2 text-right">매출</th><th class="px-2 py-2 text-center">상태</th></tr></thead><tbody>
       ${items.map((it,idx)=>{ const off=excluded.has(idx); return `<tr class="border-t border-slate-50 ${it.isCancelled?'bg-rose-50/40':''} ${off?'opacity-40':''}">
         <td class="px-2 py-1.5 text-center"><input type="checkbox" class="prev-chk w-4 h-4 accent-brand" data-i="${idx}" ${off?'':'checked'}></td>
-        <td class="px-2 py-1.5">${esc(it.orderDate)}</td><td class="px-2 py-1.5">${esc((it.productName||'').slice(0,24))}</td>
+        <td class="px-2 py-1.5 whitespace-nowrap">${esc(it.orderDate)}</td>
+        <td class="px-2 py-1.5 whitespace-nowrap text-slate-500">${esc(it.orderNo)}</td>
+        <td class="px-2 py-1.5 whitespace-nowrap">${esc(it.buyerName||'')}</td>
+        <td class="px-2 py-1.5">${esc((it.productName||'').slice(0,24))}</td>
         <td class="px-2 py-1.5">${esc(it.optionName)}</td><td class="px-2 py-1.5 text-right num">${comma(it.qty)}</td>
         <td class="px-2 py-1.5 text-right num">${comma(it.grossAmount)}</td>
         <td class="px-2 py-1.5 text-center">${it.isCancelled?'<span class="text-rose-500">취소</span>':'<span class="text-emerald-600">정상</span>'}</td></tr>`; }).join('')}
@@ -1359,8 +1363,8 @@ function exportSalesCsv() {
     && (!salesState.chSet.size||salesState.chSet.has(s.channelId)) && (!salesState.brSet.size||salesState.brSet.has(s.brandId)))
     .sort((a,b)=>a.orderDate<b.orderDate?-1:1);
   const q=s=>{ s=String(s==null?'':s); return /[",\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s; };
-  const head='주문일,채널,브랜드,상품,옵션,수량,매출,순매출,취소여부\n';
-  const body=sub.map(s=>[s.orderDate,(DB.get('channels',s.channelId)||{}).name||'',(DB.get('brands',s.brandId)||{}).name||'',
+  const head='주문일,주문번호,주문자,채널,브랜드,상품,옵션,수량,매출,순매출,취소여부\n';
+  const body=sub.map(s=>[s.orderDate,q(s.orderNo),q(s.buyerName),(DB.get('channels',s.channelId)||{}).name||'',(DB.get('brands',s.brandId)||{}).name||'',
     q(s.rawProductName),q(s.rawOptionName),s.qty,s.grossAmount,s.netAmount,s.isCancelled?'취소':'정상'].join(',')).join('\n');
   const blob=new Blob(['﻿'+head+body],{type:'text/csv;charset=utf-8;'});
   const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='매출_'+salesState.from+'_'+salesState.to+'.csv';
