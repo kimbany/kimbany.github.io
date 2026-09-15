@@ -335,6 +335,7 @@ const CHANNEL_FORMATS = [
   { v:'coupang',    t:'쿠팡' },
   { v:'11st',       t:'11번가' },
   { v:'ssg',        t:'SSG' },
+  { v:'baemin',     t:'배달의민족(전국특가)' },
   { v:'custom',     t:'기타' },
 ];
 function formatLabel(f) { return (CHANNEL_FORMATS.find(x=>x.v===f)||{}).t || '기타'; }
@@ -1003,7 +1004,50 @@ function parseSsg(matrix) {
   if (!items.length) throw new Error('데이터 행을 찾지 못했습니다');
   return items;
 }
-const PARSERS = { cafe24:parseCafe24, smartstore:parseSmartstore, ssg:parseSsg };
+/* -------------------------------------------------- 파서: 배달의민족(전국특가) */
+function parseBaemin(matrix) {
+  const hi = headerIndex(matrix, ['주문번호','판매가격']);
+  if (hi < 0) throw new Error('배달의민족 양식(주문번호·판매가격 열)을 찾지 못했습니다');
+  const f = colFinder(matrix[hi]);
+  const col = {
+    orderNo:f.eq('주문번호'), itemNo:f.eq('주문아이템번호'), detailId:f.eq('detailId'),
+    date:f.sw('주문일자'), status:f.eq('주문상태'), refund:f.eq('환불일'),
+    productCode:f.eq('전시상품번호'), optionCode:f.eq('전시Item번호'),
+    productName:f.sw('상품명'), mgmtName:f.eq('관리용상품명'),
+    qty:f.eq('수량'), salePrice:f.eq('판매가격'), buyerName:f.eq('주문자명'),
+  };
+  const need = ['orderNo','qty','salePrice'];
+  const miss = need.filter(k => col[k] < 0);
+  if (miss.length) throw new Error('배민 열을 찾지 못했습니다: '+miss.join(','));
+  const g = (r,k) => col[k]>=0 ? (r[col[k]]||'') : '';
+  const items = [];
+  for (let i=hi+1;i<matrix.length;i++) {
+    const r = matrix[i]; if (!r || !String(g(r,'orderNo')).trim()) continue;
+    const name = String(g(r,'productName')).trim();
+    const mgmt = String(g(r,'mgmtName')).trim();
+    if (name === '배송비' || mgmt === '배송비') continue;   // 배송비 줄 제외
+    const qty = parseNum(g(r,'qty'))||1;
+    const unit = parseNum(g(r,'salePrice'));
+    const status = String(g(r,'status'));
+    const refund = String(g(r,'refund')).trim();
+    const pc = String(g(r,'productCode')).trim()||'(코드없음)';
+    const oc = String(g(r,'optionCode')).trim()||'__NONE__';
+    const optName = name.indexOf(' - ')>=0 ? name.split(' - ').pop().trim() : '기본';
+    const itemKey = String(g(r,'itemNo')).trim() || String(g(r,'detailId')).trim() || (String(g(r,'orderNo')).trim()+'-'+pc);
+    const dateRaw = String(g(r,'date')).trim();
+    items.push({
+      orderNo:String(g(r,'orderNo')).trim(), itemOrderNo:itemKey,
+      orderDateTime:dateRaw, orderDate:normDateStr(dateRaw),
+      buyerName:String(g(r,'buyerName')).trim(),
+      productCode:pc, optionCode:oc, productName:name, optionName:cleanOption(optName),
+      qty, listPrice:unit, grossAmount:unit*qty, netAmount:unit*qty,
+      isCancelled: status.indexOf('취소')>=0 || status.indexOf('환불')>=0 || refund!=='',
+    });
+  }
+  if (!items.length) throw new Error('데이터 행을 찾지 못했습니다');
+  return items;
+}
+const PARSERS = { cafe24:parseCafe24, smartstore:parseSmartstore, ssg:parseSsg, baemin:parseBaemin };
 window.__PARSERS = PARSERS;
 
 /* -------------------------------------------------- 요약 */
