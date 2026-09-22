@@ -2,9 +2,93 @@
 <html lang="ko">
 <head>
     <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>마담 스터디</title>
-    </head>
+    <style>
+        /* ── 비밀번호 커튼 ─────────────────────────────── */
+        #gate {
+            position: fixed;
+            inset: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: #f7f7f8;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Malgun Gothic", sans-serif;
+            z-index: 9999;
+        }
+        #gate-card {
+            width: min(320px, calc(100vw - 32px));
+            padding: 32px 24px;
+            background: #fff;
+            border: 1px solid #e3e3e6;
+            border-radius: 12px;
+            text-align: center;
+            box-shadow: 0 2px 12px rgba(0, 0, 0, .06);
+        }
+        #gate-card h2 {
+            margin: 0 0 4px;
+            font-size: 17px;
+            font-weight: 600;
+            color: #1a1a1a;
+        }
+        #gate-card p {
+            margin: 0 0 20px;
+            font-size: 13px;
+            color: #8a8a8f;
+        }
+        #gate-input {
+            width: 100%;
+            box-sizing: border-box;
+            padding: 12px;
+            font-size: 22px;
+            letter-spacing: .4em;
+            text-align: center;
+            border: 1px solid #d5d5da;
+            border-radius: 8px;
+            outline: none;
+        }
+        #gate-input:focus { border-color: #4a7dff; }
+        #gate-error {
+            min-height: 18px;
+            margin: 10px 0 0;
+            font-size: 13px;
+            color: #d93636;
+        }
+        #gate-submit {
+            width: 100%;
+            margin-top: 10px;
+            padding: 11px;
+            font-size: 14px;
+            font-weight: 600;
+            color: #fff;
+            background: #1a1a1a;
+            border: 0;
+            border-radius: 8px;
+            cursor: pointer;
+        }
+        .shake { animation: shake .3s; }
+        @keyframes shake {
+            25% { transform: translateX(-6px); }
+            75% { transform: translateX(6px); }
+        }
+    </style>
+</head>
 <body>
+    <div id="gate">
+        <div id="gate-card">
+            <h2>비밀번호를 입력하세요</h2>
+            <p>이 페이지는 비공개입니다</p>
+            <input id="gate-input" type="password" inputmode="numeric" maxlength="4"
+                   autocomplete="off" autofocus>
+            <p id="gate-error"></p>
+            <button id="gate-submit" type="button">들어가기</button>
+            <noscript>
+                <p style="color:#d93636">자바스크립트를 켜야 이용할 수 있습니다.</p>
+            </noscript>
+        </div>
+    </div>
+
+    <div id="site" hidden>
     <h1>마담 스터디</h1>
     <ol>
         <li>cli 명령어</li>
@@ -70,8 +154,71 @@
             </tr>
         </tbody>
         <tfoot>
-        
+
         </tfoot>
     </table>
-    </body>
+    </div>
+
+    <script>
+    (function () {
+        // 비밀번호의 SHA-256 해시. 평문을 두지 않으려고 해시만 저장한다.
+        // 바꾸려면 브라우저 콘솔에서 아래를 실행한 값으로 교체:
+        //   crypto.subtle.digest('SHA-256', new TextEncoder().encode('새비번'))
+        //     .then(b => console.log([...new Uint8Array(b)].map(x => x.toString(16).padStart(2,'0')).join('')))
+        var PASS_HASH = 'cdad86ca9450d1c143675a8436131cabaf55905c114fa4524bf6a9ec5662cad7';
+        var STORE_KEY = 'invedory-gate';
+
+        var gate = document.getElementById('gate');
+        var site = document.getElementById('site');
+        var input = document.getElementById('gate-input');
+        var error = document.getElementById('gate-error');
+        var card = document.getElementById('gate-card');
+
+        // 저장된 값에도 해시를 넣어둔다. 비번을 바꾸면 값이 어긋나 자동으로 다시 잠긴다.
+        function remembered() {
+            try { return localStorage.getItem(STORE_KEY) === PASS_HASH; } catch (e) { return false; }
+        }
+
+        function open() {
+            gate.remove();
+            site.hidden = false;
+        }
+
+        function sha256(text) {
+            return crypto.subtle.digest('SHA-256', new TextEncoder().encode(text)).then(function (buf) {
+                return Array.prototype.map.call(new Uint8Array(buf), function (b) {
+                    return b.toString(16).padStart(2, '0');
+                }).join('');
+            });
+        }
+
+        function submit() {
+            sha256(input.value).then(function (hash) {
+                if (hash !== PASS_HASH) {
+                    error.textContent = '비밀번호가 틀렸습니다';
+                    input.value = '';
+                    input.focus();
+                    card.classList.remove('shake');
+                    void card.offsetWidth;
+                    card.classList.add('shake');
+                    return;
+                }
+                try { localStorage.setItem(STORE_KEY, PASS_HASH); } catch (e) {}
+                open();
+            });
+        }
+
+        if (remembered()) {
+            open();
+            return;
+        }
+
+        document.getElementById('gate-submit').addEventListener('click', submit);
+        input.addEventListener('keydown', function (e) {
+            if (e.key === 'Enter') submit();
+        });
+        input.addEventListener('input', function () { error.textContent = ''; });
+    })();
+    </script>
+</body>
 </html>
