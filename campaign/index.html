@@ -1,0 +1,251 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>체험단</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="topbar"><div class="topbar-in">
+  <div class="brand"><span class="dot"></span><span id="siteName">체험단</span></div>
+  <div class="userbox" id="userBox"></div>
+</div></div>
+
+<div class="nav hidden" id="navBar"><div class="nav-in">
+  <button data-go="list">캠페인 찾기</button>
+  <button data-go="my">내 캠페인</button>
+  <button data-go="notice">공지 · 유의사항</button>
+  <button data-go="settings">설정</button>
+</div></div>
+
+<div class="wrap">
+
+  <!-- 설정 필요 -->
+  <div id="viewSetup" class="card hero-notice hidden">
+    <div class="em">🔧</div>
+    <h2>준비 중이에요</h2>
+    <p class="muted">사이트 설정이 아직 끝나지 않았어요. 잠시 후 다시 확인해 주세요.</p>
+  </div>
+
+  <!-- 로그인 / 회원가입 -->
+  <div id="viewLogin" class="card hero-notice hidden">
+    <div class="em">🎁</div>
+    <h2>체험단에 오신 걸 환영해요</h2>
+    <p class="muted">구글 계정으로 간편하게 가입하고,<br>마음에 드는 캠페인에 신청해 보세요.</p>
+    <button class="btn lg mt16" id="btnLogin">구글로 시작하기</button>
+    <p class="dim mt16">가입 시 이름 · 연락처 · 주소를 등록하게 돼요.</p>
+  </div>
+
+  <!-- 기본 정보 등록 / 수정 -->
+  <div id="viewProfile" class="hidden">
+    <h2 class="page-t" id="pfTitle">기본 정보 등록</h2>
+    <p class="page-sub" id="pfSub">체험단 안내와 제품 배송을 위해 아래 정보를 등록해 주세요.</p>
+
+    <div class="card">
+      <div class="field">
+        <label class="fl">성함 <span class="req">*</span></label>
+        <input type="text" id="pName" placeholder="실명을 입력해 주세요" maxlength="20">
+      </div>
+      <div class="field">
+        <label class="fl">연락처 <span class="req">*</span></label>
+        <input type="tel" id="pPhone" inputmode="numeric" maxlength="13" placeholder="010-0000-0000">
+      </div>
+      <div class="field">
+        <label class="fl">몽프루이 자사몰 아이디 <span class="req">*</span></label>
+        <input type="text" id="pMallId" placeholder="자사몰에서 사용하는 아이디">
+      </div>
+      <div class="field" style="margin-bottom:0">
+        <label class="fl">주소</label>
+        <div class="inline-in" style="margin-bottom:8px">
+          <input type="text" id="pZip" class="w-sm" placeholder="우편번호" readonly>
+          <button class="btn line" id="btnFindAddr">주소 검색</button>
+        </div>
+        <input type="text" id="pAddr" placeholder="주소" readonly style="margin-bottom:8px">
+        <input type="text" id="pAddr2" placeholder="나머지 주소 (동 · 호수 등)">
+      </div>
+    </div>
+
+    <div class="card" style="background:#fbfbfd">
+      <p class="muted">🔒 <b>개인정보 안내</b><br>
+      등록하신 개인정보는 <b>체험단 안내 또는 제품 배송 시에만</b> 사용되며, 다른 용도로 이용하지 않아요.</p>
+    </div>
+
+    <div class="btn-bar">
+      <button class="btn plain keep hidden" id="btnPfCancel">취소</button>
+      <button class="btn lg" id="btnPfSave">저장하고 시작하기</button>
+    </div>
+  </div>
+
+  <!-- 캠페인 찾기 -->
+  <div id="viewList" class="hidden">
+    <h2 class="page-t">캠페인 찾기</h2>
+    <p class="page-sub">모집 중인 체험단이에요. 카드를 눌러 자세히 확인해 보세요.</p>
+    <div id="cardGrid"></div>
+  </div>
+
+  <!-- 캠페인 상세 -->
+  <div id="viewDetail" class="hidden">
+    <button class="btn line sm" id="btnBackList">← 캠페인 찾기</button>
+    <div class="mt16" id="detailBody"></div>
+    <div id="detailFoot"></div>
+  </div>
+
+  <!-- 신청 (3단계) -->
+  <div id="viewApply" class="hidden">
+    <button class="btn line sm" id="btnApplyBack">← 뒤로</button>
+    <h2 class="page-t mt16" id="apTitle"></h2>
+    <div class="steps mt16" id="apSteps">
+      <div class="s" data-s="1"><i></i>채널 정보</div>
+      <div class="s" data-s="2"><i></i>신청 정보</div>
+      <div class="s" data-s="3"><i></i>유의사항 동의</div>
+    </div>
+
+    <!-- STEP 1 -->
+    <div id="ap1">
+      <div class="sec hidden" id="apProdSec"><div class="sec-h">체험할 상품 선택</div><div class="sec-b">
+        <p class="muted" style="margin-bottom:12px">이 캠페인은 <b>선택 진행</b>이에요. 아래에서 하나를 골라 주세요.</p>
+        <div id="apProdList"></div>
+      </div></div>
+
+      <div class="sec"><div class="sec-h">콘텐츠를 올릴 채널</div><div class="sec-b">
+        <div class="field">
+          <label class="fl">발행 채널 <span class="req">*</span></label>
+          <div class="inline-in">
+            <select id="apChannel" class="w-sm">
+              <option value="youtube">유튜브</option>
+              <option value="instagram">인스타그램</option>
+              <option value="cafe">카페</option>
+              <option value="blog">블로그</option>
+              <option value="etc">기타</option>
+            </select>
+            <input type="url" id="apChannelLink" placeholder="채널 주소 (https://)">
+          </div>
+          <p class="hint" id="apChannelHint"></p>
+        </div>
+        <div class="card" style="background:#fff8f1;box-shadow:none;border:1px solid #fde4c8;margin:0;padding:14px 16px">
+          <p class="muted" style="color:#9a5b12">⚠️ <b>비공개(비공개 계정·비공개 글) SNS 채널은 선정에서 제외될 수 있어요.</b><br>
+          단, 카페 작성은 예외로 인정돼요.</p>
+        </div>
+      </div></div>
+      <div class="btn-bar"><button class="btn lg" id="btnAp1">다음</button></div>
+    </div>
+
+    <!-- STEP 2 -->
+    <div id="ap2" class="hidden">
+      <div class="sec"><div class="sec-h">신청자 정보</div><div class="sec-b">
+        <div class="grid2">
+          <div class="field">
+            <label class="fl">성함 <span class="req">*</span></label>
+            <input type="text" id="aName" maxlength="20">
+          </div>
+          <div class="field">
+            <label class="fl">연락처 <span class="req">*</span></label>
+            <input type="tel" id="aPhone" inputmode="numeric" maxlength="13" placeholder="010-0000-0000">
+          </div>
+        </div>
+        <div class="field" style="margin-bottom:0">
+          <label class="fl">몽프루이 자사몰 아이디 <span class="req">*</span></label>
+          <input type="text" id="aMallId" placeholder="자사몰에서 사용하는 아이디">
+        </div>
+      </div></div>
+
+      <div class="sec hidden" id="apShipSec"><div class="sec-h" id="apShipHead">배송 정보</div><div class="sec-b">
+        <div class="grid2">
+          <div class="field">
+            <label class="fl">받는 분</label>
+            <input type="text" id="aRecv" maxlength="20">
+          </div>
+          <div class="field">
+            <label class="fl">받는 분 연락처</label>
+            <input type="tel" id="aRecvPhone" inputmode="numeric" maxlength="13" placeholder="010-0000-0000">
+          </div>
+        </div>
+        <div class="field" style="margin-bottom:0">
+          <label class="fl">주소</label>
+          <div class="inline-in" style="margin-bottom:8px">
+            <input type="text" id="aZip" class="w-sm" placeholder="우편번호" readonly>
+            <button class="btn line" id="btnFindAddr2">주소 검색</button>
+          </div>
+          <input type="text" id="aAddr" placeholder="주소" readonly style="margin-bottom:8px">
+          <input type="text" id="aAddr2" placeholder="나머지 주소 (동 · 호수 등)">
+        </div>
+      </div></div>
+
+      <div class="sec hidden" id="apQSec"><div class="sec-h">추가 질문</div><div class="sec-b" id="apQList"></div></div>
+
+      <div class="btn-bar">
+        <button class="btn line keep" id="btnAp2Prev">이전</button>
+        <button class="btn lg" id="btnAp2">다음</button>
+      </div>
+    </div>
+
+    <!-- STEP 3 -->
+    <div id="ap3" class="hidden">
+      <div class="sec"><div class="sec-h">유의사항</div><div class="sec-b">
+        <div class="notice-box" id="apNotice"></div>
+        <label class="check mt16"><input type="checkbox" id="apAgree"> 위 유의사항을 모두 확인했고, 이에 동의합니다.</label>
+      </div></div>
+      <div class="btn-bar">
+        <button class="btn line keep" id="btnAp3Prev">이전</button>
+        <button class="btn ok lg" id="btnApSubmit">신청하기</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 신청 완료 -->
+  <div id="viewDone" class="card hero-notice hidden">
+    <div class="em">🎉</div>
+    <h2>신청이 완료됐어요!</h2>
+    <p class="muted" id="doneMsg"></p>
+    <div class="row mt24" style="justify-content:center">
+      <button class="btn ghost" id="btnDoneMy">내 캠페인 보기</button>
+      <button class="btn line" id="btnDoneList">다른 캠페인 보기</button>
+    </div>
+  </div>
+
+  <!-- 내 캠페인 -->
+  <div id="viewMy" class="hidden">
+    <h2 class="page-t">내 캠페인</h2>
+    <p class="page-sub">신청한 캠페인의 선정 결과를 확인할 수 있어요.</p>
+    <div id="myList"></div>
+  </div>
+
+  <!-- 공지 -->
+  <div id="viewNotice" class="hidden">
+    <h2 class="page-t">공지 · 유의사항</h2>
+    <p class="page-sub">체험단 진행 전에 꼭 확인해 주세요.</p>
+    <div id="noticeBody"></div>
+  </div>
+
+  <!-- 설정 -->
+  <div id="viewSettings" class="hidden">
+    <h2 class="page-t">설정</h2>
+    <p class="page-sub">등록한 내 정보를 확인하고 수정할 수 있어요.</p>
+    <div class="card">
+      <div class="kv"><dt>이름</dt><dd id="vName">-</dd></div>
+      <div class="kv"><dt>연락처</dt><dd id="vPhone">-</dd></div>
+      <div class="kv"><dt>자사몰 ID</dt><dd id="vMallId">-</dd></div>
+      <div class="kv"><dt>주소</dt><dd id="vAddr">-</dd></div>
+      <div class="kv"><dt>구글 계정</dt><dd id="vEmail">-</dd></div>
+      <div class="row mt24"><button class="btn" id="btnEditProfile">내 정보 수정</button></div>
+    </div>
+    <div class="card" style="background:#fbfbfd">
+      <p class="muted">🔒 개인정보는 <b>체험단 안내 또는 제품 배송 시에만</b> 사용돼요.</p>
+    </div>
+  </div>
+
+</div>
+
+<div id="modalBg" class="modal-bg hidden"><div class="modal" id="modalBox"></div></div>
+<div id="toast"></div>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script src="firebase-config.js"></script>
+<script src="common.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
