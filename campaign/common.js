@@ -193,8 +193,48 @@ if (CONFIGURED) {
 const TS = () => firebase.firestore.FieldValue.serverTimestamp();
 const INC = n => firebase.firestore.FieldValue.increment(n);
 
-function isAdminEmail(email) {
-  return (window.ADMIN_EMAILS || []).map(e => e.toLowerCase()).includes(String(email || "").toLowerCase());
+/* ---------- 관리자 핀번호 로그인 ----------
+   화면에서는 숫자 핀번호만 입력하지만,
+   실제로는 파이어베이스 로그인 비밀번호로 바뀌어 서버에서 검사돼요.
+   (비밀번호는 6자 이상이어야 해서 앞뒤에 고정 문자를 붙여요) */
+const PIN_MIN = 4, PIN_MAX = 8;
+function pinToPassword(pin) { return "mfpin-" + String(pin).trim() + "-adm"; }
+function isValidPin(pin) { return new RegExp(`^\\d{${PIN_MIN},${PIN_MAX}}$`).test(String(pin || "").trim()); }
+
+function isAdminUser(user) {
+  return !!user && String(user.email || "").toLowerCase() === String(window.ADMIN_LOGIN_EMAIL).toLowerCase();
+}
+
+/** 핀번호로 로그인. 계정이 아직 없으면 '처음 핀번호'일 때만 만들어 줘요. */
+async function adminLogin(pin) {
+  const email = window.ADMIN_LOGIN_EMAIL;
+  const pw = pinToPassword(pin);
+  try {
+    await auth.signInWithEmailAndPassword(email, pw);
+    return { ok: true };
+  } catch (e) {
+    if (e.code === "auth/operation-not-allowed") return { ok: false, reason: "notenabled" };
+    if (e.code === "auth/too-many-requests") return { ok: false, reason: "toomany" };
+    // 아직 관리자 계정이 만들어지지 않은 첫 로그인
+    if (String(pin).trim() === String(window.ADMIN_INITIAL_PIN)) {
+      try {
+        await auth.createUserWithEmailAndPassword(email, pw);
+        return { ok: true, created: true };
+      } catch (e2) {
+        if (e2.code === "auth/email-already-in-use") return { ok: false, reason: "wrong" };
+        if (e2.code === "auth/operation-not-allowed") return { ok: false, reason: "notenabled" };
+        return { ok: false, reason: "error", error: e2 };
+      }
+    }
+    return { ok: false, reason: "wrong" };
+  }
+}
+
+/** 핀번호 변경 (현재 핀번호로 본인 확인 후 변경) */
+async function changeAdminPin(curPin, newPin) {
+  const cred = firebase.auth.EmailAuthProvider.credential(window.ADMIN_LOGIN_EMAIL, pinToPassword(curPin));
+  await auth.currentUser.reauthenticateWithCredential(cred);
+  await auth.currentUser.updatePassword(pinToPassword(newPin));
 }
 function googleLogin() {
   return auth.signInWithPopup(new firebase.auth.GoogleAuthProvider())

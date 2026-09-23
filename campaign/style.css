@@ -306,6 +306,20 @@ table.tbl a.link:hover { text-decoration: underline; }
 .hero-notice .em { font-size: 54px; margin-bottom: 14px; }
 .hero-notice h2 { font-size: 21px; margin-bottom: 8px; }
 
+/* 핀번호 로그인 */
+.pin-card { max-width: 380px; margin: 40px auto 0; text-align: center; padding: 36px 28px 30px; }
+.pin-card .em { font-size: 46px; margin-bottom: 12px; }
+.pin-card h2 { font-size: 20px; font-weight: 800; margin-bottom: 6px; }
+.pin-in {
+  width: 100%; margin-top: 20px; padding: 14px 12px;
+  font-size: 26px; letter-spacing: .5em; text-indent: .5em; text-align: center;
+  border: 1.5px solid var(--border); border-radius: 12px; font-family: inherit;
+}
+.pin-in:focus { outline: none; border-color: var(--primary); }
+.pin-err { min-height: 20px; margin: 9px 0 12px; font-size: 13.5px; color: var(--danger); font-weight: 600; }
+.shake { animation: shake .3s; }
+@keyframes shake { 25% { transform: translateX(-7px); } 75% { transform: translateX(7px); } }
+
 @media (max-width: 640px) {
   .grid2, .grid3 { grid-template-columns: 1fr; }
   .cgrid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; }

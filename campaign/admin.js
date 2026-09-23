@@ -2,7 +2,7 @@
 "use strict";
 
 const show = makeShow([
-  "viewSetup", "viewLogin", "viewNoAuth", "viewNew", "viewPreview",
+  "viewSetup", "viewLogin", "viewNew", "viewPreview",
   "viewManage", "viewCampaign", "viewNotices", "viewSettings"
 ]);
 
@@ -24,26 +24,60 @@ if (!CONFIGURED) {
 } else {
   auth.onAuthStateChanged(async user => {
     me = user;
-    renderUserBox(user);
-    if (!user) {
+    // 관리자 계정이 아니면(로그아웃 상태이거나 신청자 계정이면) 핀번호 화면
+    if (!isAdminUser(user)) {
+      me = null;
+      $("userBox").innerHTML = "";
       $("navBar").classList.add("hidden");
       show("viewLogin");
+      setTimeout(() => $("pinInput").focus(), 50);
       return;
     }
-    if (!isAdminEmail(user.email)) {
-      $("navBar").classList.add("hidden");
-      $("noAuthMsg").textContent = `${user.email} 계정은 관리자로 등록되어 있지 않아요.`;
-      show("viewNoAuth");
-      return;
-    }
+    $("userBox").innerHTML = `<span class="uname">관리자</span>
+      <button class="btn sm plain" id="btnLogout">로그아웃</button>`;
+    $("btnLogout").onclick = () => auth.signOut();
     $("navBar").classList.remove("hidden");
     await loadSettings();
     go("manage");
   });
 }
 
-$("btnLogin").onclick = googleLogin;
-$("btnSwitch").onclick = async () => { await auth.signOut(); googleLogin(); };
+/* ---------- 핀번호 로그인 ---------- */
+const pinErr = msg => { $("pinErr").textContent = msg || ""; if (msg) $("pinInput").classList.add("shake"); setTimeout(() => $("pinInput").classList.remove("shake"), 400); };
+
+$("pinInput").addEventListener("input", () => {
+  $("pinInput").value = $("pinInput").value.replace(/\D/g, "").slice(0, 8);
+  pinErr("");
+});
+$("pinInput").addEventListener("keydown", e => { if (e.key === "Enter") $("btnPinLogin").click(); });
+
+$("btnPinLogin").onclick = async () => {
+  const pin = $("pinInput").value.trim();
+  if (!isValidPin(pin)) return pinErr("핀번호는 숫자 4~8자리예요.");
+  const btn = $("btnPinLogin");
+  btn.disabled = true;
+  btn.textContent = "확인 중…";
+  const r = await adminLogin(pin);
+  btn.disabled = false;
+  btn.textContent = "들어가기";
+  if (r.ok) {
+    $("pinInput").value = "";
+    pinErr("");
+    if (r.created) toast("관리자 계정이 만들어졌어요. 설정에서 핀번호를 꼭 바꿔 주세요!");
+    return; // onAuthStateChanged 가 화면을 넘겨 줘요
+  }
+  if (r.reason === "notenabled") {
+    pinErr("파이어베이스에서 이메일/비밀번호 로그인을 켜 주세요. (SETUP.md 3번)");
+  } else if (r.reason === "toomany") {
+    pinErr("시도가 너무 많았어요. 잠시 후 다시 시도해 주세요.");
+  } else if (r.reason === "error") {
+    pinErr("오류: " + friendlyError(r.error));
+  } else {
+    pinErr("핀번호가 맞지 않아요.");
+    $("pinInput").value = "";
+    $("pinInput").focus();
+  }
+};
 
 /* ================= 네비게이션 ================= */
 $$(".nav button").forEach(b => b.onclick = () => go(b.dataset.go));
@@ -70,10 +104,37 @@ async function loadSettings() {
 function openSettings() {
   show("viewSettings");
   $("sNotice").value = siteSettings.notice || "";
-  $("adminList").innerHTML = (window.ADMIN_EMAILS || [])
-    .map(e => `<div class="pill" style="cursor:default;margin-bottom:6px">${esc(e)}${e.toLowerCase() === String(me.email).toLowerCase() ? " (나)" : ""}</div>`)
-    .join("");
+  ["pinCur", "pinNew", "pinNew2"].forEach(id => $(id).value = "");
 }
+
+/* ---------- 핀번호 변경 ---------- */
+["pinCur", "pinNew", "pinNew2"].forEach(id =>
+  $(id).addEventListener("input", () => { $(id).value = $(id).value.replace(/\D/g, "").slice(0, 8); }));
+
+$("btnChangePin").onclick = async () => {
+  const cur = $("pinCur").value.trim(), nw = $("pinNew").value.trim(), nw2 = $("pinNew2").value.trim();
+  if (!isValidPin(cur)) return toast("현재 핀번호를 입력해 주세요");
+  if (!isValidPin(nw)) return toast("새 핀번호는 숫자 4~8자리로 정해 주세요");
+  if (nw !== nw2) return toast("새 핀번호가 서로 달라요");
+  if (nw === cur) return toast("지금 쓰는 핀번호와 같아요");
+
+  const btn = $("btnChangePin");
+  btn.disabled = true;
+  btn.textContent = "변경 중…";
+  try {
+    await changeAdminPin(cur, nw);
+    ["pinCur", "pinNew", "pinNew2"].forEach(id => $(id).value = "");
+    toast("핀번호를 바꿨어요 ✅ 다음부터는 새 핀번호로 들어오세요");
+  } catch (e) {
+    if (e.code === "auth/wrong-password" || e.code === "auth/invalid-credential")
+      toast("현재 핀번호가 맞지 않아요");
+    else if (e.code === "auth/too-many-requests")
+      toast("시도가 너무 많았어요. 잠시 후 다시 시도해 주세요");
+    else toast("변경 실패: " + friendlyError(e));
+  }
+  btn.disabled = false;
+  btn.textContent = "핀번호 변경";
+};
 
 $("btnSaveNotice").onclick = async () => {
   const btn = $("btnSaveNotice");
