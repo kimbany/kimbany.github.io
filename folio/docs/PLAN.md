@@ -1,11 +1,10 @@
-# Folio — 개인 독서 기록 · 공유 서비스 설계안
+# 듬북 (deumbook) — 개인 독서 기록 · 공유 서비스 설계안
 
-> 가칭 **Folio (폴리오)**. 이름은 확정 전입니다.
 > 이 문서는 구현 전에 검토하기 위한 설계안입니다. 실제 코드는 아직 없습니다.
 
 ## 목차
 
-0. [결정이 필요한 사항](#0-결정이-필요한-사항)
+0. [결정된 사항](#0-결정된-사항)
 1. [전체 서비스 구조](#1-전체-서비스-구조)
 2. [페이지 구조](#2-페이지-구조)
 3. [사용자 Flow](#3-사용자-flow)
@@ -20,17 +19,15 @@
 
 ---
 
-## 0. 결정이 필요한 사항
+## 0. 결정된 사항
 
-구현을 시작하기 전에 아래 항목을 확인해 주세요. 괄호 안은 제가 제안하는 기본값입니다.
-
-| # | 항목 | 제안 |
+| # | 항목 | 결정 |
 |---|------|------|
-| 1 | **배포 위치**: 이 저장소(`kimbany.github.io`)는 GitHub Pages(정적 호스팅)라 서버 기능(DB, 로그인, API Key 보호)을 실행할 수 없습니다. | 코드는 이 저장소의 `folio/` 폴더 또는 **별도 저장소**에 두고, 배포는 **Vercel + Supabase**로 합니다. 별도 저장소를 권장합니다. |
-| 2 | 서비스 이름 / 도메인 | 가칭 Folio. `folio.invedory.com` 같은 서브도메인을 쓸 수 있습니다. |
-| 3 | 로그인 방식 | 이메일+비밀번호, **카카오**, Google |
-| 4 | 같은 책을 다시 읽은 경우 연간 권수 계산 | 완독 기록마다 1권으로 셉니다. 설정에서 "중복 제외"를 선택할 수 있게 합니다. |
-| 5 | 책 API | **알라딘 Open API**를 기본으로 쓰고, 부족한 정보는 Google Books로 보완합니다. 알라딘은 상업적 이용 시 약관(출처 표기, 구매 링크)을 확인해야 합니다. |
+| 1 | 코드 위치 | 새 저장소 `deumbook` (배포는 Vercel + Supabase) |
+| 2 | 서비스 이름 | **듬북 (deumbook)** |
+| 3 | 로그인 | **구글 로그인**으로 먼저 시작. 카카오 · 이메일은 추후 추가 |
+| 4 | 다시 읽은 책 | 읽을 때마다 1권으로 셈 (같은 해 두 번 읽으면 2권) |
+| 5 | 책 정보 | **알라딘 Open API** (TTBKey 필요) |
 
 ---
 
@@ -134,7 +131,7 @@ flowchart LR
 **PC / 태블릿 가로 (≥ 1024px)** — 왼쪽 사이드바 (접을 수 있음)
 
 ```
-Folio
+듬북
 ─────────────
 홈
 내 서재
@@ -227,9 +224,8 @@ Folio
 ```mermaid
 flowchart TD
   A[랜딩] --> B{로그인 방식}
-  B -->|이메일| C[이메일 인증]
-  B -->|카카오 / Google| D[OAuth]
-  C & D --> E[온보딩 1: 닉네임 · 서재 주소]
+  B -->|Google| D[OAuth]
+  D --> E[온보딩 1: 닉네임 · 서재 주소]
   E --> F[온보딩 2: 올해 목표 권수 · 건너뛰기 가능]
   F --> G[온보딩 3: 서재 공개 여부]
   G --> H[온보딩 4: 첫 책 추가 권유<br/>바코드 / 검색 / 나중에]
@@ -320,7 +316,8 @@ flowchart TD
 
 | 영역 | 기능 | P |
 |------|------|---|
-| 계정 | 이메일 가입 · 로그인, 카카오 · Google 로그인, 비밀번호 재설정 | 1 |
+| 계정 | Google 로그인 | 1 |
+| | 카카오 · 이메일 로그인 | 추후 |
 | | 온보딩 (닉네임, handle, 목표, 공개 여부) | 1 |
 | | 프로필 편집 (이미지, 닉네임, 자기소개), 서재 공개 여부 | 1 |
 | | 회원 탈퇴 (데이터 삭제), 내 데이터 내보내기 (CSV / JSON) | 6 |
@@ -399,7 +396,7 @@ erDiagram
 | 테이블 | 역할 |
 |--------|------|
 | **User** | 프로필. `id`는 Supabase Auth의 `auth.users.id`와 같은 값 |
-| **UserPreference** | 기본 공개 여부, 기본 소유 형태, 질문 가이드 표시, 재독 집계 방식, 테마 등 |
+| **UserPreference** | 기본 공개 여부, 기본 소유 형태, 질문 가이드 표시, 테마 등 |
 | **Book** | API에서 가져온 공통 책 정보. ISBN-13으로 중복 제거. 모든 사용자가 공유 |
 | **Author / BookAuthor** | 저자를 정규화하고 역할(지은이, 옮긴이, 그림 등)을 구분. 작가 통계는 지은이만 집계 |
 | **BookCategory** | API의 공식 카테고리 트리. `genre` 컬럼에 서비스 자체 장르(소설, 에세이, 인문 …)를 매핑 |
@@ -530,7 +527,6 @@ model UserPreference {
   defaultNoteVisibility   Visibility @default(PRIVATE)
   defaultOwnershipCode    String     @default("PAPER")
   showNotePrompts         Boolean    @default(true)
-  countRereadsInYearTotal Boolean    @default(true)
   theme                   String     @default("system") // light | dark | system
   extra                   Json       @default("{}")     // 스키마 변경 없이 설정 추가
 
@@ -927,7 +923,7 @@ Supabase의 Row Level Security도 켜서, 혹시 클라이언트가 DB에 직접
   ReadingRecord where state = FINISHED
                   and finishedAt ∈ [YYYY-01-01, YYYY-12-31]
                   and userBook.userId = me
-  (UserPreference.countRereadsInYearTotal = false 이면 bookId 기준 중복 제거)
+  (같은 책을 같은 해에 두 번 완독하면 2권)
 ```
 
 ---
@@ -948,7 +944,7 @@ Supabase의 Row Level Security도 켜서, 혹시 클라이언트가 DB에 직접
 | 검증 | **Zod** | API 입력 검증 스키마를 `packages/core`에 두고 웹 폼, API, 모바일이 함께 씁니다. |
 | DB | **PostgreSQL (Supabase)** | 통계용 집계 쿼리, View, CHECK 제약, JSONB를 모두 지원합니다. |
 | ORM | **Prisma** | 스키마 파일이 곧 문서 역할을 하고, 마이그레이션 관리가 편합니다. 복잡한 통계 쿼리는 `$queryRaw`(타입 지정 SQL)로 작성합니다. |
-| 인증 | **Supabase Auth** | 카카오 로그인을 기본 지원합니다. JWT 기반이라 모바일 앱(Expo)에서도 같은 계정으로 바로 로그인할 수 있습니다. NextAuth(Auth.js)는 웹 쿠키 세션 중심이라 모바일 확장 시 별도 작업이 필요합니다. |
+| 인증 | **Supabase Auth** | Google 로그인으로 시작하고, 나중에 카카오 로그인도 설정만으로 추가할 수 있습니다. JWT 기반이라 모바일 앱(Expo)에서도 같은 계정으로 바로 로그인할 수 있습니다. NextAuth(Auth.js)는 웹 쿠키 세션 중심이라 모바일 확장 시 별도 작업이 필요합니다. |
 | 파일 저장 | **Supabase Storage** | 프로필 이미지, 직접 등록한 책 표지 |
 | 책 API | **알라딘 Open API (기본) → Google Books (보완)**, 네이버 · 카카오는 교체 가능한 Adapter로 준비 | 아래 비교표 참고 |
 | 바코드 | **BarcodeDetector API + `barcode-detector` 폴리필 (ZXing WASM)** | Android Chrome은 기본 API를 쓰고, iOS Safari처럼 지원하지 않는 브라우저는 폴리필로 같은 코드가 동작합니다. |
@@ -1251,7 +1247,7 @@ const rules: InsightRule[] = [
 ## 9. 폴더 구조
 
 ```
-folio/
+deumbook/
 ├─ apps/
 │  ├─ web/                                  # Next.js
 │  │  ├─ public/                            # 아이콘, PWA manifest
@@ -1359,7 +1355,7 @@ folio/
 |---|---|
 | 프로젝트 구조 | 모노레포, Next.js, Tailwind 디자인 토큰, ESLint · Prettier, Vitest, CI (lint · typecheck · test) |
 | DB | Prisma Schema 전체 (소셜 테이블 포함), View · CHECK 제약, seed (소유 형태, 질문, 분위기 태그, 장르 매핑) |
-| 인증 | Supabase Auth (이메일, 카카오, Google), middleware, `getCurrentUser`, 가입 시 User · UserPreference 생성 |
+| 인증 | Supabase Auth (Google 로그인), middleware, `getCurrentUser`, 가입 시 User · UserPreference 생성 |
 | 온보딩 · 프로필 | 닉네임, handle, 이미지 업로드, 자기소개, 서재 공개 여부 |
 | 기본 레이아웃 | 사이드바 / 하단 탭, 페이지 헤더, 빈 상태 화면, `BookCover` 컴포넌트 |
 | 책 API | `BookProvider` 인터페이스, 알라딘 · Google Adapter, Provider 체인, ISBN 유틸, 검색 캐시 |
@@ -1508,4 +1504,4 @@ folio/
 ---
 
 > 위 설계를 확인해 주시면 **Phase 1**부터 구현을 시작하겠습니다.
-> 특히 [0. 결정이 필요한 사항](#0-결정이-필요한-사항)의 배포 위치와 로그인 방식을 먼저 알려주세요.
+
