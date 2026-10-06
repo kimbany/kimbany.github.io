@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-06T01:52:10.723Z",
+  "generatedAt": "2026-10-06T02:40:51.314Z",
   "range": {
     "from": "2026-09-01",
     "to": "2026-09-14"
@@ -114,20 +114,55 @@
       "delta": -1500
     }
   ],
-  "byReason": [
+  "byTier": [
     {
-      "key": "구매 적립",
+      "key": "VIP",
       "count": 10,
-      "increase": 23000,
-      "decrease": 0,
-      "delta": 23000
+      "increase": 25000,
+      "decrease": 7000,
+      "delta": 18000,
+      "members": 4
     },
     {
+      "key": "DIAMOND",
+      "count": 9,
+      "increase": 8000,
+      "decrease": 11000,
+      "delta": -3000,
+      "members": 4
+    },
+    {
+      "key": "GOLD",
+      "count": 12,
+      "increase": 13000,
+      "decrease": 3000,
+      "delta": 10000,
+      "members": 5
+    },
+    {
+      "key": "SILVER",
+      "count": 12,
+      "increase": 14500,
+      "decrease": 8000,
+      "delta": 6500,
+      "members": 5
+    },
+    {
+      "key": "MonFruit",
+      "count": 13,
+      "increase": 23500,
+      "decrease": 14000,
+      "delta": 9500,
+      "members": 5
+    }
+  ],
+  "byReason": [
+    {
       "key": "리뷰 작성 적립",
-      "count": 10,
-      "increase": 23000,
+      "count": 13,
+      "increase": 29500,
       "decrease": 0,
-      "delta": 23000
+      "delta": 29500
     },
     {
       "key": "주문 사용",
@@ -156,6 +191,13 @@
       "increase": 18000,
       "decrease": 0,
       "delta": 18000
+    },
+    {
+      "key": "구매 적립",
+      "count": 7,
+      "increase": 16500,
+      "decrease": 0,
+      "delta": 16500
     }
   ],
   "byMember": [
@@ -165,6 +207,7 @@
       "increase": 5000,
       "decrease": 5000,
       "delta": 0,
+      "group": "MonFruit",
       "balance": 23300
     },
     {
@@ -173,6 +216,7 @@
       "increase": 10000,
       "decrease": 0,
       "delta": 10000,
+      "group": "VIP",
       "balance": 10800
     },
     {
@@ -181,6 +225,7 @@
       "increase": 3500,
       "decrease": 5000,
       "delta": -1500,
+      "group": "MonFruit",
       "balance": 18200
     },
     {
@@ -189,6 +234,7 @@
       "increase": 5000,
       "decrease": 3500,
       "delta": 1500,
+      "group": "VIP",
       "balance": 5700
     },
     {
@@ -197,6 +243,7 @@
       "increase": 8000,
       "decrease": 0,
       "delta": 8000,
+      "group": "MonFruit",
       "balance": 22200
     },
     {
@@ -205,6 +252,7 @@
       "increase": 5000,
       "decrease": 3000,
       "delta": 2000,
+      "group": "VIP",
       "balance": 9700
     },
     {
@@ -213,6 +261,7 @@
       "increase": 6500,
       "decrease": 0,
       "delta": 6500,
+      "group": "GOLD",
       "balance": 21600
     },
     {
@@ -221,6 +270,7 @@
       "increase": 1500,
       "decrease": 5000,
       "delta": -3500,
+      "group": "DIAMOND",
       "balance": 9100
     },
     {
@@ -229,6 +279,7 @@
       "increase": 5000,
       "decrease": 1000,
       "delta": 4000,
+      "group": "SILVER",
       "balance": 19900
     },
     {
@@ -237,6 +288,7 @@
       "increase": 4000,
       "decrease": 2000,
       "delta": 2000,
+      "group": "MonFruit",
       "balance": 7400
     },
     {
@@ -245,6 +297,7 @@
       "increase": 500,
       "decrease": 5000,
       "delta": -4500,
+      "group": "DIAMOND",
       "balance": 17100
     },
     {
@@ -253,6 +306,7 @@
       "increase": 5000,
       "decrease": 500,
       "delta": 4500,
+      "group": "VIP",
       "balance": 4600
     },
     {
@@ -261,6 +315,7 @@
       "increase": 5500,
       "decrease": 0,
       "delta": 5500,
+      "group": "DIAMOND",
       "balance": 13100
     },
     {
@@ -269,6 +324,7 @@
       "increase": 2000,
       "decrease": 3000,
       "delta": -1000,
+      "group": "SILVER",
       "balance": 18800
     },
     {
@@ -277,6 +333,7 @@
       "increase": 3000,
       "decrease": 2000,
       "delta": 1000,
+      "group": "MonFruit",
       "balance": 6300
     },
     {
@@ -285,6 +342,7 @@
       "increase": 2000,
       "decrease": 3000,
       "delta": -1000,
+      "group": "SILVER",
       "balance": 14800
     },
     {
@@ -293,6 +351,7 @@
       "increase": 2500,
       "decrease": 1000,
       "delta": 1500,
+      "group": "SILVER",
       "balance": 4000
     },
     {
@@ -301,6 +360,7 @@
       "increase": 1500,
       "decrease": 2000,
       "delta": -500,
+      "group": "GOLD",
       "balance": 12500
     },
     {
@@ -309,6 +369,7 @@
       "increase": 3000,
       "decrease": 0,
       "delta": 3000,
+      "group": "SILVER",
       "balance": 23900
     },
     {
@@ -317,6 +378,7 @@
       "increase": 3000,
       "decrease": 0,
       "delta": 3000,
+      "group": "GOLD",
       "balance": 11400
     },
     {
@@ -325,6 +387,7 @@
       "increase": 1000,
       "decrease": 500,
       "delta": 500,
+      "group": "GOLD",
       "balance": 20500
     },
     {
@@ -333,6 +396,7 @@
       "increase": 500,
       "decrease": 1000,
       "delta": -500,
+      "group": "DIAMOND",
       "balance": 8000
     },
     {
@@ -341,13 +405,14 @@
       "increase": 1000,
       "decrease": 500,
       "delta": 500,
+      "group": "GOLD",
       "balance": 16500
     }
   ],
   "lines": [
     {
       "memberId": "member7",
-      "group": "일반회원",
+      "group": "GOLD",
       "orderId": "",
       "at": "2026-09-14T09:10:00.000Z",
       "date": "2026-09-14",
@@ -377,7 +442,7 @@
     },
     {
       "memberId": "member8",
-      "group": "일반회원",
+      "group": "DIAMOND",
       "orderId": "20260914-0000053",
       "at": "2026-09-14T03:10:00.000Z",
       "date": "2026-09-14",
@@ -392,7 +457,7 @@
     },
     {
       "memberId": "member20",
-      "group": "일반회원",
+      "group": "MonFruit",
       "orderId": "",
       "at": "2026-09-14T00:10:00.000Z",
       "date": "2026-09-14",
@@ -422,7 +487,7 @@
     },
     {
       "memberId": "member21",
-      "group": "일반회원",
+      "group": "SILVER",
       "orderId": "",
       "at": "2026-09-13T06:10:00.000Z",
       "date": "2026-09-13",
@@ -437,7 +502,7 @@
     },
     {
       "memberId": "member10",
-      "group": "일반회원",
+      "group": "MonFruit",
       "orderId": "",
       "at": "2026-09-13T03:10:00.000Z",
       "date": "2026-09-13",
@@ -452,7 +517,7 @@
     },
     {
       "memberId": "member22",
-      "group": "VIP",
+      "group": "GOLD",
       "orderId": "20260913-0000048",
       "at": "2026-09-13T00:10:00.000Z",
       "date": "2026-09-13",
@@ -467,7 +532,7 @@
     },
     {
       "memberId": "member11",
-      "group": "일반회원",
+      "group": "SILVER",
       "orderId": "20260912-0000047",
       "at": "2026-09-12T09:10:00.000Z",
       "date": "2026-09-12",
@@ -482,7 +547,7 @@
     },
     {
       "memberId": "member0",
-      "group": "일반회원",
+      "group": "MonFruit",
       "orderId": "",
       "at": "2026-09-12T06:10:00.000Z",
       "date": "2026-09-12",
@@ -497,7 +562,7 @@
     },
     {
       "memberId": "member12",
-      "group": "VIP",
+      "group": "GOLD",
       "orderId": "20260912-0000045",
       "at": "2026-09-12T03:10:00.000Z",
       "date": "2026-09-12",
@@ -512,7 +577,7 @@
     },
     {
       "memberId": "member1",
-      "group": "일반회원",
+      "group": "SILVER",
       "orderId": "",
       "at": "2026-09-12T00:10:00.000Z",
       "date": "2026-09-12",
@@ -527,7 +592,7 @@
     },
     {
       "memberId": "member13",
-      "group": "일반회원",
+      "group": "DIAMOND",
       "orderId": "",
       "at": "2026-09-11T09:10:00.000Z",
       "date": "2026-09-11",
@@ -542,7 +607,7 @@
     },
     {
       "memberId": "member2",
-      "group": "VIP",
+      "group": "GOLD",
       "orderId": "20260911-0000042",
       "at": "2026-09-11T06:10:00.000Z",
       "date": "2026-09-11",
@@ -557,7 +622,7 @@
     },
     {
       "memberId": "member14",
-      "group": "일반회원",
+      "group": "VIP",
       "orderId": "20260911-0000041",
       "at": "2026-09-11T03:10:00.000Z",
       "date": "2026-09-11",
@@ -572,7 +637,7 @@
     },
     {
       "memberId": "member3",
-      "group": "일반회원",
+      "group": "DIAMOND",
       "orderId": "",
       "at": "2026-09-11T00:10:00.000Z",
       "date": "2026-09-11",
@@ -587,7 +652,7 @@
     },
     {
       "memberId": "member15",
-      "group": "VIP",
+      "group": "MonFruit",
       "orderId": "20260910-0000039",
       "at": "2026-09-10T09:10:00.000Z",
       "date": "2026-09-10",
@@ -602,7 +667,7 @@
     },
     {
       "memberId": "member4",
-      "group": "일반회원",
+      "group": "VIP",
       "orderId": "",
       "at": "2026-09-10T06:10:00.000Z",
       "date": "2026-09-10",
@@ -617,7 +682,7 @@
     },
     {
       "memberId": "member16",
-      "group": "일반회원",
+      "group": "SILVER",
       "orderId": "",
       "at": "2026-09-10T03:10:00.000Z",
       "date": "2026-09-10",
@@ -632,12 +697,12 @@
     },
     {
       "memberId": "member5",
-      "group": "VIP",
-      "orderId": "20260910-0000036",
+      "group": "MonFruit",
+      "orderId": "",
       "at": "2026-09-10T00:10:00.000Z",
       "date": "2026-09-10",
       "kind": "지급",
-      "reason": "구매 적립",
+      "reason": "리뷰 작성 적립",
       "increase": 3000,
       "decrease": 0,
       "delta": 3000,
@@ -647,7 +712,7 @@
     },
     {
       "memberId": "member17",
-      "group": "일반회원",
+      "group": "GOLD",
       "orderId": "20260909-0000035",
       "at": "2026-09-09T09:10:00.000Z",
       "date": "2026-09-09",
@@ -662,7 +727,7 @@
     },
     {
       "memberId": "member6",
-      "group": "일반회원",
+      "group": "SILVER",
       "orderId": "",
       "at": "2026-09-09T06:10:00.000Z",
       "date": "2026-09-09",
@@ -677,7 +742,7 @@
     },
     {
       "memberId": "member18",
-      "group": "VIP",
+      "group": "DIAMOND",
       "orderId": "20260909-0000033",
       "at": "2026-09-09T03:10:00.000Z",
       "date": "2026-09-09",
@@ -692,7 +757,7 @@
     },
     {
       "memberId": "member7",
-      "group": "일반회원",
+      "group": "GOLD",
       "orderId": "",
       "at": "2026-09-09T00:10:00.000Z",
       "date": "2026-09-09",
@@ -707,7 +772,7 @@
     },
     {
       "memberId": "member19",
-      "group": "일반회원",
+      "group": "VIP",
       "orderId": "",
       "at": "2026-09-08T09:10:00.000Z",
       "date": "2026-09-08",
@@ -722,7 +787,7 @@
     },
     {
       "memberId": "member8",
-      "group": "VIP",
+      "group": "DIAMOND",
       "orderId": "20260908-0000030",
       "at": "2026-09-08T06:10:00.000Z",
       "date": "2026-09-08",
@@ -737,7 +802,7 @@
     },
     {
       "memberId": "member20",
-      "group": "일반회원",
+      "group": "MonFruit",
       "orderId": "20260908-0000029",
       "at": "2026-09-08T03:10:00.000Z",
       "date": "2026-09-08",
@@ -752,7 +817,7 @@
     },
     {
       "memberId": "member9",
-      "group": "일반회원",
+      "group": "VIP",
       "orderId": "",
       "at": "2026-09-08T00:10:00.000Z",
       "date": "2026-09-08",
@@ -767,7 +832,7 @@
     },
     {
       "memberId": "member21",
-      "group": "VIP",
+      "group": "SILVER",
       "orderId": "20260907-0000027",
       "at": "2026-09-07T09:10:00.000Z",
       "date": "2026-09-07",
@@ -782,7 +847,7 @@
     },
     {
       "memberId": "member10",
-      "group": "일반회원",
+      "group": "MonFruit",
       "orderId": "",
       "at": "2026-09-07T06:10:00.000Z",
       "date": "2026-09-07",
@@ -797,7 +862,7 @@
     },
     {
       "memberId": "member22",
-      "group": "일반회원",
+      "group": "GOLD",
       "orderId": "",
       "at": "2026-09-07T03:10:00.000Z",
       "date": "2026-09-07",
@@ -812,7 +877,7 @@
     },
     {
       "memberId": "member11",
-      "group": "VIP",
+      "group": "SILVER",
       "orderId": "20260907-0000024",
       "at": "2026-09-07T00:10:00.000Z",
       "date": "2026-09-07",
@@ -827,7 +892,7 @@
     },
     {
       "memberId": "member0",
-      "group": "일반회원",
+      "group": "MonFruit",
       "orderId": "20260906-0000023",
       "at": "2026-09-06T09:10:00.000Z",
       "date": "2026-09-06",
@@ -842,7 +907,7 @@
     },
     {
       "memberId": "member12",
-      "group": "일반회원",
+      "group": "GOLD",
       "orderId": "",
       "at": "2026-09-06T06:10:00.000Z",
       "date": "2026-09-06",
@@ -857,7 +922,7 @@
     },
     {
       "memberId": "member1",
-      "group": "VIP",
+      "group": "SILVER",
       "orderId": "20260906-0000021",
       "at": "2026-09-06T03:10:00.000Z",
       "date": "2026-09-06",
@@ -872,7 +937,7 @@
     },
     {
       "memberId": "member13",
-      "group": "일반회원",
+      "group": "DIAMOND",
       "orderId": "",
       "at": "2026-09-06T00:10:00.000Z",
       "date": "2026-09-06",
@@ -887,7 +952,7 @@
     },
     {
       "memberId": "member2",
-      "group": "일반회원",
+      "group": "GOLD",
       "orderId": "",
       "at": "2026-09-05T09:10:00.000Z",
       "date": "2026-09-05",
@@ -917,7 +982,7 @@
     },
     {
       "memberId": "member3",
-      "group": "일반회원",
+      "group": "DIAMOND",
       "orderId": "20260905-0000017",
       "at": "2026-09-05T03:10:00.000Z",
       "date": "2026-09-05",
@@ -932,7 +997,7 @@
     },
     {
       "memberId": "member15",
-      "group": "일반회원",
+      "group": "MonFruit",
       "orderId": "",
       "at": "2026-09-05T00:10:00.000Z",
       "date": "2026-09-05",
@@ -962,7 +1027,7 @@
     },
     {
       "memberId": "member16",
-      "group": "일반회원",
+      "group": "SILVER",
       "orderId": "",
       "at": "2026-09-04T06:10:00.000Z",
       "date": "2026-09-04",
@@ -977,7 +1042,7 @@
     },
     {
       "memberId": "member5",
-      "group": "일반회원",
+      "group": "MonFruit",
       "orderId": "",
       "at": "2026-09-04T03:10:00.000Z",
       "date": "2026-09-04",
@@ -992,7 +1057,7 @@
     },
     {
       "memberId": "member17",
-      "group": "VIP",
+      "group": "GOLD",
       "orderId": "20260904-0000012",
       "at": "2026-09-04T00:10:00.000Z",
       "date": "2026-09-04",
@@ -1007,7 +1072,7 @@
     },
     {
       "memberId": "member6",
-      "group": "일반회원",
+      "group": "SILVER",
       "orderId": "20260903-0000011",
       "at": "2026-09-03T09:10:00.000Z",
       "date": "2026-09-03",
@@ -1022,7 +1087,7 @@
     },
     {
       "memberId": "member18",
-      "group": "일반회원",
+      "group": "DIAMOND",
       "orderId": "",
       "at": "2026-09-03T06:10:00.000Z",
       "date": "2026-09-03",
@@ -1037,7 +1102,7 @@
     },
     {
       "memberId": "member7",
-      "group": "VIP",
+      "group": "GOLD",
       "orderId": "20260903-0000009",
       "at": "2026-09-03T03:10:00.000Z",
       "date": "2026-09-03",
@@ -1052,7 +1117,7 @@
     },
     {
       "memberId": "member19",
-      "group": "일반회원",
+      "group": "VIP",
       "orderId": "",
       "at": "2026-09-03T00:10:00.000Z",
       "date": "2026-09-03",
@@ -1067,7 +1132,7 @@
     },
     {
       "memberId": "member8",
-      "group": "일반회원",
+      "group": "DIAMOND",
       "orderId": "",
       "at": "2026-09-02T09:10:00.000Z",
       "date": "2026-09-02",
@@ -1082,12 +1147,12 @@
     },
     {
       "memberId": "member20",
-      "group": "VIP",
-      "orderId": "20260902-0000006",
+      "group": "MonFruit",
+      "orderId": "",
       "at": "2026-09-02T06:10:00.000Z",
       "date": "2026-09-02",
       "kind": "지급",
-      "reason": "구매 적립",
+      "reason": "리뷰 작성 적립",
       "increase": 3000,
       "decrease": 0,
       "delta": 3000,
@@ -1097,7 +1162,7 @@
     },
     {
       "memberId": "member9",
-      "group": "일반회원",
+      "group": "VIP",
       "orderId": "20260902-0000005",
       "at": "2026-09-02T03:10:00.000Z",
       "date": "2026-09-02",
@@ -1112,7 +1177,7 @@
     },
     {
       "memberId": "member21",
-      "group": "일반회원",
+      "group": "SILVER",
       "orderId": "",
       "at": "2026-09-02T00:10:00.000Z",
       "date": "2026-09-02",
@@ -1127,7 +1192,7 @@
     },
     {
       "memberId": "member10",
-      "group": "VIP",
+      "group": "MonFruit",
       "orderId": "20260901-0000003",
       "at": "2026-09-01T09:10:00.000Z",
       "date": "2026-09-01",
@@ -1142,7 +1207,7 @@
     },
     {
       "memberId": "member22",
-      "group": "일반회원",
+      "group": "GOLD",
       "orderId": "",
       "at": "2026-09-01T06:10:00.000Z",
       "date": "2026-09-01",
@@ -1157,7 +1222,7 @@
     },
     {
       "memberId": "member11",
-      "group": "일반회원",
+      "group": "SILVER",
       "orderId": "",
       "at": "2026-09-01T03:10:00.000Z",
       "date": "2026-09-01",
@@ -1172,12 +1237,12 @@
     },
     {
       "memberId": "member0",
-      "group": "VIP",
-      "orderId": "20260901-0000000",
+      "group": "MonFruit",
+      "orderId": "",
       "at": "2026-09-01T00:10:00.000Z",
       "date": "2026-09-01",
       "kind": "지급",
-      "reason": "구매 적립",
+      "reason": "리뷰 작성 적립",
       "increase": 500,
       "decrease": 0,
       "delta": 500,

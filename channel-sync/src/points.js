@@ -142,12 +142,14 @@ function mockData({ from, to }) {
   let seq = 0;
   for (let d = from; d <= to; d = addDays(d, 1)) {
     for (let i = 0; i < 4; i++, seq++) {
-      const reason = reasons[(seq * 7) % reasons.length];
+      const tier = ['MonFruit', 'SILVER', 'GOLD', 'DIAMOND', 'VIP'][((seq * 11) % 23) % 5];
+      let reason = reasons[(seq * 7) % reasons.length];
+      if (tier === 'MonFruit' && reason === '구매 적립') reason = '리뷰 작성 적립'; // MonFruit 은 구매 적립 0%
       const minus = reason === '주문 사용' || reason === '소멸';
       const amount = [500, 1000, 2000, 3000, 5000][(seq * 3) % 5];
       rows.push({
         member_id: `member${(seq * 11) % 23}`,
-        group_name: seq % 3 ? '일반회원' : 'VIP',
+        group_name: tier,
         order_id: reason.includes('구매') || minus ? `${d.replaceAll('-', '')}-${String(seq).padStart(7, '0')}` : '',
         issue_date: `${d} ${String(9 + i * 3).padStart(2, '0')}:10:00`,
         case: minus ? '차감' : '지급',

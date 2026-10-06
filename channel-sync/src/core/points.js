@@ -1,4 +1,5 @@
 import { num, toIso } from './normalize.js';
+import { TIERS, tierOf } from './tiers.js';
 
 /**
  * 카페24 적립금 내역 정규화 + 집계.
@@ -73,9 +74,25 @@ export function summarize(lines, { from, to, reportRaw = null }) {
   };
 
   const lastBalance = new Map();
+  const lastGroup = new Map();
   for (const l of [...lines].sort((a, b) => a.at.localeCompare(b.at))) {
     if (l.balance !== null) lastBalance.set(l.memberId, l.balance);
+    if (l.group) lastGroup.set(l.memberId, l.group);
   }
+
+  // 등급별: 정책에 있는 등급은 내역이 없어도 0 으로 보여 준다(높은 등급부터). 정책에 없는 그룹명은 뒤에 붙인다.
+  const tierName = (l) => tierOf(lastGroup.get(l.memberId) ?? l.group)?.name ?? (l.group || '(등급없음)');
+  const tierRows = new Map(group(tierName).map((g) => [g.key, g]));
+  const members = new Map();
+  for (const l of lines) {
+    const k = tierName(l);
+    if (!members.has(k)) members.set(k, new Set());
+    members.get(k).add(l.memberId);
+  }
+  const byTier = [
+    ...[...TIERS].reverse().map((t) => tierRows.get(t.name) ?? { key: t.name, count: 0, increase: 0, decrease: 0, delta: 0 }),
+    ...[...tierRows.values()].filter((g) => !tierOf(g.key)),
+  ].map((g) => ({ ...g, members: members.get(g.key)?.size ?? 0 }));
 
   return {
     generatedAt: new Date().toISOString(),
@@ -84,9 +101,10 @@ export function summarize(lines, { from, to, reportRaw = null }) {
     lineCount: lines.length,
     memberCount: new Set(lines.map((l) => l.memberId).filter(Boolean)).size,
     byDate: group((l) => l.date || '(날짜없음)').sort((a, b) => a.key.localeCompare(b.key)),
+    byTier,
     byReason: group((l) => l.reason || l.kind || '(사유없음)').sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta)),
     byMember: group((l) => l.memberId || '(비회원)')
-      .map((m) => ({ ...m, balance: lastBalance.get(m.key) ?? null }))
+      .map((m) => ({ ...m, group: lastGroup.get(m.key) ?? '', balance: lastBalance.get(m.key) ?? null }))
       .sort((a, b) => b.increase + b.decrease - (a.increase + a.decrease)),
     lines: [...lines].sort((a, b) => b.at.localeCompare(a.at)),
   };

@@ -174,9 +174,17 @@
   </div>
 
   <section>
+    <div class="head"><h2>등급별</h2><span class="note">등급은 회원의 기간 내 마지막 내역 기준 · 적립 기준은 src/core/tiers.js</span></div>
+    <div class="scroll"><table id="tierTable">
+      <thead><tr><th>등급</th><th>구매 적립 기준</th><th class="num">회원</th><th class="num">건수</th><th class="num">지급</th><th class="num">차감</th><th class="num">순증</th></tr></thead>
+      <tbody></tbody>
+    </table></div>
+  </section>
+
+  <section>
     <div class="head"><h2>회원별</h2><span class="note">잔액은 기간 내 마지막 내역 기준</span></div>
     <div class="scroll"><table id="memberTable">
-      <thead><tr><th>회원</th><th class="num">건수</th><th class="num">지급</th><th class="num">차감</th><th class="num">순증</th><th class="num">가용 잔액</th></tr></thead>
+      <thead><tr><th>회원</th><th>등급</th><th class="num">건수</th><th class="num">지급</th><th class="num">차감</th><th class="num">순증</th><th class="num">가용 잔액</th></tr></thead>
       <tbody></tbody>
     </table></div>
   </section>
@@ -207,6 +215,7 @@
 
 <script type="module">
 import { summarize } from './src/core/points.js';
+import { tierOf, tierRule } from './src/core/tiers.js';
 
 const won = (n) => `${Math.round(n).toLocaleString('ko-KR')}`;
 const signed = (n) => (n > 0 ? `+${won(n)}` : n < 0 ? `−${won(-n)}` : '0');
@@ -360,14 +369,21 @@ function render(data, tag) {
     || '<tr><td colspan="5" class="empty">내역 없음</td></tr>';
   el('reasonTable').querySelectorAll('tbody td:last-child').forEach((td) => td.classList.add('barcell'));
 
+  el('tierTable').tBodies[0].innerHTML = (data.byTier ?? []).map((g) => `<tr>
+    <td>${esc(g.key)}</td><td class="sub">${esc(tierRule(tierOf(g.key)) || '정책에 없는 등급')}</td>
+    <td class="num">${g.members ? g.members.toLocaleString('ko-KR') : '–'}</td><td class="num">${g.count || '–'}</td>
+    <td class="num">${dash(g.increase)}</td><td class="num">${dash(g.decrease)}</td>
+    <td class="num ${tone(g.delta)}">${g.count ? signed(g.delta) : '–'}</td></tr>`).join('')
+    || '<tr><td colspan="7" class="empty">내역 없음</td></tr>';
+
   const members = data.byMember.slice(0, 100);
   el('memberTable').tBodies[0].innerHTML = members.map((m) => `<tr>
-    <td>${esc(m.key)}</td><td class="num">${m.count}</td>
+    <td>${esc(m.key)}</td><td class="sub" title="${esc(tierRule(tierOf(m.group)))}">${esc(m.group || '–')}</td><td class="num">${m.count}</td>
     <td class="num">${dash(m.increase)}</td><td class="num">${dash(m.decrease)}</td>
     <td class="num ${tone(m.delta)}">${signed(m.delta)}</td>
     <td class="num">${m.balance === null ? '–' : won(m.balance)}</td></tr>`).join('')
-    + (data.byMember.length > 100 ? `<tr><td colspan="6" class="sub">…외 ${data.byMember.length - 100}명 (내역 검색으로 찾아 보세요)</td></tr>` : '')
-    || '<tr><td colspan="6" class="empty">내역 없음</td></tr>';
+    + (data.byMember.length > 100 ? `<tr><td colspan="7" class="sub">…외 ${data.byMember.length - 100}명 (내역 검색으로 찾아 보세요)</td></tr>` : '')
+    || '<tr><td colspan="7" class="empty">내역 없음</td></tr>';
 
   renderLines();
 }
