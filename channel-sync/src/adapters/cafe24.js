@@ -48,6 +48,14 @@ export async function accessToken({ mallId, clientId, clientSecret, refreshToken
     throw new Error('카페24 토큰이 없습니다 — PC 에서 node src/cafe24-auth.js 로 한 번 연결해 주세요');
   }
 
+  // PC 에만 있는 (또는 PC 쪽이 더 새) 토큰은 Firestore 에도 올려 둔다 — 깃허브 자동 실행이 이어받도록.
+  if (db && saved && saved === local && issued(local) > issued(remote)) {
+    try {
+      await db.upsert([{ collection: TOKEN_DOC[0], id: TOKEN_DOC[1], data: { ...local, savedAt: local.savedAt ?? new Date().toISOString() } }]);
+      log.info('카페24 토큰을 Firestore 에도 올렸습니다 (깃허브 자동 실행용)');
+    } catch (err) { log.warn(`Firestore 토큰 저장 실패: ${err.message.split('\n')[0]}`); }
+  }
+
   if (saved?.access_token && at(saved.expires_at) > Date.now() + 60_000) {
     return saved.access_token;
   }
