@@ -31,6 +31,7 @@ const DATA = join(ROOT, 'data', 'points');
 const PAGE = 100;
 const MAX_OFFSET = 8000; // 카페24 목록 API 의 offset 상한
 const CHUNK_DAYS = 30;   // 기간이 길면 offset 상한에 걸리기 쉬워 한 달씩 끊는다
+const REPORT_DAYS = 90;  // points/report 는 한 번에 90일까지만 받아 준다 (422 "within 90 days")
 
 function parseArgs(argv) {
   const args = { mock: false, saveRaw: true, db: true };
@@ -71,15 +72,34 @@ async function writeJson(path, value) {
 
 const addDays = (ymd, n) => new Date(Date.parse(`${ymd}T00:00:00Z`) + n * 86400_000).toISOString().slice(0, 10);
 
-function* chunks(from, to) {
-  for (let start = from; start <= to; start = addDays(start, CHUNK_DAYS)) {
-    const end = addDays(start, CHUNK_DAYS - 1);
+function* chunks(from, to, days = CHUNK_DAYS) {
+  for (let start = from; start <= to; start = addDays(start, days)) {
+    const end = addDays(start, days - 1);
     yield [start, end < to ? end : to];
   }
 }
 
+/** report 응답 두 개를 더한다 — 숫자(또는 숫자 문자열) 칸은 합치고, 나머지는 앞의 값을 둔다. */
+function mergeReport(a, b) {
+  if (a === null || a === undefined) return b;
+  if (b === null || b === undefined) return a;
+  if (typeof a === 'object' && typeof b === 'object' && !Array.isArray(a)) {
+    const out = { ...a };
+    // shop_no 같은 번호 칸은 더하면 안 된다
+    for (const [k, v] of Object.entries(b)) out[k] = !(k in a) ? v : /(_no|_id|_date)$/.test(k) ? a[k] : mergeReport(a[k], v);
+    return out;
+  }
+  const isNum = (v) => typeof v === 'number' || (typeof v === 'string' && v.trim() !== '' && Number.isFinite(Number(v)));
+  return isNum(a) && isNum(b) ? Number(a) + Number(b) : a;
+}
+
 async function collect(call, { from, to, member }) {
-  const reportRaw = await call('points/report', { start_date: from, end_date: to, member_id: member });
+  // 합계는 90일씩 나눠 받아 숫자 칸끼리 더한다.
+  let reportRaw = null;
+  for (const [start, end] of chunks(from, to, REPORT_DAYS)) {
+    const res = await call('points/report', { start_date: start, end_date: end, member_id: member });
+    reportRaw = reportRaw ? mergeReport(reportRaw, res) : res;
+  }
 
   const rows = [];
   for (const [start, end] of chunks(from, to)) {
