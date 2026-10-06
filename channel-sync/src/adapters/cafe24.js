@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import { request } from '../core/http.js';
 import { credentials, env } from '../config.js';
 import { ROOT } from '../core/store.js';
-import { product, orderLine, STATUS, num, toIso } from '../core/normalize.js';
+import { toIso } from '../core/normalize.js';
 import { sharedFirestore } from '../core/firestore.js';
 import { log } from '../core/log.js';
 
@@ -112,16 +112,6 @@ export const api = async (mallId, token, path, params = {}) => {
   }
 };
 
-/** 카페24 주문상태는 접두 1글자가 대분류다. N=정상, C=취소, R=반품, E=교환. */
-function foldStatus(code = '') {
-  const head = String(code).charAt(0).toUpperCase();
-  if (head === 'C') return STATUS.CANCELED;
-  if (head === 'R' || head === 'E') return STATUS.RETURNED;
-  if (code === 'N40') return STATUS.DONE;
-  if (code === 'N30') return STATUS.SHIPPING;
-  return STATUS.ORDERED;
-}
-
 // refresh_token 은 .env 가 아니어도 data/.cafe24-token.json 이나 Firestore 에서 찾으므로 필수 키에서 뺀다.
 export const CREDENTIAL_KEYS = ['CAFE24_MALL_ID', 'CAFE24_CLIENT_ID', 'CAFE24_CLIENT_SECRET'];
 
@@ -137,70 +127,3 @@ export async function connect() {
   });
   return (path, params) => api(mallId, token, path, params);
 }
-
-export default {
-  channel: 'cafe24',
-  label: '자사몰(카페24)',
-  credentialKeys: CREDENTIAL_KEYS,
-
-  async collect({ from, to, maxProducts = 1000 }) {
-    const call = await connect();
-
-    // ── 상품: variants 를 embed 해서 옵션까지 한 번에 받는다.
-    const listed = [];
-    for (let offset = 0; offset < maxProducts; offset += 100) {
-      const res = await call('products', { limit: 100, offset, embed: 'variants' });
-      const page = res?.products ?? [];
-      listed.push(...page);
-      if (page.length < 100) break;
-    }
-
-    const products = listed.map((p) => product({
-      channel: 'cafe24',
-      productId: p.product_no,
-      name: p.product_name,
-      sellerProductCode: p.custom_product_code || p.product_code || '',
-      status: p.selling === 'T' ? '판매중' : '판매안함',
-      options: (p.variants ?? []).map((v) => ({
-        optionId: v.variant_code,
-        optionName: (v.options ?? []).map((o) => `${o.name}: ${o.value}`).join(' / ') || '(단일)',
-        optionCode: v.custom_variant_code || '',
-        price: num(p.price) + num(v.additional_amount),
-        stock: v.quantity ?? null,
-        status: v.selling === 'T' ? '' : 'DISABLED',
-      })),
-    }));
-
-    // ── 주문: items 를 embed 하면 옵션 줄까지 같이 온다.
-    const orders = [];
-    const rawOrders = [];
-    for (let offset = 0; offset < 10_000; offset += 100) {
-      const res = await call('orders', {
-        start_date: from, end_date: to, limit: 100, offset, embed: 'items',
-      });
-      const page = res?.orders ?? [];
-      rawOrders.push(...page);
-      for (const o of page) {
-        for (const it of o.items ?? []) {
-          orders.push(orderLine({
-            channel: 'cafe24',
-            orderId: o.order_id,
-            lineId: it.order_item_code,
-            orderedAt: o.order_date,
-            productId: it.product_no,
-            productName: it.product_name,
-            optionId: it.variant_code || it.option_id || it.product_no,
-            optionName: it.option_value || '(단일)',
-            optionCode: it.custom_variant_code || it.product_code || '',
-            quantity: num(it.quantity),
-            amount: (num(it.product_price) + num(it.option_price)) * num(it.quantity),
-            status: foldStatus(it.order_status),
-          }));
-        }
-      }
-      if (page.length < 100) break;
-    }
-
-    return { products, orders, raw: { products: listed, orders: rawOrders } };
-  },
-};
