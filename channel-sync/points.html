@@ -131,6 +131,50 @@
                border: 1px solid var(--accent); background: var(--accent); color: #fff; }
   button.btn.ghost { background: none; color: var(--accent); }
   button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+  /* 큰 메뉴: 전체 적립금 / 관리 적립금 / 설정 */
+  nav.tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--border); margin: 0 0 20px; overflow-x: auto; }
+  nav.tabs button { font: inherit; font-size: 14px; font-weight: 560; padding: 10px 14px; border: none; background: none;
+                    color: var(--text-secondary); cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -1px; white-space: nowrap; }
+  nav.tabs button[aria-selected="true"] { color: var(--text-primary); border-bottom-color: var(--accent); }
+  nav.tabs .count { font-size: 11.5px; color: var(--warning); margin-left: 4px; }
+
+  /* 관리 적립금 카드 */
+  .mcards { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(250px, 100%), 1fr)); gap: 12px; margin-bottom: 22px; }
+  .mcard { font: inherit; text-align: left; color: inherit; cursor: pointer; display: flex; flex-direction: column; gap: 10px;
+           background: var(--surface-1); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 15px; }
+  .mcard:hover { border-color: var(--accent); }
+  .mcard[aria-pressed="true"] { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent) inset; }
+  .mcard.flagged { border-color: var(--warning); }
+  .mcard .who { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; }
+  .mcard .who b { font-size: 15px; font-weight: 620; }
+  .mcard .rows { display: grid; grid-template-columns: 1fr auto; gap: 4px 10px; font-variant-numeric: tabular-nums; font-size: 13px; }
+  .mcard .rows .k { color: var(--text-secondary); }
+  .mcard .rows .v { text-align: right; }
+  .mcard .rows .big { font-size: 18px; font-weight: 640; }
+  .company { color: var(--accent); }
+  .ownc { color: var(--good); }
+  .chip { font-size: 11px; padding: 1px 7px; border-radius: 999px; border: 1px solid var(--border-strong); color: var(--text-secondary); white-space: nowrap; }
+  .warn { color: var(--warning); font-size: 12px; font-weight: 560; }
+
+  .breakdown { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(280px, 100%), 1fr)); gap: 0; }
+  .breakdown > div { padding: 14px 16px; }
+  .breakdown > div + div { border-left: 1px solid var(--border); }
+  @media (max-width: 640px) { .breakdown > div + div { border-left: none; border-top: 1px solid var(--border); } }
+  .breakdown h3 { font-size: 13px; margin: 0 0 8px; font-weight: 620; }
+  .breakdown dl { display: grid; grid-template-columns: 1fr auto; gap: 5px 12px; margin: 0; font-variant-numeric: tabular-nums; font-size: 13px; }
+  .breakdown dt { color: var(--text-secondary); }
+  .breakdown dd { margin: 0; text-align: right; }
+  .breakdown .sum { border-top: 1px solid var(--border); padding-top: 6px; font-weight: 640; font-size: 14px; }
+  button.toggle { font: inherit; font-size: 12px; padding: 3px 9px; border-radius: 999px; cursor: pointer; border: 1px solid var(--border-strong); background: var(--surface-0); color: var(--text-primary); white-space: nowrap; }
+  button.toggle.work { border-color: var(--accent); color: var(--accent); }
+  button.toggle.personal { border-color: var(--good); color: var(--good); }
+  input.memo { font: inherit; font-size: 12.5px; padding: 4px 7px; border-radius: 6px; border: 1px solid var(--border); background: var(--surface-0); color: var(--text-primary); width: 100%; min-width: 160px; }
+  tr.flag td { background: color-mix(in srgb, var(--warning) 12%, transparent); }
+  .form-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 14px 16px; border-bottom: 1px solid var(--border); }
+  .form-row input, .form-row select { font: inherit; font-size: 13px; padding: 6px 9px; border-radius: 7px; border: 1px solid var(--border-strong); background: var(--surface-0); color: var(--text-primary); }
+  .rules { padding: 6px 16px 14px; font-size: 13px; }
+  .rules li { margin: 6px 0; }
 </style>
 </head>
 <body>
@@ -154,6 +198,13 @@
     <span class="msg" id="loginMsg">매출 리포트와 같은 비밀번호입니다. 연결 전에는 샘플 데이터가 보입니다.</span>
   </div>
 
+  <nav class="tabs" role="tablist">
+    <button role="tab" id="tabBtn-all" data-tab="all" aria-selected="true">전체 적립금</button>
+    <button role="tab" id="tabBtn-managed" data-tab="managed" aria-selected="false">관리 적립금<span class="count" id="flagCount"></span></button>
+    <button role="tab" id="tabBtn-settings" data-tab="settings" aria-selected="false">⚙ 설정</button>
+  </nav>
+
+  <div id="tab-all">
   <div class="bar-db" id="rangeBar" hidden>
     <label for="from">기간</label>
     <input type="date" id="from"> <span class="sub">~</span> <input type="date" id="to">
@@ -236,6 +287,63 @@
     </table></div>
   </section>
 
+  </div>
+
+  <div id="tab-managed" hidden>
+    <p class="note" id="mNote"></p>
+    <div class="tiles" id="mTiles"></div>
+    <div class="mcards" id="mCards"></div>
+    <div id="mDetail" hidden>
+      <section>
+        <div class="head">
+          <h2 id="dTitle"></h2>
+          <button class="btn ghost" id="dClose">전체 보기로</button>
+        </div>
+        <div class="breakdown" id="dBreak"></div>
+      </section>
+      <section>
+        <div class="head"><h2>주문별</h2><span class="note">적립금을 쓴 주문은 자동으로 업무용 · 버튼으로 바꾸고 비고를 적을 수 있습니다</span></div>
+        <div class="scroll"><table id="dOrders">
+          <thead><tr><th>주문번호</th><th>날짜</th><th>구분</th><th class="num">적립금 사용</th><th class="num">실결제</th><th class="num">구매 적립</th><th class="num">리뷰 적립</th><th>비고</th></tr></thead>
+          <tbody></tbody>
+        </table></div>
+      </section>
+      <section>
+        <div class="head"><h2>전체 내역</h2></div>
+        <div class="scroll"><table id="dLines">
+          <thead><tr><th>일시</th><th>종류</th><th>사유</th><th>주문번호</th><th class="num">지급</th><th class="num">차감</th><th>몫</th></tr></thead>
+          <tbody></tbody>
+        </table></div>
+      </section>
+    </div>
+  </div>
+
+  <div id="tab-settings" hidden>
+    <section>
+      <div class="head"><h2>관리 대상</h2><span class="note" id="sMsg"></span></div>
+      <div class="form-row">
+        <input id="sId" placeholder="카페24 회원 아이디" autocomplete="off">
+        <input id="sName" placeholder="이름 · 메모 (예: 김OO 매니저)" autocomplete="off">
+        <select id="sType"><option>직원</option><option>관리 고객</option></select>
+        <button class="btn" id="sAdd">추가</button>
+      </div>
+      <div class="scroll"><table id="sTable">
+        <thead><tr><th>아이디</th><th>이름 · 메모</th><th>구분</th><th>등록일</th><th></th></tr></thead>
+        <tbody></tbody>
+      </table></div>
+    </section>
+    <section>
+      <div class="head"><h2>나누는 기준</h2></div>
+      <ul class="rules">
+        <li><b class="company">🏢 회사 몫 (회수 대상)</b> — 사유에 <code>리뷰용 · 리뷰작업 · 체험단</code> 이 들어간 수기 지급, 사유를 알 수 없는 관리자 수기 지급</li>
+        <li><b class="company">🏢 업무용 주문</b> — 회사 몫 적립금이 남아 있을 때 적립금을 쓴 주문. 그 주문의 구매 적립 · 리뷰 적립도 회사 몫</li>
+        <li><b class="ownc">👤 본인 몫</b> — 사유에 <code>CS</code> 가 들어간 수기 지급(회수 안 함), 회원가입 · 이벤트 지급, 본인 주문의 구매 · 리뷰 적립</li>
+        <li><b>회수 완료</b> — 관리자가 직접 차감한 적립금. 회수할 금액에서 뺍니다</li>
+        <li><b class="warn">⚠️ 확인 필요</b> — 카드 등 실결제가 있는 주문에서 본인 몫보다 많은 적립금을 쓴 경우</li>
+      </ul>
+    </section>
+  </div>
+
   <p class="note">
     DB 에 연결하면 수집기(<code>node src/points.js</code>)가 Firestore 에 쌓은 내역을 기간별로 읽어 집계합니다.
     연결 전에는 <code>data/points/latest.json</code> 이나 샘플 데이터를 보여줍니다.
@@ -245,6 +353,7 @@
 <script type="module">
 import { summarize } from './src/core/points.js';
 import { tierOf, tierRule, REVIEW_REWARDS } from './src/core/tiers.js';
+import { analyzeAll, KIND_LABEL } from './src/core/managed.js';
 
 const won = (n) => `${Math.round(n).toLocaleString('ko-KR')}`;
 const signed = (n) => (n > 0 ? `+${won(n)}` : n < 0 ? `−${won(-n)}` : '0');
@@ -268,6 +377,10 @@ let snapshot = null;
 let fs = null;
 let auth = null;
 
+/* 관리 적립금 상태 — 샘플이면 메모리, DB 연결이면 Firestore */
+let mode = 'sample';
+const managed = { loaded: false, watch: [], notes: {}, payments: {}, lines: [], selected: null };
+
 async function loadSample() {
   for (const path of ['./data/points/latest.json', './data/points/sample.json']) {
     try {
@@ -275,6 +388,7 @@ async function loadSample() {
       if (!res.ok) continue;
       const data = await res.json();
       render(data, path.endsWith('sample.json') || data.mock ? '샘플 데이터' : '로컬 파일');
+      useSampleManaged(data);
       return;
     } catch { /* file:// 로 열었거나 아직 수집 전 */ }
   }
@@ -364,8 +478,16 @@ function bootDb() {
   auth.onAuthStateChanged((user) => {
     el('loginBar').hidden = !!user;
     el('rangeBar').hidden = !user;
-    if (user) { el('pin').value = ''; openLatest(); }
-    else loadSample();
+    if (user) {
+      el('pin').value = '';
+      mode = 'db';
+      managed.loaded = false;
+      openLatest();
+      loadManaged();
+    } else {
+      mode = 'sample';
+      loadSample();
+    }
   });
 }
 
@@ -454,6 +576,266 @@ function renderLines() {
   </tr>`).join('')
   + (rows.length > 300 ? `<tr><td colspan="7" class="sub">…외 ${rows.length - 300}건 (검색으로 좁혀 보세요)</td></tr>` : '');
 }
+
+
+/* ============================================================ 관리 적립금 */
+
+function useSampleManaged(data) {
+  mode = 'sample';
+  const d = data.managedDemo ?? { watch: [], payments: {}, notes: {} };
+  Object.assign(managed, {
+    loaded: true, watch: structuredClone(d.watch), payments: d.payments ?? {}, notes: structuredClone(d.notes ?? {}),
+    lines: data.lines ?? [],
+  });
+  renderManagedAll();
+}
+
+const chunk = (arr, n) => Array.from({ length: Math.ceil(arr.length / n) }, (_, i) => arr.slice(i * n, i * n + n));
+
+/** 관리 대상의 전체 기간 내역 · 주문 결제정보 · 비고를 DB 에서 읽는다. */
+async function loadManaged() {
+  try {
+    const watchSnap = await fs.collection('pointWatchMembers').get();
+    const watch = watchSnap.docs.map((d) => ({ memberId: d.id, ...d.data() }));
+    const noteSnap = await fs.collection('pointOrderNotes').get();
+    const notes = Object.fromEntries(noteSnap.docs.map((d) => [d.id, d.data()]));
+    const lines = [];
+    const payments = {};
+    for (const ids of chunk(watch.map((w) => w.memberId), 10)) {
+      const [ls, ps] = await Promise.all([
+        fs.collection('cafe24Points').where('memberId', 'in', ids).get(),
+        fs.collection('cafe24OrderPayments').where('memberId', 'in', ids).get(),
+      ]);
+      lines.push(...docs(ls));
+      for (const p of docs(ps)) payments[p.orderId] = p;
+    }
+    Object.assign(managed, { loaded: true, watch, notes, payments, lines });
+  } catch (e) {
+    el('mNote').textContent = dbError(e);
+  }
+  renderManagedAll();
+}
+
+function renderManagedAll() {
+  renderManaged();
+  renderSettings();
+}
+
+function analysis() {
+  return analyzeAll(managed.watch, managed.lines, { payments: managed.payments, notes: managed.notes });
+}
+
+const shortDate = (iso) => (iso ? new Date(iso).toLocaleDateString('ko-KR', { timeZone: 'Asia/Seoul', month: 'numeric', day: 'numeric' }) : '–');
+
+function renderManaged() {
+  const a = analysis();
+  el('flagCount').textContent = a.total.flags ? `⚠️${a.total.flags}` : '';
+  el('mNote').textContent = mode === 'sample'
+    ? '샘플 데이터입니다 — DB 에 연결하면 ⚙ 설정에서 등록한 사람들의 실제 현황이 보입니다.'
+    : 'DB 에 쌓인 전체 기간 기준 · 관리 대상은 ⚙ 설정에서 등록합니다.';
+
+  if (!managed.watch.length) {
+    el('mTiles').innerHTML = '';
+    el('mCards').innerHTML = `<div class="empty" style="grid-column:1/-1">아직 등록한 관리 대상이 없습니다.<br>
+      <button class="link" data-go="settings">⚙ 설정에서 직원 · 관리 고객 아이디를 등록하세요</button></div>`;
+    el('mDetail').hidden = true;
+    return;
+  }
+
+  const t = a.total;
+  el('mTiles').innerHTML = [
+    ['관리 대상', `${t.count}<small>명</small>`, ''],
+    ['🏢 회수할 금액', `${won(t.toReclaim)}<small>원</small>`, 'company'],
+    ['👤 본인 몫', `${won(t.own)}<small>원</small>`, 'pos'],
+    ['회수 완료', `${won(t.reclaimed)}<small>원</small>`, ''],
+    ['⚠️ 확인 필요', `${t.flags}<small>건</small>`, t.flags ? 'neg' : ''],
+  ].map(([k, v, cls]) => `<div class="tile ${cls}"><div class="k">${k}</div><div class="v ${cls === 'company' ? 'company' : ''}">${v}</div></div>`).join('');
+
+  el('mCards').innerHTML = a.members.map((m) => `
+    <button class="mcard ${m.flags ? 'flagged' : ''}" data-member="${esc(m.memberId)}" aria-pressed="${managed.selected === m.memberId}">
+      <span class="who"><b>${esc(m.name || m.memberId)}</b><span class="chip">${esc(m.type || '')}</span></span>
+      <span class="sub">${esc(m.memberId)} · 최근 ${shortDate(m.lastAt)}</span>
+      <span class="rows">
+        <span class="k">현재 잔액</span><span class="v">${won(m.balance)}원</span>
+        <span class="k company">🏢 회수할 금액</span><span class="v big company">${won(m.toReclaim)}원</span>
+        <span class="k ownc">👤 본인 몫</span><span class="v ownc">${won(Math.max(0, m.own))}원</span>
+      </span>
+      ${m.flags ? `<span class="warn">⚠️ 확인 필요 ${m.flags}건</span>` : ''}
+    </button>`).join('');
+
+  const sel = a.members.find((m) => m.memberId === managed.selected);
+  el('mDetail').hidden = !sel;
+  if (sel) renderDetail(sel);
+}
+
+function renderDetail(m) {
+  const t = m.totals;
+  el('dTitle').textContent = `${m.name || m.memberId} · ${m.memberId} · ${m.type || ''}`;
+  const companyCalc = t.grant - t.workUsed + t.workEarned - t.reclaimed;
+  const adj = m.toReclaim - companyCalc;
+  const ownCalc = t.cs + t.event + t.ownEarned - t.ownUsed;
+  const ownAdj = m.own - ownCalc;
+  const row = (k, v, cls = '') => `<dt>${k}</dt><dd class="${cls}">${v}</dd>`;
+  el('dBreak').innerHTML = `
+    <div>
+      <h3 class="company">🏢 회사 몫 (회수 대상)</h3>
+      <dl>
+        ${row('회사 지급 (리뷰용 · 체험단 등)', `+${won(t.grant)}`)}
+        ${row('업무용 주문에 사용', `−${won(t.workUsed)}`)}
+        ${row('업무용 주문 적립 (구매 + 리뷰)', `+${won(t.workEarned)}`)}
+        ${row('회수 완료 (관리자 차감)', `−${won(t.reclaimed)}`)}
+        ${adj ? row('기타 (소멸 · 본인 몫 초과 사용 등)', signed(adj)) : ''}
+        <dt class="sum company">회수할 금액</dt><dd class="sum company">${won(m.toReclaim)}원</dd>
+      </dl>
+    </div>
+    <div>
+      <h3 class="ownc">👤 본인 몫</h3>
+      <dl>
+        ${row('CS 지급 (회수 안 함)', `+${won(t.cs)}`)}
+        ${row('기타 지급 (가입 · 이벤트)', `+${won(t.event)}`)}
+        ${row('본인 주문 적립 (구매 + 리뷰)', `+${won(t.ownEarned)}`)}
+        ${row('본인 주문에 사용', `−${won(t.ownUsed)}`)}
+        ${ownAdj ? row('기타 (소멸 · 회사 몫 초과 사용 등)', signed(ownAdj)) : ''}
+        <dt class="sum ownc">본인 몫</dt><dd class="sum ownc">${won(Math.max(0, m.own))}원</dd>
+      </dl>
+      <p class="note" style="margin:10px 0 0">현재 잔액 ${won(m.balance)}원</p>
+    </div>`;
+
+  el('dOrders').tBodies[0].innerHTML = m.orders.map((o) => {
+    const how = o.override ? '직접 지정' : '자동';
+    const pay = o.payment ? won(o.payment.paymentAmount) : '<span class="sub">결제정보 없음</span>';
+    return `<tr class="${o.flag ? 'flag' : ''}">
+      <td class="sub">${esc(o.orderId)}</td>
+      <td class="sub">${shortDate(o.firstAt)}</td>
+      <td><button class="toggle ${o.work ? 'work' : 'personal'}" data-order="${esc(o.orderId)}" data-work="${o.work}">${o.work ? '🏢 업무용' : '👤 본인'}</button>
+          <div class="sub">${how}</div></td>
+      <td class="num">${dash(o.used - o.refunded)}</td>
+      <td class="num">${pay}</td>
+      <td class="num">${dash(o.purchase)}</td>
+      <td class="num">${dash(o.review)}</td>
+      <td><input class="memo" data-note="${esc(o.orderId)}" value="${esc(o.note)}" placeholder="비고 입력">
+          ${o.flag ? `<div class="warn">⚠️ ${esc(o.flag)}</div>` : ''}</td>
+    </tr>`;
+  }).join('') || '<tr><td colspan="8" class="empty">주문 내역이 없습니다.</td></tr>';
+
+  const fmt = (iso) => (iso ? new Date(iso).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul', dateStyle: 'short', timeStyle: 'short' }) : '–');
+  el('dLines').tBodies[0].innerHTML = m.timeline.map((l) => `<tr class="${l.flag ? 'flag' : ''}">
+    <td class="sub">${fmt(l.at)}</td>
+    <td>${esc(KIND_LABEL[l.type] ?? l.type)}</td>
+    <td class="wrap">${esc(l.reason || l.kind || '–')}</td>
+    <td class="sub">${esc(l.orderId || '–')}</td>
+    <td class="num ${l.increase ? 'pos' : ''}">${dash(l.increase)}</td>
+    <td class="num ${l.decrease ? 'neg' : ''}">${dash(l.decrease)}</td>
+    <td>${l.bucket === 'company' ? '<span class="company">🏢 회사</span>' : l.bucket === 'own' ? '<span class="ownc">👤 본인</span>' : ''}</td>
+  </tr>`).join('') || '<tr><td colspan="7" class="empty">내역이 없습니다.</td></tr>';
+}
+
+/* 주문 구분 바꾸기 · 비고 저장 */
+async function saveNote(orderId, patch) {
+  const cur = managed.notes[orderId] ?? {};
+  const memberId = managed.lines.find((l) => l.orderId === orderId)?.memberId ?? '';
+  const next = { ...cur, ...patch, orderId, memberId, updatedAt: new Date().toISOString() };
+  managed.notes[orderId] = next;
+  if (mode === 'db') {
+    try { await fs.collection('pointOrderNotes').doc(orderId).set(next, { merge: true }); }
+    catch (e) { alertMsg(dbError(e)); }
+  }
+}
+
+function alertMsg(text) {
+  el('mNote').textContent = text;
+}
+
+el('mCards').addEventListener('click', (e) => {
+  const go = e.target.closest('[data-go]');
+  if (go) return showTab(go.dataset.go);
+  const card = e.target.closest('[data-member]');
+  if (!card) return;
+  managed.selected = managed.selected === card.dataset.member ? null : card.dataset.member;
+  renderManaged();
+  if (managed.selected) el('mDetail').scrollIntoView({ behavior: 'smooth', block: 'start' });
+});
+el('dClose').addEventListener('click', () => { managed.selected = null; renderManaged(); });
+el('dOrders').addEventListener('click', async (e) => {
+  const b = e.target.closest('button[data-order]');
+  if (!b) return;
+  const orderId = b.dataset.order;
+  const nowWork = b.dataset.work === 'true';
+  // 자동 판정과 같아지면 '직접 지정' 을 지운다
+  const a = analyzeAll(managed.watch, managed.lines, { payments: managed.payments, notes: { ...managed.notes, [orderId]: { ...managed.notes[orderId], override: null } } });
+  const auto = a.members.flatMap((m) => m.orders).find((o) => o.orderId === orderId)?.work;
+  const want = !nowWork;
+  await saveNote(orderId, { override: want === auto ? null : want ? 'work' : 'personal' });
+  renderManaged();
+});
+el('dOrders').addEventListener('change', (e) => {
+  const input = e.target.closest('input[data-note]');
+  if (input) saveNote(input.dataset.note, { note: input.value.trim() });
+});
+
+/* ============================================================ 설정: 관리 대상 등록 */
+
+function renderSettings() {
+  el('sMsg').textContent = mode === 'sample' ? '샘플 모드 — DB 에 연결해야 저장됩니다' : '';
+  el('sTable').tBodies[0].innerHTML = managed.watch
+    .slice().sort((a, b) => (a.type ?? '').localeCompare(b.type ?? '') || a.memberId.localeCompare(b.memberId))
+    .map((w) => `<tr>
+      <td>${esc(w.memberId)}</td><td>${esc(w.name || '')}</td><td><span class="chip">${esc(w.type || '')}</span></td>
+      <td class="sub">${w.createdAt ? shortDate(w.createdAt) : '–'}</td>
+      <td><button class="btn ghost" data-del="${esc(w.memberId)}">삭제</button></td>
+    </tr>`).join('') || '<tr><td colspan="5" class="empty">등록된 관리 대상이 없습니다. 위에서 아이디를 추가하세요.</td></tr>';
+}
+
+async function addWatch() {
+  const memberId = el('sId').value.trim();
+  if (!memberId) return (el('sMsg').textContent = '아이디를 입력하세요');
+  if (memberId.includes('/')) return (el('sMsg').textContent = '아이디에 / 는 쓸 수 없습니다');
+  if (managed.watch.some((w) => w.memberId === memberId)) return (el('sMsg').textContent = '이미 등록된 아이디입니다');
+  const item = { memberId, name: el('sName').value.trim(), type: el('sType').value, createdAt: new Date().toISOString() };
+  if (mode === 'db') {
+    try { await fs.collection('pointWatchMembers').doc(memberId).set(item); }
+    catch (e) { el('sMsg').textContent = dbError(e); return; }
+  }
+  managed.watch.push(item);
+  el('sId').value = ''; el('sName').value = '';
+  if (mode === 'db') await loadManaged(); else renderManagedAll();
+  el('sMsg').textContent = `${memberId} 등록 — 관리 적립금 탭에 나타납니다${mode === 'sample' ? ' (샘플 모드라 저장되지 않음)' : ''}`;
+}
+
+el('sAdd').addEventListener('click', addWatch);
+el('sId').addEventListener('keydown', (e) => { if (e.key === 'Enter') addWatch(); });
+el('sTable').addEventListener('click', async (e) => {
+  const b = e.target.closest('button[data-del]');
+  if (!b) return;
+  const id = b.dataset.del;
+  // 실수 방지: 한 번 더 눌러야 지운다 (브라우저 확인창이 막힌 환경도 있어서)
+  if (b.dataset.armed !== '1') { b.dataset.armed = '1'; b.textContent = '한 번 더 누르면 삭제'; return; }
+  if (mode === 'db') {
+    try { await fs.collection('pointWatchMembers').doc(id).delete(); }
+    catch (err) { el('sMsg').textContent = dbError(err); return; }
+  }
+  managed.watch = managed.watch.filter((w) => w.memberId !== id);
+  if (managed.selected === id) managed.selected = null;
+  renderManagedAll();
+  el('sMsg').textContent = `${id} 삭제 — 적립금 내역은 그대로 남아 있습니다`;
+});
+
+/* ============================================================ 큰 메뉴(탭) */
+
+const TABS = ['all', 'managed', 'settings'];
+function showTab(name) {
+  if (!TABS.includes(name)) name = 'all';
+  for (const t of TABS) {
+    el(`tab-${t}`).hidden = t !== name;
+    el(`tabBtn-${t}`).setAttribute('aria-selected', String(t === name));
+  }
+  try { history.replaceState(null, '', `#${name}`); } catch { /* 미리보기 등 */ }
+}
+document.querySelector('nav.tabs').addEventListener('click', (e) => {
+  const b = e.target.closest('button[data-tab]');
+  if (b) showTab(b.dataset.tab);
+});
+showTab(location.hash.slice(1));
 
 function esc(s) {
   return String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));

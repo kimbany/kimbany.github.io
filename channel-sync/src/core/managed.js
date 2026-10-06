@@ -1,0 +1,179 @@
+import { reviewKind } from './points.js';
+
+/**
+ * 관리 적립금 — 직원 · 관리 고객의 적립금을 '회사 몫(회수 대상)' 과 '본인 몫' 으로 나눈다.
+ * 수집기와 points.html 이 같이 쓰므로 node 전용 모듈을 import 하지 않는다.
+ *
+ * 몽프루이 운영 규칙 (2026-10, 사장님 확인):
+ * - 리뷰용 · 리뷰작업 · 체험단 등으로 관리자가 수기 지급한 적립금 = 회사 지급 → 회수 대상
+ * - CS 처리로 수기 지급한 적립금 = 회수하지 않음
+ * - 회사 지급 적립금을 쓴 주문 = 업무용 주문 → 그 주문의 구매 적립 · 리뷰 적립도 회수 대상
+ *   (자동 판정이고, 주문마다 화면에서 업무용/본인으로 바꾸고 비고를 적을 수 있다)
+ * - 직원이 본인 돈으로 산 주문의 구매 · 리뷰 적립 = 직원 본인 몫
+ * - 관리자가 직접 차감한 적립금 = 회수 완료
+ * - 카드 등 실결제가 있는 주문에서 본인 몫보다 많은 적립금을 썼으면 '확인 필요'
+ */
+export const MANAGED_RULES = {
+  cs: /\bcs\b|씨에스|cs\s*처리|cs건|보상/i,
+  grant: /리뷰\s*용|리뷰\s*작업|지뷰\s*작업|체험단|업무|협찬/,
+  event: /가입|생일|축하|이벤트|출석|추천/,
+  purchase: /구매|주문\s*적립|결제|배송\s*완료|구매\s*확정/,
+  cancel: /취소|환불|반품/,
+  expire: /소멸|만료/,
+};
+
+export const TYPES = ['직원', '관리 고객'];
+
+/**
+ * 줄 하나의 종류.
+ *  grant(회사 지급) · cs · event(기타 본인 지급) · purchase · review (주문 연결)
+ *  use(주문 사용) · refund(사용 취소로 돌려받음) · reversal(적립 취소) · reclaim(관리자 차감=회수) · expire
+ */
+export function classify(l, R = MANAGED_RULES) {
+  const text = `${l.reason} ${l.kind}`;
+  if (l.increase > 0) {
+    if (l.orderId && R.cancel.test(text)) return 'refund';
+    if (R.cs.test(text)) return 'cs';
+    if (R.grant.test(text)) return 'grant';
+    if (reviewKind(l)) return l.orderId ? 'review' : 'event';
+    if (l.orderId && (R.purchase.test(text) || !l.admin)) return 'purchase';
+    if (R.event.test(text)) return 'event';
+    // 사유를 알 수 없는 관리자 수기 지급은 회수 대상으로 본다 (회수 안 하는 건 CS 뿐)
+    return l.admin ? 'grant' : 'event';
+  }
+  if (l.decrease > 0) {
+    if (R.expire.test(text)) return 'expire';
+    if (l.orderId && R.cancel.test(text)) return 'reversal';
+    if (l.orderId && !l.admin) return 'use';
+    return 'reclaim';
+  }
+  return 'other';
+}
+
+export const KIND_LABEL = {
+  grant: '회사 지급', cs: 'CS 지급', event: '기타 지급', purchase: '구매 적립', review: '리뷰 적립',
+  use: '주문 사용', refund: '사용 취소', reversal: '적립 취소', reclaim: '관리자 차감(회수)', expire: '소멸', other: '기타',
+};
+
+/**
+ * 회원 한 명의 내역(전체 기간)을 시간순으로 따라가며 회사 몫 / 본인 몫을 나눈다.
+ *
+ * lines     cafe24Points 정규화 줄 (이 회원 것)
+ * payments  { [orderId]: { paymentAmount, pointsSpent } }  — 카페24 주문의 실결제 · 사용 적립금
+ * notes     { [orderId]: { override: 'work'|'personal'|null, note } }
+ */
+export function analyzeMember(lines, { payments = {}, notes = {} } = {}) {
+  const sorted = [...lines].sort((a, b) => a.at.localeCompare(b.at));
+  const orders = new Map();
+  const orderOf = (id, at) => {
+    if (!orders.has(id)) {
+      orders.set(id, {
+        orderId: id, firstAt: at, used: 0, refunded: 0, purchase: 0, review: 0, reversal: 0,
+        autoWork: null, work: false, override: notes[id]?.override ?? null, note: notes[id]?.note ?? '',
+        payment: payments[id] ?? null, flag: '',
+      });
+    }
+    return orders.get(id);
+  };
+
+  // 1) 주문 사용 시점에 회사 몫이 남아 있었는지로 업무용 주문을 자동 판정하려면,
+  //    판정 → 버킷 이동을 한 번에 시간순으로 해야 한다.
+  let company = 0;
+  let own = 0;
+  const t = { grant: 0, cs: 0, event: 0, workEarned: 0, ownEarned: 0, workUsed: 0, ownUsed: 0, reclaimed: 0, expired: 0 };
+  const timeline = [];
+
+  const isWork = (o) => (o.override ? o.override === 'work' : !!o.autoWork);
+
+  for (const l of sorted) {
+    const kind = classify(l);
+    const o = l.orderId ? orderOf(l.orderId, l.at) : null;
+    let bucket = '';
+    let flag = '';
+    switch (kind) {
+      case 'grant': company += l.increase; t.grant += l.increase; bucket = 'company'; break;
+      case 'cs': own += l.increase; t.cs += l.increase; bucket = 'own'; break;
+      case 'event': own += l.increase; t.event += l.increase; bucket = 'own'; break;
+      case 'purchase':
+      case 'review': {
+        if (o.autoWork === null) o.autoWork = false; // 적립만 있고 사용이 없던 주문 = 본인 주문
+        o[kind] += l.increase;
+        if (isWork(o)) { company += l.increase; t.workEarned += l.increase; bucket = 'company'; }
+        else { own += l.increase; t.ownEarned += l.increase; bucket = 'own'; }
+        break;
+      }
+      case 'use': {
+        const amt = l.decrease;
+        if (o.autoWork === null) o.autoWork = company > 0;
+        o.used += amt;
+        const paid = o.payment?.paymentAmount ?? null;
+        if (paid > 0 && amt > own) {
+          flag = `카드 등 실결제 ${paid.toLocaleString('ko-KR')}원과 함께 본인 몫(${Math.round(own).toLocaleString('ko-KR')}원)보다 많은 적립금 사용`;
+          o.flag = flag;
+        }
+        if (isWork(o)) {
+          const fromCompany = Math.min(company, amt);
+          company -= fromCompany; own -= amt - fromCompany;
+          t.workUsed += amt; bucket = 'company';
+        } else {
+          const fromOwn = Math.min(Math.max(own, 0), amt);
+          own -= fromOwn; company -= amt - fromOwn;
+          t.ownUsed += amt; bucket = 'own';
+        }
+        break;
+      }
+      case 'refund':
+        o.refunded += l.increase;
+        if (isWork(o)) { company += l.increase; t.workUsed -= l.increase; bucket = 'company'; }
+        else { own += l.increase; t.ownUsed -= l.increase; bucket = 'own'; }
+        break;
+      case 'reversal':
+        o.reversal += l.decrease;
+        if (isWork(o)) { company -= l.decrease; t.workEarned -= l.decrease; bucket = 'company'; }
+        else { own -= l.decrease; t.ownEarned -= l.decrease; bucket = 'own'; }
+        break;
+      case 'reclaim': company -= l.decrease; t.reclaimed += l.decrease; bucket = 'company'; break;
+      case 'expire': {
+        // 소멸은 회사 몫에서 먼저 뺀다 (업무용으로 받아 두고 안 쓴 적립금이 보통 먼저 소멸)
+        const fromCompany = Math.min(Math.max(company, 0), l.decrease);
+        company -= fromCompany; own -= l.decrease - fromCompany;
+        t.expired += l.decrease; bucket = fromCompany ? 'company' : 'own';
+        break;
+      }
+      default: break;
+    }
+    timeline.push({ ...l, type: kind, bucket, flag, companyAfter: company, ownAfter: own });
+  }
+
+  for (const o of orders.values()) o.work = isWork(o);
+  const lastBalance = [...sorted].reverse().find((l) => l.balance !== null)?.balance ?? null;
+  const orderList = [...orders.values()].sort((a, b) => b.firstAt.localeCompare(a.firstAt));
+
+  return {
+    toReclaim: Math.max(0, Math.round(company)),
+    own: Math.round(own),
+    balance: lastBalance ?? Math.round(company + own),
+    totals: t,
+    orders: orderList,
+    flags: orderList.filter((o) => o.flag).length,
+    lastAt: sorted.at(-1)?.at ?? '',
+    timeline: timeline.reverse(),
+  };
+}
+
+/** 등록된 관리 대상 전원 → 카드용 요약 + 전체 합계 */
+export function analyzeAll(watch, lines, opts = {}) {
+  const byMember = new Map(watch.map((w) => [w.memberId, []]));
+  for (const l of lines) byMember.get(l.memberId)?.push(l);
+  const members = watch.map((w) => ({ ...w, ...analyzeMember(byMember.get(w.memberId) ?? [], opts) }));
+  return {
+    members: members.sort((a, b) => b.flags - a.flags || b.toReclaim - a.toReclaim || a.memberId.localeCompare(b.memberId)),
+    total: {
+      count: members.length,
+      toReclaim: members.reduce((s, m) => s + m.toReclaim, 0),
+      own: members.reduce((s, m) => s + Math.max(0, m.own), 0),
+      reclaimed: members.reduce((s, m) => s + m.totals.reclaimed, 0),
+      flags: members.reduce((s, m) => s + m.flags, 0),
+    },
+  };
+}
