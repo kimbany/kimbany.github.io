@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-06T07:14:11.879Z",
+  "generatedAt": "2026-10-06T07:27:47.309Z",
   "range": {
     "from": "2026-09-01",
     "to": "2026-09-14"
@@ -278,7 +278,7 @@
       "decrease": 20000,
       "delta": 31200,
       "group": "MonFruit",
-      "balance": null
+      "balance": 31200
     },
     {
       "key": "staff01",
@@ -287,7 +287,7 @@
       "decrease": 31000,
       "delta": 1550,
       "group": "MonFruit",
-      "balance": null
+      "balance": 1550
     },
     {
       "key": "3732104426@n",
@@ -296,7 +296,7 @@
       "decrease": 10000,
       "delta": 200,
       "group": "MonFruit",
-      "balance": null
+      "balance": 200
     },
     {
       "key": "member0",
@@ -341,7 +341,7 @@
       "decrease": 3000,
       "delta": 2000,
       "group": "MonFruit",
-      "balance": null
+      "balance": 2000
     },
     {
       "key": "member19",
@@ -632,7 +632,7 @@
       "increase": 200,
       "decrease": 0,
       "delta": 200,
-      "balance": null,
+      "balance": 200,
       "unavailable": 0,
       "admin": ""
     },
@@ -827,7 +827,7 @@
       "increase": 0,
       "decrease": 1000,
       "delta": -1000,
-      "balance": null,
+      "balance": 1550,
       "unavailable": 0,
       "admin": "monfruit"
     },
@@ -842,7 +842,7 @@
       "increase": 0,
       "decrease": 10000,
       "delta": -10000,
-      "balance": null,
+      "balance": 0,
       "unavailable": 0,
       "admin": ""
     },
@@ -917,7 +917,7 @@
       "increase": 10000,
       "decrease": 0,
       "delta": 10000,
-      "balance": null,
+      "balance": 10000,
       "unavailable": 0,
       "admin": "monfruit"
     },
@@ -932,7 +932,7 @@
       "increase": 0,
       "decrease": 3000,
       "delta": -3000,
-      "balance": null,
+      "balance": 2000,
       "unavailable": 0,
       "admin": ""
     },
@@ -1007,7 +1007,7 @@
       "increase": 500,
       "decrease": 0,
       "delta": 500,
-      "balance": null,
+      "balance": 2550,
       "unavailable": 0,
       "admin": ""
     },
@@ -1082,7 +1082,7 @@
       "increase": 450,
       "decrease": 0,
       "delta": 450,
-      "balance": null,
+      "balance": 2050,
       "unavailable": 0,
       "admin": ""
     },
@@ -1097,7 +1097,7 @@
       "increase": 500,
       "decrease": 0,
       "delta": 500,
-      "balance": null,
+      "balance": 31200,
       "unavailable": 0,
       "admin": ""
     },
@@ -1172,7 +1172,7 @@
       "increase": 1000,
       "decrease": 0,
       "delta": 1000,
-      "balance": null,
+      "balance": 1600,
       "unavailable": 0,
       "admin": ""
     },
@@ -1187,7 +1187,7 @@
       "increase": 700,
       "decrease": 0,
       "delta": 700,
-      "balance": null,
+      "balance": 30700,
       "unavailable": 0,
       "admin": ""
     },
@@ -1262,7 +1262,7 @@
       "increase": 600,
       "decrease": 0,
       "delta": 600,
-      "balance": null,
+      "balance": 600,
       "unavailable": 0,
       "admin": ""
     },
@@ -1337,7 +1337,7 @@
       "increase": 5000,
       "decrease": 0,
       "delta": 5000,
-      "balance": null,
+      "balance": 5000,
       "unavailable": 0,
       "admin": "monfruit"
     },
@@ -1412,7 +1412,7 @@
       "increase": 0,
       "decrease": 20000,
       "delta": -20000,
-      "balance": null,
+      "balance": 30000,
       "unavailable": 0,
       "admin": ""
     },
@@ -1487,7 +1487,7 @@
       "increase": 0,
       "decrease": 30000,
       "delta": -30000,
-      "balance": null,
+      "balance": 0,
       "unavailable": 0,
       "admin": ""
     },
@@ -1562,7 +1562,7 @@
       "increase": 30000,
       "decrease": 0,
       "delta": 30000,
-      "balance": null,
+      "balance": 30000,
       "unavailable": 0,
       "admin": "monfruit"
     },
@@ -1577,7 +1577,7 @@
       "increase": 50000,
       "decrease": 0,
       "delta": 50000,
-      "balance": null,
+      "balance": 50000,
       "unavailable": 0,
       "admin": "monfruit"
     },
