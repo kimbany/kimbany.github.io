@@ -1,0 +1,53 @@
+name: 카페24 적립금 매일 수집
+
+# 매일 아침 카페24 적립금 내역을 받아 Firestore(monfruit-sales)에 쌓는다.
+# 화면: https://invedory.com/channel-sync/points.html (매출 리포트 비밀번호로 로그인)
+#
+# 필요한 저장소 비밀값 (Settings → Secrets and variables → Actions):
+#   CAFE24_CLIENT_ID, CAFE24_CLIENT_SECRET  카페24 개발자센터 앱 > 인증정보
+#   FIREBASE_PASSWORD                       "mf" + 매출 리포트 비밀번호 4자리
+# 카페24 토큰은 Firestore cafe24Auth/token 에서 읽고, 갱신하면 다시 저장한다
+# (처음 한 번은 PC 에서 node src/cafe24-auth.js 로 연결해야 거기 토큰이 생긴다).
+
+on:
+  schedule:
+    - cron: '10 22 * * *'   # 매일 07:10 KST
+  workflow_dispatch:
+    inputs:
+      from:
+        description: '시작일 (YYYY-MM-DD, 비우면 최근 30일)'
+        required: false
+      to:
+        description: '종료일 (YYYY-MM-DD, 비우면 오늘)'
+        required: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cafe24-points   # 두 번 겹쳐 돌면 refresh_token 이 서로 무효가 된다
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: 적립금 받아오기 → DB 저장
+        working-directory: channel-sync
+        env:
+          CAFE24_MALL_ID: daseong24
+          CAFE24_CLIENT_ID: ${{ secrets.CAFE24_CLIENT_ID }}
+          CAFE24_CLIENT_SECRET: ${{ secrets.CAFE24_CLIENT_SECRET }}
+          FIREBASE_PASSWORD: ${{ secrets.FIREBASE_PASSWORD }}
+          FROM: ${{ inputs.from }}
+          TO: ${{ inputs.to }}
+        run: |
+          args="--no-raw"
+          [ -n "$FROM" ] && args="$args --from $FROM"
+          [ -n "$TO" ] && args="$args --to $TO"
+          node src/points.js $args

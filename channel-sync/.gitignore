@@ -4,3 +4,5 @@ data/raw/
 data/daily/
 data/latest.json
 data/.cafe24-token.json
+data/points/*
+!data/points/sample.json
