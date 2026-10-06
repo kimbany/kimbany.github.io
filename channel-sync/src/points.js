@@ -7,7 +7,8 @@ import { createInterface } from 'node:readline/promises';
 import { ROOT } from './core/store.js';
 import { createHash } from 'node:crypto';
 import { kstToday } from './core/normalize.js';
-import { pointLine, summarize } from './core/points.js';
+import { pointLine, summarize, pick } from './core/points.js';
+import { num } from './core/normalize.js';
 import { sharedFirestore } from './core/firestore.js';
 import { log } from './core/log.js';
 
@@ -133,8 +134,50 @@ function lineIds(lines) {
   });
 }
 
-async function saveToFirestore(lines, snapshot) {
+/**
+ * 관리 대상(설정 화면에서 등록한 직원 · 관리 고객)의 주문은 실결제 금액까지 받아 둔다 —
+ * '카드와 함께 본인 몫보다 많은 적립금 사용' 을 찾으려면 주문의 실결제가 필요하다.
+ */
+async function savePaymentsForWatched(db, lines, call) {
+  let watch = [];
+  try { watch = await db.list('pointWatchMembers'); } catch (err) { log.warn(`관리 대상 목록 읽기 실패: ${err.message.split('\n')[0]}`); return; }
+  const ids = new Set(watch.map((w) => w.memberId ?? w.id));
+  const orderIds = [...new Set(lines.filter((l) => ids.has(l.memberId) && l.orderId).map((l) => l.orderId))];
+  if (!orderIds.length) return;
+  const docs = [];
+  for (const orderId of orderIds) {
+    try {
+      const res = await call(`orders/${orderId}`, {});
+      const o = res?.order ?? res ?? {};
+      const amt = o.actual_order_amount ?? {};
+      docs.push({
+        collection: 'cafe24OrderPayments',
+        id: orderId,
+        data: {
+          orderId,
+          memberId: String(pick(o, 'member_id') ?? lines.find((l) => l.orderId === orderId)?.memberId ?? ''),
+          orderedAt: String(pick(o, 'order_date') ?? ''),
+          paymentAmount: num(pick(o, 'payment_amount') ?? pick(amt, 'payment_amount')),
+          pointsSpent: num(pick(amt, 'points_spent_amount') ?? pick(o, 'points_spent_amount')),
+          orderAmount: num(pick(amt, 'order_price_amount') ?? pick(o, 'order_price_amount')),
+          paymentMethod: [].concat(pick(o, 'payment_method_name', 'payment_method') ?? []).join(', '),
+          raw: JSON.stringify(o).slice(0, 20_000), // 필드명이 다를 때 보고 맞추려고 원본도 남긴다
+          syncedAt: new Date().toISOString(),
+        },
+      });
+    } catch (err) {
+      log.warn(`주문 ${orderId} 결제정보 실패: ${err.message.split('\n')[0]}`);
+    }
+  }
+  if (docs.length) {
+    await db.upsert(docs);
+    log.ok(`관리 대상 ${ids.size}명 주문 결제정보 ${docs.length}건 저장`);
+  }
+}
+
+async function saveToFirestore(lines, snapshot, call) {
   const db = await sharedFirestore();
+  if (call) await savePaymentsForWatched(db, lines, call);
   const syncedAt = new Date().toISOString();
   const ids = lineIds(lines);
   const docs = lines.map((l, i) => ({
@@ -193,7 +236,40 @@ function mockData({ from, to }) {
       });
     }
   }
-  return { reportRaw: null, rows };
+  // 관리 적립금 화면용 시나리오: 직원 2명 + 관리 고객 1명
+  const D = (day, hh = '10') => `${addDays(from, Math.min(day, Math.max(0, (Date.parse(to) - Date.parse(from)) / 86400_000)))} ${hh}:00:00`;
+  const S = (member, day, reason, inc, dec, order = '', admin = '') => rows.push({
+    member_id: member, group_name: 'MonFruit', issue_date: D(day), reason, order_id: order, admin_id: admin,
+    available_points_increase: inc, available_points_decrease: dec ? -dec : 0,
+  });
+  S('staff01', 0, '리뷰용 적립금 지급', 30000, 0, '', 'monfruit');
+  S('staff01', 1, '주문 사용', 0, 30000, 'W-1001');
+  S('staff01', 4, '구매 적립', 600, 0, 'W-1001');
+  S('staff01', 5, '사진 리뷰 작성 적립금', 1000, 0, 'W-1001');
+  S('staff01', 6, '구매 적립', 450, 0, 'P-2001');
+  S('staff01', 7, '리뷰 작성 적립금', 500, 0, 'P-2001');
+  S('staff01', 9, '적립금 회수', 0, 1000, '', 'monfruit');
+  S('staff02', 0, '체험단 적립금', 50000, 0, '', 'monfruit');
+  S('staff02', 2, '주문 사용', 0, 20000, 'W-1002');
+  S('staff02', 5, '구매 적립', 700, 0, 'W-1002');
+  S('staff02', 6, '리뷰 작성 적립금', 500, 0, 'W-1002');
+  S('hong123', 3, 'CS 처리 보상', 5000, 0, '', 'monfruit');
+  S('hong123', 8, '주문 사용', 0, 3000, 'P-2002');
+  const demo = {
+    watch: [
+      { memberId: 'staff01', name: '김OO 매니저', type: '직원' },
+      { memberId: 'staff02', name: '이OO', type: '직원' },
+      { memberId: 'hong123', name: '배송 지연 보상 고객', type: '관리 고객' },
+    ],
+    payments: {
+      'W-1001': { paymentAmount: 0, pointsSpent: 30000 },
+      'W-1002': { paymentAmount: 15000, pointsSpent: 20000 },
+      'P-2001': { paymentAmount: 22500, pointsSpent: 0 },
+      'P-2002': { paymentAmount: 12000, pointsSpent: 3000 },
+    },
+    notes: { 'W-1001': { note: '9월 신상품 리뷰 작업' } },
+  };
+  return { reportRaw: null, rows, demo };
 }
 
 async function main() {
@@ -210,18 +286,20 @@ async function main() {
   if (!args.mock && args.db) await askFirebasePin();
 
   let raw;
+  let cafe24Call = null;
   if (args.mock) {
     raw = mockData({ from, to });
   } else {
     const { missing, ready } = credentials(CREDENTIAL_KEYS);
     if (!ready) throw new Error(`.env 미설정: ${missing.join(', ')}`);
-    raw = await collect(await connect(), { from, to, member: args.member });
+    cafe24Call = await connect();
+    raw = await collect(cafe24Call, { from, to, member: args.member });
     if (args.saveRaw) await writeJson(join(DATA, 'raw', `${to}.json`), raw);
   }
 
   const lines = raw.rows.map(pointLine);
   const snapshot = summarize(lines, { from, to, reportRaw: raw.reportRaw });
-  if (args.mock) snapshot.mock = true;
+  if (args.mock) { snapshot.mock = true; snapshot.managedDemo = raw.demo; }
   await writeJson(join(DATA, 'daily', `${to}.json`), snapshot);
   await writeJson(join(DATA, 'latest.json'), snapshot);
 
@@ -235,7 +313,7 @@ async function main() {
   if (!args.db) log.info('Firestore 저장 생략 (--no-db)');
   else if (args.mock) log.info('Firestore 저장 생략 — 가짜 데이터(--mock)는 DB 에 넣지 않습니다');
   else if (!fb.ready) log.warn(`DB 저장 건너뜀 — .env 미설정: ${fb.missing.join(', ')}`);
-  else await saveToFirestore(lines, snapshot);
+  else await saveToFirestore(lines, snapshot, cafe24Call);
 }
 
 main().catch((err) => {

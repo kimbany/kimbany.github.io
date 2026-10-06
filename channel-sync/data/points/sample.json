@@ -1,89 +1,89 @@
 {
-  "generatedAt": "2026-10-06T02:43:42.980Z",
+  "generatedAt": "2026-10-06T07:08:19.160Z",
   "range": {
     "from": "2026-09-01",
     "to": "2026-09-14"
   },
   "report": {
-    "increase": 62500,
-    "decrease": 43000,
-    "total": 19500,
+    "increase": 151250,
+    "decrease": 97000,
+    "total": 54250,
     "unavailable": 0,
     "unavailableCoupon": 0,
     "fromReport": false
   },
-  "lineCount": 56,
-  "memberCount": 23,
+  "lineCount": 69,
+  "memberCount": 26,
   "byDate": [
     {
       "key": "2026-09-01",
-      "count": 4,
-      "increase": 2500,
+      "count": 6,
+      "increase": 82500,
       "decrease": 5000,
-      "delta": -2500
+      "delta": 77500
     },
     {
       "key": "2026-09-02",
-      "count": 4,
+      "count": 5,
       "increase": 3500,
-      "decrease": 500,
-      "delta": 3000
+      "decrease": 30500,
+      "delta": -27000
     },
     {
       "key": "2026-09-03",
-      "count": 4,
+      "count": 5,
       "increase": 5500,
-      "decrease": 5000,
-      "delta": 500
+      "decrease": 25000,
+      "delta": -19500
     },
     {
       "key": "2026-09-04",
-      "count": 4,
-      "increase": 3500,
+      "count": 5,
+      "increase": 8500,
       "decrease": 500,
-      "delta": 3000
+      "delta": 8000
     },
     {
       "key": "2026-09-05",
-      "count": 4,
-      "increase": 8500,
+      "count": 5,
+      "increase": 9100,
       "decrease": 1000,
-      "delta": 7500
+      "delta": 8100
     },
     {
       "key": "2026-09-06",
-      "count": 4,
-      "increase": 1500,
+      "count": 6,
+      "increase": 3200,
       "decrease": 8000,
-      "delta": -6500
+      "delta": -4800
     },
     {
       "key": "2026-09-07",
-      "count": 4,
-      "increase": 5500,
+      "count": 6,
+      "increase": 6450,
       "decrease": 1000,
-      "delta": 4500
+      "delta": 5450
     },
     {
       "key": "2026-09-08",
-      "count": 4,
-      "increase": 6000,
-      "decrease": 2000,
-      "delta": 4000
-    },
-    {
-      "key": "2026-09-09",
-      "count": 4,
-      "increase": 3000,
-      "decrease": 5500,
-      "delta": -2500
-    },
-    {
-      "key": "2026-09-10",
-      "count": 4,
+      "count": 5,
       "increase": 6500,
       "decrease": 2000,
       "delta": 4500
+    },
+    {
+      "key": "2026-09-09",
+      "count": 5,
+      "increase": 3000,
+      "decrease": 8500,
+      "delta": -5500
+    },
+    {
+      "key": "2026-09-10",
+      "count": 5,
+      "increase": 6500,
+      "decrease": 3000,
+      "delta": 3500
     },
     {
       "key": "2026-09-11",
@@ -149,34 +149,48 @@
     },
     {
       "key": "MonFruit",
-      "count": 13,
-      "increase": 14000,
-      "decrease": 14000,
-      "delta": 0,
-      "members": 5
+      "count": 26,
+      "increase": 102750,
+      "decrease": 68000,
+      "delta": 34750,
+      "members": 8
     }
   ],
   "reviews": {
     "text": {
-      "count": 10,
-      "amount": 5000
+      "count": 12,
+      "amount": 6000
     },
     "photoVideo": {
-      "count": 3,
-      "amount": 3000
+      "count": 4,
+      "amount": 4000
     },
     "other": {
-      "count": 0,
-      "amount": 0
+      "count": 1,
+      "amount": 30000
     }
   },
   "byReason": [
     {
       "key": "주문 사용",
-      "count": 9,
+      "count": 12,
       "increase": 0,
-      "decrease": 22000,
-      "delta": -22000
+      "decrease": 75000,
+      "delta": -75000
+    },
+    {
+      "key": "체험단 적립금",
+      "count": 1,
+      "increase": 50000,
+      "decrease": 0,
+      "delta": 50000
+    },
+    {
+      "key": "리뷰용 적립금 지급",
+      "count": 1,
+      "increase": 30000,
+      "decrease": 0,
+      "delta": 30000
     },
     {
       "key": "소멸",
@@ -193,6 +207,13 @@
       "delta": 20000
     },
     {
+      "key": "구매 적립",
+      "count": 10,
+      "increase": 18250,
+      "decrease": 0,
+      "delta": 18250
+    },
+    {
       "key": "이벤트 지급",
       "count": 9,
       "increase": 18000,
@@ -200,15 +221,15 @@
       "delta": 18000
     },
     {
-      "key": "구매 적립",
-      "count": 7,
-      "increase": 16500,
-      "decrease": 0,
-      "delta": 16500
-    },
-    {
       "key": "텍스트 리뷰 작성 적립",
       "count": 10,
+      "increase": 5000,
+      "decrease": 0,
+      "delta": 5000
+    },
+    {
+      "key": "CS 처리 보상",
+      "count": 1,
       "increase": 5000,
       "decrease": 0,
       "delta": 5000
@@ -219,9 +240,48 @@
       "increase": 3000,
       "decrease": 0,
       "delta": 3000
+    },
+    {
+      "key": "사진 리뷰 작성 적립금",
+      "count": 1,
+      "increase": 1000,
+      "decrease": 0,
+      "delta": 1000
+    },
+    {
+      "key": "리뷰 작성 적립금",
+      "count": 2,
+      "increase": 1000,
+      "decrease": 0,
+      "delta": 1000
+    },
+    {
+      "key": "적립금 회수",
+      "count": 1,
+      "increase": 0,
+      "decrease": 1000,
+      "delta": -1000
     }
   ],
   "byMember": [
+    {
+      "key": "staff02",
+      "count": 4,
+      "increase": 51200,
+      "decrease": 20000,
+      "delta": 31200,
+      "group": "MonFruit",
+      "balance": null
+    },
+    {
+      "key": "staff01",
+      "count": 7,
+      "increase": 32550,
+      "decrease": 31000,
+      "delta": 1550,
+      "group": "MonFruit",
+      "balance": null
+    },
     {
       "key": "member0",
       "count": 3,
@@ -257,6 +317,15 @@
       "delta": 2000,
       "group": "VIP",
       "balance": 9700
+    },
+    {
+      "key": "hong123",
+      "count": 2,
+      "increase": 5000,
+      "decrease": 3000,
+      "delta": 2000,
+      "group": "MonFruit",
+      "balance": null
     },
     {
       "key": "member19",
@@ -717,6 +786,21 @@
       "admin": ""
     },
     {
+      "memberId": "staff01",
+      "group": "MonFruit",
+      "orderId": "",
+      "at": "2026-09-10T01:00:00.000Z",
+      "date": "2026-09-10",
+      "kind": "",
+      "reason": "적립금 회수",
+      "increase": 0,
+      "decrease": 1000,
+      "delta": -1000,
+      "balance": null,
+      "unavailable": 0,
+      "admin": "monfruit"
+    },
+    {
       "memberId": "member5",
       "group": "MonFruit",
       "orderId": "",
@@ -773,6 +857,21 @@
       "decrease": 5000,
       "delta": -5000,
       "balance": 17100,
+      "unavailable": 0,
+      "admin": ""
+    },
+    {
+      "memberId": "hong123",
+      "group": "MonFruit",
+      "orderId": "P-2002",
+      "at": "2026-09-09T01:00:00.000Z",
+      "date": "2026-09-09",
+      "kind": "",
+      "reason": "주문 사용",
+      "increase": 0,
+      "decrease": 3000,
+      "delta": -3000,
+      "balance": null,
       "unavailable": 0,
       "admin": ""
     },
@@ -837,6 +936,21 @@
       "admin": ""
     },
     {
+      "memberId": "staff01",
+      "group": "MonFruit",
+      "orderId": "P-2001",
+      "at": "2026-09-08T01:00:00.000Z",
+      "date": "2026-09-08",
+      "kind": "",
+      "reason": "리뷰 작성 적립금",
+      "increase": 500,
+      "decrease": 0,
+      "delta": 500,
+      "balance": null,
+      "unavailable": 0,
+      "admin": ""
+    },
+    {
       "memberId": "member9",
       "group": "VIP",
       "orderId": "",
@@ -893,6 +1007,36 @@
       "decrease": 0,
       "delta": 500,
       "balance": 3500,
+      "unavailable": 0,
+      "admin": ""
+    },
+    {
+      "memberId": "staff01",
+      "group": "MonFruit",
+      "orderId": "P-2001",
+      "at": "2026-09-07T01:00:00.000Z",
+      "date": "2026-09-07",
+      "kind": "",
+      "reason": "구매 적립",
+      "increase": 450,
+      "decrease": 0,
+      "delta": 450,
+      "balance": null,
+      "unavailable": 0,
+      "admin": ""
+    },
+    {
+      "memberId": "staff02",
+      "group": "MonFruit",
+      "orderId": "W-1002",
+      "at": "2026-09-07T01:00:00.000Z",
+      "date": "2026-09-07",
+      "kind": "",
+      "reason": "리뷰 작성 적립금",
+      "increase": 500,
+      "decrease": 0,
+      "delta": 500,
+      "balance": null,
       "unavailable": 0,
       "admin": ""
     },
@@ -957,6 +1101,36 @@
       "admin": ""
     },
     {
+      "memberId": "staff01",
+      "group": "MonFruit",
+      "orderId": "W-1001",
+      "at": "2026-09-06T01:00:00.000Z",
+      "date": "2026-09-06",
+      "kind": "",
+      "reason": "사진 리뷰 작성 적립금",
+      "increase": 1000,
+      "decrease": 0,
+      "delta": 1000,
+      "balance": null,
+      "unavailable": 0,
+      "admin": ""
+    },
+    {
+      "memberId": "staff02",
+      "group": "MonFruit",
+      "orderId": "W-1002",
+      "at": "2026-09-06T01:00:00.000Z",
+      "date": "2026-09-06",
+      "kind": "",
+      "reason": "구매 적립",
+      "increase": 700,
+      "decrease": 0,
+      "delta": 700,
+      "balance": null,
+      "unavailable": 0,
+      "admin": ""
+    },
+    {
       "memberId": "member13",
       "group": "DIAMOND",
       "orderId": "",
@@ -1013,6 +1187,21 @@
       "decrease": 1000,
       "delta": -1000,
       "balance": 10900,
+      "unavailable": 0,
+      "admin": ""
+    },
+    {
+      "memberId": "staff01",
+      "group": "MonFruit",
+      "orderId": "W-1001",
+      "at": "2026-09-05T01:00:00.000Z",
+      "date": "2026-09-05",
+      "kind": "",
+      "reason": "구매 적립",
+      "increase": 600,
+      "decrease": 0,
+      "delta": 600,
+      "balance": null,
       "unavailable": 0,
       "admin": ""
     },
@@ -1077,6 +1266,21 @@
       "admin": ""
     },
     {
+      "memberId": "hong123",
+      "group": "MonFruit",
+      "orderId": "",
+      "at": "2026-09-04T01:00:00.000Z",
+      "date": "2026-09-04",
+      "kind": "",
+      "reason": "CS 처리 보상",
+      "increase": 5000,
+      "decrease": 0,
+      "delta": 5000,
+      "balance": null,
+      "unavailable": 0,
+      "admin": "monfruit"
+    },
+    {
       "memberId": "member17",
       "group": "GOLD",
       "orderId": "20260904-0000012",
@@ -1133,6 +1337,21 @@
       "decrease": 2000,
       "delta": -2000,
       "balance": 18300,
+      "unavailable": 0,
+      "admin": ""
+    },
+    {
+      "memberId": "staff02",
+      "group": "MonFruit",
+      "orderId": "W-1002",
+      "at": "2026-09-03T01:00:00.000Z",
+      "date": "2026-09-03",
+      "kind": "",
+      "reason": "주문 사용",
+      "increase": 0,
+      "decrease": 20000,
+      "delta": -20000,
+      "balance": null,
       "unavailable": 0,
       "admin": ""
     },
@@ -1197,6 +1416,21 @@
       "admin": ""
     },
     {
+      "memberId": "staff01",
+      "group": "MonFruit",
+      "orderId": "W-1001",
+      "at": "2026-09-02T01:00:00.000Z",
+      "date": "2026-09-02",
+      "kind": "",
+      "reason": "주문 사용",
+      "increase": 0,
+      "decrease": 30000,
+      "delta": -30000,
+      "balance": null,
+      "unavailable": 0,
+      "admin": ""
+    },
+    {
       "memberId": "member21",
       "group": "SILVER",
       "orderId": "",
@@ -1257,6 +1491,36 @@
       "admin": ""
     },
     {
+      "memberId": "staff01",
+      "group": "MonFruit",
+      "orderId": "",
+      "at": "2026-09-01T01:00:00.000Z",
+      "date": "2026-09-01",
+      "kind": "",
+      "reason": "리뷰용 적립금 지급",
+      "increase": 30000,
+      "decrease": 0,
+      "delta": 30000,
+      "balance": null,
+      "unavailable": 0,
+      "admin": "monfruit"
+    },
+    {
+      "memberId": "staff02",
+      "group": "MonFruit",
+      "orderId": "",
+      "at": "2026-09-01T01:00:00.000Z",
+      "date": "2026-09-01",
+      "kind": "",
+      "reason": "체험단 적립금",
+      "increase": 50000,
+      "decrease": 0,
+      "delta": 50000,
+      "balance": null,
+      "unavailable": 0,
+      "admin": "monfruit"
+    },
+    {
       "memberId": "member0",
       "group": "MonFruit",
       "orderId": "",
@@ -1272,5 +1536,47 @@
       "admin": ""
     }
   ],
-  "mock": true
+  "mock": true,
+  "managedDemo": {
+    "watch": [
+      {
+        "memberId": "staff01",
+        "name": "김OO 매니저",
+        "type": "직원"
+      },
+      {
+        "memberId": "staff02",
+        "name": "이OO",
+        "type": "직원"
+      },
+      {
+        "memberId": "hong123",
+        "name": "배송 지연 보상 고객",
+        "type": "관리 고객"
+      }
+    ],
+    "payments": {
+      "W-1001": {
+        "paymentAmount": 0,
+        "pointsSpent": 30000
+      },
+      "W-1002": {
+        "paymentAmount": 15000,
+        "pointsSpent": 20000
+      },
+      "P-2001": {
+        "paymentAmount": 22500,
+        "pointsSpent": 0
+      },
+      "P-2002": {
+        "paymentAmount": 12000,
+        "pointsSpent": 3000
+      }
+    },
+    "notes": {
+      "W-1001": {
+        "note": "9월 신상품 리뷰 작업"
+      }
+    }
+  }
 }

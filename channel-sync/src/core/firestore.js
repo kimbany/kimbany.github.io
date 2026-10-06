@@ -84,7 +84,22 @@ export async function connectFirestore({ apiKey, projectId, email, password }) {
     }
   }
 
-  return { upsert, get };
+  /** 컬렉션 전체 읽기 (관리 대상 목록처럼 작은 컬렉션용) */
+  async function list(collection) {
+    const out = [];
+    let pageToken = '';
+    do {
+      const res = await request(`${FS_BASE()}/v1/${root}/${collection}?pageSize=300${pageToken ? `&pageToken=${encodeURIComponent(pageToken)}` : ''}`, {
+        headers: { Authorization: `Bearer ${auth.idToken}` },
+        channel: 'firebase',
+      });
+      for (const d of res?.documents ?? []) out.push({ id: d.name.split('/').pop(), ...decode({ mapValue: { fields: d.fields ?? {} } }) });
+      pageToken = res?.nextPageToken ?? '';
+    } while (pageToken);
+    return out;
+  }
+
+  return { upsert, get, list };
 }
 
 let shared = null;
