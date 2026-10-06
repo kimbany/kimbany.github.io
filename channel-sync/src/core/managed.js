@@ -29,8 +29,12 @@ export const TYPES = ['직원', '관리 고객'];
  *  grant(회사 지급) · cs · event(기타 본인 지급) · purchase · review (주문 연결)
  *  use(주문 사용) · refund(사용 취소로 돌려받음) · reversal(적립 취소) · reclaim(관리자 차감=회수) · expire
  */
+/** 카페24 는 적립금 쿠폰 지급에도 order_id 칸에 'mileage_coupon_…' 을 넣는다 — 주문이 아니다. */
+export const isCoupon = (l) => /^mileage_coupon/i.test(l.orderId ?? '');
+
 export function classify(l, R = MANAGED_RULES) {
   const text = `${l.reason} ${l.kind}`;
+  if (isCoupon(l)) return l.increase > 0 ? 'coupon' : 'reclaim';
   if (l.increase > 0) {
     if (l.orderId && R.cancel.test(text)) return 'refund';
     if (R.cs.test(text)) return 'cs';
@@ -51,7 +55,7 @@ export function classify(l, R = MANAGED_RULES) {
 }
 
 export const KIND_LABEL = {
-  grant: '회사 지급', cs: 'CS 지급', event: '기타 지급', purchase: '구매 적립', review: '리뷰 적립',
+  grant: '회사 지급', cs: 'CS 지급', coupon: '적립금 쿠폰', event: '기타 지급', purchase: '구매 적립', review: '리뷰 적립',
   use: '주문 사용', refund: '사용 취소', reversal: '적립 취소', reclaim: '관리자 차감(회수)', expire: '소멸', other: '기타',
 };
 
@@ -87,13 +91,14 @@ export function analyzeMember(lines, { payments = {}, notes = {} } = {}) {
 
   for (const l of sorted) {
     const kind = classify(l);
-    const o = l.orderId ? orderOf(l.orderId, l.at) : null;
+    const o = l.orderId && !isCoupon(l) ? orderOf(l.orderId, l.at) : null;
     let bucket = '';
     let flag = '';
     switch (kind) {
       case 'grant': company += l.increase; t.grant += l.increase; bucket = 'company'; break;
       case 'cs': own += l.increase; t.cs += l.increase; bucket = 'own'; break;
-      case 'event': own += l.increase; t.event += l.increase; bucket = 'own'; break;
+      case 'event':
+      case 'coupon': own += l.increase; t.event += l.increase; bucket = 'own'; break; // 적립금 쿠폰 = 기타 지급(본인 몫)
       case 'purchase':
       case 'review': {
         if (o.autoWork === null) o.autoWork = false; // 적립만 있고 사용이 없던 주문 = 본인 주문

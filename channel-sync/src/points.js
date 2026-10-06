@@ -144,7 +144,8 @@ async function savePaymentsForWatched(db, lines, call) {
     for (const p of await db.list('pointWatchPeople')) for (const id of p.memberIds ?? []) ids.add(id);
     for (const w of await db.list('pointWatchMembers')) ids.add(w.memberId ?? w.id); // 예전 방식
   } catch (err) { log.warn(`관리 대상 목록 읽기 실패: ${err.message.split('\n')[0]}`); return; }
-  const orderIds = [...new Set(lines.filter((l) => ids.has(l.memberId) && l.orderId).map((l) => l.orderId))];
+  // 적립금 쿠폰은 order_id 칸에 'mileage_coupon_…' 이 들어오지만 주문이 아니다
+  const orderIds = [...new Set(lines.filter((l) => ids.has(l.memberId) && l.orderId && !/^mileage_coupon/i.test(l.orderId)).map((l) => l.orderId))];
   if (!orderIds.length) return;
   const docs = [];
   for (const orderId of orderIds) {
