@@ -25,6 +25,19 @@ export function encode(v) {
   return { mapValue: { fields: encodeFields(v) } };
 }
 
+/** Firestore Value → JS 값 */
+export function decode(v) {
+  if (!v || 'nullValue' in v) return null;
+  if ('booleanValue' in v) return v.booleanValue;
+  if ('integerValue' in v) return Number(v.integerValue);
+  if ('doubleValue' in v) return v.doubleValue;
+  if ('stringValue' in v) return v.stringValue;
+  if ('timestampValue' in v) return v.timestampValue;
+  if ('arrayValue' in v) return (v.arrayValue.values ?? []).map(decode);
+  if ('mapValue' in v) return Object.fromEntries(Object.entries(v.mapValue.fields ?? {}).map(([k, x]) => [k, decode(x)]));
+  return null;
+}
+
 const encodeFields = (obj) => Object.fromEntries(
   Object.entries(obj).filter(([, x]) => x !== undefined).map(([k, x]) => [k, encode(x)]),
 );
@@ -57,5 +70,33 @@ export async function connectFirestore({ apiKey, projectId, email, password }) {
     return docs.length;
   }
 
-  return { upsert };
+  /** 문서 하나 읽기. 없으면 null. */
+  async function get(collection, id) {
+    try {
+      const doc = await request(`${FS_BASE()}/v1/${root}/${collection}/${id}`, {
+        headers: { Authorization: `Bearer ${auth.idToken}` },
+        channel: 'firebase',
+      });
+      return decode({ mapValue: { fields: doc?.fields ?? {} } });
+    } catch (err) {
+      if (err.status === 404) return null;
+      throw err;
+    }
+  }
+
+  return { upsert, get };
+}
+
+let shared = null;
+/**
+ * .env 의 Firebase 비밀번호로 한 번만 로그인해 같이 쓴다. 비밀번호가 없으면 null.
+ * (config.js 를 늦게 불러오는 건 config → store → normalize 순환을 피하려고)
+ */
+export async function sharedFirestore() {
+  if (shared) return shared;
+  const { firebaseCredentials } = await import('../config.js');
+  const { values, ready } = await firebaseCredentials();
+  if (!ready) return null;
+  shared = connectFirestore(values);
+  return shared;
 }

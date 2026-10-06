@@ -1,11 +1,9 @@
 #!/usr/bin/env node
-import { readFile, writeFile, mkdir } from 'node:fs/promises';
-import { join } from 'node:path';
 import { createInterface } from 'node:readline/promises';
 import { spawn } from 'node:child_process';
 import { request } from './core/http.js';
-import { loadEnv, env, credentials } from './config.js';
-import { ROOT } from './core/store.js';
+import { loadEnv, env, credentials, setEnv } from './config.js';
+import { saveToken } from './adapters/cafe24.js';
 import { log } from './core/log.js';
 
 /**
@@ -24,20 +22,6 @@ import { log } from './core/log.js';
 
 const KEYS = ['CAFE24_MALL_ID', 'CAFE24_CLIENT_ID', 'CAFE24_CLIENT_SECRET', 'CAFE24_REDIRECT_URI'];
 const DEFAULT_SCOPE = 'mall.read_product,mall.read_order,mall.read_mileage';
-
-/** .env 의 한 줄을 바꾼다. .env 가 없으면 .env.example 을 복사해 만든다. */
-async function setEnv(key, value) {
-  const path = join(ROOT, '.env');
-  let text;
-  try { text = await readFile(path, 'utf8'); } catch {
-    try { text = await readFile(join(ROOT, '.env.example'), 'utf8'); } catch { text = ''; }
-  }
-  const line = `${key}=${value}`;
-  const re = new RegExp(`^${key}=.*$`, 'm');
-  text = re.test(text) ? text.replace(re, line) : `${text.trimEnd()}\n${line}\n`;
-  await writeFile(path, text, 'utf8');
-  process.env[key] = value;
-}
 
 /** 처음 실행이면 .env 를 직접 만들 필요 없이 여기서 물어보고 채운다. */
 const QUESTIONS = {
@@ -131,11 +115,10 @@ async function main() {
   });
   if (!res?.refresh_token) throw new Error(`토큰 발급 실패: ${JSON.stringify(res)}`);
 
-  await mkdir(join(ROOT, 'data'), { recursive: true });
-  await writeFile(join(ROOT, 'data', '.cafe24-token.json'), JSON.stringify(res, null, 2), 'utf8');
+  const where = await saveToken(res);
   await setEnv('CAFE24_REFRESH_TOKEN', res.refresh_token);
 
-  log.ok('새 토큰 발급 완료 — data/.cafe24-token.json 저장');
+  log.ok(`새 토큰 발급 완료 — ${where === 'file+db' ? 'PC 파일 + Firestore(자동 실행용)' : 'data/.cafe24-token.json'} 저장`);
   log.ok('.env 의 CAFE24_REFRESH_TOKEN 도 바꿨습니다 — 이제 node src/points.js 로 적립금을 받아올 수 있습니다');
   log.info(`권한: ${(res.scopes ?? []).join(', ') || scope}`);
   if (!(res.scopes ?? [scope]).join(',').includes('mall.read_mileage')) {

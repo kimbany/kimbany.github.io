@@ -2,12 +2,13 @@
 import { mkdir, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { connect, CREDENTIAL_KEYS } from './adapters/cafe24.js';
-import { loadEnv, env, credentials } from './config.js';
+import { loadEnv, env, credentials, setEnv, firebaseCredentials } from './config.js';
+import { createInterface } from 'node:readline/promises';
 import { ROOT } from './core/store.js';
 import { createHash } from 'node:crypto';
 import { kstToday } from './core/normalize.js';
 import { pointLine, summarize } from './core/points.js';
-import { connectFirestore } from './core/firestore.js';
+import { sharedFirestore } from './core/firestore.js';
 import { log } from './core/log.js';
 
 /**
@@ -19,12 +20,12 @@ import { log } from './core/log.js';
  * 앱 권한에 '적립금 읽기(mall.read_mileage)' 가 있어야 한다.
  * 응답 필드명이 API 버전마다 조금씩 달라서 pick() 으로 후보를 훑고, 원본은 data/points/raw 에 남긴다.
  *
- * FIREBASE_* 키가 채워져 있으면 Firestore 에도 저장한다 (points.html 이 거기서 읽는다).
+ * FIREBASE_PASSWORD 가 있으면 Firestore(monfruit-sales)에도 저장한다 (points.html 이 거기서 읽는다).
+ * PC 에서 처음 돌릴 때 비밀번호가 없으면 매출 리포트 비밀번호 4자리를 물어보고 .env 에 넣는다.
  *   cafe24Points/{id}          내역 1줄 = 문서 1개 (같은 내역은 같은 id → 다시 돌려도 중복 안 생김)
  *   cafe24PointReports/{from_to}  그 기간 집계 스냅샷 (카페24 report 합계 포함)
  */
 
-const FIREBASE_KEYS = ['FIREBASE_API_KEY', 'FIREBASE_PROJECT_ID', 'FIREBASE_EMAIL', 'FIREBASE_PASSWORD'];
 const MEMBER_CAP = 300; // 스냅샷 문서 1MB 제한 — 회원별은 상위만 담고 나머지는 내역에서 다시 계산한다
 
 const DATA = join(ROOT, 'data', 'points');
@@ -133,13 +134,7 @@ function lineIds(lines) {
 }
 
 async function saveToFirestore(lines, snapshot) {
-  const { values } = credentials(FIREBASE_KEYS);
-  const db = await connectFirestore({
-    apiKey: values.FIREBASE_API_KEY,
-    projectId: values.FIREBASE_PROJECT_ID,
-    email: values.FIREBASE_EMAIL,
-    password: values.FIREBASE_PASSWORD,
-  });
+  const db = await sharedFirestore();
   const syncedAt = new Date().toISOString();
   const ids = lineIds(lines);
   const docs = lines.map((l, i) => ({
@@ -153,7 +148,20 @@ async function saveToFirestore(lines, snapshot) {
     data: { ...rest, id: reportId, byMember: byMember.slice(0, MEMBER_CAP), memberTruncated: byMember.length > MEMBER_CAP, syncedAt },
   });
   await db.upsert(docs);
-  log.ok(`Firestore 저장 — 내역 ${lines.length}건 + 집계 1건 (${values.FIREBASE_PROJECT_ID})`);
+  log.ok(`DB(Firestore) 저장 — 내역 ${lines.length}건 + 집계 1건`);
+}
+
+/** PC 에서 처음이면 매출 리포트 비밀번호를 물어 .env 에 넣는다 (깃허브 자동 실행은 비밀값으로 받음). */
+async function askFirebasePin() {
+  const fb = await firebaseCredentials();
+  if (fb.ready || !process.stdin.isTTY || fb.missing.includes('FIREBASE_API_KEY')) return;
+  const rl = createInterface({ input: process.stdin, output: process.stdout });
+  console.log('\nDB 에 저장하려면 매출 리포트(sales-report) 로그인 비밀번호 4자리가 필요합니다. (그냥 엔터 = 이번엔 DB 저장 안 함)');
+  const pin = (await rl.question('비밀번호 4자리 > ')).trim();
+  rl.close();
+  if (!/^\d{4}$/.test(pin)) { log.info('DB 저장 없이 진행합니다'); return; }
+  await setEnv('FIREBASE_PASSWORD', `mf${pin}`); // sales-report 와 같은 변환
+  log.ok('.env 에 저장했습니다 — 다음부터는 묻지 않습니다');
 }
 
 function mockData({ from, to }) {
@@ -199,6 +207,8 @@ async function main() {
 
   log.step(`카페24 적립금 ${from} ~ ${to}${args.member ? ` · 회원 ${args.member}` : ''}${args.mock ? '  (mock)' : ''}`);
 
+  if (!args.mock && args.db) await askFirebasePin();
+
   let raw;
   if (args.mock) {
     raw = mockData({ from, to });
@@ -221,18 +231,18 @@ async function main() {
   log.info(`내역 ${snapshot.lineCount}건 · 회원 ${snapshot.memberCount}명${r.fromReport ? '' : ' (report 응답 없음 — 내역 합계로 계산)'}`);
   log.info('저장: data/points/latest.json');
 
-  const fb = credentials(FIREBASE_KEYS);
+  const fb = await firebaseCredentials();
   if (!args.db) log.info('Firestore 저장 생략 (--no-db)');
   else if (args.mock) log.info('Firestore 저장 생략 — 가짜 데이터(--mock)는 DB 에 넣지 않습니다');
-  else if (!fb.ready) log.warn(`Firestore 저장 건너뜀 — .env 미설정: ${fb.missing.join(', ')}`);
+  else if (!fb.ready) log.warn(`DB 저장 건너뜀 — .env 미설정: ${fb.missing.join(', ')}`);
   else await saveToFirestore(lines, snapshot);
 }
 
 main().catch((err) => {
   log.fail(err.status ? err.message : err.message.startsWith('.env') ? err.message : err.stack);
   const where = String(err.message);
-  if (where.includes('signInWithPassword')) log.warn('Firebase 로그인 실패 — FIREBASE_EMAIL / FIREBASE_PASSWORD 를 확인하세요 (sales-report 비밀번호면 "mf" + 숫자 4자리)');
-  else if (err.status === 403 && where.includes('firestore')) log.warn('Firestore 403 — 보안 규칙에서 cafe24Points · cafe24PointReports 쓰기를 허용해야 합니다 (README 참고)');
+  if (where.includes('signInWithPassword')) log.warn('DB 로그인 실패 — 매출 리포트 비밀번호가 맞는지 확인하세요. .env 의 FIREBASE_PASSWORD 줄을 지우고 다시 실행하면 다시 물어봅니다');
+  else if (err.status === 403 && where.includes('firestore')) log.warn('DB 403 — Firebase 보안 규칙에 cafe24Points · cafe24PointReports · cafe24Auth 를 추가해야 합니다 (README 참고)');
   else if (err.status === 403) log.warn('403 — 앱 권한에 "적립금 읽기(mall.read_mileage)" 를 추가하고 재인증(refresh_token 재발급) 하세요');
   process.exitCode = 1;
 });

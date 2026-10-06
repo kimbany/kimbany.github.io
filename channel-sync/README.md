@@ -70,8 +70,8 @@ XML 필드명도 버전마다 흔들려서 `pick(o, 'ordNo', 'orderNo')` 식으�
 **읽기 전용** — 카페24 쪽 적립금을 지급·차감하지 않습니다.
 
 ```
-[카페24 API] ──node src/points.js──▶ [Firestore monfruit-sales]  ◀──읽기── points.html (비밀번호 로그인)
-                      └──▶ data/points/latest.json (백업)
+[카페24 API] ──points.js (매일 깃허브 / PC)──▶ [Firestore monfruit-sales]  ◀──읽기── invedory.com/channel-sync/points.html
+                      └──▶ data/points/latest.json (PC 백업)                     (매출 리포트 비밀번호로 로그인)
 ```
 
 ```bash
@@ -123,22 +123,27 @@ node src/points.js --no-db                     # DB 저장 없이 JSON 만
 
 ### 처음 설정
 
-1. **카페24 권한** — 개발자센터 앱 권한에 **적립금 읽기(`mall.read_mileage`)** 를 추가하고
-   `node src/cafe24-auth.js` 로 재인증합니다. 출력된 주소에서 동의 → 이동된 주소를 붙여넣으면
-   새 refresh_token 이 `.env` 와 `data/.cafe24-token.json` 에 저장됩니다. 안 하면 403.
-2. **Firebase 계정** — `.env` 에 `FIREBASE_API_KEY`(sales-report 의 firebaseConfig.apiKey)와
-   `FIREBASE_PASSWORD`(sales-report 비밀번호 앞에 `mf`, 예: 1234 → `mf1234`)를 넣습니다.
-   수집기도 뷰어도 sales-report 와 같은 관리자 계정으로 로그인합니다. 서비스 계정 키는 필요 없습니다.
-3. **Firestore 보안 규칙** — 콘솔 > Firestore > 규칙에 아래 두 줄이 없으면 추가합니다
+1. **카페24 권한** — 개발자센터 앱 권한에 **적립금 읽기(`mall.read_mileage`)** (+ 상품·주문 읽기) 추가.
+2. **PC 에서 한 번 연결** — `node src/cafe24-auth.js` → 질문에 답 → 브라우저에서 동의 → 이동된 주소 붙여넣기.
+3. **Firebase 보안 규칙** — 콘솔 > Firestore > 규칙에 아래 세 줄이 없으면 추가
    (이미 `match /{document=**} { allow read, write: if request.auth != null; }` 가 있으면 생략).
 
    ```
    match /cafe24Points/{id}       { allow read, write: if request.auth != null; }
    match /cafe24PointReports/{id} { allow read, write: if request.auth != null; }
+   match /cafe24Auth/{id}         { allow read, write: if request.auth != null; }
    ```
+4. **PC 에서 한 번 DB 로 올리기** — `node src/points.js --from 2026-07-01` 처럼 실행하면 매출 리포트 비밀번호 4자리를 물어봅니다
+   (`.env` 의 `FIREBASE_PASSWORD=mf####` 로 저장). 이때 카페24 토큰도 Firestore `cafe24Auth/token` 에 올라가
+   깃허브 자동 실행이 이어받습니다.
+5. **깃허브 비밀값** — 저장소 Settings → Secrets and variables → Actions 에
+   `CAFE24_CLIENT_ID`, `CAFE24_CLIENT_SECRET`, `FIREBASE_PASSWORD`(mf + 4자리) 등록.
+   `.github/workflows/cafe24-points.yml` 이 매일 07:10 KST 에 최근 30일을 받아 DB 에 쌓습니다.
+   Actions 탭 → "카페24 적립금 매일 수집" → Run workflow 로 기간을 지정해 바로 돌릴 수도 있습니다.
 
-매일 갱신하려면 수집 cron 옆에 한 줄 더:
-`20 7 * * *  cd /srv/channel-sync && /usr/bin/node src/points.js >> /var/log/channel-sync.log 2>&1`
+Firebase API 키는 공개용 웹 키라 `sales-report/index.html` 의 firebaseConfig 에서 자동으로 읽습니다.
+카페24 refresh_token 은 쓸 때마다 바뀌므로 PC 파일과 Firestore 중 **더 최근에 발급된 쪽**을 쓰고 양쪽에 다시 저장합니다 —
+PC 와 깃허브가 번갈아 돌아도 서로 토큰을 무효로 만들지 않습니다. 매일 돌면 2주 만료도 걱정 없습니다.
 
 ## 운영 — 어디서 돌릴 것인가
 

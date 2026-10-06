@@ -3,20 +3,52 @@ import { join } from 'node:path';
 import { request } from '../core/http.js';
 import { credentials, env } from '../config.js';
 import { ROOT } from '../core/store.js';
-import { product, orderLine, STATUS, num } from '../core/normalize.js';
+import { product, orderLine, STATUS, num, toIso } from '../core/normalize.js';
+import { sharedFirestore } from '../core/firestore.js';
 import { log } from '../core/log.js';
 
 const TOKEN_FILE = join(ROOT, 'data', '.cafe24-token.json');
+const TOKEN_DOC = ['cafe24Auth', 'token']; // Firestore 에 두는 공용 토큰 — PC 와 깃허브 자동 실행이 같이 쓴다
+
+/** 카페24 토큰 시각은 타임존 없는 KST 문자열이라 toIso 로 읽는다. */
+const at = (v) => (v ? Date.parse(toIso(v)) : 0);
+const issued = (t) => at(t?.issued_at) || Date.parse(t?.savedAt ?? '') || 0;
+
+async function loadLocal() {
+  try { return JSON.parse(await readFile(TOKEN_FILE, 'utf8')); } catch { return null; }
+}
+
+/** 새 토큰을 PC 파일과 (Firebase 가 설정돼 있으면) Firestore 양쪽에 저장한다. */
+export async function saveToken(token) {
+  const data = { ...token, savedAt: new Date().toISOString() };
+  await mkdir(join(ROOT, 'data'), { recursive: true });
+  await writeFile(TOKEN_FILE, JSON.stringify(data, null, 2), 'utf8');
+  const db = await sharedFirestore().catch(() => null);
+  if (db) {
+    await db.upsert([{ collection: TOKEN_DOC[0], id: TOKEN_DOC[1], data }]);
+    return 'file+db';
+  }
+  return 'file';
+}
 
 /**
- * 카페24 refresh_token 은 쓸 때마다 새 값으로 교체되고 2주 뒤 만료된다.
- * 매일 도는 수집기라면 갱신된 토큰을 반드시 저장해 둬야 다음 실행이 살아남는다.
+ * 카페24 refresh_token 은 쓸 때마다 새 값으로 교체되고(이전 값은 무효), 2주 안 쓰면 만료된다.
+ * PC 와 깃허브가 번갈아 돌면 한쪽 토큰이 낡으므로, 파일과 Firestore 중 더 최근에 발급된 쪽을 쓰고
+ * 갱신하면 양쪽에 다시 저장한다.
  */
 export async function accessToken({ mallId, clientId, clientSecret, refreshToken }) {
-  let saved = null;
-  try { saved = JSON.parse(await readFile(TOKEN_FILE, 'utf8')); } catch { /* 최초 실행 */ }
+  const local = await loadLocal();
+  let remote = null;
+  const db = await sharedFirestore().catch(() => null);
+  if (db) {
+    try { remote = await db.get(...TOKEN_DOC); } catch (err) { log.warn(`Firestore 토큰 읽기 실패 — PC 파일로 진행: ${err.message.split('\n')[0]}`); }
+  }
+  const saved = [local, remote].filter((t) => t?.refresh_token).sort((a, b) => issued(b) - issued(a))[0] ?? null;
+  if (!saved && !refreshToken) {
+    throw new Error('카페24 토큰이 없습니다 — PC 에서 node src/cafe24-auth.js 로 한 번 연결해 주세요');
+  }
 
-  if (saved?.access_token && saved.expires_at && new Date(saved.expires_at) > new Date(Date.now() + 60_000)) {
+  if (saved?.access_token && at(saved.expires_at) > Date.now() + 60_000) {
     return saved.access_token;
   }
 
@@ -34,9 +66,8 @@ export async function accessToken({ mallId, clientId, clientSecret, refreshToken
   });
 
   if (!res?.access_token) throw new Error(`토큰 갱신 실패: ${JSON.stringify(res)}`);
-  await mkdir(join(ROOT, 'data'), { recursive: true });
-  await writeFile(TOKEN_FILE, JSON.stringify(res, null, 2), 'utf8');
-  log.info('카페24 토큰 갱신 — data/.cafe24-token.json 저장');
+  const where = await saveToken(res);
+  log.info(`카페24 토큰 갱신 — ${where === 'file+db' ? 'PC 파일 + Firestore' : 'data/.cafe24-token.json'} 저장`);
   return res.access_token;
 }
 
@@ -83,11 +114,12 @@ function foldStatus(code = '') {
   return STATUS.ORDERED;
 }
 
-export const CREDENTIAL_KEYS = ['CAFE24_MALL_ID', 'CAFE24_CLIENT_ID', 'CAFE24_CLIENT_SECRET', 'CAFE24_REFRESH_TOKEN'];
+// refresh_token 은 .env 가 아니어도 data/.cafe24-token.json 이나 Firestore 에서 찾으므로 필수 키에서 뺀다.
+export const CREDENTIAL_KEYS = ['CAFE24_MALL_ID', 'CAFE24_CLIENT_ID', 'CAFE24_CLIENT_SECRET'];
 
 /** .env 키로 토큰을 받아 두고, 경로·파라미터만 넘기면 되는 호출 함수를 돌려준다. */
 export async function connect() {
-  const { values } = credentials(CREDENTIAL_KEYS);
+  const { values } = credentials([...CREDENTIAL_KEYS, 'CAFE24_REFRESH_TOKEN']);
   const mallId = values.CAFE24_MALL_ID;
   const token = await accessToken({
     mallId,
