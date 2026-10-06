@@ -2,6 +2,7 @@
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import { createInterface } from 'node:readline/promises';
+import { spawn } from 'node:child_process';
 import { request } from './core/http.js';
 import { loadEnv, env, credentials } from './config.js';
 import { ROOT } from './core/store.js';
@@ -12,7 +13,8 @@ import { log } from './core/log.js';
  *
  *   node src/cafe24-auth.js
  *
- * 1) 출력되는 주소를 브라우저에서 열고 쇼핑몰 관리자로 '동의'
+ * 0) .env 에 카페24 값이 없으면 하나씩 물어보고 .env 를 만든다
+ * 1) 브라우저에 동의 화면을 열어 준다 — 쇼핑몰 관리자로 '동의'
  * 2) 이동된 주소창의 주소 전체를 복사해 터미널에 붙여넣기
  * 3) 받은 토큰을 data/.cafe24-token.json 과 .env 의 CAFE24_REFRESH_TOKEN 에 저장
  *
@@ -23,22 +25,54 @@ import { log } from './core/log.js';
 const KEYS = ['CAFE24_MALL_ID', 'CAFE24_CLIENT_ID', 'CAFE24_CLIENT_SECRET', 'CAFE24_REDIRECT_URI'];
 const DEFAULT_SCOPE = 'mall.read_product,mall.read_order,mall.read_mileage';
 
-async function saveRefreshToEnv(refreshToken) {
+/** .env 의 한 줄을 바꾼다. .env 가 없으면 .env.example 을 복사해 만든다. */
+async function setEnv(key, value) {
   const path = join(ROOT, '.env');
   let text;
-  try { text = await readFile(path, 'utf8'); } catch { return false; }
-  const line = `CAFE24_REFRESH_TOKEN=${refreshToken}`;
-  text = /^CAFE24_REFRESH_TOKEN=.*$/m.test(text)
-    ? text.replace(/^CAFE24_REFRESH_TOKEN=.*$/m, line)
-    : `${text.trimEnd()}\n${line}\n`;
+  try { text = await readFile(path, 'utf8'); } catch {
+    try { text = await readFile(join(ROOT, '.env.example'), 'utf8'); } catch { text = ''; }
+  }
+  const line = `${key}=${value}`;
+  const re = new RegExp(`^${key}=.*$`, 'm');
+  text = re.test(text) ? text.replace(re, line) : `${text.trimEnd()}\n${line}\n`;
   await writeFile(path, text, 'utf8');
-  return true;
+  process.env[key] = value;
+}
+
+/** 처음 실행이면 .env 를 직접 만들 필요 없이 여기서 물어보고 채운다. */
+const QUESTIONS = {
+  CAFE24_MALL_ID: { label: '쇼핑몰 아이디', hint: '예: daseong24' },
+  CAFE24_CLIENT_ID: { label: 'Client ID', hint: '개발자센터 > 앱 > 인증정보 > Client ID [복사]' },
+  CAFE24_CLIENT_SECRET: { label: 'Client Secret Key', hint: '개발자센터 > 앱 > 인증정보 > Client Secret Key [보기]' },
+  CAFE24_REDIRECT_URI: { label: 'Redirect URI', hint: '앱에 등록한 값과 똑같이', fallback: 'https://invedory.com/' },
+};
+
+/** 브라우저를 자동으로 연다. 안 되면 주소를 복사해 열면 된다. */
+function openBrowser(url) {
+  const [cmd, args] = process.platform === 'win32' ? ['explorer.exe', [url]]
+    : process.platform === 'darwin' ? ['open', [url]] : ['xdg-open', [url]];
+  try { spawn(cmd, args, { stdio: 'ignore', detached: true }).on('error', () => {}).unref(); } catch { /* 수동으로 열면 됨 */ }
 }
 
 async function main() {
   await loadEnv();
-  const { values, missing } = credentials(KEYS);
-  if (missing.length) throw new Error(`.env 미설정: ${missing.join(', ')}`);
+  const rl = createInterface({ input: process.stdin, output: process.stdout });
+
+  const { missing } = credentials(KEYS);
+  if (missing.length) {
+    console.log('\n처음 설정입니다. 아래 값을 하나씩 붙여넣고 엔터를 누르세요. (입력한 값은 channel-sync/.env 에 저장됩니다)\n');
+    for (const key of missing) {
+      const q = QUESTIONS[key];
+      const def = q.fallback ? ` [그냥 엔터 = ${q.fallback}]` : '';
+      let answer = '';
+      while (!answer) {
+        answer = (await rl.question(`${q.label} (${q.hint})${def}\n> `)).trim() || q.fallback || '';
+      }
+      await setEnv(key, answer);
+    }
+    log.ok('.env 저장 완료\n');
+  }
+  const { values } = credentials(KEYS);
 
   const mallId = values.CAFE24_MALL_ID;
   const scope = env('CAFE24_SCOPE', DEFAULT_SCOPE);
@@ -51,12 +85,14 @@ async function main() {
     scope,
   })}`;
 
-  console.log('\n1) 아래 주소를 브라우저에서 열고, 쇼핑몰 관리자 계정으로 로그인해 "동의" 를 누르세요.\n');
+  console.log('\n1) 브라우저에 카페24 동의 화면이 열립니다. 쇼핑몰 관리자로 로그인해 "동의" 를 누르세요.');
+  console.log('   (브라우저가 안 열리면 아래 주소를 복사해 주소창에 붙여넣으세요)\n');
   console.log(`   ${authorize}\n`);
-  console.log('2) 화면이 이동하면 (페이지가 안 떠도 괜찮습니다) 주소창의 주소 전체를 복사해 아래에 붙여넣으세요.');
-  console.log('   ※ 1분 안에 붙여넣어야 합니다.\n');
 
-  const rl = createInterface({ input: process.stdin, output: process.stdout });
+  await rl.question('준비되면 엔터를 누르세요 (브라우저가 열립니다) ');
+  openBrowser(authorize);
+  console.log('\n2) 동의 후 화면이 이동하면 (페이지 모양은 상관없습니다) 주소창의 주소 전체를 복사해 아래에 붙여넣으세요.');
+  console.log('   ※ 동의 후 1분 안에 붙여넣어야 합니다.\n');
   const pasted = (await rl.question('붙여넣기 > ')).trim();
   rl.close();
 
@@ -86,10 +122,10 @@ async function main() {
 
   await mkdir(join(ROOT, 'data'), { recursive: true });
   await writeFile(join(ROOT, 'data', '.cafe24-token.json'), JSON.stringify(res, null, 2), 'utf8');
-  const inEnv = await saveRefreshToEnv(res.refresh_token);
+  await setEnv('CAFE24_REFRESH_TOKEN', res.refresh_token);
 
   log.ok('새 토큰 발급 완료 — data/.cafe24-token.json 저장');
-  log.ok(inEnv ? '.env 의 CAFE24_REFRESH_TOKEN 도 바꿨습니다' : '.env 파일이 없어 토큰 파일에만 저장했습니다');
+  log.ok('.env 의 CAFE24_REFRESH_TOKEN 도 바꿨습니다 — 이제 node src/points.js 로 적립금을 받아올 수 있습니다');
   log.info(`권한: ${(res.scopes ?? []).join(', ') || scope}`);
   if (!(res.scopes ?? [scope]).join(',').includes('mall.read_mileage')) {
     log.warn('적립금 읽기 권한이 빠져 있습니다 — 개발자센터 앱 권한 설정을 확인하세요');
