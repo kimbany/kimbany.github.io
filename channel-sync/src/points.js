@@ -241,10 +241,14 @@ function mockData({ from, to }) {
   }
   // 관리 적립금 화면용 시나리오: 직원 2명 + 관리 고객 1명
   const D = (day, hh = '10') => `${addDays(from, Math.min(day, Math.max(0, (Date.parse(to) - Date.parse(from)) / 86400_000)))} ${hh}:00:00`;
-  const S = (member, day, reason, inc, dec, order = '', admin = '') => rows.push({
-    member_id: member, group_name: 'MonFruit', issue_date: D(day), reason, order_id: order, admin_id: admin,
-    available_points_increase: inc, available_points_decrease: dec ? -dec : 0,
-  });
+  const bal = new Map(); // 아이디별 잔액을 흉내 낸다
+  const S = (member, day, reason, inc, dec, order = '', admin = '') => {
+    bal.set(member, (bal.get(member) ?? 0) + inc - dec);
+    rows.push({
+      member_id: member, group_name: 'MonFruit', issue_date: D(day), reason, order_id: order, admin_id: admin,
+      available_points_increase: inc, available_points_decrease: dec ? -dec : 0, available_points_total: bal.get(member),
+    });
+  };
   S('staff01', 0, '리뷰용 적립금 지급', 30000, 0, '', 'monfruit');
   S('staff01', 1, '주문 사용', 0, 30000, 'W-1001');
   S('staff01', 4, '구매 적립', 600, 0, 'W-1001');

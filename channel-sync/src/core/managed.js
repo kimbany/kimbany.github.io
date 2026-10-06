@@ -80,9 +80,39 @@ export function analyzeMember(lines, { payments = {}, notes = {} } = {}) {
     return orders.get(id);
   };
 
-  // 1) 주문 사용 시점에 회사 몫이 남아 있었는지로 업무용 주문을 자동 판정하려면,
-  //    판정 → 버킷 이동을 한 번에 시간순으로 해야 한다.
-  let company = 0;
+  // 주문 사용 시점에 회사 몫이 남아 있었는지로 업무용 주문을 자동 판정하려면,
+  // 판정 → 버킷 이동을 한 번에 시간순으로 해야 한다.
+  // 회사 몫은 아이디별로 따로 들고 있다 — 회수(관리자 차감)를 아이디마다 하기 때문.
+  // 본인 몫은 사람 전체로 하나.
+  const cById = new Map();
+  const per = new Map();
+  const stat = (id) => {
+    if (!per.has(id)) per.set(id, { memberId: id, grant: 0, workUsed: 0, workEarned: 0, reclaimed: 0, ownEarned: 0, ownGot: 0, lastAt: '', balance: null });
+    return per.get(id);
+  };
+  const company = () => [...cById.values()].reduce((a, b) => a + b, 0);
+  const addC = (id, x) => cById.set(id, (cById.get(id) ?? 0) + x);
+  /** 회사 몫을 꺼낸다: 그 아이디부터, 모자라면 같은 사람의 다른 아이디(많은 순)에서 */
+  const takeC = (id, amt) => {
+    let left = amt;
+    const order = [id, ...[...cById.keys()].filter((k) => k !== id).sort((a, b) => cById.get(b) - cById.get(a))];
+    for (const k of order) {
+      const have = Math.max(0, cById.get(k) ?? 0);
+      const take = Math.min(have, left);
+      if (take) { cById.set(k, cById.get(k) - take); left -= take; }
+      if (!left) break;
+    }
+    return amt - left;
+  };
+  /** 한 아이디가 음수가 되면(다른 아이디 몫을 이 아이디에서 차감한 경우) 다른 아이디 몫으로 메운다 */
+  const settle = (id) => {
+    const v = cById.get(id) ?? 0;
+    if (v >= 0) return;
+    cById.set(id, 0);
+    const got = takeC('__none__', -v);
+    if (got < -v) cById.set(id, -(-v - got)); // 다 못 메우면 음수로 남겨 둔다 (회사 몫보다 많이 회수)
+  };
+
   let own = 0;
   const t = { grant: 0, cs: 0, event: 0, workEarned: 0, ownEarned: 0, workUsed: 0, ownUsed: 0, reclaimed: 0, expired: 0 };
   const timeline = [];
@@ -91,25 +121,29 @@ export function analyzeMember(lines, { payments = {}, notes = {} } = {}) {
 
   for (const l of sorted) {
     const kind = classify(l);
+    const id = l.memberId;
+    const st = stat(id);
+    st.lastAt = l.at;
+    if (l.balance !== null) st.balance = l.balance;
     const o = l.orderId && !isCoupon(l) ? orderOf(l.orderId, l.at) : null;
     let bucket = '';
     let flag = '';
     switch (kind) {
-      case 'grant': company += l.increase; t.grant += l.increase; bucket = 'company'; break;
-      case 'cs': own += l.increase; t.cs += l.increase; bucket = 'own'; break;
+      case 'grant': addC(id, l.increase); t.grant += l.increase; st.grant += l.increase; bucket = 'company'; break;
+      case 'cs': own += l.increase; t.cs += l.increase; st.ownGot += l.increase; bucket = 'own'; break;
       case 'event':
-      case 'coupon': own += l.increase; t.event += l.increase; bucket = 'own'; break; // 적립금 쿠폰 = 기타 지급(본인 몫)
+      case 'coupon': own += l.increase; t.event += l.increase; st.ownGot += l.increase; bucket = 'own'; break; // 적립금 쿠폰 = 기타 지급(본인 몫)
       case 'purchase':
       case 'review': {
         if (o.autoWork === null) o.autoWork = false; // 적립만 있고 사용이 없던 주문 = 본인 주문
         o[kind] += l.increase;
-        if (isWork(o)) { company += l.increase; t.workEarned += l.increase; bucket = 'company'; }
-        else { own += l.increase; t.ownEarned += l.increase; bucket = 'own'; }
+        if (isWork(o)) { addC(id, l.increase); t.workEarned += l.increase; st.workEarned += l.increase; bucket = 'company'; }
+        else { own += l.increase; t.ownEarned += l.increase; st.ownEarned += l.increase; bucket = 'own'; }
         break;
       }
       case 'use': {
         const amt = l.decrease;
-        if (o.autoWork === null) o.autoWork = company > 0;
+        if (o.autoWork === null) o.autoWork = company() > 0;
         o.used += amt;
         const paid = o.payment?.paymentAmount ?? null;
         if (paid > 0 && amt > own) {
@@ -117,37 +151,55 @@ export function analyzeMember(lines, { payments = {}, notes = {} } = {}) {
           o.flag = flag;
         }
         if (isWork(o)) {
-          const fromCompany = Math.min(company, amt);
-          company -= fromCompany; own -= amt - fromCompany;
-          t.workUsed += amt; bucket = 'company';
+          const fromCompany = takeC(id, amt);
+          own -= amt - fromCompany;
+          t.workUsed += amt; st.workUsed += amt; bucket = 'company';
         } else {
           const fromOwn = Math.min(Math.max(own, 0), amt);
-          own -= fromOwn; company -= amt - fromOwn;
+          own -= fromOwn;
+          const fromCompany = takeC(id, amt - fromOwn);
+          own -= amt - fromOwn - fromCompany;
           t.ownUsed += amt; bucket = 'own';
         }
         break;
       }
       case 'refund':
         o.refunded += l.increase;
-        if (isWork(o)) { company += l.increase; t.workUsed -= l.increase; bucket = 'company'; }
+        if (isWork(o)) { addC(id, l.increase); t.workUsed -= l.increase; st.workUsed -= l.increase; bucket = 'company'; }
         else { own += l.increase; t.ownUsed -= l.increase; bucket = 'own'; }
         break;
       case 'reversal':
         o.reversal += l.decrease;
-        if (isWork(o)) { company -= l.decrease; t.workEarned -= l.decrease; bucket = 'company'; }
-        else { own -= l.decrease; t.ownEarned -= l.decrease; bucket = 'own'; }
+        if (isWork(o)) { addC(id, -l.decrease); settle(id); t.workEarned -= l.decrease; st.workEarned -= l.decrease; bucket = 'company'; }
+        else { own -= l.decrease; t.ownEarned -= l.decrease; st.ownEarned -= l.decrease; bucket = 'own'; }
         break;
-      case 'reclaim': company -= l.decrease; t.reclaimed += l.decrease; bucket = 'company'; break;
+      case 'reclaim':
+        addC(id, -l.decrease); settle(id);
+        t.reclaimed += l.decrease; st.reclaimed += l.decrease; bucket = 'company';
+        break;
       case 'expire': {
-        // 소멸은 회사 몫에서 먼저 뺀다 (업무용으로 받아 두고 안 쓴 적립금이 보통 먼저 소멸)
-        const fromCompany = Math.min(Math.max(company, 0), l.decrease);
-        company -= fromCompany; own -= l.decrease - fromCompany;
+        // 소멸은 그 아이디의 회사 몫에서 먼저 뺀다 (업무용으로 받아 두고 안 쓴 적립금이 보통 먼저 소멸)
+        const fromCompany = Math.min(Math.max(cById.get(id) ?? 0, 0), l.decrease);
+        addC(id, -fromCompany); own -= l.decrease - fromCompany;
         t.expired += l.decrease; bucket = fromCompany ? 'company' : 'own';
         break;
       }
       default: break;
     }
-    timeline.push({ ...l, type: kind, bucket, flag, companyAfter: company, ownAfter: own });
+    timeline.push({ ...l, type: kind, bucket, flag, companyAfter: company(), ownAfter: own });
+  }
+
+  // 아이디별 회수 안내: 그 아이디에 남은 회사 몫만큼, 단 그 아이디 잔액을 넘지 않게.
+  // 잔액이 모자라 다 못 빼면 같은 사람의 다른 아이디 중 잔액이 남는 곳에서 뺀다.
+  const toReclaim = Math.max(0, Math.round(company()));
+  const ids = [...per.values()].map((p) => ({ ...p, company: Math.max(0, Math.round(cById.get(p.memberId) ?? 0)) }));
+  for (const p of ids) p.suggest = Math.min(p.company, p.balance ?? p.company);
+  let rest = toReclaim - ids.reduce((s2, p) => s2 + p.suggest, 0);
+  for (const p of [...ids].sort((a, b) => (b.balance ?? 0) - b.suggest - ((a.balance ?? 0) - a.suggest))) {
+    if (rest <= 0) break;
+    const room = Math.max(0, (p.balance ?? 0) - p.suggest);
+    const add = Math.min(room, rest);
+    p.suggest += add; rest -= add;
   }
 
   for (const o of orders.values()) o.work = isWork(o);
@@ -159,9 +211,11 @@ export function analyzeMember(lines, { payments = {}, notes = {} } = {}) {
   for (const o of orderList) o.memberId = sorted.find((l) => l.orderId === o.orderId)?.memberId ?? '';
 
   return {
-    toReclaim: Math.max(0, Math.round(company)),
+    toReclaim,
     own: Math.round(own),
-    balance: lastBalance ?? Math.round(company + own),
+    balance: lastBalance ?? Math.round(company() + own),
+    ids,
+    shortfall: Math.max(0, Math.round(rest)), // 잔액이 모자라 아이디에서 다 뺄 수 없는 금액
     totals: t,
     orders: orderList,
     flags: orderList.filter((o) => o.flag).length,
