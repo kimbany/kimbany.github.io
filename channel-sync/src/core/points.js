@@ -18,7 +18,8 @@ const kstDate = (v) => new Date(Date.parse(toIso(v)) + 9 * 3600_000).toISOString
 /** 내역 1줄 → 공통 형태. 증가·감소를 따로 들고, 순변동(delta)은 증가 - 감소. */
 export function pointLine(r) {
   let inc = num(pick(r, 'available_points_increase', 'points_increase', 'increase_amount'));
-  let dec = num(pick(r, 'available_points_decrease', 'points_decrease', 'decrease_amount'));
+  // 카페24는 차감을 음수(-1000)로 준다 — 크기만 들고 부호는 delta 에서 붙인다.
+  let dec = Math.abs(num(pick(r, 'available_points_decrease', 'points_decrease', 'decrease_amount')));
   // 한 칸짜리 amount 로 오는 경우: type/case 로 부호를 정한다.
   if (!inc && !dec) {
     const amount = num(pick(r, 'amount', 'points'));
@@ -68,7 +69,7 @@ export function summarize(lines, { from, to, reportRaw = null }) {
 
   const report = {
     increase: num(pick(rep, 'available_points_increase') ?? sumInc),
-    decrease: num(pick(rep, 'available_points_decrease') ?? sumDec),
+    decrease: Math.abs(num(pick(rep, 'available_points_decrease') ?? sumDec)),
     total: num(pick(rep, 'available_points_total') ?? sumInc - sumDec),
     unavailable: num(pick(rep, 'unavailable_points') ?? lines.reduce((s, l) => s + l.unavailable, 0)),
     unavailableCoupon: num(pick(rep, 'unavailable_coupon_points')),
