@@ -192,13 +192,6 @@
   .form-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 14px 16px; border-bottom: 1px solid var(--border); }
   .form-row input, .form-row select { font: inherit; font-size: 13px; padding: 6px 9px; border-radius: 7px; border: 1px solid var(--border-strong); background: var(--surface-0); color: var(--text-primary); }
   .rules { padding: 6px 16px 14px; font-size: 13px; }
-  .pw { padding: 14px 16px; }
-  .pw-warn { margin: 0 0 12px; font-size: 13px; padding: 10px 12px; border-radius: 8px; background: color-mix(in srgb, var(--warning) 12%, transparent); }
-  .pw-warn a { color: var(--accent); }
-  .pw input { width: 150px; letter-spacing: 0.15em; }
-  .pw .msg { margin: 10px 0 0; font-size: 13px; color: var(--text-muted); min-height: 1.4em; }
-  .pw .msg.err { color: var(--critical); }
-  .pw .msg.ok { color: var(--good); }
   .mcard .ids { border-top: 1px solid var(--border); padding-top: 8px; display: grid; grid-template-columns: 1fr auto; gap: 3px 10px; font-size: 12px; font-variant-numeric: tabular-nums; }
   .mcard .ids .idn { color: var(--text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .mcard .ids .idv { text-align: right; color: var(--text-muted); white-space: nowrap; }
@@ -390,21 +383,6 @@
         <thead><tr><th>회원코드</th><th>이름 · 메모</th><th>구분</th><th>카페24 아이디</th><th>등록일</th><th></th></tr></thead>
         <tbody></tbody>
       </table></div>
-    </section>
-    <section>
-      <div class="head"><h2>비밀번호 변경</h2></div>
-      <div class="pw">
-        <p class="pw-warn">⚠️ <b>매출 리포트도 같은 비밀번호로 바뀝니다</b> (같은 계정). 바꾼 뒤에는
-          <a href="https://github.com/kimbany/kimbany.github.io/settings/secrets/actions" target="_blank" rel="noopener">깃허브 비밀값</a>의
-          <code>FIREBASE_PASSWORD</code> 를 <code>mf</code> + 새 비밀번호로 바꿔야 매일 자동 수집이 계속됩니다.</p>
-        <div class="form-row" style="border:none;padding:0">
-          <input type="password" id="pwCur" inputmode="numeric" maxlength="4" placeholder="현재 비밀번호" autocomplete="current-password" aria-label="현재 비밀번호">
-          <input type="password" id="pwNew" inputmode="numeric" maxlength="4" placeholder="새 비밀번호 4자리" autocomplete="new-password" aria-label="새 비밀번호">
-          <input type="password" id="pwNew2" inputmode="numeric" maxlength="4" placeholder="새 비밀번호 확인" autocomplete="new-password" aria-label="새 비밀번호 확인">
-          <button class="btn" id="pwBtn">변경</button>
-        </div>
-        <p class="msg" id="pwMsg"></p>
-      </div>
     </section>
     <section>
       <div class="head"><h2>나누는 기준</h2></div>
@@ -1117,38 +1095,6 @@ el('sTable').addEventListener('click', async (e) => {
   if (managed.selected === code) managed.selected = null;
   await afterSettingsChange(`${code} 삭제 — 적립금 내역은 그대로 남아 있습니다`);
 });
-
-/* ============================================================ 설정: 비밀번호 변경 */
-
-async function changePassword() {
-  const msg = (text, cls = '') => { el('pwMsg').innerHTML = text; el('pwMsg').className = `msg ${cls}`; };
-  const cur = el('pwCur').value.trim();
-  const next = el('pwNew').value.trim();
-  if (mode !== 'db' || !auth?.currentUser) return msg('로그인한 상태에서만 바꿀 수 있습니다', 'err');
-  if (!/^\d{4}$/.test(cur)) return msg('현재 비밀번호 4자리를 입력하세요', 'err');
-  if (!/^\d{4}$/.test(next)) return msg('새 비밀번호는 숫자 4자리입니다', 'err');
-  if (next !== el('pwNew2').value.trim()) return msg('새 비밀번호 확인이 다릅니다', 'err');
-  if (next === cur) return msg('지금 비밀번호와 같습니다', 'err');
-  msg('바꾸는 중…');
-  try {
-    // 보안상 비밀번호 변경 전에 현재 비밀번호로 한 번 더 확인한다 (sales-report 와 같은 'mf' + 4자리 변환)
-    const cred = firebase.auth.EmailAuthProvider.credential(LOGIN_EMAIL, `mf${cur}`);
-    await auth.currentUser.reauthenticateWithCredential(cred);
-    await auth.currentUser.updatePassword(`mf${next}`);
-  } catch (e) {
-    const wrong = ['auth/wrong-password', 'auth/invalid-credential', 'auth/invalid-login-credentials'];
-    if (wrong.includes(e.code)) return msg('현재 비밀번호가 틀렸습니다', 'err');
-    if (e.code === 'auth/too-many-requests') return msg('시도가 너무 많습니다 — 잠시 뒤 다시 해 주세요', 'err');
-    return msg(`변경 실패: ${esc(e.message)}`, 'err');
-  }
-  for (const id of ['pwCur', 'pwNew', 'pwNew2']) el(id).value = '';
-  msg(`✅ 바뀌었습니다. 매출 리포트도 새 비밀번호로 로그인하세요.<br>
-    <b>꼭 하실 일:</b> <a href="https://github.com/kimbany/kimbany.github.io/settings/secrets/actions" target="_blank" rel="noopener">깃허브 비밀값</a>
-    → <code>FIREBASE_PASSWORD</code> 옆 연필 → <code>mf${esc(next)}</code> 로 저장 (안 하면 내일부터 자동 수집이 실패합니다).
-    PC 에서 수집기를 쓰면 <code>.env</code> 의 <code>FIREBASE_PASSWORD</code> 도 같이 바꿔 주세요.`, 'ok');
-}
-el('pwBtn').addEventListener('click', changePassword);
-el('pwNew2').addEventListener('keydown', (e) => { if (e.key === 'Enter') changePassword(); });
 
 /* ============================================================ 큰 메뉴(탭) */
 
