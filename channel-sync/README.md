@@ -96,8 +96,9 @@ node src/points.js --no-db                     # DB 저장 없이 JSON 만
 
 ### 처음 설정
 
-1. **카페24 권한** — 개발자센터 앱 > 권한 설정에 **적립금 읽기(`mall.read_mileage`)** 추가 →
-   OAuth 재인증으로 refresh_token 을 다시 받아 `.env` 에 넣고 `data/.cafe24-token.json` 삭제. 안 하면 403.
+1. **카페24 권한** — 개발자센터 앱 권한에 **적립금 읽기(`mall.read_mileage`)** 를 추가하고
+   `node src/cafe24-auth.js` 로 재인증합니다. 출력된 주소에서 동의 → 이동된 주소를 붙여넣으면
+   새 refresh_token 이 `.env` 와 `data/.cafe24-token.json` 에 저장됩니다. 안 하면 403.
 2. **Firebase 계정** — `.env` 에 `FIREBASE_API_KEY`(sales-report 의 firebaseConfig.apiKey)와
    `FIREBASE_PASSWORD`(sales-report 비밀번호 앞에 `mf`, 예: 1234 → `mf1234`)를 넣습니다.
    수집기도 뷰어도 sales-report 와 같은 관리자 계정으로 로그인합니다. 서비스 계정 키는 필요 없습니다.
