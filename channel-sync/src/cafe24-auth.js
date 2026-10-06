@@ -49,7 +49,8 @@ const QUESTIONS = {
 
 /** 브라우저를 자동으로 연다. 안 되면 주소를 복사해 열면 된다. */
 function openBrowser(url) {
-  const [cmd, args] = process.platform === 'win32' ? ['explorer.exe', [url]]
+  // 윈도우: explorer.exe 는 긴 주소(? & 포함)를 못 받고 폴더 창을 열어 버린다 → URL 핸들러로 직접 연다.
+  const [cmd, args] = process.platform === 'win32' ? ['rundll32.exe', ['url.dll,FileProtocolHandler', url]]
     : process.platform === 'darwin' ? ['open', [url]] : ['xdg-open', [url]];
   try { spawn(cmd, args, { stdio: 'ignore', detached: true }).on('error', () => {}).unref(); } catch { /* 수동으로 열면 됨 */ }
 }
