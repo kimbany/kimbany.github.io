@@ -63,6 +63,33 @@ ELEVENST_ORDER_PATH=/ordservices/...
 XML 필드명도 버전마다 흔들려서 `pick(o, 'ordNo', 'orderNo')` 식으로 후보를 훑습니다.
 `--no-raw` 없이 돌리면 원본 XML 이 `data/raw/` 에 남으니, 필드가 안 잡히면 그걸 보고 후보만 추가하면 됩니다.
 
+## 카페24 적립금 현황
+
+`src/points.js` 가 카페24 Admin API 로 기간 적립금 현황을 당겨 `data/points/latest.json` 을 갱신하고,
+`points.html` 이 그걸 보여줍니다 (지급 · 차감 · 순증 · 미가용, 일자별 / 사유별 / 회원별, 내역 검색).
+상품·주문 수집과 같은 `.env` 키와 토큰 파일(`data/.cafe24-token.json`)을 같이 씁니다. **읽기 전용** — 적립금을 지급·차감하지 않습니다.
+
+```bash
+node src/points.js --mock                      # 키 없이 점검
+node src/points.js                             # 최근 30일 (POINTS_LOOKBACK_DAYS)
+node src/points.js --from 2026-09-01 --to 2026-09-30
+node src/points.js --member hong123            # 특정 회원만
+```
+
+| 호출 | 용도 |
+|---|---|
+| `GET /api/v2/admin/points/report` | 기간 합계 (지급 · 차감 · 미가용) |
+| `GET /api/v2/admin/points` | 내역 한 줄씩 — 30일 단위로 끊어 100건씩 페이지 |
+
+- **권한**: 개발자센터 앱 > 권한 설정에 **적립금 읽기(`mall.read_mileage`)** 를 추가해야 합니다.
+  권한을 바꾸면 기존 토큰엔 반영되지 않으니 **OAuth 재인증으로 refresh_token 을 다시 받아** `.env` 에 넣고
+  `data/.cafe24-token.json` 을 지우세요. 안 하면 403 이 납니다.
+- report 응답이 비면 내역 합계로 타일을 채우고, 뷰어 상단에 "합계는 내역 기준" 이라고 표시합니다.
+- 응답 필드명은 `pick()` 으로 후보를 훑습니다(`available_points_increase` 등). 값이 안 잡히면
+  `data/points/raw/<날짜>.json` 원본을 보고 `pointLine()` 후보만 추가하면 됩니다.
+- 매일 갱신하려면 수집 cron 옆에 한 줄 더:
+  `20 7 * * *  cd /srv/channel-sync && /usr/bin/node src/points.js >> /var/log/channel-sync.log 2>&1`
+
 ## 운영 — 어디서 돌릴 것인가
 
 **GitHub Actions 로는 안 됩니다.** 네이버 커머스API는 호출 IP 를 사전 등록해야 하고
@@ -92,11 +119,13 @@ src/
     xml.js               11번가용 최소 XML 파서 (의존성 없음)
   adapters/*.js          채널 하나 = 파일 하나
   mock/index.js          키 없이 돌려보는 가짜 결과
+  points.js              카페24 적립금 현황 CLI (points.html 이 읽는 파일 생성)
 data/
   raw/<날짜>/<채널>.raw.json    원본 응답 (파싱이 틀렸을 때 재수집 없이 다시 돌리려고)
   daily/<날짜>.json             그날 집계 스냅샷
   latest.json                   뷰어가 읽는 파일
   sample.json                   목 데이터 (저장소에 커밋됨)
+  points/latest.json            적립금 현황 (points/sample.json 은 목 데이터)
 ```
 
 ### 어댑터 추가하기

@@ -8,6 +8,8 @@
   "scripts": {
     "sync": "node src/run.js",
     "sync:mock": "node src/run.js --mock",
+    "points": "node src/points.js",
+    "points:mock": "node src/points.js --mock",
     "serve": "npx --yes http-server . -p 8080 -c-1"
   },
   "dependencies": {

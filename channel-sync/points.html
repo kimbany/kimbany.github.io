@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>채널 일일 현황 · channel-sync</title>
+<title>적립금 현황 · channel-sync</title>
 <style>
   :root {
     color-scheme: light;
@@ -95,162 +95,176 @@
   .note { font-size: 12.5px; color: var(--text-muted); }
   .note code { background: var(--surface-1); border: 1px solid var(--border); border-radius: 5px; padding: 1px 5px; font-size: 12px; }
   button.link { font: inherit; font-size: 12.5px; background: none; border: none; color: var(--accent); cursor: pointer; padding: 0; text-decoration: underline; }
+  .tile.pos .v { color: var(--good); }
+  td.pos { color: var(--good); }
+  td.neg { color: var(--critical); }
+  .grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(340px, 100%), 1fr)); gap: 22px; }
+  .grid2 section { margin-bottom: 0; min-width: 0; }
+  .grid2 + section { margin-top: 22px; }
+  nav.top { font-size: 12.5px; margin-bottom: 8px; }
+  nav.top a { color: var(--accent); }
 </style>
 </head>
 <body>
 <div class="wrap">
+  <nav class="top"><a href="./index.html">← 채널 일일 현황</a></nav>
   <header>
     <div>
-      <h1>채널 일일 현황</h1>
+      <h1>카페24 적립금 현황</h1>
       <div class="meta" id="meta">불러오는 중…</div>
     </div>
     <div class="controls">
       <input type="file" id="file" accept="application/json" hidden>
-      <a class="note" href="./points.html">적립금 현황 →</a>
       <button class="link" id="pick">다른 날짜 파일 열기</button>
     </div>
   </header>
 
   <div class="tiles" id="tiles"></div>
 
+  <div class="grid2">
+    <section>
+      <div class="head"><h2>일자별</h2></div>
+      <div class="scroll"><table id="dateTable">
+        <thead><tr><th>날짜</th><th class="num">건수</th><th class="num">지급</th><th class="num">차감</th><th class="num">순증</th></tr></thead>
+        <tbody></tbody>
+      </table></div>
+    </section>
+    <section>
+      <div class="head"><h2>사유별</h2></div>
+      <div class="scroll"><table id="reasonTable">
+        <thead><tr><th>사유</th><th class="num">건수</th><th class="num">지급</th><th class="num">차감</th><th class="num barcell">순증</th></tr></thead>
+        <tbody></tbody>
+      </table></div>
+    </section>
+  </div>
+
   <section>
-    <div class="head"><h2>채널별</h2><span class="note" id="chanNote"></span></div>
-    <div class="scroll"><table id="chanTable">
-      <thead><tr>
-        <th>채널</th><th>상태</th>
-        <th class="num">상품</th><th class="num">옵션</th>
-        <th class="num">주문</th><th class="num">수량</th>
-        <th class="num barcell">매출</th><th class="num">취소</th>
-      </tr></thead>
+    <div class="head"><h2>회원별</h2><span class="note">잔액은 기간 내 마지막 내역 기준</span></div>
+    <div class="scroll"><table id="memberTable">
+      <thead><tr><th>회원</th><th class="num">건수</th><th class="num">지급</th><th class="num">차감</th><th class="num">순증</th><th class="num">가용 잔액</th></tr></thead>
       <tbody></tbody>
     </table></div>
   </section>
 
   <section>
     <div class="head">
-      <h2>옵션별</h2>
+      <h2>내역</h2>
       <div class="controls">
-        <input type="search" id="q" placeholder="상품 · 옵션 · 코드 검색">
-        <select id="chanFilter"><option value="">전체 채널</option></select>
-        <select id="sort">
-          <option value="amount">매출순</option>
-          <option value="quantity">수량순</option>
-          <option value="canceled">취소순</option>
+        <input type="search" id="q" placeholder="회원 · 주문번호 · 사유 검색">
+        <select id="dir">
+          <option value="">지급 + 차감</option>
+          <option value="inc">지급만</option>
+          <option value="dec">차감만</option>
         </select>
       </div>
     </div>
-    <div class="scroll"><table id="optTable">
-      <thead><tr>
-        <th>채널</th><th>상품 / 옵션</th><th>옵션코드</th>
-        <th class="num">수량</th><th class="num barcell">매출</th><th class="num">취소</th>
-      </tr></thead>
+    <div class="scroll"><table id="lineTable">
+      <thead><tr><th>일시</th><th>회원</th><th>사유</th><th>주문번호</th><th class="num">지급</th><th class="num">차감</th><th class="num">잔액</th></tr></thead>
       <tbody></tbody>
     </table></div>
   </section>
 
   <p class="note">
-    데이터는 <code>node src/run.js</code> 가 만드는 <code>data/latest.json</code> 입니다.
-    파일이 없으면 <code>data/sample.json</code>(목 데이터)을 보여줍니다.
+    데이터는 <code>node src/points.js</code> 가 만드는 <code>data/points/latest.json</code> 입니다.
+    파일이 없으면 <code>data/points/sample.json</code>(목 데이터)을 보여줍니다.
   </p>
 </div>
 
 <script type="module">
 const won = (n) => `${Math.round(n).toLocaleString('ko-KR')}`;
+const signed = (n) => (n > 0 ? `+${won(n)}` : n < 0 ? `−${won(-n)}` : '0');
+const tone = (n) => (n > 0 ? 'pos' : n < 0 ? 'neg' : '');
+const dash = (n) => (n ? won(n) : '–');
 const el = (id) => document.getElementById(id);
 
 let snapshot = null;
 
 async function load() {
-  for (const path of ['./data/latest.json', './data/sample.json']) {
+  for (const path of ['./data/points/latest.json', './data/points/sample.json']) {
     try {
       const res = await fetch(path, { cache: 'no-store' });
       if (!res.ok) continue;
-      render(await res.json(), path.endsWith('sample.json') ? '샘플' : null);
+      const data = await res.json();
+      render(data, path.endsWith('sample.json') || data.mock ? '샘플' : null);
       return;
     } catch { /* file:// 로 열었거나 아직 수집 전 */ }
   }
-  el('meta').textContent = '데이터 없음 — 수집기를 한 번 실행하거나 JSON 파일을 직접 열어 주세요.';
+  el('meta').textContent = '데이터 없음 — node src/points.js 를 한 번 실행하거나 JSON 파일을 직접 열어 주세요.';
 }
 
 function render(data, tag) {
   snapshot = data;
-  const t = data.total;
+  const r = data.report;
   const collected = new Date(data.generatedAt).toLocaleString('ko-KR', { dateStyle: 'medium', timeStyle: 'short' });
   el('meta').innerHTML = `<b>${data.range.from} ~ ${data.range.to}</b> · 수집 ${collected}`
-    + ` · 채널 ${t.collected}/${t.channels}${tag ? ` · ${tag}` : ''}`;
+    + ` · 내역 ${data.lineCount.toLocaleString('ko-KR')}건${r.fromReport ? '' : ' · 합계는 내역 기준'}${tag ? ` · ${tag}` : ''}`;
 
   el('tiles').innerHTML = [
-    ['매출', `${won(t.amount)}<small>원</small>`, ''],
-    ['주문', `${t.orderCount.toLocaleString('ko-KR')}<small>건</small>`, ''],
-    ['판매수량', `${t.quantity.toLocaleString('ko-KR')}<small>개</small>`, ''],
-    ['취소', `${won(t.canceledAmount)}<small>원</small>`, t.canceledAmount > 0 ? 'neg' : ''],
-    ['상품 / 옵션', `${t.products}<small>/ ${t.options}</small>`, ''],
+    ['지급', `${won(r.increase)}<small>원</small>`, ''],
+    ['차감', `${won(r.decrease)}<small>원</small>`, r.decrease ? 'neg' : ''],
+    ['순증', `${signed(r.total)}<small>원</small>`, tone(r.total)],
+    ['미가용', `${won(r.unavailable)}<small>원</small>`, ''],
+    ['대상 회원', `${data.memberCount.toLocaleString('ko-KR')}<small>명</small>`, ''],
   ].map(([k, v, cls]) => `<div class="tile ${cls}"><div class="k">${k}</div><div class="v">${v}</div></div>`).join('');
 
-  const maxChan = Math.max(1, ...data.channels.map((c) => c.amount));
-  el('chanTable').tBodies[0].innerHTML = data.channels.map((c) => {
-    const state = c.ok ? '<span class="pill ok">수집</span>'
-      : (c.error ?? '').includes('필요') || (c.error ?? '').includes('미설정')
-        ? `<span class="pill skip" title="${esc(c.error)}">대기</span>`
-        : `<span class="pill err" title="${esc(c.error ?? '')}">실패</span>`;
-    if (!c.ok) {
-      return `<tr><td>${esc(c.label)}</td><td>${state}</td>
-        <td class="num sub" colspan="6">${esc(c.error ?? '')}</td></tr>`;
-    }
-    return `<tr>
-      <td>${esc(c.label)}</td><td>${state}</td>
-      <td class="num">${c.products}</td><td class="num">${c.optionsTotal}</td>
-      <td class="num">${c.orderCount}</td><td class="num">${c.quantity}</td>
-      <td class="num barcell">${won(c.amount)}<span class="bar" style="width:${(c.amount / maxChan * 100).toFixed(1)}%"></span></td>
-      <td class="num">${c.canceledAmount ? won(c.canceledAmount) : '–'}</td>
-    </tr>`;
-  }).join('');
+  const row = (label, g, extra = '') => `<tr>
+    <td>${label}</td><td class="num">${g.count}</td>
+    <td class="num">${dash(g.increase)}</td><td class="num">${dash(g.decrease)}</td>
+    <td class="num ${tone(g.delta)}">${signed(g.delta)}${extra}</td></tr>`;
 
-  const failed = data.channels.filter((c) => !c.ok);
-  el('chanNote').textContent = failed.length ? `${failed.length}개 채널 미수집` : '';
+  el('dateTable').tBodies[0].innerHTML = [...data.byDate].reverse().map((g) => row(esc(g.key), g)).join('')
+    || '<tr><td colspan="5" class="empty">내역 없음</td></tr>';
 
-  el('chanFilter').innerHTML = '<option value="">전체 채널</option>'
-    + data.channels.filter((c) => c.ok).map((c) => `<option value="${esc(c.channel)}">${esc(c.label)}</option>`).join('');
+  const maxReason = Math.max(1, ...data.byReason.map((g) => Math.abs(g.delta)));
+  el('reasonTable').tBodies[0].innerHTML = data.byReason.map((g) => row(esc(g.key), g,
+    `<span class="bar" style="width:${(Math.abs(g.delta) / maxReason * 100).toFixed(1)}%"></span>`)).join('')
+    || '<tr><td colspan="5" class="empty">내역 없음</td></tr>';
+  el('reasonTable').querySelectorAll('tbody td:last-child').forEach((td) => td.classList.add('barcell'));
 
-  renderOptions();
+  const members = data.byMember.slice(0, 100);
+  el('memberTable').tBodies[0].innerHTML = members.map((m) => `<tr>
+    <td>${esc(m.key)}</td><td class="num">${m.count}</td>
+    <td class="num">${dash(m.increase)}</td><td class="num">${dash(m.decrease)}</td>
+    <td class="num ${tone(m.delta)}">${signed(m.delta)}</td>
+    <td class="num">${m.balance === null ? '–' : won(m.balance)}</td></tr>`).join('')
+    + (data.byMember.length > 100 ? `<tr><td colspan="6" class="sub">…외 ${data.byMember.length - 100}명 (내역 검색으로 찾아 보세요)</td></tr>` : '')
+    || '<tr><td colspan="6" class="empty">내역 없음</td></tr>';
+
+  renderLines();
 }
 
-function renderOptions() {
+function renderLines() {
   if (!snapshot) return;
   const q = el('q').value.trim().toLowerCase();
-  const chan = el('chanFilter').value;
-  const sortKey = el('sort').value;
+  const dir = el('dir').value;
+  const rows = snapshot.lines
+    .filter((l) => !dir || (dir === 'inc' ? l.increase > 0 : l.decrease > 0))
+    .filter((l) => !q || `${l.memberId} ${l.orderId} ${l.reason} ${l.kind}`.toLowerCase().includes(q));
 
-  const rows = snapshot.channels
-    .filter((c) => c.ok && (!chan || c.channel === chan))
-    .flatMap((c) => c.options.map((o) => ({ ...o, label: c.label })))
-    .filter((o) => !q || `${o.productName} ${o.optionName} ${o.optionCode}`.toLowerCase().includes(q))
-    .sort((a, b) => (sortKey === 'canceled' ? b.canceledAmount - a.canceledAmount : b[sortKey] - a[sortKey]));
-
-  const max = Math.max(1, ...rows.map((r) => r.amount));
-  const body = el('optTable').tBodies[0];
+  const body = el('lineTable').tBodies[0];
   if (!rows.length) {
-    body.innerHTML = '<tr><td colspan="6" class="empty">해당하는 옵션이 없습니다.</td></tr>';
+    body.innerHTML = '<tr><td colspan="7" class="empty">해당하는 내역이 없습니다.</td></tr>';
     return;
   }
-  body.innerHTML = rows.slice(0, 300).map((o) => `<tr>
-    <td class="sub">${esc(o.label)}</td>
-    <td class="name">${esc(o.productName)}<div class="sub">${esc(o.optionName || '(단일)')}</div></td>
-    <td class="sub">${esc(o.optionCode || '–')}</td>
-    <td class="num">${o.quantity}</td>
-    <td class="num barcell">${won(o.amount)}<span class="bar" style="width:${(o.amount / max * 100).toFixed(1)}%"></span></td>
-    <td class="num">${o.canceledAmount ? won(o.canceledAmount) : '–'}</td>
+  const fmt = (iso) => (iso ? new Date(iso).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul', dateStyle: 'short', timeStyle: 'short' }) : '–');
+  body.innerHTML = rows.slice(0, 300).map((l) => `<tr>
+    <td class="sub">${fmt(l.at)}</td>
+    <td>${esc(l.memberId || '–')}<div class="sub">${esc(l.group)}</div></td>
+    <td class="name">${esc(l.reason || l.kind || '–')}</td>
+    <td class="sub">${esc(l.orderId || '–')}</td>
+    <td class="num ${l.increase ? 'pos' : ''}">${dash(l.increase)}</td>
+    <td class="num ${l.decrease ? 'neg' : ''}">${dash(l.decrease)}</td>
+    <td class="num">${l.balance === null ? '–' : won(l.balance)}</td>
   </tr>`).join('')
-  + (rows.length > 300 ? `<tr><td colspan="6" class="sub">…외 ${rows.length - 300}건 (검색으로 좁혀 보세요)</td></tr>` : '');
+  + (rows.length > 300 ? `<tr><td colspan="7" class="sub">…외 ${rows.length - 300}건 (검색으로 좁혀 보세요)</td></tr>` : '');
 }
 
 function esc(s) {
   return String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 }
 
-el('q').addEventListener('input', renderOptions);
-el('chanFilter').addEventListener('change', renderOptions);
-el('sort').addEventListener('change', renderOptions);
+el('q').addEventListener('input', renderLines);
+el('dir').addEventListener('change', renderLines);
 el('pick').addEventListener('click', () => el('file').click());
 el('file').addEventListener('change', async (e) => {
   const file = e.target.files?.[0];

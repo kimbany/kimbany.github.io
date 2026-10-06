@@ -12,7 +12,7 @@ const TOKEN_FILE = join(ROOT, 'data', '.cafe24-token.json');
  * 카페24 refresh_token 은 쓸 때마다 새 값으로 교체되고 2주 뒤 만료된다.
  * 매일 도는 수집기라면 갱신된 토큰을 반드시 저장해 둬야 다음 실행이 살아남는다.
  */
-async function accessToken({ mallId, clientId, clientSecret, refreshToken }) {
+export async function accessToken({ mallId, clientId, clientSecret, refreshToken }) {
   let saved = null;
   try { saved = JSON.parse(await readFile(TOKEN_FILE, 'utf8')); } catch { /* 최초 실행 */ }
 
@@ -40,7 +40,7 @@ async function accessToken({ mallId, clientId, clientSecret, refreshToken }) {
   return res.access_token;
 }
 
-const api = (mallId, token, path, params = {}) => {
+export const api = (mallId, token, path, params = {}) => {
   const query = new URLSearchParams(
     Object.entries(params).filter(([, v]) => v !== undefined && v !== ''),
   ).toString();
@@ -65,25 +65,33 @@ function foldStatus(code = '') {
   return STATUS.ORDERED;
 }
 
+export const CREDENTIAL_KEYS = ['CAFE24_MALL_ID', 'CAFE24_CLIENT_ID', 'CAFE24_CLIENT_SECRET', 'CAFE24_REFRESH_TOKEN'];
+
+/** .env 키로 토큰을 받아 두고, 경로·파라미터만 넘기면 되는 호출 함수를 돌려준다. */
+export async function connect() {
+  const { values } = credentials(CREDENTIAL_KEYS);
+  const mallId = values.CAFE24_MALL_ID;
+  const token = await accessToken({
+    mallId,
+    clientId: values.CAFE24_CLIENT_ID,
+    clientSecret: values.CAFE24_CLIENT_SECRET,
+    refreshToken: values.CAFE24_REFRESH_TOKEN,
+  });
+  return (path, params) => api(mallId, token, path, params);
+}
+
 export default {
   channel: 'cafe24',
   label: '자사몰(카페24)',
-  credentialKeys: ['CAFE24_MALL_ID', 'CAFE24_CLIENT_ID', 'CAFE24_CLIENT_SECRET', 'CAFE24_REFRESH_TOKEN'],
+  credentialKeys: CREDENTIAL_KEYS,
 
   async collect({ from, to, maxProducts = 1000 }) {
-    const { values } = credentials(this.credentialKeys);
-    const mallId = values.CAFE24_MALL_ID;
-    const token = await accessToken({
-      mallId,
-      clientId: values.CAFE24_CLIENT_ID,
-      clientSecret: values.CAFE24_CLIENT_SECRET,
-      refreshToken: values.CAFE24_REFRESH_TOKEN,
-    });
+    const call = await connect();
 
     // ── 상품: variants 를 embed 해서 옵션까지 한 번에 받는다.
     const listed = [];
     for (let offset = 0; offset < maxProducts; offset += 100) {
-      const res = await api(mallId, token, 'products', { limit: 100, offset, embed: 'variants' });
+      const res = await call('products', { limit: 100, offset, embed: 'variants' });
       const page = res?.products ?? [];
       listed.push(...page);
       if (page.length < 100) break;
@@ -109,7 +117,7 @@ export default {
     const orders = [];
     const rawOrders = [];
     for (let offset = 0; offset < 10_000; offset += 100) {
-      const res = await api(mallId, token, 'orders', {
+      const res = await call('orders', {
         start_date: from, end_date: to, limit: 100, offset, embed: 'items',
       });
       const page = res?.orders ?? [];
