@@ -93,20 +93,30 @@ async function main() {
   openBrowser(authorize);
   console.log('\n2) 동의 후 화면이 이동하면 (페이지 모양은 상관없습니다) 주소창의 주소 전체를 복사해 아래에 붙여넣으세요.');
   console.log('   ※ 동의 후 1분 안에 붙여넣어야 합니다.\n');
-  const pasted = (await rl.question('붙여넣기 > ')).trim();
-  rl.close();
-
-  let code = pasted;
-  try {
-    const u = new URL(pasted);
-    if (u.searchParams.get('error')) throw new Error(`동의 실패: ${u.searchParams.get('error_description') || u.searchParams.get('error')}`);
-    if (u.searchParams.get('state') && u.searchParams.get('state') !== state) throw new Error('state 가 다릅니다 — 방금 출력된 주소로 다시 시도하세요');
-    code = u.searchParams.get('code') ?? '';
-  } catch (e) {
-    if (e.message.startsWith('동의') || e.message.startsWith('state')) throw e;
-    // 주소가 아니면 code 값만 붙여넣은 것으로 본다
+  // 붙여넣은 글에 동의 주소까지 섞여 들어오거나 여러 줄이 한꺼번에 들어와도 되게,
+  // code 를 찾을 때까지 계속 받는다 (남은 줄이 프로그램 밖 명령 창으로 새지 않게).
+  let code = '';
+  while (!code) {
+    const pasted = (await rl.question('붙여넣기 > ')).trim();
+    if (!pasted) continue;
+    const error = /[?&]error_description=([^&\s]+)/.exec(pasted) ?? /[?&]error=([^&\s]+)/.exec(pasted);
+    if (error) { rl.close(); throw new Error(`동의 실패: ${decodeURIComponent(error[1])}`); }
+    const codes = [...pasted.matchAll(/[?&]code=([^&\s]+)/g)];
+    if (codes.length) {
+      const last = codes.at(-1);
+      const got = /[?&]state=([^&\s]+)/.exec(pasted.slice(last.index))?.[1];
+      if (got && got !== state) {
+        console.log('   이 주소는 예전 동의에서 나온 것입니다. 방금 열린 동의 화면에서 다시 동의하고 붙여넣으세요.');
+        continue;
+      }
+      code = decodeURIComponent(last[1]);
+    } else if (/^[A-Za-z0-9_-]{10,}$/.test(pasted)) {
+      code = pasted; // code 값만 붙여넣은 경우
+    } else {
+      console.log('   주소에서 code= 를 찾지 못했습니다. 동의 후 브라우저 주소창의 주소(https://invedory.com/?code=...)를 붙여넣으세요.');
+    }
   }
-  if (!code) throw new Error('주소에서 code 값을 찾지 못했습니다');
+  rl.close();
 
   const res = await request(`https://${mallId}.cafe24api.com/api/v2/oauth/token`, {
     method: 'POST',
