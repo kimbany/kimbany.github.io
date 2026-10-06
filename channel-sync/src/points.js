@@ -4,7 +4,10 @@ import { dirname, join } from 'node:path';
 import { connect, CREDENTIAL_KEYS } from './adapters/cafe24.js';
 import { loadEnv, env, credentials } from './config.js';
 import { ROOT } from './core/store.js';
-import { num, toIso, kstToday } from './core/normalize.js';
+import { createHash } from 'node:crypto';
+import { kstToday } from './core/normalize.js';
+import { pointLine, summarize } from './core/points.js';
+import { connectFirestore } from './core/firestore.js';
 import { log } from './core/log.js';
 
 /**
@@ -15,24 +18,27 @@ import { log } from './core/log.js';
  *
  * 앱 권한에 '적립금 읽기(mall.read_mileage)' 가 있어야 한다.
  * 응답 필드명이 API 버전마다 조금씩 달라서 pick() 으로 후보를 훑고, 원본은 data/points/raw 에 남긴다.
+ *
+ * FIREBASE_* 키가 채워져 있으면 Firestore 에도 저장한다 (points.html 이 거기서 읽는다).
+ *   cafe24Points/{id}          내역 1줄 = 문서 1개 (같은 내역은 같은 id → 다시 돌려도 중복 안 생김)
+ *   cafe24PointReports/{from_to}  그 기간 집계 스냅샷 (카페24 report 합계 포함)
  */
+
+const FIREBASE_KEYS = ['FIREBASE_API_KEY', 'FIREBASE_PROJECT_ID', 'FIREBASE_EMAIL', 'FIREBASE_PASSWORD'];
+const MEMBER_CAP = 300; // 스냅샷 문서 1MB 제한 — 회원별은 상위만 담고 나머지는 내역에서 다시 계산한다
 
 const DATA = join(ROOT, 'data', 'points');
 const PAGE = 100;
 const MAX_OFFSET = 8000; // 카페24 목록 API 의 offset 상한
 const CHUNK_DAYS = 30;   // 기간이 길면 offset 상한에 걸리기 쉬워 한 달씩 끊는다
 
-const pick = (o, ...keys) => {
-  for (const k of keys) if (o?.[k] !== undefined && o[k] !== null && o[k] !== '') return o[k];
-  return undefined;
-};
-
 function parseArgs(argv) {
-  const args = { mock: false, saveRaw: true };
+  const args = { mock: false, saveRaw: true, db: true };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === '--mock') args.mock = true;
     else if (a === '--no-raw') args.saveRaw = false;
+    else if (a === '--no-db') args.db = false;
     else if (a === '--help' || a === '-h') args.help = true;
     else if (a.startsWith('--')) {
       const [key, inline] = a.slice(2).split('=');
@@ -52,8 +58,10 @@ channel-sync points — 카페24 적립금 현황 수집 (읽기 전용)
   --member ID           특정 회원만
   --mock                키 없이 가짜 데이터로 점검
   --no-raw              원본 응답 저장 생략
+  --no-db               Firestore 저장 생략 (FIREBASE_* 키가 있어도)
 
-결과: data/points/daily/<날짜>.json, data/points/latest.json (points.html 이 읽는 파일)
+결과: data/points/daily/<날짜>.json, data/points/latest.json
+      FIREBASE_* 키가 있으면 Firestore cafe24Points · cafe24PointReports 에도 저장
 `;
 
 async function writeJson(path, value) {
@@ -68,40 +76,6 @@ function* chunks(from, to) {
     const end = addDays(start, CHUNK_DAYS - 1);
     yield [start, end < to ? end : to];
   }
-}
-
-/** 카페24 는 KST 로컬 문자열을 준다 — UTC 로 바꾼 뒤 자르면 밤 9시 이후 내역이 다음 날로 밀린다. */
-const kstDate = (v) => new Date(Date.parse(toIso(v)) + 9 * 3600_000).toISOString().slice(0, 10);
-
-/** 내역 1줄 → 공통 형태. 증가·감소를 따로 들고, 순변동(delta)은 증가 - 감소. */
-function pointLine(r) {
-  const increase = num(pick(r, 'available_points_increase', 'points_increase', 'increase_amount'));
-  const decrease = num(pick(r, 'available_points_decrease', 'points_decrease', 'decrease_amount'));
-  // 한 칸짜리 amount 로 오는 경우: type/case 로 부호를 정한다.
-  let inc = increase;
-  let dec = decrease;
-  if (!inc && !dec) {
-    const amount = num(pick(r, 'amount', 'points'));
-    const kind = String(pick(r, 'type', 'case') ?? '').toLowerCase();
-    if (kind.includes('decrease') || kind.includes('차감') || kind.includes('사용') || amount < 0) dec = Math.abs(amount);
-    else inc = amount;
-  }
-  const at = pick(r, 'issue_date', 'order_date', 'created_date', 'date');
-  return {
-    memberId: String(pick(r, 'member_id') ?? ''),
-    group: String(pick(r, 'group_name') ?? ''),
-    orderId: String(pick(r, 'order_id') ?? ''),
-    at: at ? toIso(at) : '',
-    date: at ? kstDate(at) : '',
-    kind: String(pick(r, 'case', 'type', 'points_type') ?? ''),
-    reason: String(pick(r, 'reason', 'memo') ?? '').trim(),
-    increase: inc,
-    decrease: dec,
-    delta: inc - dec,
-    balance: pick(r, 'available_points_total') === undefined ? null : num(r.available_points_total),
-    unavailable: num(pick(r, 'unavailable_points')),
-    admin: String(pick(r, 'admin_name', 'admin_id') ?? ''),
-  };
 }
 
 async function collect(call, { from, to, member }) {
@@ -122,51 +96,44 @@ async function collect(call, { from, to, member }) {
   return { reportRaw, rows };
 }
 
-/** 집계: 카페24 report 값이 있으면 그걸 기준으로, 없으면 내역 합계로 채운다. */
-function summarize({ reportRaw, rows }, { from, to }) {
-  const lines = rows.map(pointLine);
-  const rep = reportRaw?.report ?? reportRaw?.points ?? reportRaw ?? {};
-  const sumInc = lines.reduce((s, l) => s + l.increase, 0);
-  const sumDec = lines.reduce((s, l) => s + l.decrease, 0);
+/**
+ * 카페24 적립금 내역엔 고유 id 가 없어서 내용으로 만든다.
+ * 완전히 같은 줄이 여러 번 오면(같은 시각 같은 금액) 순번을 붙여 구분한다 — 순서는 응답 순서 그대로라 재실행해도 같다.
+ */
+function lineIds(lines) {
+  const seen = new Map();
+  return lines.map((l) => {
+    const base = createHash('sha1')
+      .update([l.memberId, l.at, l.orderId, l.kind, l.reason, l.increase, l.decrease].join('|'))
+      .digest('hex').slice(0, 20);
+    const n = seen.get(base) ?? 0;
+    seen.set(base, n + 1);
+    return n ? `${base}-${n}` : base;
+  });
+}
 
-  const report = {
-    increase: num(pick(rep, 'available_points_increase') ?? sumInc),
-    decrease: num(pick(rep, 'available_points_decrease') ?? sumDec),
-    total: num(pick(rep, 'available_points_total') ?? sumInc - sumDec),
-    unavailable: num(pick(rep, 'unavailable_points')),
-    unavailableCoupon: num(pick(rep, 'unavailable_coupon_points')),
-    fromReport: pick(rep, 'available_points_increase', 'available_points_total') !== undefined,
-  };
-
-  const group = (keyOf) => {
-    const map = new Map();
-    for (const l of lines) {
-      const key = keyOf(l);
-      const cur = map.get(key) ?? { key, count: 0, increase: 0, decrease: 0, delta: 0 };
-      cur.count++; cur.increase += l.increase; cur.decrease += l.decrease; cur.delta += l.delta;
-      map.set(key, cur);
-    }
-    return [...map.values()];
-  };
-
-  const lastBalance = new Map();
-  for (const l of [...lines].sort((a, b) => a.at.localeCompare(b.at))) {
-    if (l.balance !== null) lastBalance.set(l.memberId, l.balance);
-  }
-
-  return {
-    generatedAt: new Date().toISOString(),
-    range: { from, to },
-    report,
-    lineCount: lines.length,
-    memberCount: new Set(lines.map((l) => l.memberId).filter(Boolean)).size,
-    byDate: group((l) => l.date || '(날짜없음)').sort((a, b) => a.key.localeCompare(b.key)),
-    byReason: group((l) => l.reason || l.kind || '(사유없음)').sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta)),
-    byMember: group((l) => l.memberId || '(비회원)')
-      .map((m) => ({ ...m, balance: lastBalance.get(m.key) ?? null }))
-      .sort((a, b) => b.increase + b.decrease - (a.increase + a.decrease)),
-    lines: lines.sort((a, b) => b.at.localeCompare(a.at)),
-  };
+async function saveToFirestore(lines, snapshot) {
+  const { values } = credentials(FIREBASE_KEYS);
+  const db = await connectFirestore({
+    apiKey: values.FIREBASE_API_KEY,
+    projectId: values.FIREBASE_PROJECT_ID,
+    email: values.FIREBASE_EMAIL,
+    password: values.FIREBASE_PASSWORD,
+  });
+  const syncedAt = new Date().toISOString();
+  const ids = lineIds(lines);
+  const docs = lines.map((l, i) => ({
+    collection: 'cafe24Points', id: ids[i], data: { ...l, id: ids[i], syncedAt },
+  }));
+  const { lines: _omit, byMember, ...rest } = snapshot;
+  const reportId = `${snapshot.range.from}_${snapshot.range.to}`;
+  docs.push({
+    collection: 'cafe24PointReports',
+    id: reportId,
+    data: { ...rest, id: reportId, byMember: byMember.slice(0, MEMBER_CAP), memberTruncated: byMember.length > MEMBER_CAP, syncedAt },
+  });
+  await db.upsert(docs);
+  log.ok(`Firestore 저장 — 내역 ${lines.length}건 + 집계 1건 (${values.FIREBASE_PROJECT_ID})`);
 }
 
 function mockData({ from, to }) {
@@ -215,7 +182,8 @@ async function main() {
     if (args.saveRaw) await writeJson(join(DATA, 'raw', `${to}.json`), raw);
   }
 
-  const snapshot = summarize(raw, { from, to });
+  const lines = raw.rows.map(pointLine);
+  const snapshot = summarize(lines, { from, to, reportRaw: raw.reportRaw });
   if (args.mock) snapshot.mock = true;
   await writeJson(join(DATA, 'daily', `${to}.json`), snapshot);
   await writeJson(join(DATA, 'latest.json'), snapshot);
@@ -225,10 +193,19 @@ async function main() {
   log.ok(`지급 ${won(r.increase)} · 차감 ${won(r.decrease)} · 순증 ${won(r.total)}${r.unavailable ? ` · 미가용 ${won(r.unavailable)}` : ''}`);
   log.info(`내역 ${snapshot.lineCount}건 · 회원 ${snapshot.memberCount}명${r.fromReport ? '' : ' (report 응답 없음 — 내역 합계로 계산)'}`);
   log.info('저장: data/points/latest.json');
+
+  const fb = credentials(FIREBASE_KEYS);
+  if (!args.db) log.info('Firestore 저장 생략 (--no-db)');
+  else if (args.mock) log.info('Firestore 저장 생략 — 가짜 데이터(--mock)는 DB 에 넣지 않습니다');
+  else if (!fb.ready) log.warn(`Firestore 저장 건너뜀 — .env 미설정: ${fb.missing.join(', ')}`);
+  else await saveToFirestore(lines, snapshot);
 }
 
 main().catch((err) => {
   log.fail(err.status ? err.message : err.message.startsWith('.env') ? err.message : err.stack);
-  if (err.status === 403) log.warn('403 — 앱 권한에 "적립금 읽기(mall.read_mileage)" 를 추가하고 재인증(refresh_token 재발급) 하세요');
+  const where = String(err.message);
+  if (where.includes('signInWithPassword')) log.warn('Firebase 로그인 실패 — FIREBASE_EMAIL / FIREBASE_PASSWORD 를 확인하세요 (sales-report 비밀번호면 "mf" + 숫자 4자리)');
+  else if (err.status === 403 && where.includes('firestore')) log.warn('Firestore 403 — 보안 규칙에서 cafe24Points · cafe24PointReports 쓰기를 허용해야 합니다 (README 참고)');
+  else if (err.status === 403) log.warn('403 — 앱 권한에 "적립금 읽기(mall.read_mileage)" 를 추가하고 재인증(refresh_token 재발급) 하세요');
   process.exitCode = 1;
 });

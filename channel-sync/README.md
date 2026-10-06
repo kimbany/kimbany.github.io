@@ -65,30 +65,52 @@ XML 필드명도 버전마다 흔들려서 `pick(o, 'ordNo', 'orderNo')` 식으�
 
 ## 카페24 적립금 현황
 
-`src/points.js` 가 카페24 Admin API 로 기간 적립금 현황을 당겨 `data/points/latest.json` 을 갱신하고,
-`points.html` 이 그걸 보여줍니다 (지급 · 차감 · 순증 · 미가용, 일자별 / 사유별 / 회원별, 내역 검색).
-상품·주문 수집과 같은 `.env` 키와 토큰 파일(`data/.cafe24-token.json`)을 같이 씁니다. **읽기 전용** — 적립금을 지급·차감하지 않습니다.
+`src/points.js` 가 카페24 Admin API 로 적립금 내역을 당겨 **Firestore(monfruit-sales)** 에 쌓고,
+`points.html` 이 DB 에서 기간별로 읽어 보여줍니다 (지급 · 차감 · 순증 · 미가용, 일자별 / 사유별 / 회원별, 내역 검색).
+**읽기 전용** — 카페24 쪽 적립금을 지급·차감하지 않습니다.
 
-```bash
-node src/points.js --mock                      # 키 없이 점검
-node src/points.js                             # 최근 30일 (POINTS_LOOKBACK_DAYS)
-node src/points.js --from 2026-09-01 --to 2026-09-30
-node src/points.js --member hong123            # 특정 회원만
+```
+[카페24 API] ──node src/points.js──▶ [Firestore monfruit-sales]  ◀──읽기── points.html (비밀번호 로그인)
+                      └──▶ data/points/latest.json (백업)
 ```
 
-| 호출 | 용도 |
-|---|---|
-| `GET /api/v2/admin/points/report` | 기간 합계 (지급 · 차감 · 미가용) |
-| `GET /api/v2/admin/points` | 내역 한 줄씩 — 30일 단위로 끊어 100건씩 페이지 |
+```bash
+node src/points.js --mock                      # 키 없이 점검 (가짜 데이터는 DB 에 안 넣음)
+node src/points.js                             # 최근 30일 (POINTS_LOOKBACK_DAYS) → DB 저장
+node src/points.js --from 2026-09-01 --to 2026-09-30
+node src/points.js --member hong123            # 특정 회원만
+node src/points.js --no-db                     # DB 저장 없이 JSON 만
+```
 
-- **권한**: 개발자센터 앱 > 권한 설정에 **적립금 읽기(`mall.read_mileage`)** 를 추가해야 합니다.
-  권한을 바꾸면 기존 토큰엔 반영되지 않으니 **OAuth 재인증으로 refresh_token 을 다시 받아** `.env` 에 넣고
-  `data/.cafe24-token.json` 을 지우세요. 안 하면 403 이 납니다.
-- report 응답이 비면 내역 합계로 타일을 채우고, 뷰어 상단에 "합계는 내역 기준" 이라고 표시합니다.
-- 응답 필드명은 `pick()` 으로 후보를 훑습니다(`available_points_increase` 등). 값이 안 잡히면
-  `data/points/raw/<날짜>.json` 원본을 보고 `pointLine()` 후보만 추가하면 됩니다.
-- 매일 갱신하려면 수집 cron 옆에 한 줄 더:
-  `20 7 * * *  cd /srv/channel-sync && /usr/bin/node src/points.js >> /var/log/channel-sync.log 2>&1`
+### DB 구조
+
+| 컬렉션 | 문서 | 내용 |
+|---|---|---|
+| `cafe24Points` | 내역 1줄 = 1문서 | memberId · date(KST) · reason · increase · decrease · delta · balance … |
+| `cafe24PointReports` | `{from}_{to}` | 그 기간 집계 + 카페24 report 합계 (회원별은 상위 300명) |
+
+- 카페24 적립금 내역엔 고유번호가 없어 **내용으로 문서 id 를 만듭니다** — 같은 기간을 다시 돌려도 중복되지 않고 덮어씁니다.
+  그래서 기간을 겹쳐서 매일 돌려도 됩니다.
+- 뷰어는 고른 기간의 `cafe24Points` 를 읽어 브라우저에서 다시 집계합니다. 수집한 기간과 정확히 같으면 카페24 report 합계를,
+  아니면 내역 합계를 타일에 씁니다 (상단에 "합계는 내역 기준" 표시). 한 번에 5,000건까지 읽습니다.
+
+### 처음 설정
+
+1. **카페24 권한** — 개발자센터 앱 > 권한 설정에 **적립금 읽기(`mall.read_mileage`)** 추가 →
+   OAuth 재인증으로 refresh_token 을 다시 받아 `.env` 에 넣고 `data/.cafe24-token.json` 삭제. 안 하면 403.
+2. **Firebase 계정** — `.env` 에 `FIREBASE_API_KEY`(sales-report 의 firebaseConfig.apiKey)와
+   `FIREBASE_PASSWORD`(sales-report 비밀번호 앞에 `mf`, 예: 1234 → `mf1234`)를 넣습니다.
+   수집기도 뷰어도 sales-report 와 같은 관리자 계정으로 로그인합니다. 서비스 계정 키는 필요 없습니다.
+3. **Firestore 보안 규칙** — 콘솔 > Firestore > 규칙에 아래 두 줄이 없으면 추가합니다
+   (이미 `match /{document=**} { allow read, write: if request.auth != null; }` 가 있으면 생략).
+
+   ```
+   match /cafe24Points/{id}       { allow read, write: if request.auth != null; }
+   match /cafe24PointReports/{id} { allow read, write: if request.auth != null; }
+   ```
+
+매일 갱신하려면 수집 cron 옆에 한 줄 더:
+`20 7 * * *  cd /srv/channel-sync && /usr/bin/node src/points.js >> /var/log/channel-sync.log 2>&1`
 
 ## 운영 — 어디서 돌릴 것인가
 
@@ -119,7 +141,9 @@ src/
     xml.js               11번가용 최소 XML 파서 (의존성 없음)
   adapters/*.js          채널 하나 = 파일 하나
   mock/index.js          키 없이 돌려보는 가짜 결과
-  points.js              카페24 적립금 현황 CLI (points.html 이 읽는 파일 생성)
+  points.js              카페24 적립금 현황 CLI → Firestore + data/points/
+  core/points.js         적립금 정규화·집계 (수집기와 points.html 이 같이 씀)
+  core/firestore.js      Firestore REST 쓰기 (의존성 없음, 이메일/비밀번호 로그인)
 data/
   raw/<날짜>/<채널>.raw.json    원본 응답 (파싱이 틀렸을 때 재수집 없이 다시 돌리려고)
   daily/<날짜>.json             그날 집계 스냅샷

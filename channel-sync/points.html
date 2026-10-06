@@ -4,6 +4,9 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>적립금 현황 · channel-sync</title>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
 <style>
   :root {
     color-scheme: light;
@@ -103,6 +106,22 @@
   .grid2 + section { margin-top: 22px; }
   nav.top { font-size: 12.5px; margin-bottom: 8px; }
   nav.top a { color: var(--accent); }
+  .bar-db { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; background: var(--surface-1); border: 1px solid var(--border);
+            border-radius: var(--radius); padding: 12px 14px; margin-bottom: 18px; font-size: 13px; }
+  .bar-db label { color: var(--text-secondary); display: inline-flex; gap: 6px; align-items: center; }
+  .bar-db input[type=date], .bar-db input[type=password] {
+    font: inherit; font-size: 13px; padding: 6px 9px; border-radius: 7px;
+    border: 1px solid var(--border-strong); background: var(--surface-0); color: var(--text-primary);
+  }
+  .bar-db input[type=password] { width: 92px; letter-spacing: 0.2em; }
+  .bar-db .spacer { flex: 1; }
+  [hidden] { display: none !important; }
+  .bar-db .msg { color: var(--text-muted); }
+  .bar-db .msg.err { color: var(--critical); }
+  button.btn { font: inherit; font-size: 13px; padding: 6px 12px; border-radius: 7px; cursor: pointer;
+               border: 1px solid var(--accent); background: var(--accent); color: #fff; }
+  button.btn.ghost { background: none; color: var(--accent); }
+  button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 </style>
 </head>
 <body>
@@ -118,6 +137,22 @@
       <button class="link" id="pick">다른 날짜 파일 열기</button>
     </div>
   </header>
+
+  <div class="bar-db" id="loginBar" hidden>
+    <label for="pin">관리자 비밀번호</label>
+    <input type="password" id="pin" inputmode="numeric" maxlength="4" placeholder="4자리" autocomplete="current-password">
+    <button class="btn" id="loginBtn">DB 연결</button>
+    <span class="msg" id="loginMsg">매출 리포트와 같은 비밀번호입니다. 연결 전에는 샘플 데이터가 보입니다.</span>
+  </div>
+
+  <div class="bar-db" id="rangeBar" hidden>
+    <label for="from">기간</label>
+    <input type="date" id="from"> <span class="sub">~</span> <input type="date" id="to">
+    <button class="btn" id="queryBtn">조회</button>
+    <span class="msg" id="dbMsg"></span>
+    <span class="spacer"></span>
+    <button class="btn ghost" id="logoutBtn">연결 해제</button>
+  </div>
 
   <div class="tiles" id="tiles"></div>
 
@@ -165,31 +200,135 @@
   </section>
 
   <p class="note">
-    데이터는 <code>node src/points.js</code> 가 만드는 <code>data/points/latest.json</code> 입니다.
-    파일이 없으면 <code>data/points/sample.json</code>(목 데이터)을 보여줍니다.
+    DB 에 연결하면 수집기(<code>node src/points.js</code>)가 Firestore 에 쌓은 내역을 기간별로 읽어 집계합니다.
+    연결 전에는 <code>data/points/latest.json</code> 이나 샘플 데이터를 보여줍니다.
   </p>
 </div>
 
 <script type="module">
+import { summarize } from './src/core/points.js';
+
 const won = (n) => `${Math.round(n).toLocaleString('ko-KR')}`;
 const signed = (n) => (n > 0 ? `+${won(n)}` : n < 0 ? `−${won(-n)}` : '0');
 const tone = (n) => (n > 0 ? 'pos' : n < 0 ? 'neg' : '');
 const dash = (n) => (n ? won(n) : '–');
 const el = (id) => document.getElementById(id);
 
-let snapshot = null;
+/* ── DB 연결: sales-report 와 같은 Firebase 프로젝트 · 같은 관리자 계정 ─────────────── */
+const firebaseConfig = {
+  apiKey: 'AIzaSyAQSp-HukEK-U5OElWr8jzoXzXqzI-MQNc',
+  authDomain: 'monfruit-sales.firebaseapp.com',
+  projectId: 'monfruit-sales',
+  storageBucket: 'monfruit-sales.firebasestorage.app',
+  messagingSenderId: '120882085426',
+  appId: '1:120882085426:web:2388fcac8bde3fb2ca862b',
+};
+const LOGIN_EMAIL = 'owner@monfruit-sales.web';   // sales-report 의 내부 고정 계정
+const LINE_LIMIT = 5000;                          // 한 번에 읽는 내역 상한 — 넘으면 기간을 줄이라고 알린다
 
-async function load() {
+let snapshot = null;
+let fs = null;
+let auth = null;
+
+async function loadSample() {
   for (const path of ['./data/points/latest.json', './data/points/sample.json']) {
     try {
       const res = await fetch(path, { cache: 'no-store' });
       if (!res.ok) continue;
       const data = await res.json();
-      render(data, path.endsWith('sample.json') || data.mock ? '샘플' : null);
+      render(data, path.endsWith('sample.json') || data.mock ? '샘플 데이터' : '로컬 파일');
       return;
     } catch { /* file:// 로 열었거나 아직 수집 전 */ }
   }
-  el('meta').textContent = '데이터 없음 — node src/points.js 를 한 번 실행하거나 JSON 파일을 직접 열어 주세요.';
+  el('meta').textContent = 'DB 에 연결하거나 JSON 파일을 직접 열어 주세요.';
+}
+
+function setMsg(id, text, isErr = false) {
+  el(id).textContent = text;
+  el(id).classList.toggle('err', isErr);
+}
+
+async function login() {
+  const pin = el('pin').value.trim();
+  if (!/^\d{4}$/.test(pin)) return setMsg('loginMsg', '숫자 4자리를 입력하세요', true);
+  setMsg('loginMsg', '확인 중…');
+  try {
+    await auth.signInWithEmailAndPassword(LOGIN_EMAIL, `mf${pin}`);  // sales-report 와 같은 변환
+  } catch (e) {
+    const wrong = ['auth/wrong-password', 'auth/invalid-credential', 'auth/invalid-login-credentials', 'auth/user-not-found'];
+    setMsg('loginMsg', wrong.includes(e.code) ? '비밀번호가 틀렸습니다' : `로그인 오류: ${e.message}`, true);
+  }
+}
+
+const docs = (snap) => snap.docs.map((d) => d.data());
+
+/** 가장 최근에 수집한 기간을 기본값으로 연다. */
+async function openLatest() {
+  setMsg('dbMsg', '불러오는 중…');
+  try {
+    const latest = docs(await fs.collection('cafe24PointReports').orderBy('generatedAt', 'desc').limit(1).get())[0];
+    if (!latest) {
+      setMsg('dbMsg', 'DB 에 아직 적립금 데이터가 없습니다 — 수집기(node src/points.js)를 한 번 실행해 주세요.', true);
+      return;
+    }
+    el('from').value = latest.range.from;
+    el('to').value = latest.range.to;
+    await query();
+  } catch (e) {
+    setMsg('dbMsg', dbError(e), true);
+  }
+}
+
+/** 기간 내역을 DB 에서 읽어 브라우저에서 다시 집계한다. 수집한 기간과 정확히 같으면 카페24 합계를 쓴다. */
+async function query() {
+  const from = el('from').value;
+  const to = el('to').value;
+  if (!from || !to || from > to) return setMsg('dbMsg', '기간을 확인해 주세요', true);
+  setMsg('dbMsg', '불러오는 중…');
+  try {
+    const [lineSnap, reportSnap] = await Promise.all([
+      fs.collection('cafe24Points').where('date', '>=', from).where('date', '<=', to)
+        .orderBy('date', 'desc').limit(LINE_LIMIT).get(),
+      fs.collection('cafe24PointReports').doc(`${from}_${to}`).get(),
+    ]);
+    const lines = docs(lineSnap);
+    const data = summarize(lines, { from, to });
+    const saved = reportSnap.exists ? reportSnap.data() : null;
+    if (saved) {
+      data.report = saved.report;
+      data.generatedAt = saved.syncedAt ?? saved.generatedAt;
+    } else {
+      const newest = lines.reduce((m, l) => (l.syncedAt > m ? l.syncedAt : m), '');
+      if (newest) data.generatedAt = newest;
+    }
+    render(data, 'DB');
+    setMsg('dbMsg', lines.length >= LINE_LIMIT
+      ? `내역이 ${LINE_LIMIT.toLocaleString('ko-KR')}건을 넘어 일부만 집계했습니다 — 기간을 줄여 주세요`
+      : `내역 ${lines.length.toLocaleString('ko-KR')}건`, lines.length >= LINE_LIMIT);
+  } catch (e) {
+    setMsg('dbMsg', dbError(e), true);
+  }
+}
+
+function dbError(e) {
+  if (e.code === 'permission-denied') return 'DB 읽기 권한이 없습니다 — Firestore 보안 규칙에 cafe24Points · cafe24PointReports 를 추가해 주세요.';
+  return `DB 오류: ${e.message}`;
+}
+
+function bootDb() {
+  if (typeof firebase === 'undefined') {
+    loadSample();
+    return;
+  }
+  firebase.initializeApp(firebaseConfig);
+  fs = firebase.firestore();
+  auth = firebase.auth();
+  auth.onAuthStateChanged((user) => {
+    el('loginBar').hidden = !!user;
+    el('rangeBar').hidden = !user;
+    if (user) { el('pin').value = ''; openLatest(); }
+    else loadSample();
+  });
 }
 
 function render(data, tag) {
@@ -263,6 +402,10 @@ function esc(s) {
   return String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 }
 
+el('loginBtn').addEventListener('click', login);
+el('pin').addEventListener('keydown', (e) => { if (e.key === 'Enter') login(); });
+el('queryBtn').addEventListener('click', query);
+el('logoutBtn').addEventListener('click', () => auth.signOut());
 el('q').addEventListener('input', renderLines);
 el('dir').addEventListener('change', renderLines);
 el('pick').addEventListener('click', () => el('file').click());
@@ -271,7 +414,7 @@ el('file').addEventListener('change', async (e) => {
   if (file) render(JSON.parse(await file.text()), file.name);
 });
 
-load();
+bootDb();
 </script>
 </body>
 </html>
