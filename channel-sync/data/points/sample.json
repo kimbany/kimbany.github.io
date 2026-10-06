@@ -1,13 +1,13 @@
 {
-  "generatedAt": "2026-10-06T02:40:51.314Z",
+  "generatedAt": "2026-10-06T02:43:42.980Z",
   "range": {
     "from": "2026-09-01",
     "to": "2026-09-14"
   },
   "report": {
-    "increase": 84000,
+    "increase": 62500,
     "decrease": 43000,
-    "total": 41000,
+    "total": 19500,
     "unavailable": 0,
     "unavailableCoupon": 0,
     "fromReport": false
@@ -18,16 +18,16 @@
     {
       "key": "2026-09-01",
       "count": 4,
-      "increase": 4500,
+      "increase": 2500,
       "decrease": 5000,
-      "delta": -500
+      "delta": -2500
     },
     {
       "key": "2026-09-02",
       "count": 4,
-      "increase": 6000,
+      "increase": 3500,
       "decrease": 500,
-      "delta": 5500
+      "delta": 3000
     },
     {
       "key": "2026-09-03",
@@ -39,16 +39,16 @@
     {
       "key": "2026-09-04",
       "count": 4,
-      "increase": 8000,
+      "increase": 3500,
       "decrease": 500,
-      "delta": 7500
+      "delta": 3000
     },
     {
       "key": "2026-09-05",
       "count": 4,
-      "increase": 10000,
+      "increase": 8500,
       "decrease": 1000,
-      "delta": 9000
+      "delta": 7500
     },
     {
       "key": "2026-09-06",
@@ -67,9 +67,9 @@
     {
       "key": "2026-09-08",
       "count": 4,
-      "increase": 8500,
+      "increase": 6000,
       "decrease": 2000,
-      "delta": 6500
+      "delta": 4000
     },
     {
       "key": "2026-09-09",
@@ -81,16 +81,16 @@
     {
       "key": "2026-09-10",
       "count": 4,
-      "increase": 9000,
+      "increase": 6500,
       "decrease": 2000,
-      "delta": 7000
+      "delta": 4500
     },
     {
       "key": "2026-09-11",
       "count": 4,
-      "increase": 6500,
+      "increase": 2000,
       "decrease": 3000,
-      "delta": 3500
+      "delta": -1000
     },
     {
       "key": "2026-09-12",
@@ -102,9 +102,9 @@
     {
       "key": "2026-09-13",
       "count": 4,
-      "increase": 7500,
+      "increase": 6000,
       "decrease": 3000,
-      "delta": 4500
+      "delta": 3000
     },
     {
       "key": "2026-09-14",
@@ -118,52 +118,59 @@
     {
       "key": "VIP",
       "count": 10,
-      "increase": 25000,
+      "increase": 22500,
       "decrease": 7000,
-      "delta": 18000,
+      "delta": 15500,
       "members": 4
     },
     {
       "key": "DIAMOND",
       "count": 9,
-      "increase": 8000,
+      "increase": 3000,
       "decrease": 11000,
-      "delta": -3000,
+      "delta": -8000,
       "members": 4
     },
     {
       "key": "GOLD",
       "count": 12,
-      "increase": 13000,
+      "increase": 11500,
       "decrease": 3000,
-      "delta": 10000,
+      "delta": 8500,
       "members": 5
     },
     {
       "key": "SILVER",
       "count": 12,
-      "increase": 14500,
+      "increase": 11500,
       "decrease": 8000,
-      "delta": 6500,
+      "delta": 3500,
       "members": 5
     },
     {
       "key": "MonFruit",
       "count": 13,
-      "increase": 23500,
+      "increase": 14000,
       "decrease": 14000,
-      "delta": 9500,
+      "delta": 0,
       "members": 5
     }
   ],
-  "byReason": [
-    {
-      "key": "리뷰 작성 적립",
-      "count": 13,
-      "increase": 29500,
-      "decrease": 0,
-      "delta": 29500
+  "reviews": {
+    "text": {
+      "count": 10,
+      "amount": 5000
     },
+    "photoVideo": {
+      "count": 3,
+      "amount": 3000
+    },
+    "other": {
+      "count": 0,
+      "amount": 0
+    }
+  },
+  "byReason": [
     {
       "key": "주문 사용",
       "count": 9,
@@ -198,35 +205,40 @@
       "increase": 16500,
       "decrease": 0,
       "delta": 16500
+    },
+    {
+      "key": "텍스트 리뷰 작성 적립",
+      "count": 10,
+      "increase": 5000,
+      "decrease": 0,
+      "delta": 5000
+    },
+    {
+      "key": "사진 리뷰 작성 적립",
+      "count": 3,
+      "increase": 3000,
+      "decrease": 0,
+      "delta": 3000
     }
   ],
   "byMember": [
     {
-      "key": "member10",
-      "count": 3,
-      "increase": 5000,
-      "decrease": 5000,
-      "delta": 0,
-      "group": "MonFruit",
-      "balance": 23300
-    },
-    {
-      "key": "member19",
-      "count": 3,
-      "increase": 10000,
-      "decrease": 0,
-      "delta": 10000,
-      "group": "VIP",
-      "balance": 10800
-    },
-    {
       "key": "member0",
+      "count": 3,
+      "increase": 4000,
+      "decrease": 5000,
+      "delta": -1000,
+      "group": "MonFruit",
+      "balance": 18200
+    },
+    {
+      "key": "member10",
       "count": 3,
       "increase": 3500,
       "decrease": 5000,
       "delta": -1500,
       "group": "MonFruit",
-      "balance": 18200
+      "balance": 23300
     },
     {
       "key": "member9",
@@ -238,15 +250,6 @@
       "balance": 5700
     },
     {
-      "key": "member5",
-      "count": 2,
-      "increase": 8000,
-      "decrease": 0,
-      "delta": 8000,
-      "group": "MonFruit",
-      "balance": 22200
-    },
-    {
       "key": "member14",
       "count": 2,
       "increase": 5000,
@@ -254,6 +257,15 @@
       "delta": 2000,
       "group": "VIP",
       "balance": 9700
+    },
+    {
+      "key": "member19",
+      "count": 3,
+      "increase": 7500,
+      "decrease": 0,
+      "delta": 7500,
+      "group": "VIP",
+      "balance": 10800
     },
     {
       "key": "member22",
@@ -267,29 +279,11 @@
     {
       "key": "member8",
       "count": 3,
-      "increase": 1500,
+      "increase": 1000,
       "decrease": 5000,
-      "delta": -3500,
+      "delta": -4000,
       "group": "DIAMOND",
       "balance": 9100
-    },
-    {
-      "key": "member11",
-      "count": 3,
-      "increase": 5000,
-      "decrease": 1000,
-      "delta": 4000,
-      "group": "SILVER",
-      "balance": 19900
-    },
-    {
-      "key": "member20",
-      "count": 3,
-      "increase": 4000,
-      "decrease": 2000,
-      "delta": 2000,
-      "group": "MonFruit",
-      "balance": 7400
     },
     {
       "key": "member18",
@@ -308,15 +302,6 @@
       "delta": 4500,
       "group": "VIP",
       "balance": 4600
-    },
-    {
-      "key": "member13",
-      "count": 2,
-      "increase": 5500,
-      "decrease": 0,
-      "delta": 5500,
-      "group": "DIAMOND",
-      "balance": 13100
     },
     {
       "key": "member6",
@@ -346,6 +331,24 @@
       "balance": 14800
     },
     {
+      "key": "member20",
+      "count": 3,
+      "increase": 2000,
+      "decrease": 2000,
+      "delta": 0,
+      "group": "MonFruit",
+      "balance": 7400
+    },
+    {
+      "key": "member11",
+      "count": 3,
+      "increase": 2500,
+      "decrease": 1000,
+      "delta": 1500,
+      "group": "SILVER",
+      "balance": 19900
+    },
+    {
       "key": "member21",
       "count": 3,
       "increase": 2500,
@@ -366,20 +369,11 @@
     {
       "key": "member16",
       "count": 2,
-      "increase": 3000,
+      "increase": 2500,
       "decrease": 0,
-      "delta": 3000,
+      "delta": 2500,
       "group": "SILVER",
       "balance": 23900
-    },
-    {
-      "key": "member2",
-      "count": 2,
-      "increase": 3000,
-      "decrease": 0,
-      "delta": 3000,
-      "group": "GOLD",
-      "balance": 11400
     },
     {
       "key": "member17",
@@ -391,6 +385,15 @@
       "balance": 20500
     },
     {
+      "key": "member5",
+      "count": 2,
+      "increase": 1500,
+      "decrease": 0,
+      "delta": 1500,
+      "group": "MonFruit",
+      "balance": 22200
+    },
+    {
       "key": "member3",
       "count": 2,
       "increase": 500,
@@ -400,6 +403,15 @@
       "balance": 8000
     },
     {
+      "key": "member2",
+      "count": 2,
+      "increase": 1500,
+      "decrease": 0,
+      "delta": 1500,
+      "group": "GOLD",
+      "balance": 11400
+    },
+    {
       "key": "member12",
       "count": 2,
       "increase": 1000,
@@ -407,6 +419,15 @@
       "delta": 500,
       "group": "GOLD",
       "balance": 16500
+    },
+    {
+      "key": "member13",
+      "count": 2,
+      "increase": 1000,
+      "decrease": 0,
+      "delta": 1000,
+      "group": "DIAMOND",
+      "balance": 13100
     }
   ],
   "lines": [
@@ -417,7 +438,7 @@
       "at": "2026-09-14T09:10:00.000Z",
       "date": "2026-09-14",
       "kind": "지급",
-      "reason": "리뷰 작성 적립",
+      "reason": "텍스트 리뷰 작성 적립",
       "increase": 500,
       "decrease": 0,
       "delta": 500,
@@ -507,10 +528,10 @@
       "at": "2026-09-13T03:10:00.000Z",
       "date": "2026-09-13",
       "kind": "지급",
-      "reason": "리뷰 작성 적립",
-      "increase": 2000,
+      "reason": "텍스트 리뷰 작성 적립",
+      "increase": 500,
       "decrease": 0,
-      "delta": 2000,
+      "delta": 500,
       "balance": 23300,
       "unavailable": 0,
       "admin": ""
@@ -597,10 +618,10 @@
       "at": "2026-09-11T09:10:00.000Z",
       "date": "2026-09-11",
       "kind": "지급",
-      "reason": "리뷰 작성 적립",
-      "increase": 5000,
+      "reason": "텍스트 리뷰 작성 적립",
+      "increase": 500,
       "decrease": 0,
-      "delta": 5000,
+      "delta": 500,
       "balance": 13100,
       "unavailable": 0,
       "admin": ""
@@ -687,10 +708,10 @@
       "at": "2026-09-10T03:10:00.000Z",
       "date": "2026-09-10",
       "kind": "지급",
-      "reason": "리뷰 작성 적립",
-      "increase": 1000,
+      "reason": "텍스트 리뷰 작성 적립",
+      "increase": 500,
       "decrease": 0,
-      "delta": 1000,
+      "delta": 500,
       "balance": 23900,
       "unavailable": 0,
       "admin": ""
@@ -702,10 +723,10 @@
       "at": "2026-09-10T00:10:00.000Z",
       "date": "2026-09-10",
       "kind": "지급",
-      "reason": "리뷰 작성 적립",
-      "increase": 3000,
+      "reason": "사진 리뷰 작성 적립",
+      "increase": 1000,
       "decrease": 0,
-      "delta": 3000,
+      "delta": 1000,
       "balance": 22200,
       "unavailable": 0,
       "admin": ""
@@ -777,10 +798,10 @@
       "at": "2026-09-08T09:10:00.000Z",
       "date": "2026-09-08",
       "kind": "지급",
-      "reason": "리뷰 작성 적립",
-      "increase": 3000,
+      "reason": "텍스트 리뷰 작성 적립",
+      "increase": 500,
       "decrease": 0,
-      "delta": 3000,
+      "delta": 500,
       "balance": 13700,
       "unavailable": 0,
       "admin": ""
@@ -867,7 +888,7 @@
       "at": "2026-09-07T03:10:00.000Z",
       "date": "2026-09-07",
       "kind": "지급",
-      "reason": "리뷰 작성 적립",
+      "reason": "텍스트 리뷰 작성 적립",
       "increase": 500,
       "decrease": 0,
       "delta": 500,
@@ -957,10 +978,10 @@
       "at": "2026-09-05T09:10:00.000Z",
       "date": "2026-09-05",
       "kind": "지급",
-      "reason": "리뷰 작성 적립",
-      "increase": 2000,
+      "reason": "텍스트 리뷰 작성 적립",
+      "increase": 500,
       "decrease": 0,
-      "delta": 2000,
+      "delta": 500,
       "balance": 14300,
       "unavailable": 0,
       "admin": ""
@@ -1047,10 +1068,10 @@
       "at": "2026-09-04T03:10:00.000Z",
       "date": "2026-09-04",
       "kind": "지급",
-      "reason": "리뷰 작성 적립",
-      "increase": 5000,
+      "reason": "텍스트 리뷰 작성 적립",
+      "increase": 500,
       "decrease": 0,
-      "delta": 5000,
+      "delta": 500,
       "balance": 4100,
       "unavailable": 0,
       "admin": ""
@@ -1137,10 +1158,10 @@
       "at": "2026-09-02T09:10:00.000Z",
       "date": "2026-09-02",
       "kind": "지급",
-      "reason": "리뷰 작성 적립",
-      "increase": 1000,
+      "reason": "텍스트 리뷰 작성 적립",
+      "increase": 500,
       "decrease": 0,
-      "delta": 1000,
+      "delta": 500,
       "balance": 14900,
       "unavailable": 0,
       "admin": ""
@@ -1152,10 +1173,10 @@
       "at": "2026-09-02T06:10:00.000Z",
       "date": "2026-09-02",
       "kind": "지급",
-      "reason": "리뷰 작성 적립",
-      "increase": 3000,
+      "reason": "사진 리뷰 작성 적립",
+      "increase": 1000,
       "decrease": 0,
-      "delta": 3000,
+      "delta": 1000,
       "balance": 13200,
       "unavailable": 0,
       "admin": ""
@@ -1227,10 +1248,10 @@
       "at": "2026-09-01T03:10:00.000Z",
       "date": "2026-09-01",
       "kind": "지급",
-      "reason": "리뷰 작성 적립",
-      "increase": 3000,
+      "reason": "텍스트 리뷰 작성 적립",
+      "increase": 500,
       "decrease": 0,
-      "delta": 3000,
+      "delta": 500,
       "balance": 4700,
       "unavailable": 0,
       "admin": ""
@@ -1242,10 +1263,10 @@
       "at": "2026-09-01T00:10:00.000Z",
       "date": "2026-09-01",
       "kind": "지급",
-      "reason": "리뷰 작성 적립",
-      "increase": 500,
+      "reason": "사진 리뷰 작성 적립",
+      "increase": 1000,
       "decrease": 0,
-      "delta": 500,
+      "delta": 1000,
       "balance": 3000,
       "unavailable": 0,
       "admin": ""

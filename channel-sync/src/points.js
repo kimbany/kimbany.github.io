@@ -146,7 +146,12 @@ function mockData({ from, to }) {
       let reason = reasons[(seq * 7) % reasons.length];
       if (tier === 'MonFruit' && reason === '구매 적립') reason = '리뷰 작성 적립'; // MonFruit 은 구매 적립 0%
       const minus = reason === '주문 사용' || reason === '소멸';
-      const amount = [500, 1000, 2000, 3000, 5000][(seq * 3) % 5];
+      let amount = [500, 1000, 2000, 3000, 5000][(seq * 3) % 5];
+      if (reason === '리뷰 작성 적립') {
+        const photo = seq % 3 === 0;
+        reason = photo ? '사진 리뷰 작성 적립' : '텍스트 리뷰 작성 적립';
+        amount = photo ? 1000 : 500;
+      }
       rows.push({
         member_id: `member${(seq * 11) % 23}`,
         group_name: tier,

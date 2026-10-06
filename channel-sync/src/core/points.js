@@ -1,5 +1,5 @@
 import { num, toIso } from './normalize.js';
-import { TIERS, tierOf } from './tiers.js';
+import { TIERS, REVIEW_REWARDS, tierOf } from './tiers.js';
 
 /**
  * 카페24 적립금 내역 정규화 + 집계.
@@ -42,6 +42,19 @@ export function pointLine(r) {
     unavailable: num(pick(r, 'unavailable_points')),
     admin: String(pick(r, 'admin_name', 'admin_id') ?? ''),
   };
+}
+
+/**
+ * 리뷰 적립 줄을 종류로 나눈다. 카페24 내역엔 리뷰 종류가 따로 없어서 사유 문구 + 정책 금액으로 판단한다.
+ * 사유에 사진/포토/동영상이 있으면 그걸 먼저 믿고, 없으면 500원=텍스트, 1,000원=사진·동영상.
+ */
+export function reviewKind(l) {
+  if (!(l.increase > 0) || !/리뷰|후기|review/i.test(`${l.reason} ${l.kind}`)) return null;
+  if (/사진|포토|photo|동영상|영상|video/i.test(l.reason)) return 'photoVideo';
+  if (/텍스트|일반|text/i.test(l.reason)) return 'text';
+  if (l.increase === REVIEW_REWARDS.photoVideo) return 'photoVideo';
+  if (l.increase === REVIEW_REWARDS.text) return 'text';
+  return 'other';
 }
 
 /**
@@ -94,6 +107,12 @@ export function summarize(lines, { from, to, reportRaw = null }) {
     ...[...tierRows.values()].filter((g) => !tierOf(g.key)),
   ].map((g) => ({ ...g, members: members.get(g.key)?.size ?? 0 }));
 
+  const reviews = { text: { count: 0, amount: 0 }, photoVideo: { count: 0, amount: 0 }, other: { count: 0, amount: 0 } };
+  for (const l of lines) {
+    const k = reviewKind(l);
+    if (k) { reviews[k].count++; reviews[k].amount += l.increase; }
+  }
+
   return {
     generatedAt: new Date().toISOString(),
     range: { from, to },
@@ -102,6 +121,7 @@ export function summarize(lines, { from, to, reportRaw = null }) {
     memberCount: new Set(lines.map((l) => l.memberId).filter(Boolean)).size,
     byDate: group((l) => l.date || '(날짜없음)').sort((a, b) => a.key.localeCompare(b.key)),
     byTier,
+    reviews,
     byReason: group((l) => l.reason || l.kind || '(사유없음)').sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta)),
     byMember: group((l) => l.memberId || '(비회원)')
       .map((m) => ({ ...m, group: lastGroup.get(m.key) ?? '', balance: lastBalance.get(m.key) ?? null }))

@@ -81,6 +81,7 @@
   tbody tr:hover td { background: var(--accent-soft); }
   td.num, th.num { text-align: right; }
   td.name { white-space: normal; min-width: 190px; }
+  td.wrap { white-space: normal; min-width: 96px; }
   .sub { color: var(--text-muted); font-size: 12px; }
 
   /* 매출 크기는 한 계열이라 단일 색상 막대로만 표현한다 — 채널 구분은 이름이 한다. */
@@ -103,7 +104,15 @@
   td.neg { color: var(--critical); }
   .grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(340px, 100%), 1fr)); gap: 22px; }
   .grid2 section { margin-bottom: 0; min-width: 0; }
-  .grid2 + section { margin-top: 22px; }
+  .grid2 + section, .grid2 + .grid2 { margin-top: 22px; }
+  .grid2.wide-left { grid-template-columns: minmax(0, 2fr) minmax(min(260px, 100%), 1fr); }
+  @media (max-width: 820px) { .grid2.wide-left { grid-template-columns: minmax(0, 1fr); } }
+  .review { padding: 6px 16px 14px; }
+  .rv-row { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--border); }
+  .rv-k { font-weight: 560; }
+  .rv-v { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .rv-v b { font-size: 20px; font-weight: 620; margin-right: 2px; }
+  .rv-note { margin: 12px 0 0; }
   nav.top { font-size: 12.5px; margin-bottom: 8px; }
   nav.top a { color: var(--accent); }
   .bar-db { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; background: var(--surface-1); border: 1px solid var(--border);
@@ -173,13 +182,33 @@
     </section>
   </div>
 
+  <div class="grid2 wide-left">
   <section>
-    <div class="head"><h2>등급별</h2><span class="note">등급은 회원의 기간 내 마지막 내역 기준 · 적립 기준은 src/core/tiers.js</span></div>
+    <div class="head"><h2>등급별</h2><span class="note">등급은 회원의 기간 내 마지막 내역 기준</span></div>
     <div class="scroll"><table id="tierTable">
       <thead><tr><th>등급</th><th>구매 적립 기준</th><th class="num">회원</th><th class="num">건수</th><th class="num">지급</th><th class="num">차감</th><th class="num">순증</th></tr></thead>
       <tbody></tbody>
     </table></div>
   </section>
+    <section>
+      <div class="head"><h2>리뷰 적립</h2><span class="note">자동지급 · 등급 무관</span></div>
+      <div class="review">
+        <div class="rv-row">
+          <div><div class="rv-k">텍스트 리뷰</div><div class="sub" id="rvTextRule"></div></div>
+          <div class="rv-v"><b id="rvTextCount">–</b>건<div class="sub" id="rvTextAmount"></div></div>
+        </div>
+        <div class="rv-row">
+          <div><div class="rv-k">사진 · 동영상 리뷰</div><div class="sub" id="rvPhotoRule"></div></div>
+          <div class="rv-v"><b id="rvPhotoCount">–</b>건<div class="sub" id="rvPhotoAmount"></div></div>
+        </div>
+        <div class="rv-row" id="rvOtherRow" hidden>
+          <div><div class="rv-k">기타 리뷰 적립</div><div class="sub">정책 금액과 다름 — 사유 확인 필요</div></div>
+          <div class="rv-v"><b id="rvOtherCount">–</b>건<div class="sub" id="rvOtherAmount"></div></div>
+        </div>
+        <p class="note rv-note" id="rvNote"></p>
+      </div>
+    </section>
+  </div>
 
   <section>
     <div class="head"><h2>회원별</h2><span class="note">잔액은 기간 내 마지막 내역 기준</span></div>
@@ -215,7 +244,7 @@
 
 <script type="module">
 import { summarize } from './src/core/points.js';
-import { tierOf, tierRule } from './src/core/tiers.js';
+import { tierOf, tierRule, REVIEW_REWARDS } from './src/core/tiers.js';
 
 const won = (n) => `${Math.round(n).toLocaleString('ko-KR')}`;
 const signed = (n) => (n > 0 ? `+${won(n)}` : n < 0 ? `−${won(-n)}` : '0');
@@ -356,7 +385,7 @@ function render(data, tag) {
   ].map(([k, v, cls]) => `<div class="tile ${cls}"><div class="k">${k}</div><div class="v">${v}</div></div>`).join('');
 
   const row = (label, g, extra = '') => `<tr>
-    <td>${label}</td><td class="num">${g.count}</td>
+    <td class="wrap">${label}</td><td class="num">${g.count}</td>
     <td class="num">${dash(g.increase)}</td><td class="num">${dash(g.decrease)}</td>
     <td class="num ${tone(g.delta)}">${signed(g.delta)}${extra}</td></tr>`;
 
@@ -368,6 +397,18 @@ function render(data, tag) {
     `<span class="bar" style="width:${(Math.abs(g.delta) / maxReason * 100).toFixed(1)}%"></span>`)).join('')
     || '<tr><td colspan="5" class="empty">내역 없음</td></tr>';
   el('reasonTable').querySelectorAll('tbody td:last-child').forEach((td) => td.classList.add('barcell'));
+
+  const rv = data.reviews ?? { text: { count: 0, amount: 0 }, photoVideo: { count: 0, amount: 0 }, other: { count: 0, amount: 0 } };
+  el('rvTextRule').textContent = `건당 ${won(REVIEW_REWARDS.text)}원`;
+  el('rvPhotoRule').textContent = `건당 ${won(REVIEW_REWARDS.photoVideo)}원`;
+  el('rvTextCount').textContent = rv.text.count.toLocaleString('ko-KR');
+  el('rvTextAmount').textContent = `${won(rv.text.amount)}원`;
+  el('rvPhotoCount').textContent = rv.photoVideo.count.toLocaleString('ko-KR');
+  el('rvPhotoAmount').textContent = `${won(rv.photoVideo.amount)}원`;
+  el('rvOtherRow').hidden = !rv.other.count;
+  el('rvOtherCount').textContent = rv.other.count.toLocaleString('ko-KR');
+  el('rvOtherAmount').textContent = `${won(rv.other.amount)}원`;
+  el('rvNote').textContent = `판매가 ${won(REVIEW_REWARDS.minPrice)}원 미만 상품은 리뷰 적립금 지급 제외. 합계 ${won(rv.text.amount + rv.photoVideo.amount + rv.other.amount)}원.`;
 
   el('tierTable').tBodies[0].innerHTML = (data.byTier ?? []).map((g) => `<tr>
     <td>${esc(g.key)}</td><td class="sub">${esc(tierRule(tierOf(g.key)) || '정책에 없는 등급')}</td>
