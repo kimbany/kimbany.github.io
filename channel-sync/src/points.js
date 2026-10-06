@@ -139,9 +139,11 @@ function lineIds(lines) {
  * '카드와 함께 본인 몫보다 많은 적립금 사용' 을 찾으려면 주문의 실결제가 필요하다.
  */
 async function savePaymentsForWatched(db, lines, call) {
-  let watch = [];
-  try { watch = await db.list('pointWatchMembers'); } catch (err) { log.warn(`관리 대상 목록 읽기 실패: ${err.message.split('\n')[0]}`); return; }
-  const ids = new Set(watch.map((w) => w.memberId ?? w.id));
+  const ids = new Set();
+  try {
+    for (const p of await db.list('pointWatchPeople')) for (const id of p.memberIds ?? []) ids.add(id);
+    for (const w of await db.list('pointWatchMembers')) ids.add(w.memberId ?? w.id); // 예전 방식
+  } catch (err) { log.warn(`관리 대상 목록 읽기 실패: ${err.message.split('\n')[0]}`); return; }
   const orderIds = [...new Set(lines.filter((l) => ids.has(l.memberId) && l.orderId).map((l) => l.orderId))];
   if (!orderIds.length) return;
   const docs = [];
@@ -171,7 +173,7 @@ async function savePaymentsForWatched(db, lines, call) {
   }
   if (docs.length) {
     await db.upsert(docs);
-    log.ok(`관리 대상 ${ids.size}명 주문 결제정보 ${docs.length}건 저장`);
+    log.ok(`관리 대상 아이디 ${ids.size}개 · 주문 결제정보 ${docs.length}건 저장`);
   }
 }
 
@@ -249,6 +251,10 @@ function mockData({ from, to }) {
   S('staff01', 6, '구매 적립', 450, 0, 'P-2001');
   S('staff01', 7, '리뷰 작성 적립금', 500, 0, 'P-2001');
   S('staff01', 9, '적립금 회수', 0, 1000, '', 'monfruit');
+  // 같은 직원의 두 번째 아이디(네이버 로그인): 회사 지급을 이 아이디 주문에 써도 한 사람으로 계산
+  S('3732104426@n', 8, '리뷰작업 적립금', 10000, 0, '', 'monfruit');
+  S('3732104426@n', 9, '주문 사용', 0, 10000, 'W-1003');
+  S('3732104426@n', 12, '구매 적립', 200, 0, 'W-1003');
   S('staff02', 0, '체험단 적립금', 50000, 0, '', 'monfruit');
   S('staff02', 2, '주문 사용', 0, 20000, 'W-1002');
   S('staff02', 5, '구매 적립', 700, 0, 'W-1002');
@@ -256,16 +262,17 @@ function mockData({ from, to }) {
   S('hong123', 3, 'CS 처리 보상', 5000, 0, '', 'monfruit');
   S('hong123', 8, '주문 사용', 0, 3000, 'P-2002');
   const demo = {
-    watch: [
-      { memberId: 'staff01', name: '김OO 매니저', type: '직원' },
-      { memberId: 'staff02', name: '이OO', type: '직원' },
-      { memberId: 'hong123', name: '배송 지연 보상 고객', type: '관리 고객' },
+    people: [
+      { code: 'S001', name: '김OO 매니저', type: '직원', memberIds: ['staff01', '3732104426@n'] },
+      { code: 'S002', name: '이OO', type: '직원', memberIds: ['staff02'] },
+      { code: 'C001', name: '배송 지연 보상 고객', type: '관리 고객', memberIds: ['hong123'] },
     ],
     payments: {
       'W-1001': { paymentAmount: 0, pointsSpent: 30000 },
       'W-1002': { paymentAmount: 15000, pointsSpent: 20000 },
       'P-2001': { paymentAmount: 22500, pointsSpent: 0 },
       'P-2002': { paymentAmount: 12000, pointsSpent: 3000 },
+      'W-1003': { paymentAmount: 0, pointsSpent: 10000 },
     },
     notes: { 'W-1001': { note: '9월 신상품 리뷰 작업' } },
   };

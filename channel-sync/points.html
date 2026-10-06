@@ -174,6 +174,11 @@
   .form-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 14px 16px; border-bottom: 1px solid var(--border); }
   .form-row input, .form-row select { font: inherit; font-size: 13px; padding: 6px 9px; border-radius: 7px; border: 1px solid var(--border-strong); background: var(--surface-0); color: var(--text-primary); }
   .rules { padding: 6px 16px 14px; font-size: 13px; }
+  .idchips { display: flex; flex-wrap: wrap; gap: 5px; align-items: center; }
+  .idchip { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; padding: 2px 4px 2px 8px; border-radius: 999px; border: 1px solid var(--border-strong); background: var(--surface-0); }
+  .idchip button { font: inherit; border: none; background: none; color: var(--text-muted); cursor: pointer; padding: 0 3px; font-size: 13px; line-height: 1; }
+  .idchip button:hover { color: var(--critical); }
+  input.addid { font: inherit; font-size: 12px; padding: 3px 7px; border-radius: 6px; border: 1px dashed var(--border-strong); background: none; color: var(--text-primary); width: 140px; }
   .rules li { margin: 6px 0; }
 </style>
 </head>
@@ -311,7 +316,7 @@
       <section>
         <div class="head"><h2>전체 내역</h2></div>
         <div class="scroll"><table id="dLines">
-          <thead><tr><th>일시</th><th>종류</th><th>사유</th><th>주문번호</th><th class="num">지급</th><th class="num">차감</th><th>몫</th></tr></thead>
+          <thead><tr><th>일시</th><th>아이디</th><th>종류</th><th>사유</th><th>주문번호</th><th class="num">지급</th><th class="num">차감</th><th>몫</th></tr></thead>
           <tbody></tbody>
         </table></div>
       </section>
@@ -322,13 +327,15 @@
     <section>
       <div class="head"><h2>관리 대상</h2><span class="note" id="sMsg"></span></div>
       <div class="form-row">
-        <input id="sId" placeholder="카페24 회원 아이디" autocomplete="off">
+        <input id="sCode" placeholder="회원코드 (예: S001)" autocomplete="off" style="width:130px">
         <input id="sName" placeholder="이름 · 메모 (예: 김OO 매니저)" autocomplete="off">
         <select id="sType"><option>직원</option><option>관리 고객</option></select>
+        <input id="sId" placeholder="카페24 아이디 (여러 개는 쉼표로)" autocomplete="off" style="flex:1;min-width:220px">
         <button class="btn" id="sAdd">추가</button>
       </div>
+      <p class="note" style="margin:0;padding:8px 16px 0">이미 있는 회원코드를 넣으면 그 사람에게 아이디가 더해집니다.</p>
       <div class="scroll"><table id="sTable">
-        <thead><tr><th>아이디</th><th>이름 · 메모</th><th>구분</th><th>등록일</th><th></th></tr></thead>
+        <thead><tr><th>회원코드</th><th>이름 · 메모</th><th>구분</th><th>카페24 아이디</th><th>등록일</th><th></th></tr></thead>
         <tbody></tbody>
       </table></div>
     </section>
@@ -353,7 +360,7 @@
 <script type="module">
 import { summarize } from './src/core/points.js';
 import { tierOf, tierRule, REVIEW_REWARDS } from './src/core/tiers.js';
-import { analyzeAll, KIND_LABEL } from './src/core/managed.js';
+import { analyzeAll, KIND_LABEL, peopleFromLegacy } from './src/core/managed.js';
 
 const won = (n) => `${Math.round(n).toLocaleString('ko-KR')}`;
 const signed = (n) => (n > 0 ? `+${won(n)}` : n < 0 ? `−${won(-n)}` : '0');
@@ -379,7 +386,7 @@ let auth = null;
 
 /* 관리 적립금 상태 — 샘플이면 메모리, DB 연결이면 Firestore */
 let mode = 'sample';
-const managed = { loaded: false, watch: [], notes: {}, payments: {}, lines: [], selected: null };
+const managed = { loaded: false, people: [], notes: {}, payments: {}, lines: [], selected: null };
 
 async function loadSample() {
   for (const path of ['./data/points/latest.json', './data/points/sample.json']) {
@@ -582,9 +589,9 @@ function renderLines() {
 
 function useSampleManaged(data) {
   mode = 'sample';
-  const d = data.managedDemo ?? { watch: [], payments: {}, notes: {} };
+  const d = data.managedDemo ?? { people: [], payments: {}, notes: {} };
   Object.assign(managed, {
-    loaded: true, watch: structuredClone(d.watch), payments: d.payments ?? {}, notes: structuredClone(d.notes ?? {}),
+    loaded: true, people: structuredClone(d.people ?? peopleFromLegacy(d.watch ?? [])), payments: d.payments ?? {}, notes: structuredClone(d.notes ?? {}),
     lines: data.lines ?? [],
   });
   renderManagedAll();
@@ -595,13 +602,17 @@ const chunk = (arr, n) => Array.from({ length: Math.ceil(arr.length / n) }, (_, 
 /** 관리 대상의 전체 기간 내역 · 주문 결제정보 · 비고를 DB 에서 읽는다. */
 async function loadManaged() {
   try {
-    const watchSnap = await fs.collection('pointWatchMembers').get();
-    const watch = watchSnap.docs.map((d) => ({ memberId: d.id, ...d.data() }));
+    const peopleSnap = await fs.collection('pointWatchPeople').get();
+    const people = peopleSnap.docs.map((d) => ({ code: d.id, memberIds: [], ...d.data() }));
+    // 예전 방식(아이디 하나씩)으로 등록된 것도 같이 보여 준다
+    const legacySnap = await fs.collection('pointWatchMembers').get();
+    const known = new Set(people.flatMap((p) => p.memberIds));
+    people.push(...peopleFromLegacy(legacySnap.docs.map((d) => ({ memberId: d.id, ...d.data() }))).filter((p) => !known.has(p.code)));
     const noteSnap = await fs.collection('pointOrderNotes').get();
     const notes = Object.fromEntries(noteSnap.docs.map((d) => [d.id, d.data()]));
     const lines = [];
     const payments = {};
-    for (const ids of chunk(watch.map((w) => w.memberId), 10)) {
+    for (const ids of chunk(people.flatMap((p) => p.memberIds), 10)) {
       const [ls, ps] = await Promise.all([
         fs.collection('cafe24Points').where('memberId', 'in', ids).get(),
         fs.collection('cafe24OrderPayments').where('memberId', 'in', ids).get(),
@@ -609,7 +620,7 @@ async function loadManaged() {
       lines.push(...docs(ls));
       for (const p of docs(ps)) payments[p.orderId] = p;
     }
-    Object.assign(managed, { loaded: true, watch, notes, payments, lines });
+    Object.assign(managed, { loaded: true, people, notes, payments, lines });
   } catch (e) {
     el('mNote').textContent = dbError(e);
   }
@@ -622,7 +633,7 @@ function renderManagedAll() {
 }
 
 function analysis() {
-  return analyzeAll(managed.watch, managed.lines, { payments: managed.payments, notes: managed.notes });
+  return analyzeAll(managed.people, managed.lines, { payments: managed.payments, notes: managed.notes });
 }
 
 const shortDate = (iso) => (iso ? new Date(iso).toLocaleDateString('ko-KR', { timeZone: 'Asia/Seoul', month: 'numeric', day: 'numeric' }) : '–');
@@ -634,7 +645,7 @@ function renderManaged() {
     ? '샘플 데이터입니다 — DB 에 연결하면 ⚙ 설정에서 등록한 사람들의 실제 현황이 보입니다.'
     : 'DB 에 쌓인 전체 기간 기준 · 관리 대상은 ⚙ 설정에서 등록합니다.';
 
-  if (!managed.watch.length) {
+  if (!managed.people.length) {
     el('mTiles').innerHTML = '';
     el('mCards').innerHTML = `<div class="empty" style="grid-column:1/-1">아직 등록한 관리 대상이 없습니다.<br>
       <button class="link" data-go="settings">⚙ 설정에서 직원 · 관리 고객 아이디를 등록하세요</button></div>`;
@@ -644,7 +655,7 @@ function renderManaged() {
 
   const t = a.total;
   el('mTiles').innerHTML = [
-    ['관리 대상', `${t.count}<small>명</small>`, ''],
+    ['관리 대상', `${t.count}<small>명 · 아이디 ${t.ids}개</small>`, ''],
     ['🏢 회수할 금액', `${won(t.toReclaim)}<small>원</small>`, 'company'],
     ['👤 본인 몫', `${won(t.own)}<small>원</small>`, 'pos'],
     ['회수 완료', `${won(t.reclaimed)}<small>원</small>`, ''],
@@ -652,9 +663,9 @@ function renderManaged() {
   ].map(([k, v, cls]) => `<div class="tile ${cls}"><div class="k">${k}</div><div class="v ${cls === 'company' ? 'company' : ''}">${v}</div></div>`).join('');
 
   el('mCards').innerHTML = a.members.map((m) => `
-    <button class="mcard ${m.flags ? 'flagged' : ''}" data-member="${esc(m.memberId)}" aria-pressed="${managed.selected === m.memberId}">
-      <span class="who"><b>${esc(m.name || m.memberId)}</b><span class="chip">${esc(m.type || '')}</span></span>
-      <span class="sub">${esc(m.memberId)} · 최근 ${shortDate(m.lastAt)}</span>
+    <button class="mcard ${m.flags ? 'flagged' : ''}" data-member="${esc(m.code)}" aria-pressed="${managed.selected === m.code}">
+      <span class="who"><b>${esc(m.name || m.code)}</b><span class="chip">${esc(m.type || '')}</span></span>
+      <span class="sub">${esc(m.code)} · 아이디 ${m.memberIds.length}개 · 최근 ${shortDate(m.lastAt)}</span>
       <span class="rows">
         <span class="k">현재 잔액</span><span class="v">${won(m.balance)}원</span>
         <span class="k company">🏢 회수할 금액</span><span class="v big company">${won(m.toReclaim)}원</span>
@@ -663,14 +674,14 @@ function renderManaged() {
       ${m.flags ? `<span class="warn">⚠️ 확인 필요 ${m.flags}건</span>` : ''}
     </button>`).join('');
 
-  const sel = a.members.find((m) => m.memberId === managed.selected);
+  const sel = a.members.find((m) => m.code === managed.selected);
   el('mDetail').hidden = !sel;
   if (sel) renderDetail(sel);
 }
 
 function renderDetail(m) {
   const t = m.totals;
-  el('dTitle').textContent = `${m.name || m.memberId} · ${m.memberId} · ${m.type || ''}`;
+  el('dTitle').textContent = `${m.name || m.code} · ${m.code} · ${m.type || ''} · 아이디 ${m.memberIds.join(', ')}`;
   const companyCalc = t.grant - t.workUsed + t.workEarned - t.reclaimed;
   const adj = m.toReclaim - companyCalc;
   const ownCalc = t.cs + t.event + t.ownEarned - t.ownUsed;
@@ -705,7 +716,7 @@ function renderDetail(m) {
     const how = o.override ? '직접 지정' : '자동';
     const pay = o.payment ? won(o.payment.paymentAmount) : '<span class="sub">결제정보 없음</span>';
     return `<tr class="${o.flag ? 'flag' : ''}">
-      <td class="sub">${esc(o.orderId)}</td>
+      <td class="sub">${esc(o.orderId)}${m.memberIds.length > 1 ? `<div>${esc(o.memberId)}</div>` : ''}</td>
       <td class="sub">${shortDate(o.firstAt)}</td>
       <td><button class="toggle ${o.work ? 'work' : 'personal'}" data-order="${esc(o.orderId)}" data-work="${o.work}">${o.work ? '🏢 업무용' : '👤 본인'}</button>
           <div class="sub">${how}</div></td>
@@ -721,13 +732,14 @@ function renderDetail(m) {
   const fmt = (iso) => (iso ? new Date(iso).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul', dateStyle: 'short', timeStyle: 'short' }) : '–');
   el('dLines').tBodies[0].innerHTML = m.timeline.map((l) => `<tr class="${l.flag ? 'flag' : ''}">
     <td class="sub">${fmt(l.at)}</td>
+    <td class="sub">${esc(l.memberId)}</td>
     <td>${esc(KIND_LABEL[l.type] ?? l.type)}</td>
     <td class="wrap">${esc(l.reason || l.kind || '–')}</td>
     <td class="sub">${esc(l.orderId || '–')}</td>
     <td class="num ${l.increase ? 'pos' : ''}">${dash(l.increase)}</td>
     <td class="num ${l.decrease ? 'neg' : ''}">${dash(l.decrease)}</td>
     <td>${l.bucket === 'company' ? '<span class="company">🏢 회사</span>' : l.bucket === 'own' ? '<span class="ownc">👤 본인</span>' : ''}</td>
-  </tr>`).join('') || '<tr><td colspan="7" class="empty">내역이 없습니다.</td></tr>';
+  </tr>`).join('') || '<tr><td colspan="8" class="empty">내역이 없습니다.</td></tr>';
 }
 
 /* 주문 구분 바꾸기 · 비고 저장 */
@@ -762,7 +774,7 @@ el('dOrders').addEventListener('click', async (e) => {
   const orderId = b.dataset.order;
   const nowWork = b.dataset.work === 'true';
   // 자동 판정과 같아지면 '직접 지정' 을 지운다
-  const a = analyzeAll(managed.watch, managed.lines, { payments: managed.payments, notes: { ...managed.notes, [orderId]: { ...managed.notes[orderId], override: null } } });
+  const a = analyzeAll(managed.people, managed.lines, { payments: managed.payments, notes: { ...managed.notes, [orderId]: { ...managed.notes[orderId], override: null } } });
   const auto = a.members.flatMap((m) => m.orders).find((o) => o.orderId === orderId)?.work;
   const want = !nowWork;
   await saveNote(orderId, { override: want === auto ? null : want ? 'work' : 'personal' });
@@ -776,48 +788,101 @@ el('dOrders').addEventListener('change', (e) => {
 /* ============================================================ 설정: 관리 대상 등록 */
 
 function renderSettings() {
-  el('sMsg').textContent = mode === 'sample' ? '샘플 모드 — DB 에 연결해야 저장됩니다' : '';
-  el('sTable').tBodies[0].innerHTML = managed.watch
-    .slice().sort((a, b) => (a.type ?? '').localeCompare(b.type ?? '') || a.memberId.localeCompare(b.memberId))
-    .map((w) => `<tr>
-      <td>${esc(w.memberId)}</td><td>${esc(w.name || '')}</td><td><span class="chip">${esc(w.type || '')}</span></td>
-      <td class="sub">${w.createdAt ? shortDate(w.createdAt) : '–'}</td>
-      <td><button class="btn ghost" data-del="${esc(w.memberId)}">삭제</button></td>
-    </tr>`).join('') || '<tr><td colspan="5" class="empty">등록된 관리 대상이 없습니다. 위에서 아이디를 추가하세요.</td></tr>';
+  if (mode === 'sample' && !el('sMsg').dataset.keep) el('sMsg').textContent = '샘플 모드 — DB 에 연결해야 저장됩니다';
+  delete el('sMsg').dataset.keep;
+  el('sTable').tBodies[0].innerHTML = managed.people
+    .slice().sort((a, b) => (a.type ?? '').localeCompare(b.type ?? '') || String(a.code).localeCompare(String(b.code)))
+    .map((p) => `<tr>
+      <td><b>${esc(p.code)}</b></td><td>${esc(p.name || '')}</td><td><span class="chip">${esc(p.type || '')}</span></td>
+      <td><div class="idchips">
+        ${p.memberIds.map((id) => `<span class="idchip">${esc(id)}<button title="이 아이디 빼기" data-unlink="${esc(p.code)}" data-id="${esc(id)}">×</button></span>`).join('')}
+        <input class="addid" data-addid="${esc(p.code)}" placeholder="+ 아이디 추가 (엔터)">
+      </div></td>
+      <td class="sub">${p.createdAt ? shortDate(p.createdAt) : '–'}</td>
+      <td><button class="btn ghost" data-del="${esc(p.code)}">삭제</button></td>
+    </tr>`).join('') || '<tr><td colspan="6" class="empty">등록된 관리 대상이 없습니다. 위에서 회원코드와 아이디를 추가하세요.</td></tr>';
 }
 
-async function addWatch() {
-  const memberId = el('sId').value.trim();
-  if (!memberId) return (el('sMsg').textContent = '아이디를 입력하세요');
-  if (memberId.includes('/')) return (el('sMsg').textContent = '아이디에 / 는 쓸 수 없습니다');
-  if (managed.watch.some((w) => w.memberId === memberId)) return (el('sMsg').textContent = '이미 등록된 아이디입니다');
-  const item = { memberId, name: el('sName').value.trim(), type: el('sType').value, createdAt: new Date().toISOString() };
-  if (mode === 'db') {
-    try { await fs.collection('pointWatchMembers').doc(memberId).set(item); }
-    catch (e) { el('sMsg').textContent = dbError(e); return; }
-  }
-  managed.watch.push(item);
-  el('sId').value = ''; el('sName').value = '';
+function settingsMsg(text) {
+  el('sMsg').textContent = text;
+  el('sMsg').dataset.keep = '1';
+}
+
+const splitIds = (text) => [...new Set(String(text).split(/[\s,]+/).map((x) => x.trim()).filter(Boolean))];
+
+/** 같은 아이디가 다른 사람에게 이미 들어가 있으면 막는다 */
+function ownerOf(id) {
+  return managed.people.find((p) => p.memberIds.includes(id))?.code ?? null;
+}
+
+async function savePerson(person) {
+  if (mode === 'db') await fs.collection('pointWatchPeople').doc(person.code).set(person);
+  const i = managed.people.findIndex((p) => p.code === person.code);
+  if (i >= 0) managed.people[i] = person; else managed.people.push(person);
+}
+
+async function afterSettingsChange(message) {
   if (mode === 'db') await loadManaged(); else renderManagedAll();
-  el('sMsg').textContent = `${memberId} 등록 — 관리 적립금 탭에 나타납니다${mode === 'sample' ? ' (샘플 모드라 저장되지 않음)' : ''}`;
+  settingsMsg(`${message}${mode === 'sample' ? ' (샘플 모드라 저장되지 않음)' : ''}`);
+  renderSettings();
 }
 
-el('sAdd').addEventListener('click', addWatch);
-el('sId').addEventListener('keydown', (e) => { if (e.key === 'Enter') addWatch(); });
+async function addPerson() {
+  const code = el('sCode').value.trim();
+  const ids = splitIds(el('sId').value);
+  if (!code) return settingsMsg('회원코드를 입력하세요');
+  if (code.includes('/')) return settingsMsg('회원코드에 / 는 쓸 수 없습니다');
+  const existing = managed.people.find((p) => p.code === code);
+  if (!existing && !ids.length) return settingsMsg('카페24 아이디를 하나 이상 입력하세요');
+  const taken = ids.filter((id) => ownerOf(id) && ownerOf(id) !== code);
+  if (taken.length) return settingsMsg(`이미 다른 회원코드에 등록된 아이디: ${taken.map((id) => `${id}(${ownerOf(id)})`).join(', ')}`);
+  const person = existing
+    ? { ...existing, name: el('sName').value.trim() || existing.name, type: el('sType').value || existing.type, memberIds: [...new Set([...existing.memberIds, ...ids])] }
+    : { code, name: el('sName').value.trim(), type: el('sType').value, memberIds: ids, createdAt: new Date().toISOString() };
+  try { await savePerson(person); } catch (e) { return settingsMsg(dbError(e)); }
+  el('sCode').value = ''; el('sName').value = ''; el('sId').value = '';
+  await afterSettingsChange(existing ? `${code} 에 아이디 ${ids.length}개 추가` : `${code} 등록 — 관리 적립금 탭에 나타납니다`);
+}
+
+el('sAdd').addEventListener('click', addPerson);
+for (const id of ['sCode', 'sName', 'sId']) el(id).addEventListener('keydown', (e) => { if (e.key === 'Enter') addPerson(); });
+
+el('sTable').addEventListener('keydown', async (e) => {
+  const input = e.target.closest('input[data-addid]');
+  if (!input || e.key !== 'Enter') return;
+  const code = input.dataset.addid;
+  const ids = splitIds(input.value);
+  if (!ids.length) return;
+  const taken = ids.filter((id) => ownerOf(id) && ownerOf(id) !== code);
+  if (taken.length) return settingsMsg(`이미 다른 회원코드에 등록된 아이디: ${taken.map((id) => `${id}(${ownerOf(id)})`).join(', ')}`);
+  const p = managed.people.find((x) => x.code === code);
+  try { await savePerson({ ...p, memberIds: [...new Set([...p.memberIds, ...ids])] }); } catch (err) { return settingsMsg(dbError(err)); }
+  await afterSettingsChange(`${code} 에 ${ids.join(', ')} 추가`);
+});
+
 el('sTable').addEventListener('click', async (e) => {
+  const un = e.target.closest('button[data-unlink]');
+  if (un) {
+    const p = managed.people.find((x) => x.code === un.dataset.unlink);
+    if (p.memberIds.length <= 1) return settingsMsg('아이디가 하나뿐이면 빼는 대신 회원코드를 삭제하세요');
+    try { await savePerson({ ...p, memberIds: p.memberIds.filter((id) => id !== un.dataset.id) }); } catch (err) { return settingsMsg(dbError(err)); }
+    return afterSettingsChange(`${p.code} 에서 ${un.dataset.id} 뺌`);
+  }
   const b = e.target.closest('button[data-del]');
   if (!b) return;
-  const id = b.dataset.del;
+  const code = b.dataset.del;
   // 실수 방지: 한 번 더 눌러야 지운다 (브라우저 확인창이 막힌 환경도 있어서)
   if (b.dataset.armed !== '1') { b.dataset.armed = '1'; b.textContent = '한 번 더 누르면 삭제'; return; }
+  const person = managed.people.find((p) => p.code === code);
   if (mode === 'db') {
-    try { await fs.collection('pointWatchMembers').doc(id).delete(); }
-    catch (err) { el('sMsg').textContent = dbError(err); return; }
+    try {
+      await fs.collection('pointWatchPeople').doc(code).delete();
+      for (const id of person?.memberIds ?? []) await fs.collection('pointWatchMembers').doc(id).delete(); // 예전 방식 정리
+    } catch (err) { return settingsMsg(dbError(err)); }
   }
-  managed.watch = managed.watch.filter((w) => w.memberId !== id);
-  if (managed.selected === id) managed.selected = null;
-  renderManagedAll();
-  el('sMsg').textContent = `${id} 삭제 — 적립금 내역은 그대로 남아 있습니다`;
+  managed.people = managed.people.filter((p) => p.code !== code);
+  if (managed.selected === code) managed.selected = null;
+  await afterSettingsChange(`${code} 삭제 — 적립금 내역은 그대로 남아 있습니다`);
 });
 
 /* ============================================================ 큰 메뉴(탭) */

@@ -146,8 +146,12 @@ export function analyzeMember(lines, { payments = {}, notes = {} } = {}) {
   }
 
   for (const o of orders.values()) o.work = isWork(o);
-  const lastBalance = [...sorted].reverse().find((l) => l.balance !== null)?.balance ?? null;
+  // 잔액: 아이디가 여러 개면 아이디마다 마지막 잔액을 더한다
+  const lastByMember = new Map();
+  for (const l of sorted) if (l.balance !== null) lastByMember.set(l.memberId, l.balance);
+  const lastBalance = lastByMember.size ? [...lastByMember.values()].reduce((a, b) => a + b, 0) : null;
   const orderList = [...orders.values()].sort((a, b) => b.firstAt.localeCompare(a.firstAt));
+  for (const o of orderList) o.memberId = sorted.find((l) => l.orderId === o.orderId)?.memberId ?? '';
 
   return {
     toReclaim: Math.max(0, Math.round(company)),
@@ -161,19 +165,36 @@ export function analyzeMember(lines, { payments = {}, notes = {} } = {}) {
   };
 }
 
-/** 등록된 관리 대상 전원 → 카드용 요약 + 전체 합계 */
-export function analyzeAll(watch, lines, opts = {}) {
-  const byMember = new Map(watch.map((w) => [w.memberId, []]));
-  for (const l of lines) byMember.get(l.memberId)?.push(l);
-  const members = watch.map((w) => ({ ...w, ...analyzeMember(byMember.get(w.memberId) ?? [], opts) }));
+/**
+ * 관리 대상 = 회원코드(사람) 하나에 카페24 아이디 여러 개.
+ * 같은 사람의 아이디들은 한 줄로 합쳐서 시간순으로 따라간다
+ * (A 아이디로 받은 회사 지급을 B 아이디 주문에 써도 같은 사람으로 계산되도록).
+ *
+ * people  [{ code, name, type, memberIds: [...] }]
+ */
+export function analyzeAll(people, lines, opts = {}) {
+  const codeOf = new Map();
+  for (const p of people) for (const id of p.memberIds ?? []) codeOf.set(id, p.code);
+  const byCode = new Map(people.map((p) => [p.code, []]));
+  for (const l of lines) {
+    const code = codeOf.get(l.memberId);
+    if (code !== undefined) byCode.get(code).push(l);
+  }
+  const members = people.map((p) => ({ ...p, ...analyzeMember(byCode.get(p.code) ?? [], opts) }));
   return {
-    members: members.sort((a, b) => b.flags - a.flags || b.toReclaim - a.toReclaim || a.memberId.localeCompare(b.memberId)),
+    members: members.sort((a, b) => b.flags - a.flags || b.toReclaim - a.toReclaim || String(a.code).localeCompare(String(b.code))),
     total: {
       count: members.length,
+      ids: members.reduce((s, m) => s + (m.memberIds?.length ?? 0), 0),
       toReclaim: members.reduce((s, m) => s + m.toReclaim, 0),
       own: members.reduce((s, m) => s + Math.max(0, m.own), 0),
       reclaimed: members.reduce((s, m) => s + m.totals.reclaimed, 0),
       flags: members.reduce((s, m) => s + m.flags, 0),
     },
   };
+}
+
+/** 예전 방식(아이디 하나 = 관리 대상 하나)으로 저장된 목록을 회원코드 방식으로 바꾼다. */
+export function peopleFromLegacy(legacy) {
+  return legacy.map((w) => ({ code: w.memberId, name: w.name ?? '', type: w.type ?? '', memberIds: [w.memberId], createdAt: w.createdAt ?? '' }));
 }
