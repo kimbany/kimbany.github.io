@@ -49,13 +49,29 @@ export function pointLine(r) {
  * 리뷰 적립 줄을 종류로 나눈다. 카페24 내역엔 리뷰 종류가 따로 없어서 사유 문구 + 정책 금액으로 판단한다.
  * 사유에 사진/포토/동영상이 있으면 그걸 먼저 믿고, 없으면 500원=텍스트, 1,000원=사진·동영상.
  */
+/** 사유에 '리뷰' 가 들어가도 관리자가 손으로 넣은 지급(리뷰용 · 리뷰작업 · 체험단 · CS 등)은 리뷰 적립이 아니다. */
+const MANUAL_REVIEW_RE = /리뷰\s*용|리뷰\s*작업|지뷰\s*작업|체험단|업무|협찬|\bcs\b|cs\s*처리|cs건|보상/i;
+
 export function reviewKind(l) {
   if (!(l.increase > 0) || !/리뷰|후기|review/i.test(`${l.reason} ${l.kind}`)) return null;
+  if (l.admin || MANUAL_REVIEW_RE.test(l.reason)) return null;
   if (/사진|포토|photo|동영상|영상|video/i.test(l.reason)) return 'photoVideo';
   if (/텍스트|일반|text/i.test(l.reason)) return 'text';
   if (l.increase === REVIEW_REWARDS.photoVideo) return 'photoVideo';
   if (l.increase === REVIEW_REWARDS.text) return 'text';
   return 'other';
+}
+
+/** 키별 건수 · 금액 · 회원 수 (금액 큰 순) */
+function groupBy(lines, keyOf, amountOf) {
+  const map = new Map();
+  for (const l of lines) {
+    const key = keyOf(l);
+    const cur = map.get(key) ?? { key, count: 0, amount: 0, members: new Set() };
+    cur.count++; cur.amount += amountOf(l); cur.members.add(l.memberId);
+    map.set(key, cur);
+  }
+  return [...map.values()].map((g) => ({ key: g.key, count: g.count, amount: g.amount, members: g.members.size })).sort((a, b) => b.amount - a.amount);
 }
 
 /**
@@ -124,6 +140,9 @@ export function summarize(lines, { from, to, reportRaw = null }) {
     byTier,
     reviews,
     byReason: group((l) => l.reason || l.kind || '(사유없음)').sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta)),
+    // 지급된 사유 / 사용(차감)된 사유를 따로
+    byReasonIn: groupBy(lines.filter((l) => l.increase > 0), (l) => l.reason || l.kind || '(사유없음)', (l) => l.increase),
+    byReasonOut: groupBy(lines.filter((l) => l.decrease > 0), (l) => l.reason || l.kind || '(사유없음)', (l) => l.decrease),
     byMember: group((l) => l.memberId || '(비회원)')
       .map((m) => ({ ...m, group: lastGroup.get(m.key) ?? '', balance: lastBalance.get(m.key) ?? null }))
       .sort((a, b) => b.increase + b.decrease - (a.increase + a.decrease)),
