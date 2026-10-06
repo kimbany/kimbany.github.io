@@ -40,19 +40,37 @@ export async function accessToken({ mallId, clientId, clientSecret, refreshToken
   return res.access_token;
 }
 
-export const api = (mallId, token, path, params = {}) => {
+/**
+ * 버전은 비워 두면 헤더를 안 보내 앱 기본 버전(개발자센터 설정)을 쓴다.
+ * 지정한 버전이 카페24에서 내려가 400 "version you requested is not available" 이 나면
+ * 그 실행 동안은 헤더 없이 다시 보낸다 — 오래된 .env 값 때문에 멈추지 않게.
+ */
+let versionRejected = false;
+
+export const api = async (mallId, token, path, params = {}) => {
   const query = new URLSearchParams(
     Object.entries(params).filter(([, v]) => v !== undefined && v !== ''),
   ).toString();
-  return request(`https://${mallId}.cafe24api.com/api/v2/admin/${path}${query ? `?${query}` : ''}`, {
+  const version = versionRejected ? '' : env('CAFE24_API_VERSION');
+  const send = (v) => request(`https://${mallId}.cafe24api.com/api/v2/admin/${path}${query ? `?${query}` : ''}`, {
     headers: {
       Authorization: `Bearer ${token}`,
       'Content-Type': 'application/json',
-      'X-Cafe24-Api-Version': env('CAFE24_API_VERSION', '2024-06-01'),
+      ...(v ? { 'X-Cafe24-Api-Version': v } : {}),
     },
     channel: 'cafe24',
     minIntervalMs: 300,
   });
+  try {
+    return await send(version);
+  } catch (err) {
+    if (version && err.status === 400 && /version you requested is not available/i.test(String(err.body))) {
+      versionRejected = true;
+      log.warn(`카페24 API 버전 ${version} 은 더 이상 지원되지 않아 앱 기본 버전으로 다시 요청합니다 (.env 의 CAFE24_API_VERSION 을 비워 두세요)`);
+      return send('');
+    }
+    throw err;
+  }
 };
 
 /** 카페24 주문상태는 접두 1글자가 대분류다. N=정상, C=취소, R=반품, E=교환. */
