@@ -620,9 +620,9 @@ function renderMatch() {
         const cur = m && m.productItemId ? m.productItemId : '';
         return `<tr class="border-b border-slate-50">
           <td class="py-2 text-xs text-slate-500 whitespace-nowrap">${esc(r.code)}${r.opt!=='__NONE__'?'<br>'+esc(r.opt):''}</td>
-          <td class="py-2">${esc((r.name||'').slice(0,28))}${r.optName&&r.optName!=='기본'?`<span class="text-slate-400"> · ${esc(r.optName)}</span>`:''}</td>
+          <td class="py-2 min-w-[220px]">${esc(r.name||'')}${r.optName&&r.optName!=='기본'?`<span class="text-slate-400"> · ${esc(r.optName)}</span>`:''}</td>
           <td class="py-2"><div class="flex items-center gap-1.5">
-            <select onchange="assignMatch('${ch.id}','${esc(r.code)}','${esc(r.opt)}',this.value)" class="px-2 py-1.5 text-sm border ${cur?'border-slate-200':'border-rose-300 bg-rose-50'} rounded-lg bg-white max-w-[220px]">
+            <select onchange="assignMatch('${ch.id}','${esc(r.code)}','${esc(r.opt)}',this.value)" class="px-2 py-1.5 text-sm border ${cur?'border-slate-200':'border-rose-300 bg-rose-50'} rounded-lg bg-white min-w-[200px]">
               <option value="">${cur?'(연결 해제)':'— 선택 —'}</option>${masterItemOptions(cur)}
             </select>
             ${cur?'':`<button onclick="quickCreateMaster('${ch.id}','${esc(r.code)}','${esc(r.opt)}')" class="text-[11px] font-semibold text-brand whitespace-nowrap px-1.5 py-1 rounded hover:bg-brand-soft">+ 새로 만들기</button>`}
@@ -1345,7 +1345,7 @@ function productTable(sales, total) {
   sales.forEach(s=>{ if(s.isCancelled) return;
     let pk,pl,kk,kl,matched;
     if(s.productItemId){ const it=DB.get('productItems',s.productItemId)||{}; const p=DB.get('products',it.productId)||{}; pk='p:'+it.productId; pl=p.name||'(상품)'; kk='i:'+s.productItemId; kl=itemLabel(it); matched=true; }
-    else { pk='u:'+s.channelId+'|'+s.channelProductCode; pl='⚠ '+((s.rawProductName||'미매칭').slice(0,28)); kk='uo:'+(s.channelOptionCode||''); kl=s.rawOptionName||'기본'; matched=false; }
+    else { pk='u:'+s.channelId+'|'+s.channelProductCode; pl='⚠ '+(s.rawProductName||'미매칭'); kk='uo:'+(s.channelOptionCode||''); kl=s.rawOptionName||'기본'; matched=false; }
     const g=(map[pk]=map[pk]||{label:pl,matched,gross:0,net:0,qty:0,kids:{}});
     g.gross+=s.grossAmount||0; g.net+=s.netAmount||0; g.qty+=s.qty||0;
     const k=(g.kids[kk]=g.kids[kk]||{label:kl,gross:0,net:0,qty:0}); k.gross+=s.grossAmount||0; k.net+=s.netAmount||0; k.qty+=s.qty||0;
