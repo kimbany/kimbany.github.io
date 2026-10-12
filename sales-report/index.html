@@ -71,6 +71,7 @@
   <nav class="max-w-6xl mx-auto px-4 flex gap-1 overflow-x-auto">
     <button class="tabbtn active whitespace-nowrap px-4 py-2.5 text-sm font-semibold text-slate-500 border-b-2 border-transparent" data-tab="main">메인</button>
     <button class="tabbtn whitespace-nowrap px-4 py-2.5 text-sm font-semibold text-slate-500 border-b-2 border-transparent" data-tab="sales">매출</button>
+    <button class="tabbtn whitespace-nowrap px-4 py-2.5 text-sm font-semibold text-slate-500 border-b-2 border-transparent" data-tab="stats">통계</button>
     <button class="tabbtn whitespace-nowrap px-4 py-2.5 text-sm font-semibold text-slate-500 border-b-2 border-transparent" data-tab="upload">데이터 입력</button>
     <button class="tabbtn whitespace-nowrap px-4 py-2.5 text-sm font-semibold text-slate-500 border-b-2 border-transparent" data-tab="settings">셋팅</button>
   </nav>
@@ -83,6 +84,8 @@
 
   <!-- ===== 매출 (Phase 8) ===== -->
   <section data-panel="sales" class="tab-panel hidden"></section>
+
+  <section data-panel="stats" class="tab-panel hidden"></section>
 
   <!-- ===== 데이터 입력 (Phase 3~5) ===== -->
   <section data-panel="upload" class="tab-panel hidden"></section>
@@ -258,6 +261,7 @@ function goTab(name) {
   if (name === 'settings') renderSub(curSub);
   else if (name === 'main') renderMain();
   else if (name === 'sales') renderSales();
+  else if (name === 'stats') renderStats();
   else if (name === 'upload') renderUpload();
 }
 window.goTab = goTab;
@@ -468,11 +472,15 @@ function renderProducts() {
     html += emptyCard('📦','등록된 상품이 없습니다','사과·감귤 같은 상품을 등록하고 그 아래 규격(대과 3kg 등)을 추가하세요.','+ 상품 추가','openProductForm()');
     box.innerHTML = html; return;
   }
+  // 상품별 첫 판매일(실제 매출 기준)
+  const firstSale = {};
+  DB.list('sales').forEach(s => { if(s.isCancelled||!s.productId) return; if(!firstSale[s.productId]||s.orderDate<firstSale[s.productId]) firstSale[s.productId]=s.orderDate; });
   html += '<div class="grid gap-3">';
   products.forEach(p => {
     const items = DB.list('productItems').filter(it => it.productId === p.id).sort((a,b)=>(a.unitValue||0)-(b.unitValue||0));
     html += `<div class="bg-white rounded-2xl border border-slate-200 overflow-hidden ${p.active===false?'opacity-60':''}">
-      <div class="p-4 flex items-center gap-2 border-b border-slate-100">
+      <div class="p-4 border-b border-slate-100">
+      <div class="flex items-center gap-2">
         <span class="font-bold">${esc(p.name)}</span>
         ${p.active===false?'<span class="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 text-slate-400">사용안함</span>':''}
         <span class="text-xs text-slate-400">규격 ${items.length}개</span>
@@ -481,6 +489,11 @@ function renderProducts() {
           <button onclick="openProductForm('${p.id}')" class="text-xs font-semibold text-slate-500 px-2 py-1 rounded hover:bg-slate-100">수정</button>
           <button onclick="delProduct('${p.id}')" class="text-xs font-semibold text-rose-500 px-2 py-1 rounded hover:bg-rose-50">삭제</button>
         </div>
+      </div>
+      <div class="mt-1.5 text-xs text-slate-500 flex gap-4 flex-wrap">
+        <span>판매 시작일: <b class="text-slate-700">${p.saleStartDate?esc(p.saleStartDate):'<span class=\'text-slate-300\'>미입력</span>'}</b></span>
+        <span>첫 판매일: <b class="text-slate-700">${firstSale[p.id]?esc(firstSale[p.id]):'<span class=\'text-slate-300\'>판매 없음</span>'}</b></span>
+      </div>
       </div>`;
     if (items.length) {
       html += '<table class="w-full text-sm"><tbody>';
@@ -508,8 +521,9 @@ function openProductForm(id) {
   const p = id ? DB.get('products', id) : { active:true };
   const body = `
     ${F.text('pr-name','상품명 (카테고리)', p.name||'', '예: 사과 / 감귤 / 골드키위')}
+    ${F.text('pr-start','판매 시작일 (선택)', p.saleStartDate||'', '', 'type="date"')}
     ${F.toggle('pr-active','사용 여부', p.active!==false)}
-    <p class="text-[11px] text-slate-400">저장한 뒤 카드에서 등급·규격(대과 3kg 등)을 추가할 수 있습니다.</p>`;
+    <p class="text-[11px] text-slate-400">판매 시작일을 적어두면 상품 목록에서 실제 첫 판매일과 함께 볼 수 있습니다. 저장한 뒤 카드에서 등급·규격(대과 3kg 등)을 추가하세요.</p>`;
   openModal(F.wrap(id?'상품 수정':'상품 추가', body, F.btnGhost('취소','closeModal()')+F.btnPrimary('저장',`saveProduct('${id||''}')`)));
 }
 window.openProductForm = openProductForm;
@@ -518,7 +532,7 @@ function saveProduct(id) {
   const name = $('#pr-name').value.trim();
   if (!name) { toast('상품명을 입력하세요','err'); return; }
   const prev = id ? DB.get('products', id) : null;
-  DB.put('products', { id:id||undefined, name, active:$('#pr-active').checked, brandId:(prev&&prev.brandId)||'' });
+  DB.put('products', { id:id||undefined, name, active:$('#pr-active').checked, saleStartDate:$('#pr-start').value||'', brandId:(prev&&prev.brandId)||'' });
   closeModal(); renderProducts(); toast('저장했습니다');
 }
 window.saveProduct = saveProduct;
@@ -1476,6 +1490,207 @@ function exportSalesCsv() {
 }
 window.exportSalesCsv = exportSalesCsv;
 
+/* ============================================================ 통계 화면 */
+const DOW_KR = ['월','화','수','목','금','토','일'];
+function compact(n){ n=Number(n)||0; const s=n<0?'-':''; n=Math.abs(n); if(n>=100000000)return s+(n/100000000).toFixed(n>=1e9?0:1).replace(/\.0$/,'')+'억'; if(n>=10000)return s+(n/10000).toFixed(n>=1e5?0:1).replace(/\.0$/,'')+'만'; return s+comma(n); }
+const statsState = { from:null, to:null, chSet:new Set(), brSet:new Set() };
+
+function dowIndex(dateStr){ const d=new Date(dateStr+'T00:00'); return (d.getDay()+6)%7; }   // 월=0 … 일=6
+function hourOf(dt){ const m=String(dt||'').match(/[ T](\d{1,2}):\d{2}/); return m?Math.min(23,Math.max(0,parseInt(m[1],10))):null; }
+function monthKey(dateStr){ return String(dateStr||'').slice(0,7); }
+
+// 공통 막대 SVG (반응형: viewBox + width:100%)
+function barsSvg(data, opt){
+  opt = opt || {};
+  if (!data.length) return '<p class="text-sm text-slate-400 py-6 text-center">데이터 없음</p>';
+  const W=720, H=opt.height||180, padT=16, padB=30, padL=6, padR=6;
+  const n=data.length, innerW=W-padL-padR, innerH=H-padT-padB;
+  const max=Math.max(1, ...data.map(d=>d.value));
+  const step=innerW/n, bw=Math.min(opt.barW||44, step*0.72);
+  const parts=[];
+  data.forEach((d,i)=>{
+    const h=innerH*(d.value/max), x=padL+step*i+(step-bw)/2, y=padT+innerH-h;
+    const hl=opt.highlightMax && d.value===max && max>0;
+    parts.push(`<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${bw.toFixed(1)}" height="${Math.max(h,d.value>0?2:0).toFixed(1)}" rx="3" fill="${hl?'#1d5ce0':'#9fc0ff'}"><title>${esc(d.label)}: ${esc(opt.fmt?opt.fmt(d.value):String(d.value))}</title></rect>`);
+    if (opt.showVal!==false && d.value>0) parts.push(`<text x="${(padL+step*i+step/2).toFixed(1)}" y="${(y-4).toFixed(1)}" text-anchor="middle" font-size="10" fill="#6b7280">${esc(opt.valShort?opt.valShort(d.value):String(d.value))}</text>`);
+    parts.push(`<text x="${(padL+step*i+step/2).toFixed(1)}" y="${H-10}" text-anchor="middle" font-size="10" fill="#6b7280">${esc(d.label)}</text>`);
+  });
+  return `<svg viewBox="0 0 ${W} ${H}" width="100%" style="height:auto;display:block" preserveAspectRatio="xMidYMid meet">${parts.join('')}</svg>`;
+}
+
+function heatmapSvg(heat, maxv){
+  const cols=24, rows=7, cw=24, ch=20, lx=28, ty=16;
+  const W=lx+cols*cw+6, H=ty+rows*ch+16, parts=[];
+  for (let h=0;h<24;h+=3) parts.push(`<text x="${lx+h*cw+cw/2}" y="${ty-4}" text-anchor="middle" font-size="9" fill="#9ca3af">${h}시</text>`);
+  for (let d=0;d<7;d++){
+    parts.push(`<text x="${lx-5}" y="${ty+d*ch+ch/2+3}" text-anchor="end" font-size="10" fill="#6b7280">${DOW_KR[d]}</text>`);
+    for (let h=0;h<24;h++){
+      const v=heat[d][h]||0, op=maxv? (0.10+0.90*v/maxv):0;
+      parts.push(`<rect x="${lx+h*cw}" y="${ty+d*ch}" width="${cw-2}" height="${ch-2}" rx="2" fill="#2f6fed" fill-opacity="${v?op.toFixed(2):'0.04'}"><title>${DOW_KR[d]}요일 ${h}시: ${v}개</title></rect>`);
+    }
+  }
+  return `<svg viewBox="0 0 ${W} ${H}" width="${W}" style="max-width:none;height:auto" preserveAspectRatio="xMinYMin meet">${parts.join('')}</svg>`;
+}
+
+function statsSales(){
+  return DB.list('sales').filter(s =>
+    s.orderDate>=statsState.from && s.orderDate<=statsState.to &&
+    (!statsState.chSet.size || statsState.chSet.has(s.channelId)) &&
+    (!statsState.brSet.size || statsState.brSet.has(s.brandId)));
+}
+function prodKeyLabel(s){
+  if (s.productItemId){ const it=DB.get('productItems',s.productItemId)||{}; const p=DB.get('products',it.productId)||{}; return { k:'p:'+it.productId, label:p.name||'(상품)' }; }
+  return { k:'u:'+s.channelId+'|'+s.channelProductCode, label:'⚠ '+(s.rawProductName||'미매칭') };
+}
+
+function renderStats(){
+  const sec = $('[data-panel="stats"]');
+  const all = DB.list('sales');
+  if (!all.length){ sec.innerHTML = emptyCard('📊','통계를 보려면 매출 데이터가 필요합니다','데이터 입력에서 파일을 올리면 요일·시간·월별 통계가 생깁니다.','데이터 입력하러 가기',"goTab('upload')"); return; }
+  const dates=[...new Set(all.map(s=>s.orderDate))].sort();
+  if (!statsState.from){ statsState.from=dates[0]; statsState.to=dates[dates.length-1]; }
+  const channels=DB.list('channels').filter(c=>all.some(s=>s.channelId===c.id));
+  const brands=DB.list('brands').filter(b=>all.some(s=>s.brandId===b.id));
+  const chip=(on,label,onclick)=>`<button onclick="${onclick}" class="px-3 py-1.5 rounded-full text-xs font-semibold border ${on?'bg-brand text-white border-brand':'bg-white text-slate-500 border-slate-200'}">${esc(label)}</button>`;
+  const quick=[['최근 30일',-29],['최근 90일',-89],['올해',-1]];
+
+  const sub = statsSales();
+  const live = sub.filter(s=>!s.isCancelled);
+
+  // 집계
+  const orders=new Set(); let gross=0, qty=0, cancelCnt=0, totalItems=sub.length;
+  const dow=Array.from({length:7},()=>({q:0,g:0})), hour=Array.from({length:24},()=>({q:0,g:0}));
+  const heat=Array.from({length:7},()=>Array(24).fill(0));
+  const month={}, prodTot={}, buyers={};
+  let noHour=0;
+  sub.forEach(s=>{ if(s.isCancelled){ cancelCnt++; return; }
+    orders.add(s.channelId+'|'+s.orderNo); gross+=s.grossAmount||0; qty+=s.qty||0;
+    const di=dowIndex(s.orderDate); dow[di].q+=s.qty||0; dow[di].g+=s.grossAmount||0;
+    const h=hourOf(s.orderDateTime); if(h==null) noHour++; else { hour[h].q+=s.qty||0; hour[h].g+=s.grossAmount||0; heat[di][h]+=s.qty||0; }
+    const mk=monthKey(s.orderDate); const m=(month[mk]=month[mk]||{g:0,q:0,prod:{}});
+    m.g+=s.grossAmount||0; m.q+=s.qty||0;
+    const pl=prodKeyLabel(s); const mp=(m.prod[pl.k]=m.prod[pl.k]||{label:pl.label,q:0,g:0}); mp.q+=s.qty||0; mp.g+=s.grossAmount||0;
+    const pt=(prodTot[pl.k]=prodTot[pl.k]||{label:pl.label,q:0,g:0}); pt.q+=s.qty||0; pt.g+=s.grossAmount||0;
+    const bn=(s.buyerName||'').trim(); if(bn){ const bk=s.channelId+'|'+bn; const bb=(buyers[bk]=buyers[bk]||{orders:new Set(),g:0}); bb.orders.add(s.orderNo); bb.g+=s.grossAmount||0; }
+  });
+  const orderCount=orders.size;
+  const aov=orderCount? gross/orderCount : 0;
+  const cancelRate= totalItems? cancelCnt/totalItems*100 : 0;
+  const days=Math.max(1, Math.round((new Date(statsState.to)-new Date(statsState.from))/86400000)+1);
+
+  // 재구매
+  const buyerList=Object.values(buyers);
+  const totalBuyers=buyerList.length;
+  const repeatBuyers=buyerList.filter(b=>b.orders.size>=2).length;
+  const repeatRate=totalBuyers? repeatBuyers/totalBuyers*100 : 0;
+  const repeatGross=buyerList.filter(b=>b.orders.size>=2).reduce((a,b)=>a+b.g,0);
+  const repeatGrossPct= gross? repeatGross/gross*100 : 0;
+
+  // 요일 데이터
+  const dowData=DOW_KR.map((lb,i)=>({label:lb, value:dow[i].q, g:dow[i].g}));
+  const bestDow=dowData.reduce((a,b)=>b.value>a.value?b:a, dowData[0]);
+  const hourData=Array.from({length:24},(_,h)=>({label:String(h), value:hour[h].q}));
+  const bestHour=hourData.reduce((a,b)=>b.value>a.value?b:a, hourData[0]);
+  const heatMax=Math.max(1, ...heat.flat());
+
+  // 월별
+  const monthKeys=Object.keys(month).sort();
+  const monthData=monthKeys.map(k=>({label:k.slice(2).replace('-','.'), value:Math.round(month[k].g), raw:k}));
+  // 상품 TOP
+  const topProd=Object.values(prodTot).sort((a,b)=>b.g-a.g).slice(0,10);
+  const topTotal=topProd.reduce((a,b)=>a+b.g,0)||1;
+
+  const card=(l,v,s2,acc)=>statCard(l,v,s2,acc);
+  let html = `
+    <div class="bg-white rounded-2xl border border-slate-200 p-4 mb-4 space-y-3">
+      <div class="flex items-center gap-2 flex-wrap">
+        <span class="text-xs font-bold text-slate-500 w-12">기간</span>
+        <input type="date" id="stFrom" value="${statsState.from}" class="px-3 py-1.5 text-sm border border-slate-200 rounded-lg">
+        <span class="text-slate-400">~</span>
+        <input type="date" id="stTo" value="${statsState.to}" class="px-3 py-1.5 text-sm border border-slate-200 rounded-lg">
+        <div class="flex gap-1.5 flex-wrap">
+          ${quick.map((q,i)=>`<button onclick="statsQuick(${i})" class="px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-slate-100 text-slate-500 hover:bg-slate-200">${q[0]}</button>`).join('')}
+          <button onclick="statsQuickAll()" class="px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-slate-100 text-slate-500 hover:bg-slate-200">전체</button>
+        </div>
+      </div>
+      ${channels.length>1?`<div class="flex items-center gap-2 flex-wrap"><span class="text-xs font-bold text-slate-500 w-12">채널</span>
+        ${chip(statsState.chSet.size===0,'전체','statsToggleCh(null)')}${channels.map(c=>chip(statsState.chSet.has(c.id),c.name,`statsToggleCh('${c.id}')`)).join('')}</div>`:''}
+      ${brands.length>1?`<div class="flex items-center gap-2 flex-wrap"><span class="text-xs font-bold text-slate-500 w-12">브랜드</span>
+        ${chip(statsState.brSet.size===0,'전체','statsToggleBr(null)')}${brands.map(b=>chip(statsState.brSet.has(b.id),b.name,`statsToggleBr('${b.id}')`)).join('')}</div>`:''}
+    </div>
+    <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
+      ${card('매출', won(gross), comma(qty)+'개 · '+days+'일')}
+      ${card('주문수', comma(orderCount)+'건', '일평균 '+(orderCount/days).toFixed(1)+'건')}
+      ${card('객단가(주문당)', won(aov), '')}
+      ${card('취소율', cancelRate.toFixed(1)+'%', cancelCnt?comma(cancelCnt)+'품목 취소':'취소 없음', cancelRate>0?'text-rose-500':'')}
+    </div>
+
+    <div class="grid gap-4 lg:grid-cols-2 mb-4">
+      <div class="bg-white rounded-2xl border border-slate-200 p-4">
+        <h3 class="font-bold text-sm mb-1">요일별 판매량 <span class="font-normal text-slate-400">가장 잘 나가는 요일: <b class="text-brand">${esc(bestDow.label)}</b></span></h3>
+        ${barsSvg(dowData,{highlightMax:true, valShort:comma, fmt:v=>comma(v)+'개'})}
+      </div>
+      <div class="bg-white rounded-2xl border border-slate-200 p-4">
+        <h3 class="font-bold text-sm mb-1">시간대별 주문 <span class="font-normal text-slate-400">가장 많은 시간: <b class="text-brand">${esc(bestHour.label)}시</b></span></h3>
+        ${barsSvg(hourData,{highlightMax:true, showVal:false, barW:22, fmt:v=>comma(v)+'개'})}
+        ${noHour?`<p class="text-[11px] text-slate-400 mt-1">※ 시간 정보가 없는 ${comma(noHour)}품목은 시간 통계에서 제외</p>`:''}
+      </div>
+    </div>
+
+    <div class="bg-white rounded-2xl border border-slate-200 p-4 mb-4">
+      <h3 class="font-bold text-sm mb-2">요일 × 시간 히트맵 <span class="font-normal text-slate-400">진할수록 주문 많음(수량)</span></h3>
+      <div class="overflow-x-auto">${heatmapSvg(heat, heatMax)}</div>
+    </div>
+
+    <div class="grid gap-4 lg:grid-cols-2 mb-4">
+      <div class="bg-white rounded-2xl border border-slate-200 p-4">
+        <h3 class="font-bold text-sm mb-1">월별 매출</h3>
+        ${barsSvg(monthData,{highlightMax:false, valShort:compact, fmt:v=>won(v)})}
+      </div>
+      <div class="bg-white rounded-2xl border border-slate-200 p-4">
+        <h3 class="font-bold text-sm mb-2">월별 베스트 상품 <span class="font-normal text-slate-400">달마다 많이 팔린 TOP 3(수량)</span></h3>
+        <div class="space-y-2 max-h-[220px] overflow-y-auto">
+        ${monthKeys.slice().reverse().map(k=>{
+          const top=Object.values(month[k].prod).sort((a,b)=>b.q-a.q).slice(0,3);
+          return `<div class="text-sm"><div class="font-semibold text-slate-600">${esc(k)}</div>
+            <ol class="text-xs text-slate-500 list-decimal ml-4">${top.map(t=>`<li>${esc(t.label)} · ${comma(t.q)}개 · ${won(t.g)}</li>`).join('')}</ol></div>`;
+        }).join('')||'<p class="text-sm text-slate-400">데이터 없음</p>'}
+        </div>
+      </div>
+    </div>
+
+    <div class="grid gap-4 lg:grid-cols-2 mb-4">
+      <div class="bg-white rounded-2xl border border-slate-200 p-4">
+        <h3 class="font-bold text-sm mb-2">상품 TOP 10 <span class="font-normal text-slate-400">기간 내 매출순</span></h3>
+        <table class="w-full text-sm"><tbody>
+        ${topProd.length? topProd.map((t,i)=>`<tr class="border-b border-slate-50">
+          <td class="py-1.5 w-6 text-slate-400">${i+1}</td><td class="py-1.5 font-semibold">${esc(t.label)}</td>
+          <td class="py-1.5 text-right num">${won(t.g)}</td><td class="py-1.5 text-right num text-slate-500">${comma(t.q)}개</td>
+          <td class="py-1.5 pl-2 w-20"><div class="h-1.5 bg-slate-100 rounded"><i class="block h-full bg-brand rounded" style="width:${(t.g/topTotal*100).toFixed(0)}%"></i></div></td></tr>`).join('')
+          :'<tr><td class="py-6 text-center text-slate-400 text-sm">데이터 없음</td></tr>'}
+        </tbody></table>
+      </div>
+      <div class="bg-white rounded-2xl border border-slate-200 p-4">
+        <h3 class="font-bold text-sm mb-2">재구매 분석 <span class="font-normal text-slate-400">구매자명 기준(채널 내)</span></h3>
+        <div class="grid grid-cols-2 gap-3 mb-3">
+          ${card('구매 고객', comma(totalBuyers)+'명','')}
+          ${card('재구매 고객', comma(repeatBuyers)+'명', '2회 이상 주문')}
+          ${card('재구매율', repeatRate.toFixed(1)+'%','')}
+          ${card('재구매 매출 비중', repeatGrossPct.toFixed(1)+'%', won(repeatGross))}
+        </div>
+        <p class="text-[11px] text-slate-400">※ 동명이인·게스트 구매는 합산될 수 있어 참고용입니다.</p>
+      </div>
+    </div>`;
+  sec.innerHTML = html;
+  $('#stFrom').addEventListener('change',e=>{ statsState.from=e.target.value; renderStats(); });
+  $('#stTo').addEventListener('change',e=>{ statsState.to=e.target.value; renderStats(); });
+}
+window.statsQuick=(i)=>{ const q=[29,89,0][i]; if(i===2){ statsState.from=localYmd(new Date()).slice(0,4)+'-01-01'; statsState.to=localYmd(); } else { statsState.from=shiftDate(localYmd(),-q); statsState.to=localYmd(); } renderStats(); };
+window.statsQuickAll=()=>{ const d=[...new Set(DB.list('sales').map(s=>s.orderDate))].sort(); statsState.from=d[0]; statsState.to=d[d.length-1]; renderStats(); };
+window.statsToggleCh=id=>{ if(!id)statsState.chSet.clear(); else{ statsState.chSet.has(id)?statsState.chSet.delete(id):statsState.chSet.add(id);} renderStats(); };
+window.statsToggleBr=id=>{ if(!id)statsState.brSet.clear(); else{ statsState.brSet.has(id)?statsState.brSet.delete(id):statsState.brSet.add(id);} renderStats(); };
+
+
 /* ============================================================ Firebase(클라우드) */
 var firebaseConfig = {
   apiKey: "AIzaSyAQSp-HukEK-U5OElWr8jzoXzXqzI-MQNc",
@@ -1550,6 +1765,7 @@ function rerender() {
   refreshBadges();
   if (curTab === 'settings') renderSub(curSub);
   else if (curTab === 'sales') renderSales();
+  else if (curTab === 'stats') renderStats();
   else if (curTab === 'upload') renderUpload();
   else renderMain();
 }
