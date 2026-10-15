@@ -597,10 +597,10 @@ window.delItem = delItem;
  * ==========================================================================*/
 function masterItemOptions(sel) {
   const products = DB.list('products');
-  return DB.list('productItems').filter(it=>it.active!==false).map(it => {
-    const p = products.find(x=>x.id===it.productId)||{};
-    return `<option value="${it.id}" ${it.id===sel?'selected':''}>${esc((p.name||'?')+' · '+itemLabel(it))}</option>`;
-  }).join('');
+  return DB.list('productItems').filter(it=>it.active!==false)
+    .map(it => { const p = products.find(x=>x.id===it.productId)||{}; return { id:it.id, label:(p.name||'?')+' · '+itemLabel(it) }; })
+    .sort((a,b)=> a.label.localeCompare(b.label, 'ko'))
+    .map(o => `<option value="${o.id}" ${o.id===sel?'selected':''}>${esc(o.label)}</option>`).join('');
 }
 function renderMatch() {
   const box = $('[data-sub-panel="match"]');
