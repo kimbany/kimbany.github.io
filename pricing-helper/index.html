@@ -412,6 +412,11 @@
 
       <div id="코드생성오류" class="hidden rounded-xl bg-red-50 border border-red-100 px-4 py-3 text-[13.5px] text-red-700"></div>
 
+      <div id="코드생성완료" class="hidden rounded-xl bg-emerald-50 border border-emerald-200 px-4 py-3">
+        <div class="text-[12px] font-bold text-emerald-800">방금 만든 제품코드</div>
+        <div id="방금만든코드" class="코드값 text-[15px] font-extrabold text-emerald-900 break-all mt-0.5"></div>
+      </div>
+
       <div class="flex gap-2">
         <button id="코드저장버튼" class="btn btn-main" type="button">제품코드 저장</button>
         <button id="코드생성취소버튼" class="btn hidden" type="button">수정 취소</button>
@@ -2058,11 +2063,18 @@ async function 제품코드저장() {
   const 조합 = 코드조합(재료.브랜드, 재료.분류, 재료.중량, 재료.입수량);
   if (!조합) { 코드생성오류표시('브랜드 · 대분류 · 옵션분류 · 중량·수량 · 입수량을 모두 골라 주세요.'); return; }
 
-  // 같은 조합이 이미 있으면 만들지 않고 기존 코드를 알려준다
+  // 같은 제품이 이미 있으면 만들지 않고 기존 코드를 알려준다.
+  // 입수량은 같은 제품이라도 그때그때 달라지므로 중복 판정에 넣지 않는다.
+  // 브랜드 · 대분류 · 옵션분류 · 중량·수량 네 가지가 같으면 같은 제품으로 본다.
   const 중복 = 저장소.캐시.제품코드.find((코드) =>
     코드.브랜드ID === 브랜드ID && 코드.분류ID === 분류ID &&
-    코드.중량ID === 중량ID && 코드.입수량ID === 입수량ID && 코드.id !== 수정중제품코드ID);
-  if (중복) { 코드생성오류표시(`같은 조합이 이미 ${중복.구분형코드} 로 등록되어 있습니다.`); return; }
+    코드.중량ID === 중량ID && 코드.id !== 수정중제품코드ID);
+  if (중복) {
+    코드생성오류표시(
+      `같은 제품이 이미 ${중복.구분형코드} 로 등록되어 있습니다.`
+      + ' 브랜드 · 대분류 · 옵션분류 · 중량·수량이 같으면 입수량이 달라도 같은 제품으로 봅니다.');
+    return;
+  }
 
   if (수정중제품코드ID) {
     const 대상 = 저장소.캐시.제품코드.find((코드) => 코드.id === 수정중제품코드ID);
@@ -2079,11 +2091,20 @@ async function 제품코드저장() {
   }
 
   await 저장소.저장('제품코드');
-  const 안내 = 수정중제품코드ID ? '제품코드를 수정했습니다' : '제품코드를 만들었습니다';
+  const 수정이었나 = Boolean(수정중제품코드ID);
   제품코드생성초기화();
   제품코드화면다시그리기();
-  토스트(`${안내} · ${조합.구분형}`);
-  화면전환('제품코드목록');
+  토스트(`${수정이었나 ? '제품코드를 수정했습니다' : '제품코드를 만들었습니다'} · ${조합.구분형}`);
+
+  if (수정이었나) {
+    // 수정은 목록에서 넘어온 흐름이라 목록으로 돌려보낸다
+    화면전환('제품코드목록');
+  } else {
+    // 생성은 연달아 만드는 경우가 많아 화면을 그대로 둔다
+    document.getElementById('방금만든코드').textContent = 조합.구분형;
+    document.getElementById('코드생성완료').classList.remove('hidden');
+    document.getElementById('코드브랜드선택').focus();
+  }
 }
 
 function 제품코드생성초기화() {
@@ -2103,6 +2124,7 @@ function 제품코드수정시작(id) {
   const 대상 = 저장소.캐시.제품코드.find((코드) => 코드.id === id);
   if (!대상) return;
   수정중제품코드ID = id;
+  document.getElementById('코드생성완료').classList.add('hidden');
   const 분류 = 대분류찾기(대상.분류ID);
   document.getElementById('코드브랜드선택').value = 대상.브랜드ID;
   document.getElementById('코드대분류선택').value = 분류 ? 분류.대분류코드 : '';
@@ -2121,7 +2143,10 @@ function 제품코드수정시작(id) {
 }
 
 document.getElementById('코드저장버튼').addEventListener('click', 제품코드저장);
-document.getElementById('코드생성취소버튼').addEventListener('click', 제품코드생성초기화);
+document.getElementById('코드생성취소버튼').addEventListener('click', () => {
+  제품코드생성초기화();
+  document.getElementById('코드생성완료').classList.add('hidden');
+});
 
 /* ===================================================================
    13. 제품코드 › 제품코드 목록 — 검색 · 정렬 · 복사
