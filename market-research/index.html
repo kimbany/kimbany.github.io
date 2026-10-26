@@ -79,6 +79,7 @@
   <button data-tab="demo" class="tab px-3 py-2 text-sm border-b-2 border-transparent text-[var(--muted)]">연령·성별·기기</button>
   <button data-tab="rank" class="tab px-3 py-2 text-sm border-b-2 border-transparent text-[var(--muted)]">순위 확인</button>
   <button data-tab="price" class="tab px-3 py-2 text-sm border-b-2 border-transparent text-[var(--muted)]">가격경쟁력</button>
+  <button data-tab="track" class="tab px-3 py-2 text-sm border-b-2 border-transparent text-[var(--muted)]">순위추적</button>
 </nav>
 
 <main class="max-w-6xl mx-auto px-4 py-5">
@@ -282,6 +283,63 @@
     </p>
   </section>
 
+  <!-- ===== 키워드 순위추적 탭 ===== -->
+  <section id="tab-track" class="hidden fade space-y-4">
+    <div class="flex items-center gap-2 flex-wrap text-xs">
+      <select id="trkKwSel" class="rounded-lg px-2 py-2"></select>
+      <button id="trkRun" class="rounded-lg px-4 py-2 font-semibold" style="background:var(--accent);color:#06231a">📸 오늘 수집</button>
+      <button id="trkCfgBtn" class="chip rounded-lg px-3 py-2">설정</button>
+      <span id="trkState" class="text-[var(--muted)]"></span>
+    </div>
+
+    <!-- 설정 패널 -->
+    <div id="trkCfgPanel" class="hidden panel rounded-xl p-4 space-y-3 text-sm">
+      <div class="grid md:grid-cols-2 gap-3">
+        <div>
+          <div class="font-semibold text-[13px] text-[var(--muted)] mb-1">추적 키워드 (쉼표로 여러 개)</div>
+          <input id="trkKeywords" placeholder="감홍사과, 샤인머스캣 2kg" class="w-full rounded-lg px-3 py-2 text-xs" />
+        </div>
+        <div>
+          <div class="font-semibold text-[13px] text-[var(--muted)] mb-1">우리 스토어명 (우리 상품 강조)</div>
+          <input id="trkStore" placeholder="예: 과일부티크" class="w-full rounded-lg px-3 py-2 text-xs" />
+        </div>
+      </div>
+      <div class="flex items-center gap-2 flex-wrap text-xs">
+        <span class="text-[var(--muted)]">수집 범위 상위</span>
+        <input id="trkTopN" type="number" class="rounded px-2 py-1.5 w-16" />위
+        <span class="text-[var(--muted)] ml-2">강조: 순위</span>
+        <input id="trkRankTh" type="number" class="rounded px-2 py-1.5 w-14" />칸 이상
+        <span class="text-[var(--muted)] ml-1">· 가격</span>
+        <input id="trkPriceTh" type="number" class="rounded px-2 py-1.5 w-14" />% 이상
+        <button id="trkCfgSave" class="rounded px-3 py-1.5 font-semibold ml-2" style="background:var(--accent);color:#06231a">저장</button>
+      </div>
+      <div class="border-t pt-3" style="border-color:var(--line)">
+        <div class="font-semibold text-[13px] text-[var(--muted)] mb-1">Firebase 연동 (선택 · 영구저장/자동화용)</div>
+        <textarea id="trkFbCfg" rows="3" placeholder='firebaseConfig JSON 붙여넣기 (예: {"apiKey":"...","projectId":"...",...})'
+                  class="w-full rounded-lg px-3 py-2 text-xs font-mono"></textarea>
+        <div class="flex items-center gap-2 mt-1">
+          <button id="trkFbSave" class="rounded px-3 py-1.5 text-xs font-semibold" style="background:var(--accent2);color:#06231a">Firebase 저장</button>
+          <span id="trkFbState" class="text-[11px] text-[var(--muted)]">미설정 · 브라우저(localStorage)에 저장 중</span>
+        </div>
+        <p class="text-[11px] text-[var(--muted)] mt-1">미설정이면 이 브라우저에만 기록됩니다. Firebase 프로젝트를 만들어 config를 넣으면 영구저장으로 전환돼요.</p>
+      </div>
+    </div>
+
+    <div id="trkEmpty" class="text-center py-12 text-[var(--muted)] text-sm">
+      키워드를 고르고 <b>오늘 수집</b>을 누르면 순위표가 뜨고, 다음날 또 누르면 어제와 자동 비교됩니다.
+    </div>
+
+    <!-- 변동 요약 -->
+    <div id="trkSummary"></div>
+    <!-- 오늘 순위표 -->
+    <div id="trkTable"></div>
+
+    <p class="text-[11px] text-[var(--muted)] leading-relaxed">
+      ※ 순위는 네이버 <b>검색 API 순서(참고순위)</b>입니다. 실제 검색화면 "랭킹순"과 다를 수 있어요(정확한 화면순위는 크롬 화면수집=방식B 필요).
+      리뷰수·구매건수·광고여부는 검색 API 미제공으로 빈칸입니다. 가격은 대표가(최저옵션) 기준.
+    </p>
+  </section>
+
 </main>
 
 <footer class="max-w-6xl mx-auto px-4 py-6 text-[11px] text-[var(--muted)]">
@@ -394,7 +452,7 @@ document.querySelectorAll(".tab").forEach(t => t.onclick = () => {
 // 현재 활성 탭(.tab.on) 영역을 보이게 하고 나머지는 숨김
 function showTab(tab) {
   const active = tab || document.querySelector(".tab.on")?.dataset.tab || "overview";
-  ["overview","products","trend","demo","rank","price"].forEach(id =>
+  ["overview","products","trend","demo","rank","price","track"].forEach(id =>
     $("#tab-"+id).classList.toggle("hidden", id !== active));
 }
 
@@ -1387,6 +1445,222 @@ $("#cfgSave").onclick = ()=>{
   $("#priceState").textContent = "기준 저장됨";
 };
 $("#priceRun").onclick = runPrice;
+
+// ================= 키워드 순위추적 (1단계: 데모+localStorage, Firebase-ready) =================
+const KEY_TRK_CFG = "trk_cfg", KEY_TRK_FB = "trk_fb";
+const DEFAULT_TRK = { keywords:["감홍사과"], store:"", topN:40, rankTh:3, priceTh:5 };
+let trkCurrent = null, _fbDb = null;
+const todayStr = () => new Date().toISOString().slice(0,10);
+
+function loadTrkCfg(){ try{ return {...DEFAULT_TRK, ...(JSON.parse(localStorage.getItem(KEY_TRK_CFG))||{})}; }catch(e){ return {...DEFAULT_TRK}; } }
+function saveTrkCfg(c){ localStorage.setItem(KEY_TRK_CFG, JSON.stringify(c)); }
+
+// ---- 저장소: Firebase(설정 시) 또는 localStorage ----
+function loadFirebaseSdk(){
+  if(window.firebase && window.firebase.firestore) return Promise.resolve();
+  return new Promise((res,rej)=>{
+    const add=(src,cb)=>{ const s=document.createElement("script"); s.src=src; s.onload=cb; s.onerror=()=>rej(new Error("SDK 로드 실패")); document.head.appendChild(s); };
+    add("https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js",
+      ()=> add("https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js", res));
+  });
+}
+async function fbDb(){
+  const cfgStr = localStorage.getItem(KEY_TRK_FB);
+  if(!cfgStr) return null;
+  if(_fbDb) return _fbDb;
+  let cfg; try{ cfg = JSON.parse(cfgStr); }catch(e){ return null; }
+  await loadFirebaseSdk();
+  if(!window.firebase) return null;
+  if(!firebase.apps.length) firebase.initializeApp(cfg);
+  _fbDb = firebase.firestore();
+  return _fbDb;
+}
+async function putSnap(kw, date, snap){
+  try{
+    const db = await fbDb();
+    if(db){ await db.collection("trk").doc(`${kw}__${date}`).set({ kw, date, snap }); return; }
+  }catch(e){ /* 실패 시 로컬 */ }
+  try{ localStorage.setItem(`trk_snap:${kw}:${date}`, JSON.stringify(snap)); }catch(e){}
+}
+async function getPrevSnap(kw, beforeDate){
+  try{
+    const db = await fbDb();
+    if(db){
+      const q = await db.collection("trk").where("kw","==",kw).where("date","<",beforeDate).orderBy("date","desc").limit(1).get();
+      if(!q.empty) return { date:q.docs[0].data().date, snap:q.docs[0].data().snap };
+      return null;
+    }
+  }catch(e){ /* 로컬 폴백 */ }
+  let best=null; const pre=`trk_snap:${kw}:`;
+  for(let i=0;i<localStorage.length;i++){
+    const k=localStorage.key(i);
+    if(k && k.startsWith(pre)){ const d=k.slice(pre.length); if(d<beforeDate && (!best||d>best.date)){ try{ best={date:d, snap:JSON.parse(localStorage.getItem(k))}; }catch(e){} } }
+  }
+  return best;
+}
+
+// ---- 오늘 스냅샷 수집 ----
+async function collectTrack(kw){
+  const cfg = loadTrkCfg();
+  let items=null;
+  try{
+    const d = await api(`/search?query=${encodeURIComponent(kw)}&display=${Math.min(cfg.topN,100)}`);
+    if(d && d.items) items = d.items;
+  }catch(e){}
+  if(!items || !items.length) return { demo:true, snap: demoTrackSnap(kw, cfg) };
+  const storeL = (cfg.store||"").toLowerCase();
+  const snapItems = items.slice(0,cfg.topN).map((it,idx)=>({
+    pid: String(it.productId||it.link||("n"+idx)),
+    rank: idx+1, title: stripTag(it.title||""), mall: it.mallName||"",
+    price: +it.lprice||0, link: it.link||"", image: it.image||"",
+    catalog: it.productType==="1", ours: !!(storeL && (it.mallName||"").toLowerCase().includes(storeL)),
+  }));
+  return { demo:false, snap:{ date: todayStr(), keyword:kw, items:snapItems } };
+}
+
+// ---- 어제 vs 오늘 비교 ----
+function diffSnaps(today, prev, cfg){
+  const changes = { up:[], down:[], renamed:[], priced:[], newItems:[], gone:[] };
+  const prevMap = {}; if(prev) prev.items.forEach(i=> prevMap[i.pid]=i);
+  const todayMap = {}; today.items.forEach(i=> todayMap[i.pid]=i);
+  today.items.forEach(t=>{
+    const y = prevMap[t.pid];
+    if(!prev) return;
+    if(!y){ t._chg="new"; changes.newItems.push(t); return; }
+    t._rankDiff = y.rank - t.rank; t._yRank=y.rank; t._yPrice=y.price; t._yTitle=y.title;
+    if(Math.abs(t._rankDiff) >= cfg.rankTh){ (t._rankDiff>0?changes.up:changes.down).push(t); }
+    if(t.title !== y.title){ t._renamed=true; changes.renamed.push(t); }
+    if(t.price !== y.price && y.price){ const pct=(t.price-y.price)/y.price*100; t._pricePct=pct; if(Math.abs(pct)>=cfg.priceTh) changes.priced.push(t); }
+  });
+  if(prev) prev.items.forEach(y=>{ if(!todayMap[y.pid]) changes.gone.push(y); });
+  changes.up.sort((a,b)=>b._rankDiff-a._rankDiff);
+  changes.down.sort((a,b)=>a._rankDiff-b._rankDiff);
+  return changes;
+}
+
+// ---- 실행 ----
+async function runTrack(){
+  const cfg = loadTrkCfg();
+  const kw = $("#trkKwSel").value || (cfg.keywords[0]||"");
+  if(!kw){ $("#trkState").textContent="설정에서 키워드를 추가하세요."; return; }
+  $("#trkEmpty").classList.add("hidden");
+  $("#trkState").textContent="수집 중…";
+  const { demo, snap } = await collectTrack(kw);
+  let prev=null;
+  if(demo){ prev = demoTrackPrev(kw, snap, cfg); }
+  else {
+    const p = await getPrevSnap(kw, snap.date);
+    prev = p ? p.snap : null;
+    await putSnap(kw, snap.date, snap);
+  }
+  const changes = diffSnaps(snap, prev, cfg);
+  trkCurrent = { snap, prev, changes, cfg };
+  renderTrkSummary(changes, cfg, !prev, demo);
+  renderTrkTable(snap, cfg);
+  $("#trkState").textContent = `완료 · ${snap.items.length}개` + (demo?" · ⚠ 데모(검색 미연동)":"") + (!demo && !prev?" · 비교할 어제 없음(내일 다시 수집)":"");
+}
+
+// ---- 변동 요약 ----
+function trkRankBadge(t){
+  if(t._chg==="new") return `<span style="color:var(--accent)">🆕</span>`;
+  if(t._rankDiff>0) return `<span style="color:var(--accent)">▲${t._rankDiff}</span>`;
+  if(t._rankDiff<0) return `<span style="color:var(--warn)">▼${-t._rankDiff}</span>`;
+  return `<span class="text-[var(--muted)]">–</span>`;
+}
+function renderTrkSummary(c, cfg, noPrev, demo){
+  const box=$("#trkSummary");
+  if(noPrev){ box.innerHTML=`<div class="panel rounded-xl p-4 text-sm text-[var(--muted)]">오늘 스냅샷을 저장했어요. <b>내일 또 수집</b>하면 여기에 어제 대비 변동(순위·가격·상품명·신규/이탈)이 정리됩니다.</div>`; return; }
+  const line=(label,arr,render)=> arr.length?`<div class="mb-2"><span class="text-[var(--muted)]">${label}</span><div class="mt-1 space-y-0.5">${arr.map(render).join("")}</div></div>`:"";
+  const nm=(t)=>`<div class="truncate"><b>${t.rank}위</b> ${stripTag(t.title)} <span class="text-[var(--muted)]">· ${t.mall}</span>`;
+  box.innerHTML = `<div class="panel rounded-xl p-4 text-xs space-y-1">
+    <div class="text-[13px] font-semibold text-[var(--muted)] mb-2">어제 대비 변동 요약${demo?' <span style="color:var(--warn)">(데모)</span>':''}</div>
+    ${line("🔺 순위 상승", c.up, t=>`${nm(t)} <span style="color:var(--accent)">${t._yRank}→${t.rank} ▲${t._rankDiff}</span></div>`)}
+    ${line("🔻 순위 하락", c.down, t=>`${nm(t)} <span style="color:var(--warn)">${t._yRank}→${t.rank} ▼${-t._rankDiff}</span></div>`)}
+    ${line("💰 가격 변경", c.priced, t=>`${nm(t)} <span style="color:${t._pricePct<0?'var(--accent)':'var(--warn)'}">₩${fmt(t._yPrice)}→₩${fmt(t.price)} (${t._pricePct>0?'+':''}${t._pricePct.toFixed(1)}%)</span></div>`)}
+    ${line("✏️ 상품명 변경", c.renamed, t=>`<div class="truncate"><b>${t.rank}위</b> <span class="text-[var(--muted)]">전:</span> ${stripTag(t._yTitle)} <span class="text-[var(--muted)]">→ 후:</span> <span style="color:var(--accent)">${stripTag(t.title)}</span></div>`)}
+    ${line("🆕 신규 진입", c.newItems, t=>`${nm(t)}</div>`)}
+    ${line("🚪 이탈", c.gone, t=>`<div class="truncate text-[var(--muted)]">${stripTag(t.title)} · ${t.mall} (어제 ${t.rank}위 → 순위권 밖)</div>`)}
+    ${[c.up,c.down,c.priced,c.renamed,c.newItems,c.gone].every(a=>!a.length)?'<div class="text-[var(--muted)]">강조 기준 이상의 변동이 없어요.</div>':''}
+  </div>`;
+}
+
+// ---- 오늘 순위표 ----
+function renderTrkTable(snap, cfg){
+  $("#trkTable").innerHTML = `
+    <div class="panel rounded-xl overflow-hidden">
+      <div class="px-4 py-2 text-[13px] font-semibold text-[var(--muted)]" style="background:var(--panel2)">오늘 순위표 · ${snap.keyword} (${snap.items.length}개)</div>
+      <div class="overflow-x-auto"><table class="w-full text-xs">
+        <thead class="text-[var(--muted)]" style="background:var(--panel2)"><tr class="text-left">
+          <th class="px-3 py-2 text-right">순위</th><th class="px-3 py-2">변동</th><th class="px-3 py-2">상품명</th>
+          <th class="px-3 py-2">판매처</th><th class="px-3 py-2 text-right">가격</th><th class="px-3 py-2">가격변동</th><th class="px-3 py-2">유형</th>
+        </tr></thead>
+        <tbody>${snap.items.map(t=>`
+          <tr class="border-t" style="border-color:var(--line);${t.ours?'background:rgba(45,212,167,0.08)':''}">
+            <td class="px-3 py-1.5 text-right mono font-semibold">${t.rank}</td>
+            <td class="px-3 py-1.5 mono">${trkRankBadge(t)}</td>
+            <td class="px-3 py-1.5 max-w-[260px]">
+              <a href="${t.link}" target="_blank" class="hover:text-[var(--accent)] line-clamp-1">${t._renamed?'✏️ ':''}${t.ours?'⭐ ':''}${stripTag(t.title)}</a>
+            </td>
+            <td class="px-3 py-1.5 text-[var(--muted)] whitespace-nowrap">${t.mall}</td>
+            <td class="px-3 py-1.5 text-right mono">₩${fmt(t.price)}</td>
+            <td class="px-3 py-1.5 mono whitespace-nowrap">${t._pricePct!=null && Math.round(t._pricePct)!==0 ? `<span style="color:${t._pricePct<0?'var(--accent)':'var(--warn)'}">${t._pricePct>0?'+':''}${t._pricePct.toFixed(0)}%</span>`:'<span class="text-[var(--muted)]">–</span>'}</td>
+            <td class="px-3 py-1.5">${t.catalog?'<span class="text-[10px] px-1.5 py-0.5 rounded" style="background:var(--panel2);color:var(--accent)">가격비교</span>':'<span class="text-[var(--muted)]">단독</span>'}</td>
+          </tr>`).join("")}
+        </tbody>
+      </table></div>
+    </div>`;
+}
+
+// ---- 데모 스냅샷 (검색 미연동 시) ----
+function demoTrackBase(kw, n){
+  const malls=["과일부티크","○○농원","산지직송팜","달콤과수원","프레시마켓","베스트팜","제주온팜","△△팜"];
+  const arr=[];
+  for(let i=1;i<=n;i++) arr.push({ pid:"D"+i, title:`${kw} 5kg ${i%2?'가정용':'선물용'} ${i}호`, mall:malls[i%malls.length],
+    price: 30000 + (i*137)%12000, link:"#", image:"", catalog:i%4===0, ours:malls[i%malls.length]==="과일부티크" });
+  return arr;
+}
+function demoTrackSnap(kw, cfg){
+  const n=Math.min(cfg.topN,40), base=demoTrackBase(kw,n);
+  return { date: todayStr(), keyword:kw, items: base.map((it,idx)=>({...it, rank:idx+1})) };
+}
+function demoTrackPrev(kw, todaySnap, cfg){
+  let items = todaySnap.items.map(it=>({...it}));
+  items = items.filter(it=> it.pid !== "D"+items.length);              // 마지막 = 오늘 신규
+  items.push({ pid:"DX", title:`${kw} 3kg 특가 알뜰`, mall:"알뜰팜", price:28000, link:"#", image:"", catalog:false, ours:false }); // 이탈
+  items.forEach(it=>{ if(it.pid==="D5") it.price += 3000; if(it.pid==="D7") it.title=`${kw} 5kg 구형상품명 일반`; });
+  const take=(pid)=>{ const i=items.findIndex(x=>x.pid===pid); return i>=0?items.splice(i,1)[0]:null; };
+  const d3=take("D3"), d8=take("D8");
+  if(d8) items.splice(1,0,d8);
+  if(d3) items.splice(10,0,d3);
+  items.forEach((it,idx)=> it.rank=idx+1);
+  return { date:"(어제·데모)", keyword:kw, items };
+}
+
+// ---- 설정 패널 ----
+function initTrk(){
+  const cfg = loadTrkCfg();
+  $("#trkKwSel").innerHTML = (cfg.keywords||[]).map(k=>`<option value="${k}">${k}</option>`).join("") || `<option value="">(키워드 없음)</option>`;
+  $("#trkKeywords").value = (cfg.keywords||[]).join(", ");
+  $("#trkStore").value = cfg.store||"";
+  $("#trkTopN").value = cfg.topN; $("#trkRankTh").value = cfg.rankTh; $("#trkPriceTh").value = cfg.priceTh;
+  $("#trkFbCfg").value = localStorage.getItem(KEY_TRK_FB) || "";
+  $("#trkFbState").textContent = localStorage.getItem(KEY_TRK_FB) ? "✓ Firebase 설정됨 (영구저장)" : "미설정 · 브라우저(localStorage)에 저장 중";
+}
+$("#trkCfgBtn").onclick = ()=>{ $("#trkCfgPanel").classList.toggle("hidden"); initTrk(); };
+$("#trkCfgSave").onclick = ()=>{
+  const kws = $("#trkKeywords").value.split(",").map(s=>s.trim()).filter(Boolean);
+  saveTrkCfg({ keywords:kws.length?kws:["감홍사과"], store:$("#trkStore").value.trim(),
+    topN:Math.min(+$("#trkTopN").value||40,100), rankTh:+$("#trkRankTh").value||3, priceTh:+$("#trkPriceTh").value||5 });
+  initTrk(); $("#trkState").textContent="설정 저장됨";
+};
+$("#trkFbSave").onclick = ()=>{
+  const v=$("#trkFbCfg").value.trim();
+  if(!v){ localStorage.removeItem(KEY_TRK_FB); _fbDb=null; initTrk(); return; }
+  try{ JSON.parse(v); }catch(e){ alert("Firebase config가 올바른 JSON이 아니에요"); return; }
+  localStorage.setItem(KEY_TRK_FB, v); _fbDb=null; initTrk(); $("#trkState").textContent="Firebase 설정 저장됨";
+};
+$("#trkRun").onclick = runTrack;
+initTrk();
 
 // ================= 이벤트 =================
 $("#go").onclick = runSearch;
