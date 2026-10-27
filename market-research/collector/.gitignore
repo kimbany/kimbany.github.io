@@ -1,0 +1,7 @@
+# 수집기 로컬 전용 파일 — 절대 깃에 올리지 말 것 (비밀키 보호)
+config.json
+serviceAccount.json
+node_modules/
+.chrome-profile/
+raw/
+*.log

@@ -287,7 +287,7 @@
   <section id="tab-track" class="hidden fade space-y-4">
     <div class="flex items-center gap-2 flex-wrap text-xs">
       <select id="trkKwSel" class="rounded-lg px-2 py-2"></select>
-      <button id="trkRun" class="rounded-lg px-4 py-2 font-semibold" style="background:var(--accent);color:#06231a">📸 오늘 수집</button>
+      <button id="trkRun" class="rounded-lg px-4 py-2 font-semibold" style="background:var(--accent);color:#06231a">📊 불러오기·비교</button>
       <button id="trkCfgBtn" class="chip rounded-lg px-3 py-2">설정</button>
       <span id="trkState" class="text-[var(--muted)]"></span>
     </div>
@@ -327,7 +327,8 @@
     </div>
 
     <div id="trkEmpty" class="text-center py-12 text-[var(--muted)] text-sm">
-      키워드를 고르고 <b>오늘 수집</b>을 누르면 순위표가 뜨고, 다음날 또 누르면 어제와 자동 비교됩니다.
+      PC 수집기(collector)가 네이버쇼핑을 긁어 Firebase에 넣으면,<br>여기서 키워드를 골라 <b>불러오기·비교</b>로 어제 대비 순위·가격 변동을 봅니다.<br>
+      <span class="text-[11px]">수집기 미설치 시 '데모'로 표시됩니다. (설정 안내는 collector/README.md)</span>
     </div>
 
     <!-- 변동 요약 -->
@@ -1505,40 +1506,59 @@ async function putSnap(kw, date, snap){
   }catch(e){ /* 실패 시 로컬 */ }
   try{ localStorage.setItem(`trk_snap:${kw}:${date}`, JSON.stringify(snap)); }catch(e){}
 }
-async function getPrevSnap(kw, beforeDate){
+// 날짜 더하기/빼기 (YYYY-MM-DD, 일 단위)
+function dateShift(ymd, days){
+  const d = new Date(ymd+"T00:00:00Z"); d.setUTCDate(d.getUTCDate()+days);
+  return d.toISOString().slice(0,10);
+}
+// 특정 날짜의 스냅샷을 '정확히' 읽기 (수집기가 넣은 trk/{kw}__{date}). 인덱스 불필요.
+async function getSnapExact(kw, date){
   try{
     const db = await fbDb();
-    if(db){
-      const q = await db.collection("trk").where("kw","==",kw).where("date","<",beforeDate).orderBy("date","desc").limit(1).get();
-      if(!q.empty) return { date:q.docs[0].data().date, snap:q.docs[0].data().snap };
-      return null;
-    }
+    if(db){ const doc = await db.collection("trk").doc(`${kw}__${date}`).get(); return doc.exists ? (doc.data().snap||null) : null; }
   }catch(e){ /* 로컬 폴백 */ }
-  let best=null; const pre=`trk_snap:${kw}:`;
-  for(let i=0;i<localStorage.length;i++){
-    const k=localStorage.key(i);
-    if(k && k.startsWith(pre)){ const d=k.slice(pre.length); if(d<beforeDate && (!best||d>best.date)){ try{ best={date:d, snap:JSON.parse(localStorage.getItem(k))}; }catch(e){} } }
+  try{ const s = localStorage.getItem(`trk_snap:${kw}:${date}`); return s ? JSON.parse(s) : null; }catch(e){}
+  return null;
+}
+// beforeDate 직전의 가장 최근 스냅샷 (하루씩 거슬러 최대 21일). 복합 인덱스 없이 doc 조회만 사용.
+async function getPrevSnap(kw, beforeDate){
+  for(let i=1;i<=21;i++){
+    const d = dateShift(beforeDate, -i);
+    const snap = await getSnapExact(kw, d);
+    if(snap) return { date:d, snap };
   }
-  return best;
+  return null;
 }
 
-// ---- 오늘 스냅샷 수집 ----
+// ---- 오늘 스냅샷 확보 ----
+// 네이버 검색 오픈API 종료(SE05) 이후로는 대시보드가 직접 수집하지 못한다.
+// 대신 PC 수집기(collector/collect.js)가 Firebase에 넣어둔 '오늘자' 스냅샷을 읽는다.
+// 순서: ① Firebase 오늘 데이터(수집기) → ② (혹시 살아있으면) 검색API → ③ 데모
 async function collectTrack(kw){
   const cfg = loadTrkCfg();
+  // ① 수집기가 오늘 넣어둔 Firebase 스냅샷
+  try{
+    const todays = await getSnapExact(kw, todayStr());
+    if(todays && todays.items && todays.items.length) return { demo:false, source:"수집기", stored:true, snap: todays };
+  }catch(e){}
+  // ② 레거시: 검색 오픈API가 살아있던 시절 경로 (지금은 대개 실패)
   let items=null;
   try{
     const d = await api(`/search?query=${encodeURIComponent(kw)}&display=${Math.min(cfg.topN,100)}`);
     if(d && d.items) items = d.items;
   }catch(e){}
-  if(!items || !items.length) return { demo:true, snap: demoTrackSnap(kw, cfg) };
-  const storeL = (cfg.store||"").toLowerCase();
-  const snapItems = items.slice(0,cfg.topN).map((it,idx)=>({
-    pid: String(it.productId||it.link||("n"+idx)),
-    rank: idx+1, title: stripTag(it.title||""), mall: it.mallName||"",
-    price: +it.lprice||0, link: it.link||"", image: it.image||"",
-    catalog: it.productType==="1", ours: !!(storeL && (it.mallName||"").toLowerCase().includes(storeL)),
-  }));
-  return { demo:false, snap:{ date: todayStr(), keyword:kw, items:snapItems } };
+  if(items && items.length){
+    const storeL = (cfg.store||"").toLowerCase();
+    const snapItems = items.slice(0,cfg.topN).map((it,idx)=>({
+      pid: String(it.productId||it.link||("n"+idx)),
+      rank: idx+1, title: stripTag(it.title||""), mall: it.mallName||"",
+      price: +it.lprice||0, link: it.link||"", image: it.image||"",
+      catalog: it.productType==="1", ours: !!(storeL && (it.mallName||"").toLowerCase().includes(storeL)),
+    }));
+    return { demo:false, source:"검색API", stored:false, snap:{ date: todayStr(), keyword:kw, items:snapItems } };
+  }
+  // ③ 데모
+  return { demo:true, source:"데모", stored:false, snap: demoTrackSnap(kw, cfg) };
 }
 
 // ---- 어제 vs 오늘 비교 ----
@@ -1567,20 +1587,23 @@ async function runTrack(){
   const kw = $("#trkKwSel").value || (cfg.keywords[0]||"");
   if(!kw){ $("#trkState").textContent="설정에서 키워드를 추가하세요."; return; }
   $("#trkEmpty").classList.add("hidden");
-  $("#trkState").textContent="수집 중…";
-  const { demo, snap } = await collectTrack(kw);
+  $("#trkState").textContent="불러오는 중…";
+  const { demo, snap, source, stored } = await collectTrack(kw);
   let prev=null;
   if(demo){ prev = demoTrackPrev(kw, snap, cfg); }
   else {
     const p = await getPrevSnap(kw, snap.date);
     prev = p ? p.snap : null;
-    await putSnap(kw, snap.date, snap);
+    // 수집기가 이미 Firebase에 넣은 건 재저장 불필요. 레거시 검색API 경로일 때만 저장.
+    if(!stored) await putSnap(kw, snap.date, snap);
   }
   const changes = diffSnaps(snap, prev, cfg);
   trkCurrent = { snap, prev, changes, cfg };
   renderTrkSummary(changes, cfg, !prev, demo);
   renderTrkTable(snap, cfg);
-  $("#trkState").textContent = `완료 · ${snap.items.length}개` + (demo?" · ⚠ 데모(검색 미연동)":"") + (!demo && !prev?" · 비교할 어제 없음(내일 다시 수집)":"");
+  const srcTag = demo ? " · ⚠ 데모 (수집기 데이터 없음 — collector 실행 필요)"
+    : (source==="수집기" ? " · 📦 수집기 데이터" : " · 검색API");
+  $("#trkState").textContent = `완료 · ${snap.items.length}개` + srcTag + (!demo && !prev?" · 비교할 이전 데이터 없음(다음 수집 후 비교)":"");
 }
 
 // ---- 변동 요약 ----
