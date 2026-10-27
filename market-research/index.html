@@ -288,8 +288,20 @@
     <div class="flex items-center gap-2 flex-wrap text-xs">
       <select id="trkKwSel" class="rounded-lg px-2 py-2"></select>
       <button id="trkRun" class="rounded-lg px-4 py-2 font-semibold" style="background:var(--accent);color:#06231a">📊 불러오기·비교</button>
+      <button id="trkPasteBtn" class="chip rounded-lg px-3 py-2">📋 붙여넣기</button>
       <button id="trkCfgBtn" class="chip rounded-lg px-3 py-2">설정</button>
       <span id="trkState" class="text-[var(--muted)]"></span>
+    </div>
+
+    <!-- 북마클릿 붙여넣기 업로드 -->
+    <div id="trkPastePanel" class="hidden panel rounded-xl p-4 space-y-2 text-sm">
+      <div class="font-semibold text-[13px] text-[var(--muted)]">📋 북마클릿 수집 데이터 붙여넣기</div>
+      <p class="text-[11px] text-[var(--muted)]">네이버쇼핑 검색결과에서 <b>🍎 네이버수집</b> 북마클릿 클릭 → 복사된 내용을 아래에 붙여넣기(Ctrl+V) → 업로드. (북마클릿 설치: collector/bookmarklet.html)</p>
+      <textarea id="trkPaste" rows="3" placeholder='여기에 붙여넣기 (Ctrl+V)' class="w-full rounded-lg px-3 py-2 text-xs font-mono"></textarea>
+      <div class="flex items-center gap-2">
+        <button id="trkPasteSave" class="rounded px-3 py-1.5 text-xs font-semibold" style="background:var(--accent);color:#06231a">업로드·비교</button>
+        <span id="trkPasteState" class="text-[11px] text-[var(--muted)]"></span>
+      </div>
     </div>
 
     <!-- 설정 패널 -->
@@ -1736,6 +1748,26 @@ $("#trkFbTest").onclick = async ()=>{
   }
 };
 $("#trkRun").onclick = runTrack;
+$("#trkPasteBtn").onclick = ()=>{ $("#trkPastePanel").classList.toggle("hidden"); $("#trkPaste").focus(); };
+$("#trkPasteSave").onclick = async ()=>{
+  const raw = $("#trkPaste").value.trim();
+  if(!raw){ $("#trkPasteState").textContent="내용을 붙여넣으세요."; return; }
+  let p; try{ p = JSON.parse(raw); }catch(e){ $("#trkPasteState").textContent="❌ JSON 형식 오류 (북마클릿이 복사한 내용 그대로 붙여넣기)"; return; }
+  const snap = p.snap || p;
+  const kw = p.kw || snap.keyword;
+  const date = p.date || snap.date || todayStr();
+  if(!kw || !snap || !Array.isArray(snap.items) || !snap.items.length){ $("#trkPasteState").textContent="❌ 형식 오류 (kw/snap.items 필요)"; return; }
+  $("#trkPasteState").textContent="저장 중…";
+  try{
+    await putSnap(kw, date, { date, keyword:kw, items:snap.items });
+    const cfg = loadTrkCfg();
+    if(!cfg.keywords.includes(kw)){ cfg.keywords.push(kw); saveTrkCfg(cfg); initTrk(); }
+    $("#trkKwSel").value = kw;
+    $("#trkPasteState").textContent = `✅ ${kw} ${snap.items.length}개 저장됨 (${date})`;
+    $("#trkPaste").value = "";
+    await runTrack();
+  }catch(e){ $("#trkPasteState").textContent = "❌ 저장 실패: " + (e.message||e); }
+};
 initTrk();
 
 // ================= 이벤트 =================
