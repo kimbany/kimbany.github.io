@@ -1,0 +1,15 @@
+{
+  "name": "naver-rank-collector",
+  "version": "1.0.0",
+  "private": true,
+  "description": "네이버쇼핑 키워드 순위/가격 수집기 (방식 B: 크롬 화면 수집) → Firebase",
+  "main": "collect.js",
+  "scripts": {
+    "collect": "node collect.js",
+    "test": "node collect.js --dry"
+  },
+  "dependencies": {
+    "firebase-admin": "^12.7.0",
+    "playwright": "^1.48.0"
+  }
+}
