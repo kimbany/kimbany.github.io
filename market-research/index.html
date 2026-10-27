@@ -1275,19 +1275,26 @@ function rangeOverlap(a,b){ return a && b && a.min <= b.max && b.min <= a.max; }
 // ---- SKU 1개 수집·분석 ----
 async function collectSku(sku, cfg){
   const kws = (sku.keywords&&sku.keywords.length)?sku.keywords:[sku.item];
-  let items = [];
+  let nvItems=[], cpItems=[];
   for(const kw of kws){
     const [nv,cp] = await Promise.all([ fetchNaver(kw), fetchCoupang(kw) ]);
-    items = items.concat(nv.items||[], cp.items||[]);
+    nvItems = nvItems.concat(nv.items||[]);
+    cpItems = cpItems.concat(cp.items||[]);
   }
-  // 중복 제거(상품명+링크)
+  return { sku, byChannel: {
+    coupang: analyzeChannel(sku, cfg, dedupeItems(cpItems), "coupang"),
+    naver:   analyzeChannel(sku, cfg, dedupeItems(nvItems), "naver"),
+  }};
+}
+function dedupeItems(items){
   const seen=new Set();
-  items = items.filter(i=>{ const k=(i.link||"")+"|"+stripTag(i.title||""); if(seen.has(k))return false; seen.add(k); return true; });
-  // 파싱 가능한 실데이터가 적으면 데모 과일 데이터로 대체
+  return items.filter(i=>{ const k=(i.link||"")+"|"+stripTag(i.title||""); if(seen.has(k))return false; seen.add(k); return true; });
+}
+// 채널 1개 분석 (실파싱 부족하면 그 채널 데모)
+function analyzeChannel(sku, cfg, items, src){
   const realParseable = items.filter(i=> !/^\[데모\]/.test(i.title||"") && parseSpec(i.title).weightKg);
-  let demo = false;
-  if(realParseable.length < 4){ items = demoPriceItems(sku); demo = true; }
-
+  let demo=false;
+  if(realParseable.length < 3){ items = demoPriceItems(sku, src); demo=true; }
   const ourPer = perPieceRange(sku.weightKg, sku.countMin, sku.countMax);
   const ourKg = sku.weightKg ? (sku.ourPrice + (+sku.ourShip||0)) / sku.weightKg : null;
   const rows = items.map(it=>{
@@ -1302,7 +1309,7 @@ async function collectSku(sku, cfg){
     else if(spec.weightKg===sku.weightKg && spec.cMin===sku.countMin && spec.cMax===sku.countMax) stage="A";
     else if(rangeOverlap(per, ourPer)) stage="B";
     else stage="C";
-    return { ...it, spec, kgPrice, per, stage };
+    return { ...it, source:src, spec, kgPrice, per, stage };
   });
   const bRows = rows.filter(r=>(r.stage==="A"||r.stage==="B") && r.kgPrice);
   const kgList = bRows.map(r=>r.kgPrice).sort((a,b)=>a-b);
@@ -1311,7 +1318,7 @@ async function collectSku(sku, cfg){
   const minRow = bRows.find(r=>r.kgPrice===minKg);
   let myRank=null;
   if(kgList.length && ourKg){ const all=[...kgList, ourKg].sort((a,b)=>a-b); myRank = all.indexOf(ourKg)+1; }
-  return { sku, rows, median, minKg, minRow, ourKg, myRank, demo, total:bRows.length };
+  return { src, rows, median, minKg, minRow, ourKg, myRank, demo, total:bRows.length };
 }
 
 // ---- 신호등 ----
@@ -1334,49 +1341,64 @@ async function runPrice(){
   for(const s of skus){ try{ results.push(await collectSku(s, cfg)); }catch(e){ /* 스킵 */ } }
   priceResults = results;
   renderPriceCards(results, cfg);
-  if(results.length) renderPriceDetail(0, cfg);
-  $("#priceState").textContent = `완료 · SKU ${results.length}개` + (results.some(r=>r.demo) ? " · ⚠ 일부 데모(검색 미연동)" : "");
+  if(results.length) renderPriceDetail(0, cfg, "coupang");
+  const anyDemo = results.some(r=> r.byChannel.naver.demo || r.byChannel.coupang.demo);
+  $("#priceState").textContent = `완료 · SKU ${results.length}개` + (anyDemo ? " · ⚠ 일부 데모(네이버=API 종료)" : "");
 }
 
+// ---- 현황 카드: SKU별로 쿠팡/네이버 각각 신호등 ----
 function renderPriceCards(results, cfg){
+  const chLine = (label, color, ch)=>{
+    const sg = priceSignal(ch.ourKg, ch.median, cfg.green);
+    return `<div class="flex items-center justify-between gap-2 text-xs py-1 border-t" style="border-color:var(--line)">
+      <div class="flex items-center gap-1 whitespace-nowrap"><span style="color:${color}">●</span>${label}${ch.demo?' <span class="text-[10px]" style="color:var(--warn)">데모</span>':''}</div>
+      <div class="flex items-center gap-3">
+        <span class="text-base">${sg.emoji}</span>
+        <span class="mono text-[var(--muted)]">중간 ${ch.median?'₩'+fmt(Math.round(ch.median)):'—'}</span>
+        <span class="mono" style="min-width:48px;text-align:right">${ch.myRank?`${ch.myRank}/${ch.total+1}위`:'—'}</span>
+      </div>
+    </div>`;
+  };
   $("#priceCards").innerHTML = results.map((r,idx)=>{
-    const sg = priceSignal(r.ourKg, r.median, cfg.green);
     const s = r.sku;
     return `<div class="panel rounded-xl p-4 cursor-pointer hover:border-[var(--accent)]" data-sku="${idx}">
       <div class="flex items-center justify-between gap-2">
-        <div class="font-semibold text-sm">${s.item}${s.variety?" "+s.variety:""} ${s.weightKg}kg ${s.countMin}-${s.countMax}${s.unit}${r.demo?' <span class="text-[10px]" style="color:var(--warn)">데모</span>':''}</div>
-        <div class="text-2xl">${sg.emoji}</div>
+        <div class="font-semibold text-sm">${s.item}${s.variety?" "+s.variety:""} ${s.weightKg}kg ${s.countMin}-${s.countMax}${s.unit}</div>
+        <div class="text-[11px] text-[var(--muted)]">우리 kg당 <b class="mono">₩${fmt(Math.round(r.byChannel.coupang.ourKg||0))}</b></div>
       </div>
-      <div class="text-xs mt-1" style="color:${sg.color}">${sg.txt}</div>
-      <div class="grid grid-cols-3 gap-2 mt-3 text-center">
-        <div><div class="text-[10px] text-[var(--muted)]">우리 kg당</div><div class="mono font-bold text-sm">₩${fmt(Math.round(r.ourKg||0))}</div></div>
-        <div><div class="text-[10px] text-[var(--muted)]">중간값 kg당</div><div class="mono font-bold text-sm">${r.median?'₩'+fmt(Math.round(r.median)):'—'}</div></div>
-        <div><div class="text-[10px] text-[var(--muted)]">순위</div><div class="mono font-bold text-sm">${r.myRank?`${r.myRank}/${r.total+1}`:'—'}</div></div>
+      <div class="mt-2">
+        ${chLine("쿠팡","var(--accent2)",r.byChannel.coupang)}
+        ${chLine("네이버","var(--accent)",r.byChannel.naver)}
       </div>
-      <div class="text-[11px] text-[var(--muted)] mt-2">최저 ${r.minKg?`₩${fmt(Math.round(r.minKg))}/kg · ${r.minRow?stripTag(r.minRow.mallName||''):''}`:'—'} · 같은등급 ${r.total}곳</div>
     </div>`;
   }).join("");
-  $("#priceCards").querySelectorAll("[data-sku]").forEach(c=> c.onclick=()=> renderPriceDetail(+c.dataset.sku, cfg));
+  $("#priceCards").querySelectorAll("[data-sku]").forEach(c=> c.onclick=()=> renderPriceDetail(+c.dataset.sku, cfg, "coupang"));
 }
 
-function renderPriceDetail(idx, cfg){
+// ---- 상세표: 채널 토글(쿠팡/네이버) ----
+function renderPriceDetail(idx, cfg, ch){
   const r = priceResults[idx]; if(!r) return;
+  ch = ch || "coupang";
+  const data = r.byChannel[ch];
+  const sg = priceSignal(data.ourKg, data.median, cfg.green);
   const sColor = { A:"var(--accent)", B:"var(--accent2)", C:"var(--muted)", "제외":"var(--warn)", "미분류":"var(--muted)" };
-  const rows = [...r.rows].sort((a,b)=>(a.kgPrice||9e15)-(b.kgPrice||9e15));
+  const rows = [...data.rows].sort((a,b)=>(a.kgPrice||9e15)-(b.kgPrice||9e15));
+  const tabBtn = (v,label)=>`<button data-ch="${v}" class="chip px-3 py-1 rounded-full text-xs ${ch===v?'on':''}">${label}</button>`;
   $("#priceDetail").innerHTML = `
     <div class="panel rounded-xl overflow-hidden mt-2">
-      <div class="px-4 py-2 text-[13px] font-semibold text-[var(--muted)]" style="background:var(--panel2)">
-        ${r.sku.item} ${r.sku.weightKg}kg ${r.sku.countMin}-${r.sku.countMax}${r.sku.unit} · 경쟁상품 ${r.rows.length}개 (A/B=비교대상)
+      <div class="px-4 py-2 flex items-center gap-2 flex-wrap" style="background:var(--panel2)">
+        <span class="text-[13px] font-semibold text-[var(--muted)] mr-1">${r.sku.item} ${r.sku.weightKg}kg ${r.sku.countMin}-${r.sku.countMax}${r.sku.unit}</span>
+        ${tabBtn("coupang","쿠팡")}${tabBtn("naver","네이버")}
+        <span class="text-xs ml-auto" style="color:${sg.color}">${sg.emoji} ${sg.txt}${data.demo?' <span style="color:var(--warn)">(데모)</span>':''}</span>
       </div>
       <div class="overflow-x-auto"><table class="w-full text-xs">
         <thead class="text-[var(--muted)]" style="background:var(--panel2)"><tr class="text-left">
-          <th class="px-3 py-2">채널</th><th class="px-3 py-2">상품명</th><th class="px-3 py-2">판매처</th>
+          <th class="px-3 py-2">상품명</th><th class="px-3 py-2">판매처</th>
           <th class="px-3 py-2 text-right">대표가</th><th class="px-3 py-2 text-right">kg당</th><th class="px-3 py-2">파싱규격</th><th class="px-3 py-2">매칭</th>
         </tr></thead>
         <tbody>${rows.map(it=>`
           <tr class="border-t" style="border-color:var(--line)">
-            <td class="px-3 py-1.5 whitespace-nowrap">${it.source==="coupang"?"쿠팡":"네이버"}</td>
-            <td class="px-3 py-1.5 max-w-[240px]"><a href="${it.link}" target="_blank" class="hover:text-[var(--accent)] line-clamp-1">${stripTag(it.title)}</a></td>
+            <td class="px-3 py-1.5 max-w-[260px]"><a href="${it.link}" target="_blank" class="hover:text-[var(--accent)] line-clamp-1">${stripTag(it.title)}</a></td>
             <td class="px-3 py-1.5 text-[var(--muted)] whitespace-nowrap">${it.mallName||""}</td>
             <td class="px-3 py-1.5 text-right mono">₩${fmt(it.lprice)}</td>
             <td class="px-3 py-1.5 text-right mono ${(it.stage==='A'||it.stage==='B')?'font-semibold':'text-[var(--muted)]'}">${it.kgPrice?'₩'+fmt(Math.round(it.kgPrice)):'—'}</td>
@@ -1386,25 +1408,25 @@ function renderPriceDetail(idx, cfg){
         </tbody>
       </table></div>
     </div>`;
+  $("#priceDetail").querySelectorAll("[data-ch]").forEach(b=> b.onclick=()=> renderPriceDetail(idx, cfg, b.dataset.ch));
 }
 
-// ---- 과일 데모 데이터 (검색 미연동 시 기능 확인용) ----
-function demoPriceItems(sku){
-  const malls=["과일나라","산지직송팜","달콤과수원","프레시마켓","베스트팜","제주온팜"];
+// ---- 과일 데모 데이터 (채널별, 검색 미연동 시 기능 확인용) ----
+function demoPriceItems(sku, src){
+  const nvMalls=["과일나라","산지직송팜","달콤과수원","프레시마켓","제주온팜"];
+  const r1=(x)=>Math.round(x*10)/10;
   const out=[];
-  for(let i=0;i<14;i++){
-    const w = [sku.weightKg, sku.weightKg, Math.round(sku.weightKg*1.67*10)/10, Math.round(sku.weightKg*0.83*10)/10, 5][i%5];
+  for(let i=0;i<12;i++){
+    const w = [sku.weightKg, sku.weightKg, r1(sku.weightKg*1.67), r1(sku.weightKg*0.83), 5][i%5];
     const cMin = Math.max(2, sku.countMin + (i%3-1));
     const cMax = cMin + Math.max(0,(sku.countMax-sku.countMin));
     const base = (sku.ourPrice/sku.weightKg) * w;
     const price = Math.max(3000, Math.round((base*(0.8+Math.random()*0.5))/100)*100);
-    const src = (i%3===0)?"coupang":"naver";
     out.push({ source:src, title:`${sku.item}${sku.variety?" "+sku.variety:""} ${w%1?w.toFixed(1):w}kg ${cMin}-${cMax}${sku.unit} 산지직송 선물`,
-      link:"#", mallName: src==="coupang"?"쿠팡":malls[i%malls.length], lprice:price, brand:"", productType:"2" });
+      link:"#", mallName: src==="coupang"?(i%2?"쿠팡(로켓)":"쿠팡"):nvMalls[i%nvMalls.length], lprice:price, productType:"2" });
   }
-  // 흠과/못난이(제외 대상) 하나
-  out.push({ source:"naver", title:`${sku.item} ${sku.weightKg}kg ${sku.countMin}-${sku.countMax}${sku.unit} 가정용 흠과 못난이`,
-    link:"#", mallName:"알뜰팜", lprice:Math.round(sku.ourPrice*0.6/100)*100, productType:"2" });
+  out.push({ source:src, title:`${sku.item} ${sku.weightKg}kg ${sku.countMin}-${sku.countMax}${sku.unit} 가정용 흠과 못난이`,
+    link:"#", mallName: src==="coupang"?"쿠팡":"알뜰팜", lprice:Math.round(sku.ourPrice*0.6/100)*100, productType:"2" });
   return out;
 }
 
