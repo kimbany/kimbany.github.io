@@ -1675,11 +1675,25 @@ $("#trkCfgSave").onclick = ()=>{
     topN:Math.min(+$("#trkTopN").value||40,100), rankTh:+$("#trkRankTh").value||3, priceTh:+$("#trkPriceTh").value||5 });
   initTrk(); $("#trkState").textContent="설정 저장됨";
 };
+// firebaseConfig를 JSON·JS객체·'const firebaseConfig={...};' 어떤 형태로 붙여도 인식
+function parseFbCfg(v){
+  try{ return JSON.parse(v); }catch(e){}
+  const m = v.match(/\{[\s\S]*\}/); if(!m) return null;
+  try{ return JSON.parse(m[0]); }catch(e){}
+  try{
+    const fixed = m[0]
+      .replace(/([{,]\s*)([A-Za-z_$][\w$]*)\s*:/g, '$1"$2":') // 따옴표 없는 키 보정
+      .replace(/'/g, '"')                                      // 작은따옴표 → 큰따옴표
+      .replace(/,(\s*[}\]])/g, '$1');                          // 트레일링 콤마 제거
+    return JSON.parse(fixed);
+  }catch(e){ return null; }
+}
 $("#trkFbSave").onclick = ()=>{
   const v=$("#trkFbCfg").value.trim();
   if(!v){ localStorage.removeItem(KEY_TRK_FB); _fbDb=null; initTrk(); return; }
-  try{ JSON.parse(v); }catch(e){ alert("Firebase config가 올바른 JSON이 아니에요"); return; }
-  localStorage.setItem(KEY_TRK_FB, v); _fbDb=null; initTrk(); $("#trkState").textContent="Firebase 설정 저장됨";
+  const parsed = parseFbCfg(v);
+  if(!parsed || !parsed.projectId){ alert("Firebase config를 읽지 못했어요. firebaseConfig 객체를 그대로 붙여넣어 보세요 (projectId 포함)."); return; }
+  localStorage.setItem(KEY_TRK_FB, JSON.stringify(parsed)); _fbDb=null; initTrk(); $("#trkState").textContent="Firebase 설정 저장됨";
 };
 $("#trkRun").onclick = runTrack;
 initTrk();
