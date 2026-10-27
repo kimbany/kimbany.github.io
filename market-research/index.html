@@ -319,6 +319,7 @@
                   class="w-full rounded-lg px-3 py-2 text-xs font-mono"></textarea>
         <div class="flex items-center gap-2 mt-1">
           <button id="trkFbSave" class="rounded px-3 py-1.5 text-xs font-semibold" style="background:var(--accent2);color:#06231a">Firebase 저장</button>
+          <button id="trkFbTest" class="chip rounded px-3 py-1.5 text-xs">연결 테스트</button>
           <span id="trkFbState" class="text-[11px] text-[var(--muted)]">미설정 · 브라우저(localStorage)에 저장 중</span>
         </div>
         <p class="text-[11px] text-[var(--muted)] mt-1">미설정이면 이 브라우저에만 기록됩니다. Firebase 프로젝트를 만들어 config를 넣으면 영구저장으로 전환돼요.</p>
@@ -1694,6 +1695,22 @@ $("#trkFbSave").onclick = ()=>{
   const parsed = parseFbCfg(v);
   if(!parsed || !parsed.projectId){ alert("Firebase config를 읽지 못했어요. firebaseConfig 객체를 그대로 붙여넣어 보세요 (projectId 포함)."); return; }
   localStorage.setItem(KEY_TRK_FB, JSON.stringify(parsed)); _fbDb=null; initTrk(); $("#trkState").textContent="Firebase 설정 저장됨";
+};
+// Firebase 읽기·쓰기 연결 테스트
+$("#trkFbTest").onclick = async ()=>{
+  $("#trkFbState").textContent = "연결 테스트 중…";
+  try{
+    if(!localStorage.getItem(KEY_TRK_FB)){ $("#trkFbState").textContent = "먼저 config를 'Firebase 저장'하세요"; return; }
+    const db = await fbDb();
+    if(!db){ $("#trkFbState").textContent = "❌ config 인식 실패"; return; }
+    const ref = db.collection("trk").doc("_conntest");
+    await ref.set({ ts: Date.now(), ok: true });
+    const snap = await ref.get();
+    $("#trkFbState").textContent = snap.exists ? "✅ Firebase 연결 성공! (읽기·쓰기 OK)" : "쓰기 OK, 읽기 실패";
+  }catch(e){
+    const msg = (e && e.message) ? e.message : String(e);
+    $("#trkFbState").textContent = "❌ 연결 실패: " + msg;
+  }
 };
 $("#trkRun").onclick = runTrack;
 initTrk();
