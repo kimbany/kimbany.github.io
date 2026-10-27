@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>네이버수집 북마클릿</title>
+<style>
+  :root{ --bg:#0d1117; --panel:#161b22; --line:#30363d; --fg:#e6edf3; --muted:#8b949e; --accent:#2dd4a7; }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.6 -apple-system,BlinkMacSystemFont,"Malgun Gothic",sans-serif;padding:24px 16px}
+  .wrap{max-width:720px;margin:0 auto}
+  h1{font-size:20px;margin:0 0 4px}
+  .sub{color:var(--muted);font-size:13px;margin-bottom:20px}
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:18px;margin-bottom:16px}
+  .bm{display:inline-block;background:var(--accent);color:#06231a;font-weight:700;text-decoration:none;padding:12px 20px;border-radius:10px;font-size:16px;cursor:grab}
+  .bm:active{cursor:grabbing}
+  ol{padding-left:20px;margin:8px 0} li{margin:6px 0}
+  code{background:#0b0f14;border:1px solid var(--line);border-radius:5px;padding:1px 6px;font-size:13px}
+  pre{background:#0b0f14;border:1px solid var(--line);border-radius:8px;padding:12px;overflow:auto;font-size:11px;color:var(--muted);white-space:pre-wrap;word-break:break-all}
+  .step{color:var(--accent);font-weight:700}
+  .warn{color:#e3b341}
+  button{background:#21262d;color:var(--fg);border:1px solid var(--line);border-radius:8px;padding:8px 14px;cursor:pointer;font-size:13px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>🍎 네이버수집 북마클릿</h1>
+  <div class="sub">네이버쇼핑 검색결과를 긁어 클립보드에 복사 → 대시보드에 붙여넣기. 설치/프로그램 필요 없음.</div>
+
+  <div class="panel">
+    <div style="margin-bottom:12px"><span class="step">1단계.</span> 아래 버튼을 <b>북마크바로 드래그</b>하세요. (또는 우클릭 → 즐겨찾기 추가)</div>
+    <a class="bm" id="bm" href="#">🍎 네이버수집</a>
+    <div style="margin-top:12px;font-size:12px;color:var(--muted)">
+      북마크바가 안 보이면: 크롬 <code>Ctrl+Shift+B</code> 로 켜기
+    </div>
+  </div>
+
+  <div class="panel">
+    <div style="margin-bottom:8px"><span class="step">2단계.</span> 네이버쇼핑에서 키워드 검색</div>
+    <ol>
+      <li><code>search.shopping.naver.com</code> 에서 키워드(예: 감홍사과) 검색</li>
+      <li>검색결과 화면에서 북마크바의 <b>🍎 네이버수집</b> 클릭</li>
+      <li><b>"✅ ○○개 복사 완료"</b> 알림이 뜨면 성공</li>
+    </ol>
+    <div class="warn" style="font-size:12px">※ 네이버 로그인 상태의 평소 쓰던 크롬에서 하세요. (로그인/IP가 정상이라 차단 안 됨)</div>
+  </div>
+
+  <div class="panel">
+    <div style="margin-bottom:8px"><span class="step">3단계.</span> 대시보드에 붙여넣기</div>
+    <ol>
+      <li><code>invedory.com/market-research/</code> → <b>순위추적</b> 탭</li>
+      <li><b>📋 붙여넣기</b> 버튼 → 칸에 <code>Ctrl+V</code> → <b>업로드·비교</b></li>
+      <li>Firebase에 저장되고, 다음에 또 올리면 어제와 자동 비교돼요</li>
+    </ol>
+  </div>
+
+  <div class="panel">
+    <div style="margin-bottom:8px">북마클릿이 드래그가 안 되면 — 아래 코드를 복사해서 북마크 <b>URL</b>에 붙여넣으세요:</div>
+    <button onclick="copyCode()">코드 복사</button> <span id="copied" style="font-size:12px;color:var(--accent)"></span>
+    <pre id="code"></pre>
+  </div>
+</div>
+
+<script>
+// 북마클릿 본체 — 네이버쇼핑 페이지에서 실행되어 상품목록을 추출·복사한다.
+function NAVER_COLLECT(){
+  function isP(x){return x&&typeof x=='object'&&(x.productId||x.id||x.nvMid)&&(x.lowPrice||x.price||x.lprice||x.productTitle||x.productName||x.title)}
+  var arrs=[];
+  function dig(o,d){if(!o||d>10)return;if(Array.isArray(o)){if(o.length&&o.some(isP))arrs.push(o);for(var i=0;i<o.length;i++)dig(o[i],d+1)}else if(typeof o=='object'){for(var k in o){try{dig(o[k],d+1)}catch(e){}}}}
+  try{var nd=document.getElementById('__NEXT_DATA__');if(nd)dig(JSON.parse(nd.textContent),0)}catch(e){}
+  try{if(window.__PRELOADED_STATE__)dig(window.__PRELOADED_STATE__,0)}catch(e){}
+  try{if(window.__APOLLO_STATE__)dig(window.__APOLLO_STATE__,0)}catch(e){}
+  var best=null,bs=0;arrs.forEach(function(a){var s=a.filter(isP).length;if(s>bs){bs=s;best=a}});
+  if(!best){alert('상품을 못 찾았어요.\n네이버쇼핑 "검색결과" 페이지에서 눌러주세요.\n(search.shopping.naver.com)');return}
+  function n(v){return +(String(v==null?'':v).replace(/[^0-9.]/g,''))||0}
+  var ps=best.filter(isP).slice(0,60).map(function(p,i){return{pid:String(p.productId||p.id||p.nvMid||i),rank:i+1,title:String(p.productTitle||p.productName||p.title||'').replace(/<[^>]+>/g,''),mall:p.mallName||p.mallNm||'',price:n(p.lowPrice||p.price||p.lprice),link:p.crUrl||p.mallProductUrl||p.productUrl||p.adcrUrl||'',image:p.imageUrl||p.image||'',catalog:String(p.productType||'')=='1',ad:!!(p.adcrUrl||p.adId),ours:false}});
+  var kw='';try{kw=new URL(location.href).searchParams.get('query')||''}catch(e){}
+  if(!kw)kw=(prompt('키워드를 입력하세요',document.title.replace(/\s*[:|].*/,''))||'').trim();
+  if(!kw){alert('키워드가 없어 취소했어요');return}
+  var today=new Date(Date.now()+32400000).toISOString().slice(0,10);
+  var out=JSON.stringify({kw:kw,date:today,snap:{date:today,keyword:kw,items:ps}});
+  function ok(){alert('✅ '+kw+' '+ps.length+'개 복사 완료!\n\n대시보드 > 순위추적 > 📋붙여넣기 에 Ctrl+V 하세요.')}
+  function fb(){var w=window.open('about:blank','_blank');if(w){w.document.body.style.cssText='margin:16px;font:14px sans-serif';w.document.body.innerHTML='<p>전체선택(Ctrl+A) 후 복사(Ctrl+C):</p>';var t=w.document.createElement('textarea');t.style.cssText='width:98%;height:80vh';t.value=out;w.document.body.appendChild(t);t.focus();t.select()}else{prompt('복사하세요(Ctrl+C):',out)}}
+  try{navigator.clipboard&&navigator.clipboard.writeText?navigator.clipboard.writeText(out).then(ok,fb):fb()}catch(e){fb()}
+}
+// 함수 본문을 javascript: URL 로 직렬화
+var BODY = NAVER_COLLECT.toString();
+var HREF = 'javascript:(' + BODY + ')();';
+document.getElementById('bm').href = HREF;
+document.getElementById('code').textContent = HREF;
+function copyCode(){
+  var t=document.getElementById('code').textContent;
+  (navigator.clipboard&&navigator.clipboard.writeText?navigator.clipboard.writeText(t):Promise.reject())
+    .then(function(){document.getElementById('copied').textContent='복사됨!';},
+          function(){var r=document.createRange();r.selectNode(document.getElementById('code'));getSelection().removeAllRanges();getSelection().addRange(r);document.getElementById('copied').textContent='수동으로 Ctrl+C 하세요';});
+}
+</script>
+</body>
+</html>
