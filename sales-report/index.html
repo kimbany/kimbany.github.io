@@ -132,6 +132,13 @@
 <!-- ===== 토스트 ===== -->
 <div id="toast" class="hidden fixed bottom-5 left-1/2 -translate-x-1/2 z-50 px-4 py-2.5 rounded-xl text-sm font-semibold shadow-lg"></div>
 
+<!-- ===== 맨 위로 가기 ===== -->
+<button id="toTop" onclick="window.scrollTo({top:0,behavior:'smooth'})" aria-label="맨 위로" title="맨 위로"
+  class="hidden fixed bottom-5 right-5 z-40 w-12 h-12 rounded-full bg-brand text-white shadow-lg hover:bg-brand-dark flex items-center justify-center text-xl leading-none">↑</button>
+<script>
+(function(){var b=document.getElementById('toTop');if(!b)return;function u(){ (window.scrollY||document.documentElement.scrollTop)>300 ? b.classList.remove('hidden') : b.classList.add('hidden'); }window.addEventListener('scroll',u,{passive:true});u();})();
+</script>
+
 <script>
 /* ============================================================================
  * 매출 통합 대시보드 — Phase 1~2 (개발 뼈대 + 셋팅 CRUD)
@@ -487,6 +494,7 @@ function renderProducts() {
         <span class="text-xs text-slate-400">규격 ${items.length}개</span>
         <div class="ml-auto flex gap-1.5">
           <button onclick="openItemForm('${p.id}')" class="text-xs font-semibold text-brand px-2 py-1 rounded hover:bg-brand-soft">+ 규격</button>
+          <button onclick="copyProduct('${p.id}')" class="text-xs font-semibold text-slate-500 px-2 py-1 rounded hover:bg-slate-100">복사</button>
           <button onclick="openProductForm('${p.id}')" class="text-xs font-semibold text-slate-500 px-2 py-1 rounded hover:bg-slate-100">수정</button>
           <button onclick="delProduct('${p.id}')" class="text-xs font-semibold text-rose-500 px-2 py-1 rounded hover:bg-rose-50">삭제</button>
         </div>
@@ -505,6 +513,7 @@ function renderProducts() {
           <td class="px-2 py-2 text-right num">${it.price?won(it.price):'<span class="text-slate-300">-</span>'}</td>
           <td class="px-4 py-2 text-right whitespace-nowrap">
             <button onclick="openItemForm('${p.id}','${it.id}')" class="text-xs text-brand font-semibold mr-1">수정</button>
+            <button onclick="openMoveItem('${it.id}')" class="text-xs text-slate-500 font-semibold mr-1">이동/복사</button>
             <button onclick="delItem('${it.id}')" class="text-xs text-rose-400 font-semibold">삭제</button>
           </td></tr>`;
       });
@@ -592,6 +601,61 @@ function delItem(id) {
   renderProducts(); toast('삭제했습니다');
 }
 window.delItem = delItem;
+
+// 상품(그룹) 전체 복사 — 규격까지 함께 복사
+function copyProduct(id) {
+  const p = DB.get('products', id); if (!p) return;
+  const items = DB.list('productItems').filter(it => it.productId === id);
+  if (!confirm(`상품 "${p.name}" 과(와) 규격 ${items.length}개를 복사할까요?`)) return;
+  const np = DB.put('products', { name:(p.name||'')+' (복사)', active:p.active!==false, saleStartDate:p.saleStartDate||'', brandId:p.brandId||'' });
+  items.forEach(it => DB.put('productItems', {
+    productId:np.id, brandId:it.brandId||'', grade:it.grade||'', spec:it.spec,
+    sku:it.sku||'', unitType:it.unitType||'g',
+    unitValue:it.unitValue!=null?it.unitValue:null, price:it.price!=null?it.price:null,
+    active:it.active!==false,
+  }));
+  renderProducts(); toast('상품을 복사했습니다');
+}
+window.copyProduct = copyProduct;
+
+// 규격 이동 / 복사 — 다른 상품으로 옮기거나 같은 규격을 복사
+function openMoveItem(itemId) {
+  const it = DB.get('productItems', itemId); if (!it) return;
+  const products = DB.list('products');
+  if (!products.length) { toast('대상 상품이 없습니다','err'); return; }
+  const opts = products.map(p => ({ v:p.id, t:p.name }));
+  const cur = DB.get('products', it.productId);
+  const body = `
+    <p class="text-xs text-slate-400">상품 <b class="text-slate-600">${esc(cur?.name||'')}</b> 의 규격 <b class="text-slate-600">${esc(itemLabel(it))}</b></p>
+    ${F.sel('mv-target','대상 상품', opts, it.productId)}
+    <p class="text-[11px] text-slate-400"><b>이동</b>: 이 규격을 선택한 상품으로 옮깁니다.<br><b>복사</b>: 선택한 상품에 같은 규격을 하나 더 만듭니다.</p>`;
+  openModal(F.wrap('규격 이동 / 복사', body,
+    F.btnGhost('취소','closeModal()')
+    + F.btnGhost('복사',`doMoveItem('${itemId}',false)`)
+    + F.btnPrimary('이동',`doMoveItem('${itemId}',true)`)));
+}
+window.openMoveItem = openMoveItem;
+
+function doMoveItem(itemId, move) {
+  const it = DB.get('productItems', itemId); if (!it) return;
+  const target = $('#mv-target').value; if (!target) { toast('대상 상품을 선택하세요','err'); return; }
+  const tp = DB.get('products', target);
+  const brandId = (tp && tp.brandId) || it.brandId || '';
+  if (move) {
+    DB.put('productItems', { id:itemId, productId:target, brandId });
+    toast('규격을 이동했습니다');
+  } else {
+    DB.put('productItems', {
+      productId:target, brandId, grade:it.grade||'', spec:it.spec,
+      sku:it.sku||'', unitType:it.unitType||'g',
+      unitValue:it.unitValue!=null?it.unitValue:null, price:it.price!=null?it.price:null,
+      active:it.active!==false,
+    });
+    toast('규격을 복사했습니다');
+  }
+  closeModal(); renderProducts();
+}
+window.doMoveItem = doMoveItem;
 
 /* ============================================================================
  * (d) 매칭 관리 — 채널 상품코드 → 내 규격 연결
@@ -1064,6 +1128,7 @@ function parseBaemin(matrix) {
 }
 /* -------------------------------------------------- 파서: 팔도감 (정산 내역) */
 const PDG_CANCEL = ['취소','반품','환불'];
+const PDG_SKIP = ['배송비','정산보고서','정산 보고서','발급완료','발급 완료'];  // 상품이 아닌 행(배송비·정산보고서 등) 제외
 function parsePaldogam(matrix) {
   const hi = headerIndex(matrix, ['거래발생일','정산상태']);
   if (hi < 0) throw new Error('팔도감 양식(거래발생일·정산상태 열)을 찾지 못했습니다');
@@ -1088,6 +1153,10 @@ function parsePaldogam(matrix) {
     const r = matrix[i]; if (!r) continue;
     const key = String(g(r,'itemNo')).trim() || String(g(r,'orderNo')).trim();
     if (!key) continue;
+    // 상품명이 없거나 배송비·정산보고서 같은 비(非)상품 행은 제외
+    const nm = String(g(r,'productName')).trim();
+    const ty = String(g(r,'type'));
+    if (!nm || PDG_SKIP.some(w => nm.indexOf(w)>=0 || ty.indexOf(w)>=0)) continue;
     let arr = groups.get(key); if (!arr) { arr=[]; groups.set(key, arr); } arr.push(r);
   }
   const items = [];
