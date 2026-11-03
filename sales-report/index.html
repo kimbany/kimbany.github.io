@@ -340,6 +340,7 @@ const CHANNEL_FORMATS = [
   { v:'11st',       t:'11번가' },
   { v:'ssg',        t:'SSG' },
   { v:'baemin',     t:'배달의민족(전국특가)' },
+  { v:'paldogam',   t:'팔도감' },
   { v:'custom',     t:'기타' },
 ];
 function formatLabel(f) { return (CHANNEL_FORMATS.find(x=>x.v===f)||{}).t || '기타'; }
@@ -1061,7 +1062,62 @@ function parseBaemin(matrix) {
   if (!items.length) throw new Error('데이터 행을 찾지 못했습니다');
   return items;
 }
-const PARSERS = { cafe24:parseCafe24, smartstore:parseSmartstore, ssg:parseSsg, baemin:parseBaemin };
+/* -------------------------------------------------- 파서: 팔도감 (정산 내역) */
+const PDG_CANCEL = ['취소','반품','환불'];
+function parsePaldogam(matrix) {
+  const hi = headerIndex(matrix, ['거래발생일','정산상태']);
+  if (hi < 0) throw new Error('팔도감 양식(거래발생일·정산상태 열)을 찾지 못했습니다');
+  const f = colFinder(matrix[hi]);
+  const col = {
+    date:f.eq('거래발생일'), type:f.eq('거래유형'),
+    orderNo:f.eq('주문번호'), itemNo:f.eq('개별주문번호'),
+    productCode:f.eq('판매자상품코드'),
+    productName:f.eq('상품명'), optionName:f.eq('옵션명'), qty:f.eq('수량'),
+    gross:f.sw('상품가액'), fee:f.sw('판매수수료'),
+    sellerDc:f.sw('셀러부담할인액'), sellerComp:f.sw('셀러보상금액'),
+    settle:f.sw('정산금액'), status:f.eq('정산상태'), buyerName:f.sw('주문자'),
+  };
+  const need = ['itemNo','gross','qty'];
+  const miss = need.filter(k => col[k] < 0);
+  if (miss.length) throw new Error('팔도감 열을 찾지 못했습니다: '+miss.join(','));
+  const g = (r,k) => col[k]>=0 ? (r[col[k]]||'') : '';
+  const isRefundRow = r => { const t=String(g(r,'type')); return PDG_CANCEL.some(w=>t.indexOf(w)>=0); };
+  // 개별주문번호 기준 그룹핑: 환불 건은 구매행과 같은 개별주문번호를 공유(음수 금액)하므로 한 묶음으로 처리
+  const groups = new Map();
+  for (let i=hi+1;i<matrix.length;i++) {
+    const r = matrix[i]; if (!r) continue;
+    const key = String(g(r,'itemNo')).trim() || String(g(r,'orderNo')).trim();
+    if (!key) continue;
+    let arr = groups.get(key); if (!arr) { arr=[]; groups.set(key, arr); } arr.push(r);
+  }
+  const items = [];
+  groups.forEach((rows, key) => {
+    const base = rows.find(r => !isRefundRow(r)) || rows[0];   // 구매행 우선, 없으면 환불행
+    const cancelled = rows.some(isRefundRow) || PDG_CANCEL.some(w => String(g(base,'status')).indexOf(w) >= 0);
+    const qty = Math.abs(parseNum(g(base,'qty'))) || 1;
+    const gross = Math.abs(parseNum(g(base,'gross')));           // 상품가액 = 판매가(매출)
+    const settleRaw = String(g(base,'settle')).trim();
+    // 마진(순매출): 정산금액이 기재돼 있으면 그 값, 비어있으면(대기) 추정 = 상품가액 - 판매수수료 - 셀러부담할인 + 셀러보상
+    const margin = settleRaw !== ''
+      ? Math.abs(parseNum(settleRaw))
+      : (gross - Math.abs(parseNum(g(base,'fee'))) - Math.abs(parseNum(g(base,'sellerDc'))) + Math.abs(parseNum(g(base,'sellerComp'))));
+    const pc = String(g(base,'productCode')).trim() || '(코드없음)';
+    const dateRaw = String(g(base,'date')).trim();
+    items.push({
+      orderNo:String(g(base,'orderNo')).trim() || key, itemOrderNo:key,
+      orderDateTime:dateRaw, orderDate:normDateStr(dateRaw),
+      buyerName:String(g(base,'buyerName')).trim(),
+      productCode:pc, optionCode:'__NONE__',
+      productName:String(g(base,'productName')).trim(), optionName:cleanOption(g(base,'optionName')),
+      qty, listPrice: qty>0 ? Math.round(gross/qty) : gross,
+      grossAmount:gross, netAmount: cancelled ? 0 : margin,
+      isCancelled:cancelled,
+    });
+  });
+  if (!items.length) throw new Error('데이터 행을 찾지 못했습니다');
+  return items;
+}
+const PARSERS = { cafe24:parseCafe24, smartstore:parseSmartstore, ssg:parseSsg, baemin:parseBaemin, paldogam:parsePaldogam };
 window.__PARSERS = PARSERS;
 
 /* -------------------------------------------------- 요약 */
