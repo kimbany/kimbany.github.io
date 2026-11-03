@@ -562,9 +562,11 @@ function openItemForm(productId, itemId) {
   const p = DB.get('products', productId);
   const body = `
     <p class="text-xs text-slate-400">상품 <b class="text-slate-600">${esc(p?.name||'')}</b> 의 규격</p>
-    ${F.text('it-grade','등급/종류 (선택)', it.grade||'', '예: 대과 / 중과 / 점보 / 왕점보')}
+    ${F.text('it-variety','종류(품종) (선택)', it.variety||'', '예: 홍로 / 감홍 / 신고 / 샤인머스캣')}
+    ${F.text('it-grade','등급 (선택)', it.grade||'', '예: 대과 / 중과 / 소과 / 점보')}
+    ${F.text('it-category','분류 (선택)', it.category||'', '예: 선물용 / 가정용')}
     ${F.text('it-spec','규격(용량)', it.spec||'', '예: 3kg / 5.5kg / 12개입')}
-    ${F.text('it-sku','SKU (선택)', it.sku||'', '예: MF-APPLE-3KG')}
+    ${F.text('it-sku','판매자코드 (선택)', it.sku||'', '예: MF-APPLE-3KG')}
     <div class="grid grid-cols-2 gap-3">
       ${F.sel('it-utype','단위 타입', UNIT_TYPES, it.unitType||'g')}
       ${F.num('it-uval','단위 값', it.unitValue!=null?it.unitValue:'', '예: 3000')}
@@ -582,7 +584,9 @@ function saveItem(productId, itemId) {
   DB.put('productItems', {
     id: itemId||undefined,
     productId, brandId: p?.brandId || '',
+    variety: $('#it-variety').value.trim(),
     grade: $('#it-grade').value.trim(),
+    category: $('#it-category').value.trim(),
     spec,
     sku: $('#it-sku').value.trim(),
     unitType: $('#it-utype').value,
@@ -609,7 +613,7 @@ function copyProduct(id) {
   if (!confirm(`상품 "${p.name}" 과(와) 규격 ${items.length}개를 복사할까요?`)) return;
   const np = DB.put('products', { name:(p.name||'')+' (복사)', active:p.active!==false, saleStartDate:p.saleStartDate||'', brandId:p.brandId||'' });
   items.forEach(it => DB.put('productItems', {
-    productId:np.id, brandId:it.brandId||'', grade:it.grade||'', spec:it.spec,
+    productId:np.id, brandId:it.brandId||'', variety:it.variety||'', grade:it.grade||'', category:it.category||'', spec:it.spec,
     sku:it.sku||'', unitType:it.unitType||'g',
     unitValue:it.unitValue!=null?it.unitValue:null, price:it.price!=null?it.price:null,
     active:it.active!==false,
@@ -639,14 +643,13 @@ window.openMoveItem = openMoveItem;
 function doMoveItem(itemId, move) {
   const it = DB.get('productItems', itemId); if (!it) return;
   const target = $('#mv-target').value; if (!target) { toast('대상 상품을 선택하세요','err'); return; }
-  const tp = DB.get('products', target);
-  const brandId = (tp && tp.brandId) || it.brandId || '';
+  const brandId = it.brandId || '';   // 브랜드는 그대로 유지
   if (move) {
     DB.put('productItems', { id:itemId, productId:target, brandId });
     toast('규격을 이동했습니다');
   } else {
     DB.put('productItems', {
-      productId:target, brandId, grade:it.grade||'', spec:it.spec,
+      productId:target, brandId, variety:it.variety||'', grade:it.grade||'', category:it.category||'', spec:it.spec,
       sku:it.sku||'', unitType:it.unitType||'g',
       unitValue:it.unitValue!=null?it.unitValue:null, price:it.price!=null?it.price:null,
       active:it.active!==false,
@@ -660,13 +663,44 @@ window.doMoveItem = doMoveItem;
 /* ============================================================================
  * (d) 매칭 관리 — 채널 상품코드 → 내 규격 연결
  * ==========================================================================*/
-function masterItemOptions(sel) {
-  const products = DB.list('products');
-  return DB.list('productItems').filter(it=>it.active!==false)
-    .map(it => { const p = products.find(x=>x.id===it.productId)||{}; return { id:it.id, label:(p.name||'?')+' · '+itemLabel(it) }; })
-    .sort((a,b)=> a.label.localeCompare(b.label, 'ko'))
-    .map(o => `<option value="${o.id}" ${o.id===sel?'selected':''}>${esc(o.label)}</option>`).join('');
+// 매칭: 상품 → 종류(품종) → 규격 3단계 드롭다운
+function matchProductOptions(sel) {
+  return DB.list('products').slice().sort((a,b)=>(a.name||'').localeCompare(b.name||'','ko'))
+    .map(p => `<option value="${p.id}" ${p.id===sel?'selected':''}>${esc(p.name||'(상품)')}</option>`).join('');
 }
+function matchVarietyOptions(productId, selVal) {
+  if (!productId) return '';
+  const vs = [...new Set(DB.list('productItems').filter(it=>it.productId===productId && it.active!==false).map(it=>it.variety||''))];
+  vs.sort((a,b)=>{ if(!a) return 1; if(!b) return -1; return a.localeCompare(b,'ko'); });
+  return vs.map(v => { const val = v===''?'__NOVAR__':v; return `<option value="${esc(val)}" ${val===selVal?'selected':''}>${esc(v||'(품종 없음)')}</option>`; }).join('');
+}
+function matchSpecOptions(productId, variety, sel) {
+  if (!productId) return '';
+  return DB.list('productItems').filter(it=>it.productId===productId && it.active!==false && (it.variety||'')===(variety||''))
+    .sort((a,b)=>(a.unitValue||0)-(b.unitValue||0))
+    .map(it => { const lbl = [it.grade,it.category,it.spec].filter(Boolean).join(' ') || it.spec || '규격'; return `<option value="${it.id}" ${it.id===sel?'selected':''}>${esc(lbl)}</option>`; }).join('');
+}
+function matchRowProduct(rowId) {
+  const pid = document.getElementById('mprod-'+rowId).value;
+  const v = document.getElementById('mvar-'+rowId), i = document.getElementById('mitem-'+rowId);
+  v.innerHTML = '<option value="">— 품종 —</option>' + matchVarietyOptions(pid,''); v.disabled = !pid;
+  i.innerHTML = '<option value="">— 규격 —</option>'; i.disabled = true;
+}
+window.matchRowProduct = matchRowProduct;
+function matchRowVariety(rowId) {
+  const pid = document.getElementById('mprod-'+rowId).value;
+  const vv = document.getElementById('mvar-'+rowId).value;
+  const i = document.getElementById('mitem-'+rowId);
+  if (vv === '') { i.innerHTML = '<option value="">— 규격 —</option>'; i.disabled = true; return; }
+  const realV = vv==='__NOVAR__' ? '' : vv;
+  i.innerHTML = '<option value="">— 규격 —</option>' + matchSpecOptions(pid, realV, ''); i.disabled = false;
+}
+window.matchRowVariety = matchRowVariety;
+function matchRowItem(rowId, channelId, code, opt) {
+  const itemId = document.getElementById('mitem-'+rowId).value;
+  assignMatch(channelId, code, opt, itemId);
+}
+window.matchRowItem = matchRowItem;
 function renderMatch() {
   const box = $('[data-sub-panel="match"]');
   const channels = DB.list('channels');
@@ -697,12 +731,21 @@ function renderMatch() {
         const mk = ch.id+'|'+r.code+'|'+r.opt;
         const m = DB.get('channelMappings', mk);
         const cur = m && m.productItemId ? m.productItemId : '';
+        const rowId = hashId('mr', mk);
+        let curProd='', curVarRaw='', curVarVal='';
+        if (cur) { const it = DB.get('productItems', cur)||{}; curProd = it.productId||''; curVarRaw = it.variety||''; curVarVal = curVarRaw===''?'__NOVAR__':curVarRaw; }
         return `<tr class="border-b border-slate-50">
           <td class="py-2 text-xs text-slate-500 whitespace-nowrap">${esc(r.code)}${r.opt!=='__NONE__'?'<br>'+esc(r.opt):''}</td>
-          <td class="py-2 min-w-[220px]">${esc(r.name||'')}${r.optName&&r.optName!=='기본'?`<span class="text-slate-400"> · ${esc(r.optName)}</span>`:''}</td>
-          <td class="py-2"><div class="flex items-center gap-1.5">
-            <select onchange="assignMatch('${ch.id}','${esc(r.code)}','${esc(r.opt)}',this.value)" class="px-2 py-1.5 text-sm border ${cur?'border-slate-200':'border-rose-300 bg-rose-50'} rounded-lg bg-white min-w-[200px]">
-              <option value="">${cur?'(연결 해제)':'— 선택 —'}</option>${masterItemOptions(cur)}
+          <td class="py-2 min-w-[180px]">${esc(r.name||'')}${r.optName&&r.optName!=='기본'?`<span class="text-slate-400"> · ${esc(r.optName)}</span>`:''}</td>
+          <td class="py-2"><div class="flex flex-wrap items-center gap-1.5">
+            <select id="mprod-${rowId}" onchange="matchRowProduct('${rowId}')" class="px-2 py-1.5 text-sm border ${cur?'border-slate-200':'border-rose-300 bg-rose-50'} rounded-lg bg-white min-w-[130px]">
+              <option value="">— 상품 —</option>${matchProductOptions(curProd)}
+            </select>
+            <select id="mvar-${rowId}" onchange="matchRowVariety('${rowId}')" ${curProd?'':'disabled'} class="px-2 py-1.5 text-sm border border-slate-200 rounded-lg bg-white min-w-[110px] disabled:bg-slate-50 disabled:text-slate-300">
+              <option value="">— 품종 —</option>${curProd?matchVarietyOptions(curProd,curVarVal):''}
+            </select>
+            <select id="mitem-${rowId}" onchange="matchRowItem('${rowId}','${ch.id}','${esc(r.code)}','${esc(r.opt)}')" ${curProd?'':'disabled'} class="px-2 py-1.5 text-sm border border-slate-200 rounded-lg bg-white min-w-[140px] disabled:bg-slate-50 disabled:text-slate-300">
+              <option value="">${cur?'(연결 해제)':'— 규격 —'}</option>${curProd?matchSpecOptions(curProd,curVarRaw,cur):''}
             </select>
             ${cur?'':`<button onclick="quickCreateMaster('${ch.id}','${esc(r.code)}','${esc(r.opt)}')" class="text-[11px] font-semibold text-brand whitespace-nowrap px-1.5 py-1 rounded hover:bg-brand-soft">+ 새로 만들기</button>`}
           </div></td></tr>`;
@@ -867,7 +910,11 @@ function parseNum(v) {
   const n = parseFloat(s); return isNaN(n) ? 0 : n;
 }
 // 규격 표시 라벨 = 등급 + 규격 (예: "대과 3kg")
-function itemLabel(it) { return (((it&&it.grade)?it.grade+' ':'')+((it&&it.spec)||'')).trim() || '기본'; }
+function itemLabel(it) {
+  if (!it) return '기본';
+  const base = [it.variety, it.grade, it.spec].filter(Boolean).join(' ').trim() || '기본';
+  return it.category ? (base + ' (' + it.category + ')') : base;
+}
 // 기존 데이터 마이그레이션: 예전 카페24 채널에 format 부여
 function migrateChannels() {
   DB.list('channels').forEach(ch => {
