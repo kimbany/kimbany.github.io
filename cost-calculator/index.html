@@ -323,6 +323,44 @@
   }
   .fruit-total b { font-size: 22px; color: var(--accent); }
   .fruit-total-sub { font-size: 12px; color: var(--sub); text-align: right; margin-top: 6px; }
+  .fruit-actions { display: flex; gap: 8px; margin-top: 12px; }
+  .fruit-actions .calc-btn { margin-top: 0; font-size: 15px; }
+
+  /* ----- 저장 목록 ----- */
+  .saved-card { margin-top: 12px; padding: 20px 18px; }
+  .saved-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
+  .saved-name { font-size: 17px; font-weight: 700; }
+  .saved-date { font-size: 12px; color: var(--sub); margin-top: 3px; }
+  .saved-amt { font-size: 21px; font-weight: 800; color: var(--accent); white-space: nowrap; }
+  .saved-sub { font-size: 12px; color: var(--sub); margin-top: 6px; }
+  .saved-items {
+    margin-top: 12px;
+    padding-top: 10px;
+    border-top: 1px dashed var(--line);
+  }
+  .saved-item {
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+    font-size: 13px;
+    padding: 4px 0;
+  }
+  .saved-item .si-name { color: var(--text); }
+  .saved-item .si-amt { color: var(--sub); white-space: nowrap; }
+  .saved-actions { display: flex; gap: 6px; margin-top: 14px; }
+  .saved-actions button {
+    flex: 1;
+    padding: 10px 8px;
+    font-size: 13px;
+    font-weight: 600;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: #fff;
+    color: var(--accent);
+    cursor: pointer;
+  }
+  .saved-actions button:hover { background: #eef4ff; }
+  .saved-actions .del { color: #dc2626; border-color: #fecaca; background: #fff5f5; flex: 0 0 68px; }
 
   /* ----- PC 화면: 넓게 ----- */
   @media (min-width: 860px) {
@@ -342,14 +380,14 @@
     .breakdown { font-size: 14px; max-width: 620px; margin-left: auto; margin-right: auto; }
     #matGrid { grid-template-columns: repeat(3, 1fr); gap: 14px 12px; }
     #matDims { grid-template-columns: repeat(3, 1fr); }
-    #fruitList {
+    #fruitList, #savedList {
       display: grid;
       grid-template-columns: repeat(2, 1fr);
       gap: 14px;
       align-items: start;
       margin-top: 14px;
     }
-    .fruit-card { margin-top: 0; }
+    .fruit-card, .saved-card { margin-top: 0; }
     #historyList { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
     #historyList .history-item { margin-bottom: 0; }
   }
@@ -519,11 +557,25 @@
 
   <!-- ============ 단가 확인 ============ -->
   <div class="tab-panel" id="tab-unit">
-    <div class="card">
-      <p class="tab-desc">과일 단가와 들어가는 부자재를 합쳐 <b>과일별 단가</b>를 바로 확인합니다.<br>부자재 품목·단가는 <b>판매가 계산기 → 설정</b>에서 등록한 값을 불러옵니다.</p>
-      <button type="button" class="calc-btn" id="fruitAddBtn">+ 과일 추가</button>
+    <div class="subtabs">
+      <button type="button" class="active" data-subtab="unitcalc">단가 계산</button>
+      <button type="button" data-subtab="unitsaved">저장 목록</button>
     </div>
-    <div id="fruitList"></div>
+
+    <div class="subtab-panel active" id="subtab-unitcalc">
+      <div class="card">
+        <p class="tab-desc">과일 단가와 들어가는 부자재를 합쳐 <b>과일별 단가</b>를 바로 확인합니다.<br>부자재 품목·단가는 <b>판매가 계산기 → 설정</b>에서 등록한 값을 불러옵니다.<br>구성을 <b>저장</b>하면 <b>저장 목록</b>에 모여 언제든 다시 꺼내 쓸 수 있습니다.</p>
+        <button type="button" class="calc-btn" id="fruitAddBtn">+ 과일 추가</button>
+      </div>
+      <div id="fruitList"></div>
+    </div>
+
+    <div class="subtab-panel" id="subtab-unitsaved">
+      <div class="card">
+        <p class="tab-desc">단가 계산에서 <b>저장</b>한 구성이 여기에 모입니다.<br>불러와서 수정하거나 바로 판매가를 계산할 수 있습니다.</p>
+      </div>
+      <div id="savedList"></div>
+    </div>
   </div>
 
   <!-- ============ 판매가 계산기 ============ -->
@@ -1535,11 +1587,19 @@
     card.appendChild(totalBox);
     card.appendChild(tSub);
 
+    var actions = document.createElement('div');
+    actions.className = 'fruit-actions';
+    var saveBtn = document.createElement('button');
+    saveBtn.type = 'button';
+    saveBtn.className = 'calc-btn';
+    saveBtn.textContent = '저장';
     var sendBtn = document.createElement('button');
     sendBtn.type = 'button';
     sendBtn.className = 'calc-btn secondary';
-    sendBtn.textContent = '이 구성으로 판매가 계산하기 →';
-    card.appendChild(sendBtn);
+    sendBtn.textContent = '판매가 계산 →';
+    actions.appendChild(saveBtn);
+    actions.appendChild(sendBtn);
+    card.appendChild(actions);
 
     function showStatus(msg, warn) {
       status.textContent = msg;
@@ -1685,61 +1745,8 @@
       storeFruits();
       renderItems();
     });
-    sendBtn.addEventListener('click', function () {
-      var fp = parseFloat(priceInput.value);
-      if (isNaN(fp)) fp = 0;
-
-      $('saleName').value = fruit.name || '';
-      $('rawPrice').value = fp || '';
-      $('spec').value = 1;
-      specUnit.set('kg');
-
-      /* 과일에 담긴 부자재를 분류별로 합산 */
-      var byCat = {};
-      (fruit.items || []).forEach(function (it) {
-        var q = Number(it.qty) > 0 ? Number(it.qty) : 1;
-        if (!byCat[it.cat]) byCat[it.cat] = { total: 0, list: [] };
-        var unit = matUnitPrice(it.cat, it.name);
-        byCat[it.cat].total += unit * q;
-        byCat[it.cat].list.push({ name: it.name, qty: q, price: unit });
-      });
-
-      /* 부자재 입력란: 과일에 들어간 것만 채우고 나머지는 비움 */
-      MAT_IDS.forEach(function (cat) {
-        var sel = $(cat + 'Select');
-        var g = byCat[cat];
-        if (!g) {
-          $(cat + 'Cost').value = '';
-          $(cat + 'Qty').value = 1;
-          if (sel) sel.value = '';
-          return;
-        }
-        if (g.list.length === 1) {
-          $(cat + 'Cost').value = g.list[0].price;
-          $(cat + 'Qty').value = g.list[0].qty;
-          if (sel) sel.value = g.list[0].name;
-        } else {
-          // 같은 분류에 여러 품목이면 금액을 합쳐 1개로 넣음
-          $(cat + 'Cost').value = Math.round(g.total);
-          $(cat + 'Qty').value = 1;
-          if (sel) sel.value = '';
-        }
-      });
-
-      /* 인건비·택배비는 과일에 포함된 경우에만 덮어씀 */
-      [['labor', 'laborCost'], ['shipping', 'shippingCost']].forEach(function (pair) {
-        var g = byCat[pair[0]];
-        if (!g) return;
-        $(pair[1]).value = Math.round(g.total);
-        var sel = $(pair[0] + 'Select');
-        if (sel) sel.value = (g.list.length === 1 && g.list[0].qty === 1) ? g.list[0].name : '';
-      });
-
-      document.querySelector('.tabs button[data-tab="sale"]').click();
-      document.querySelector('#tab-sale .subtabs button[data-subtab="calc"]').click();
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-      if ($('feeRate').value !== '' || $('marginCost').value !== '') calcSale();
-    });
+    saveBtn.addEventListener('click', function () { saveFruit(fruit, showStatus); });
+    sendBtn.addEventListener('click', function () { sendFruitToSale(fruit); });
 
     delBtn.addEventListener('click', function () {
       if (!confirm("'" + (fruit.name || '이 과일') + "' 항목을 삭제하시겠습니까?")) return;
@@ -1766,8 +1773,6 @@
     }
     fruits.forEach(function (fruit) { box.appendChild(buildFruitCard(fruit)); });
   }
-  fruitRefresh = renderFruits;
-
   $('fruitAddBtn').addEventListener('click', function () {
     fruits.push({ name: '', price: '', items: [] });
     storeFruits();
@@ -1780,7 +1785,250 @@
     }
   });
 
+  /* ----- 구성을 판매가 계산기로 보내기 ----- */
+  function itemPrice(it) {
+    var m = findMat(it.cat, it.name);
+    if (m && m.price !== '' && !isNaN(m.price)) return Number(m.price);
+    // 설정에서 지워진 품목은 저장 당시 단가로 대체
+    return (it.price !== undefined && it.price !== '' && !isNaN(it.price)) ? Number(it.price) : 0;
+  }
+
+  function sendFruitToSale(fruit) {
+    var fp = parseFloat(fruit.price);
+    if (isNaN(fp)) fp = 0;
+
+    $('saleName').value = fruit.name || '';
+    $('rawPrice').value = fp || '';
+    $('spec').value = 1;
+    specUnit.set('kg');
+
+    /* 구성에 담긴 부자재를 분류별로 합산 */
+    var byCat = {};
+    (fruit.items || []).forEach(function (it) {
+      var q = Number(it.qty) > 0 ? Number(it.qty) : 1;
+      if (!byCat[it.cat]) byCat[it.cat] = { total: 0, list: [] };
+      var unit = itemPrice(it);
+      byCat[it.cat].total += unit * q;
+      byCat[it.cat].list.push({ name: it.name, qty: q, price: unit });
+    });
+
+    /* 부자재 입력란: 구성에 들어간 것만 채우고 나머지는 비움 */
+    MAT_IDS.forEach(function (cat) {
+      var sel = $(cat + 'Select');
+      var g = byCat[cat];
+      if (!g) {
+        $(cat + 'Cost').value = '';
+        $(cat + 'Qty').value = 1;
+        if (sel) sel.value = '';
+        return;
+      }
+      if (g.list.length === 1) {
+        $(cat + 'Cost').value = g.list[0].price;
+        $(cat + 'Qty').value = g.list[0].qty;
+        if (sel) sel.value = g.list[0].name;
+      } else {
+        // 같은 분류에 여러 품목이면 금액을 합쳐 1개로 넣음
+        $(cat + 'Cost').value = Math.round(g.total);
+        $(cat + 'Qty').value = 1;
+        if (sel) sel.value = '';
+      }
+    });
+
+    /* 인건비·택배비는 구성에 포함된 경우에만 덮어씀 */
+    [['labor', 'laborCost'], ['shipping', 'shippingCost']].forEach(function (pair) {
+      var g = byCat[pair[0]];
+      if (!g) return;
+      $(pair[1]).value = Math.round(g.total);
+      var sel = $(pair[0] + 'Select');
+      if (sel) sel.value = (g.list.length === 1 && g.list[0].qty === 1) ? g.list[0].name : '';
+    });
+
+    document.querySelector('.tabs button[data-tab="sale"]').click();
+    document.querySelector('#tab-sale .subtabs button[data-subtab="calc"]').click();
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    if ($('feeRate').value !== '' || $('marginCost').value !== '') calcSale();
+  }
+
+  /* ===== 저장 목록 ===== */
+  var SAVED_KEY = 'unitSavedFruits';
+
+  function loadSaved() {
+    try {
+      var s = JSON.parse(localStorage.getItem(SAVED_KEY));
+      if (Array.isArray(s)) return s;
+    } catch (e) {}
+    return [];
+  }
+  var savedFruits = loadSaved();
+
+  function storeSaved() {
+    localStorage.setItem(SAVED_KEY, JSON.stringify(savedFruits));
+  }
+
+  function savedTotals(entry) {
+    var fp = parseFloat(entry.price);
+    if (isNaN(fp)) fp = 0;
+    var mat = 0;
+    (entry.items || []).forEach(function (it) {
+      var q = Number(it.qty) > 0 ? Number(it.qty) : 1;
+      mat += itemPrice(it) * q;
+    });
+    return { fruit: fp, mat: mat, total: fp + mat };
+  }
+
+  function saveFruit(fruit, onStatus) {
+    var name = (fruit.name || '').trim();
+    if (!name) return onStatus('과일명을 먼저 입력해주세요.', true);
+
+    var entry = {
+      name: name,
+      price: (fruit.price === '' || fruit.price === undefined || fruit.price === null) ? 0 : Number(fruit.price),
+      items: (fruit.items || []).map(function (it) {
+        return {
+          cat: it.cat,
+          name: it.name,
+          qty: Number(it.qty) > 0 ? Number(it.qty) : 1,
+          price: itemPrice(it)
+        };
+      }),
+      savedAt: Date.now()
+    };
+
+    var idx = -1;
+    savedFruits.forEach(function (s, i) { if (s.name === name) idx = i; });
+    if (idx >= 0) {
+      if (!confirm("'" + name + "' 이름으로 저장된 구성이 있습니다. 덮어쓰시겠습니까?")) return;
+      savedFruits[idx] = entry;
+      onStatus("'" + name + "' 덮어쓰기 완료 — 저장 목록에서 볼 수 있습니다.");
+    } else {
+      savedFruits.unshift(entry);
+      onStatus("'" + name + "' 저장 완료 — 저장 목록에서 볼 수 있습니다.");
+    }
+    storeSaved();
+    renderSaved();
+  }
+
+  function savedDate(ts) {
+    if (!ts) return '';
+    var d = new Date(ts);
+    var p = function (n) { return (n < 10 ? '0' : '') + n; };
+    return d.getFullYear() + '.' + p(d.getMonth() + 1) + '.' + p(d.getDate()) + ' ' + p(d.getHours()) + ':' + p(d.getMinutes());
+  }
+
+  function buildSavedCard(entry) {
+    var card = document.createElement('div');
+    card.className = 'card saved-card';
+
+    var head = document.createElement('div');
+    head.className = 'saved-head';
+    var left = document.createElement('div');
+    var nm = document.createElement('div');
+    nm.className = 'saved-name';
+    nm.textContent = entry.name;
+    var dt = document.createElement('div');
+    dt.className = 'saved-date';
+    dt.textContent = savedDate(entry.savedAt) + ' 저장';
+    left.appendChild(nm);
+    left.appendChild(dt);
+    var amt = document.createElement('div');
+    amt.className = 'saved-amt';
+    head.appendChild(left);
+    head.appendChild(amt);
+    card.appendChild(head);
+
+    var t = savedTotals(entry);
+    amt.textContent = comma(Math.round(t.total)) + '원';
+
+    var sub = document.createElement('p');
+    sub.className = 'saved-sub';
+    sub.textContent = '과일 ' + comma(Math.round(t.fruit)) + '원 + 부자재 ' + comma(Math.round(t.mat)) + '원';
+    card.appendChild(sub);
+
+    var list = document.createElement('div');
+    list.className = 'saved-items';
+    if (!entry.items || !entry.items.length) {
+      var e = document.createElement('p');
+      e.className = 'empty';
+      e.textContent = '부자재 없음';
+      list.appendChild(e);
+    } else {
+      entry.items.forEach(function (it) {
+        var q = Number(it.qty) > 0 ? Number(it.qty) : 1;
+        var price = itemPrice(it);
+        var row = document.createElement('div');
+        row.className = 'saved-item';
+        var l = document.createElement('span');
+        l.className = 'si-name';
+        l.textContent = (MAT_NAME[it.cat] || it.cat) + ' · ' + it.name;
+        var r = document.createElement('span');
+        r.className = 'si-amt';
+        r.textContent = comma(price) + '원 × ' + q + '개 = ' + comma(Math.round(price * q)) + '원';
+        row.appendChild(l);
+        row.appendChild(r);
+        list.appendChild(row);
+      });
+    }
+    card.appendChild(list);
+
+    var acts = document.createElement('div');
+    acts.className = 'saved-actions';
+    var loadBtn = document.createElement('button');
+    loadBtn.type = 'button';
+    loadBtn.textContent = '불러오기';
+    var saleBtn = document.createElement('button');
+    saleBtn.type = 'button';
+    saleBtn.textContent = '판매가 계산 →';
+    var delBtn = document.createElement('button');
+    delBtn.type = 'button';
+    delBtn.className = 'del';
+    delBtn.textContent = '삭제';
+    acts.appendChild(loadBtn);
+    acts.appendChild(saleBtn);
+    acts.appendChild(delBtn);
+    card.appendChild(acts);
+
+    loadBtn.addEventListener('click', function () {
+      fruits.push({
+        name: entry.name,
+        price: entry.price,
+        items: (entry.items || []).map(function (it) {
+          return { cat: it.cat, name: it.name, qty: it.qty };
+        })
+      });
+      storeFruits();
+      renderFruits();
+      document.querySelector('#tab-unit .subtabs button[data-subtab="unitcalc"]').click();
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    });
+    saleBtn.addEventListener('click', function () { sendFruitToSale(entry); });
+    delBtn.addEventListener('click', function () {
+      if (!confirm("'" + entry.name + "' 저장 구성을 삭제하시겠습니까?")) return;
+      var i = savedFruits.indexOf(entry);
+      if (i >= 0) savedFruits.splice(i, 1);
+      storeSaved();
+      renderSaved();
+    });
+
+    return card;
+  }
+
+  function renderSaved() {
+    var box = $('savedList');
+    box.innerHTML = '';
+    if (!savedFruits.length) {
+      var p = document.createElement('p');
+      p.className = 'empty';
+      p.textContent = '저장된 구성이 없습니다. 단가 계산에서 “저장”을 눌러 보관하세요.';
+      box.appendChild(p);
+      return;
+    }
+    savedFruits.forEach(function (entry) { box.appendChild(buildSavedCard(entry)); });
+  }
+
+  fruitRefresh = function () { renderFruits(); renderSaved(); };
+
   renderFruits();
+  renderSaved();
 
   function calcSale() {
     var errorMsg = $('saleErrorMsg');
