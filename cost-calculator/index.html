@@ -326,13 +326,42 @@
   .fruit-actions { display: flex; gap: 8px; margin-top: 12px; }
   .fruit-actions .calc-btn { margin-top: 0; font-size: 15px; }
 
+  .unit-select {
+    flex: 0 0 76px;
+    padding: 12px 8px;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    font-size: 14px;
+    background: #fff;
+    color: var(--text);
+  }
+  .unit-select.full { width: 100%; flex: 1; }
+  .qty-range { display: flex; align-items: center; gap: 6px; }
+  .qty-range input { flex: 1; min-width: 0; text-align: center; }
+  .qty-range span { font-size: 13px; color: var(--sub); white-space: nowrap; }
+
+  .search-row { margin-bottom: 12px; }
+  .search-row input {
+    width: 100%;
+    padding: 12px 14px;
+    font-size: 15px;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: #fff;
+    color: var(--text);
+    outline: none;
+  }
+  .search-row input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(47,111,237,0.12); }
+
   /* ----- 저장 목록 ----- */
   .saved-card { margin-top: 12px; padding: 20px 18px; }
   .saved-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
   .saved-name { font-size: 17px; font-weight: 700; }
   .saved-date { font-size: 12px; color: var(--sub); margin-top: 3px; }
   .saved-amt { font-size: 21px; font-weight: 800; color: var(--accent); white-space: nowrap; }
+  .saved-meta { font-size: 13px; color: var(--text); margin-top: 8px; font-weight: 600; }
   .saved-sub { font-size: 12px; color: var(--sub); margin-top: 6px; }
+  .saved-note { font-size: 12px; color: var(--sub); margin-top: 4px; }
   .saved-items {
     margin-top: 12px;
     padding-top: 10px;
@@ -565,6 +594,9 @@
     <div class="subtab-panel active" id="subtab-unitcalc">
       <div class="card">
         <p class="tab-desc">과일 단가와 들어가는 부자재를 합쳐 <b>과일별 단가</b>를 바로 확인합니다.<br>부자재 품목·단가는 <b>판매가 계산기 → 설정</b>에서 등록한 값을 불러옵니다.<br>구성을 <b>저장</b>하면 <b>저장 목록</b>에 모여 언제든 다시 꺼내 쓸 수 있습니다.</p>
+        <div class="search-row">
+          <input type="search" id="fruitSearch" placeholder="과일명 · 중량 · 용도로 검색">
+        </div>
         <button type="button" class="calc-btn" id="fruitAddBtn">+ 과일 추가</button>
       </div>
       <div id="fruitList"></div>
@@ -573,6 +605,9 @@
     <div class="subtab-panel" id="subtab-unitsaved">
       <div class="card">
         <p class="tab-desc">단가 계산에서 <b>저장</b>한 구성이 여기에 모입니다.<br>불러와서 수정하거나 바로 판매가를 계산할 수 있습니다.</p>
+        <div class="search-row">
+          <input type="search" id="savedSearch" placeholder="과일명 · 중량 · 용도로 검색">
+        </div>
       </div>
       <div id="savedList"></div>
     </div>
@@ -1517,6 +1552,7 @@
     priceInput.min = '0';
     priceInput.step = 'any';
     priceInput.inputMode = 'numeric';
+    priceInput.className = 'fruit-price';
     priceInput.placeholder = '예: 6000';
     priceInput.value = (fruit.price === undefined || fruit.price === null) ? '' : fruit.price;
     var priceUnit = document.createElement('span');
@@ -1527,6 +1563,137 @@
     priceField.appendChild(priceLabel);
     priceField.appendChild(priceBox);
     card.appendChild(priceField);
+
+    /* 중량 · 용도 */
+    var metaGrid = document.createElement('div');
+    metaGrid.className = 'grid-2';
+
+    var wField = document.createElement('div');
+    wField.className = 'field';
+    var wLabel = document.createElement('label');
+    wLabel.textContent = '중량';
+    var wRow = document.createElement('div');
+    wRow.className = 'input-row';
+    var wBox = document.createElement('div');
+    wBox.className = 'input-box';
+    var wInput = document.createElement('input');
+    wInput.type = 'number';
+    wInput.min = '0';
+    wInput.step = 'any';
+    wInput.inputMode = 'decimal';
+    wInput.className = 'fruit-weight';
+    wInput.placeholder = '예: 2';
+    wInput.value = (fruit.weight === undefined || fruit.weight === null) ? '' : fruit.weight;
+    wBox.appendChild(wInput);
+    var wSel = document.createElement('select');
+    wSel.className = 'unit-select fruit-wunit';
+    ['kg', 'g'].forEach(function (u) {
+      var o = document.createElement('option');
+      o.value = u;
+      o.textContent = u;
+      wSel.appendChild(o);
+    });
+    wSel.value = fruit.weightUnit === 'g' ? 'g' : 'kg';
+    wRow.appendChild(wBox);
+    wRow.appendChild(wSel);
+    wField.appendChild(wLabel);
+    wField.appendChild(wRow);
+    metaGrid.appendChild(wField);
+
+    var uField = document.createElement('div');
+    uField.className = 'field';
+    var uLabel = document.createElement('label');
+    uLabel.textContent = '용도';
+    var uSel = document.createElement('select');
+    uSel.className = 'unit-select full fruit-usage';
+    [['', '선택 안 함'], ['선물용', '선물용'], ['일반용', '일반용']].forEach(function (o) {
+      var op = document.createElement('option');
+      op.value = o[0];
+      op.textContent = o[1];
+      uSel.appendChild(op);
+    });
+    uSel.value = fruit.usage || '';
+    uField.appendChild(uLabel);
+    uField.appendChild(uSel);
+    metaGrid.appendChild(uField);
+    card.appendChild(metaGrid);
+
+    /* 수량 (범위) */
+    var qField = document.createElement('div');
+    qField.className = 'field';
+    var qLabel = document.createElement('label');
+    qLabel.innerHTML = '수량 <span class="hint">(입수 범위)</span>';
+    var qRow = document.createElement('div');
+    qRow.className = 'qty-range';
+    var qMin = document.createElement('input');
+    qMin.type = 'number';
+    qMin.min = '0';
+    qMin.step = '1';
+    qMin.inputMode = 'numeric';
+    qMin.className = 'fruit-qmin';
+    qMin.placeholder = '예: 10';
+    qMin.value = (fruit.qtyMin === undefined || fruit.qtyMin === null) ? '' : fruit.qtyMin;
+    var qSep = document.createElement('span');
+    qSep.textContent = '개 ~';
+    var qMax = document.createElement('input');
+    qMax.type = 'number';
+    qMax.min = '0';
+    qMax.step = '1';
+    qMax.inputMode = 'numeric';
+    qMax.className = 'fruit-qmax';
+    qMax.placeholder = '예: 12';
+    qMax.value = (fruit.qtyMax === undefined || fruit.qtyMax === null) ? '' : fruit.qtyMax;
+    var qEnd = document.createElement('span');
+    qEnd.textContent = '개';
+    qRow.appendChild(qMin);
+    qRow.appendChild(qSep);
+    qRow.appendChild(qMax);
+    qRow.appendChild(qEnd);
+    qField.appendChild(qLabel);
+    qField.appendChild(qRow);
+    card.appendChild(qField);
+
+    /* 비고 */
+    var noteField = document.createElement('div');
+    noteField.className = 'field';
+    var noteLabel = document.createElement('label');
+    noteLabel.textContent = '비고';
+    var noteInput = document.createElement('input');
+    noteInput.type = 'text';
+    noteInput.className = 'fruit-note';
+    noteInput.placeholder = '예: 당도 선별 / 거래처 A';
+    noteInput.value = fruit.note || '';
+    noteField.appendChild(noteLabel);
+    noteField.appendChild(noteInput);
+    card.appendChild(noteField);
+
+    wInput.addEventListener('input', function () {
+      var v = parseFloat(wInput.value);
+      fruit.weight = isNaN(v) ? '' : v;
+      storeFruits();
+    });
+    wSel.addEventListener('change', function () {
+      fruit.weightUnit = wSel.value;
+      storeFruits();
+    });
+    uSel.addEventListener('change', function () {
+      fruit.usage = uSel.value;
+      storeFruits();
+    });
+    qMin.addEventListener('input', function () {
+      var v = parseInt(qMin.value, 10);
+      fruit.qtyMin = isNaN(v) ? '' : v;
+      storeFruits();
+    });
+    qMax.addEventListener('input', function () {
+      var v = parseInt(qMax.value, 10);
+      fruit.qtyMax = isNaN(v) ? '' : v;
+      storeFruits();
+    });
+    noteInput.addEventListener('input', function () {
+      fruit.note = noteInput.value;
+      storeFruits();
+    });
 
     /* 들어가는 부자재 */
     var title = document.createElement('p');
@@ -1761,8 +1928,33 @@
     return card;
   }
 
+  /* ----- 검색 (과일명 · 중량 · 용도 · 비고) ----- */
+  function weightText(f) {
+    if (f.weight === '' || f.weight === undefined || f.weight === null) return '';
+    return f.weight + (f.weightUnit === 'g' ? 'g' : 'kg');
+  }
+
+  function qtyText(f) {
+    var a = (f.qtyMin === '' || f.qtyMin === undefined || f.qtyMin === null) ? '' : f.qtyMin;
+    var b = (f.qtyMax === '' || f.qtyMax === undefined || f.qtyMax === null) ? '' : f.qtyMax;
+    if (a === '' && b === '') return '';
+    if (a !== '' && b !== '') return a + '개 ~ ' + b + '개';
+    return (a !== '' ? a : b) + '개';
+  }
+
+  function squash(s) {
+    return String(s || '').toLowerCase().replace(/\s+/g, '');
+  }
+
+  function matchFruit(f, q) {
+    if (!q) return true;
+    var hay = squash([f.name, weightText(f), qtyText(f), f.usage, f.note].join(' '));
+    return hay.indexOf(squash(q)) >= 0;
+  }
+
   function renderFruits() {
     var box = $('fruitList');
+    var q = $('fruitSearch').value.trim();
     box.innerHTML = '';
     if (!fruits.length) {
       var p = document.createElement('p');
@@ -1771,10 +1963,27 @@
       box.appendChild(p);
       return;
     }
-    fruits.forEach(function (fruit) { box.appendChild(buildFruitCard(fruit)); });
+    var shown = 0;
+    fruits.forEach(function (fruit) {
+      if (!matchFruit(fruit, q)) return;
+      box.appendChild(buildFruitCard(fruit));
+      shown++;
+    });
+    if (!shown) {
+      var e = document.createElement('p');
+      e.className = 'empty';
+      e.textContent = "'" + q + "' 검색 결과가 없습니다.";
+      box.appendChild(e);
+    }
   }
+
+  $('fruitSearch').addEventListener('input', renderFruits);
   $('fruitAddBtn').addEventListener('click', function () {
-    fruits.push({ name: '', price: '', items: [] });
+    fruits.push({
+      name: '', price: '', weight: '', weightUnit: 'kg',
+      qtyMin: '', qtyMax: '', usage: '', note: '', items: []
+    });
+    $('fruitSearch').value = '';
     storeFruits();
     renderFruits();
     var inputs = document.querySelectorAll('#fruitList .fruit-head input');
@@ -1798,9 +2007,20 @@
     if (isNaN(fp)) fp = 0;
 
     $('saleName').value = fruit.name || '';
-    $('rawPrice').value = fp || '';
-    $('spec').value = 1;
-    specUnit.set('kg');
+
+    /* 중량이 있으면 규격으로 넘기고 원물대를 kg당 단가로 환산 */
+    var w = parseFloat(fruit.weight);
+    var wUnit = fruit.weightUnit === 'g' ? 'g' : 'kg';
+    if (w > 0) {
+      var specKg = wUnit === 'kg' ? w : w / 1000;
+      $('spec').value = w;
+      specUnit.set(wUnit);
+      $('rawPrice').value = fp ? Math.round(fp / specKg) : '';
+    } else {
+      $('spec').value = 1;
+      specUnit.set('kg');
+      $('rawPrice').value = fp || '';
+    }
 
     /* 구성에 담긴 부자재를 분류별로 합산 */
     var byCat = {};
@@ -1883,6 +2103,12 @@
     var entry = {
       name: name,
       price: (fruit.price === '' || fruit.price === undefined || fruit.price === null) ? 0 : Number(fruit.price),
+      weight: fruit.weight === undefined ? '' : fruit.weight,
+      weightUnit: fruit.weightUnit === 'g' ? 'g' : 'kg',
+      qtyMin: fruit.qtyMin === undefined ? '' : fruit.qtyMin,
+      qtyMax: fruit.qtyMax === undefined ? '' : fruit.qtyMax,
+      usage: fruit.usage || '',
+      note: fruit.note || '',
       items: (fruit.items || []).map(function (it) {
         return {
           cat: it.cat,
@@ -1939,10 +2165,28 @@
     var t = savedTotals(entry);
     amt.textContent = comma(Math.round(t.total)) + '원';
 
+    var metaParts = [];
+    if (weightText(entry)) metaParts.push('중량 ' + weightText(entry));
+    if (qtyText(entry)) metaParts.push('수량 ' + qtyText(entry));
+    if (entry.usage) metaParts.push(entry.usage);
+    if (metaParts.length) {
+      var meta = document.createElement('p');
+      meta.className = 'saved-meta';
+      meta.textContent = metaParts.join(' · ');
+      card.appendChild(meta);
+    }
+
     var sub = document.createElement('p');
     sub.className = 'saved-sub';
     sub.textContent = '과일 ' + comma(Math.round(t.fruit)) + '원 + 부자재 ' + comma(Math.round(t.mat)) + '원';
     card.appendChild(sub);
+
+    if (entry.note) {
+      var noteP = document.createElement('p');
+      noteP.className = 'saved-note';
+      noteP.textContent = '비고: ' + entry.note;
+      card.appendChild(noteP);
+    }
 
     var list = document.createElement('div');
     list.className = 'saved-items';
@@ -1991,10 +2235,17 @@
       fruits.push({
         name: entry.name,
         price: entry.price,
+        weight: entry.weight === undefined ? '' : entry.weight,
+        weightUnit: entry.weightUnit === 'g' ? 'g' : 'kg',
+        qtyMin: entry.qtyMin === undefined ? '' : entry.qtyMin,
+        qtyMax: entry.qtyMax === undefined ? '' : entry.qtyMax,
+        usage: entry.usage || '',
+        note: entry.note || '',
         items: (entry.items || []).map(function (it) {
           return { cat: it.cat, name: it.name, qty: it.qty };
         })
       });
+      $('fruitSearch').value = '';
       storeFruits();
       renderFruits();
       document.querySelector('#tab-unit .subtabs button[data-subtab="unitcalc"]').click();
@@ -2014,6 +2265,7 @@
 
   function renderSaved() {
     var box = $('savedList');
+    var q = $('savedSearch').value.trim();
     box.innerHTML = '';
     if (!savedFruits.length) {
       var p = document.createElement('p');
@@ -2022,8 +2274,21 @@
       box.appendChild(p);
       return;
     }
-    savedFruits.forEach(function (entry) { box.appendChild(buildSavedCard(entry)); });
+    var shown = 0;
+    savedFruits.forEach(function (entry) {
+      if (!matchFruit(entry, q)) return;
+      box.appendChild(buildSavedCard(entry));
+      shown++;
+    });
+    if (!shown) {
+      var e = document.createElement('p');
+      e.className = 'empty';
+      e.textContent = "'" + q + "' 검색 결과가 없습니다.";
+      box.appendChild(e);
+    }
   }
+
+  $('savedSearch').addEventListener('input', renderSaved);
 
   fruitRefresh = function () { renderFruits(); renderSaved(); };
 
