@@ -324,6 +324,36 @@
   .fruit-total b { font-size: 22px; color: var(--accent); }
   .fruit-total-sub { font-size: 12px; color: var(--sub); text-align: right; margin-top: 6px; }
 
+  /* ----- PC 화면: 넓게 ----- */
+  @media (min-width: 860px) {
+    body { padding: 36px 24px 56px; }
+    .wrap { max-width: 940px; }
+    h1 { font-size: 27px; margin-bottom: 20px; }
+    .tabs { margin-bottom: 24px; }
+    .tabs button { font-size: 16px; padding: 14px 10px; }
+    .subtabs { gap: 8px; margin-bottom: 18px; }
+    .subtabs button { font-size: 15px; padding: 12px; }
+    .card { padding: 30px 28px; }
+    .field label { font-size: 14px; }
+    .tab-desc { font-size: 14px; }
+    .section-title { font-size: 14px; }
+    .result { padding: 24px 20px; }
+    .result .price { font-size: 34px; }
+    .breakdown { font-size: 14px; max-width: 620px; margin-left: auto; margin-right: auto; }
+    #matGrid { grid-template-columns: repeat(3, 1fr); gap: 14px 12px; }
+    #matDims { grid-template-columns: repeat(3, 1fr); }
+    #fruitList {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 14px;
+      align-items: start;
+      margin-top: 14px;
+    }
+    .fruit-card { margin-top: 0; }
+    #historyList { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
+    #historyList .history-item { margin-bottom: 0; }
+  }
+
   .calc-btn {
     width: 100%;
     padding: 14px;
@@ -1505,6 +1535,12 @@
     card.appendChild(totalBox);
     card.appendChild(tSub);
 
+    var sendBtn = document.createElement('button');
+    sendBtn.type = 'button';
+    sendBtn.className = 'calc-btn secondary';
+    sendBtn.textContent = '이 구성으로 판매가 계산하기 →';
+    card.appendChild(sendBtn);
+
     function showStatus(msg, warn) {
       status.textContent = msg;
       status.classList.toggle('warn', !!warn);
@@ -1649,6 +1685,62 @@
       storeFruits();
       renderItems();
     });
+    sendBtn.addEventListener('click', function () {
+      var fp = parseFloat(priceInput.value);
+      if (isNaN(fp)) fp = 0;
+
+      $('saleName').value = fruit.name || '';
+      $('rawPrice').value = fp || '';
+      $('spec').value = 1;
+      specUnit.set('kg');
+
+      /* 과일에 담긴 부자재를 분류별로 합산 */
+      var byCat = {};
+      (fruit.items || []).forEach(function (it) {
+        var q = Number(it.qty) > 0 ? Number(it.qty) : 1;
+        if (!byCat[it.cat]) byCat[it.cat] = { total: 0, list: [] };
+        var unit = matUnitPrice(it.cat, it.name);
+        byCat[it.cat].total += unit * q;
+        byCat[it.cat].list.push({ name: it.name, qty: q, price: unit });
+      });
+
+      /* 부자재 입력란: 과일에 들어간 것만 채우고 나머지는 비움 */
+      MAT_IDS.forEach(function (cat) {
+        var sel = $(cat + 'Select');
+        var g = byCat[cat];
+        if (!g) {
+          $(cat + 'Cost').value = '';
+          $(cat + 'Qty').value = 1;
+          if (sel) sel.value = '';
+          return;
+        }
+        if (g.list.length === 1) {
+          $(cat + 'Cost').value = g.list[0].price;
+          $(cat + 'Qty').value = g.list[0].qty;
+          if (sel) sel.value = g.list[0].name;
+        } else {
+          // 같은 분류에 여러 품목이면 금액을 합쳐 1개로 넣음
+          $(cat + 'Cost').value = Math.round(g.total);
+          $(cat + 'Qty').value = 1;
+          if (sel) sel.value = '';
+        }
+      });
+
+      /* 인건비·택배비는 과일에 포함된 경우에만 덮어씀 */
+      [['labor', 'laborCost'], ['shipping', 'shippingCost']].forEach(function (pair) {
+        var g = byCat[pair[0]];
+        if (!g) return;
+        $(pair[1]).value = Math.round(g.total);
+        var sel = $(pair[0] + 'Select');
+        if (sel) sel.value = (g.list.length === 1 && g.list[0].qty === 1) ? g.list[0].name : '';
+      });
+
+      document.querySelector('.tabs button[data-tab="sale"]').click();
+      document.querySelector('#tab-sale .subtabs button[data-subtab="calc"]').click();
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      if ($('feeRate').value !== '' || $('marginCost').value !== '') calcSale();
+    });
+
     delBtn.addEventListener('click', function () {
       if (!confirm("'" + (fruit.name || '이 과일') + "' 항목을 삭제하시겠습니까?")) return;
       var i = fruits.indexOf(fruit);
