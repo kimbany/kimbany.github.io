@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>원가 · 판매가 · ROAS 계산기</title>
+<title>원가 · 단가 · 판매가 계산기</title>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
   :root {
@@ -37,14 +37,19 @@
   }
   .tabs button {
     flex: 1;
-    padding: 12px 8px;
+    padding: 11px 4px;
     border: none;
     background: transparent;
-    font-size: 15px;
+    font-size: 14px;
     font-weight: 600;
     color: var(--sub);
     border-radius: 9px;
     cursor: pointer;
+    word-break: keep-all;
+    line-height: 1.35;
+  }
+  @media (max-width: 420px) {
+    .tabs button { font-size: 13px; }
   }
   .tabs button.active {
     background: #fff;
@@ -239,6 +244,86 @@
   }
   .mat-item .actions .del { color: #dc2626; border-color: #fecaca; background: #fff5f5; }
 
+  /* ----- 단가 확인 ----- */
+  .fruit-card { margin-top: 12px; }
+  .fruit-head { display: flex; gap: 8px; align-items: center; margin-bottom: 14px; }
+  .fruit-head input {
+    flex: 1;
+    min-width: 0;
+    font-size: 16px;
+    font-weight: 700;
+    padding: 10px 12px;
+  }
+  .fruit-add {
+    display: flex;
+    gap: 6px;
+    margin-top: 10px;
+    align-items: center;
+  }
+  .fruit-add select {
+    min-width: 0;
+    padding: 10px 8px;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    font-size: 13px;
+    background: #fff;
+    color: var(--text);
+  }
+  .fruit-add select:first-child { flex: 0 0 84px; }
+  .fruit-add select:nth-child(2) { flex: 1; }
+  .fruit-add .qty { flex: 0 0 68px; }
+  .fruit-add .qty input { padding: 10px 26px 10px 8px; font-size: 14px; }
+  .fruit-add .qty .unit { right: 8px; font-size: 12px; }
+
+  .fruit-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 12px;
+    margin-bottom: 6px;
+    background: #f8fafc;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+  }
+  .fruit-item.missing { background: #fff5f5; border-color: #fecaca; }
+  .fruit-item .fi-left { min-width: 0; }
+  .fruit-item .fi-name { font-size: 14px; font-weight: 600; }
+  .fruit-item .fi-sub { font-size: 12px; color: var(--sub); margin-top: 2px; }
+  .fruit-item .fi-right { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+  .fruit-item .fi-qty {
+    width: 52px;
+    padding: 6px 8px;
+    font-size: 13px;
+    text-align: center;
+  }
+  .fruit-item .fi-amt { font-size: 14px; font-weight: 700; color: var(--accent); white-space: nowrap; }
+  .fruit-item .fi-del {
+    width: 26px;
+    height: 26px;
+    border: none;
+    border-radius: 8px;
+    background: #fee2e2;
+    color: #dc2626;
+    font-size: 15px;
+    line-height: 1;
+    cursor: pointer;
+  }
+
+  .fruit-total {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 16px;
+    padding: 14px 16px;
+    background: var(--result-bg);
+    border-radius: 12px;
+    font-size: 15px;
+    font-weight: 600;
+  }
+  .fruit-total b { font-size: 22px; color: var(--accent); }
+  .fruit-total-sub { font-size: 12px; color: var(--sub); text-align: right; margin-top: 6px; }
+
   .calc-btn {
     width: 100%;
     padding: 14px;
@@ -329,10 +414,11 @@
 </head>
 <body>
 <div class="wrap">
-  <h1>원가 · 판매가 · ROAS 계산기</h1>
+  <h1>원가 · 단가 · 판매가 계산기</h1>
 
   <div class="tabs">
     <button type="button" class="active" data-tab="cost">원가 계산기</button>
+    <button type="button" data-tab="unit">단가 확인</button>
     <button type="button" data-tab="sale">판매가 계산기</button>
     <button type="button" data-tab="roas">ROAS 계산기</button>
   </div>
@@ -401,6 +487,15 @@
     </div>
   </div>
 
+  <!-- ============ 단가 확인 ============ -->
+  <div class="tab-panel" id="tab-unit">
+    <div class="card">
+      <p class="tab-desc">과일 단가와 들어가는 부자재를 합쳐 <b>과일별 단가</b>를 바로 확인합니다.<br>부자재 품목·단가는 <b>판매가 계산기 → 설정</b>에서 등록한 값을 불러옵니다.</p>
+      <button type="button" class="calc-btn" id="fruitAddBtn">+ 과일 추가</button>
+    </div>
+    <div id="fruitList"></div>
+  </div>
+
   <!-- ============ 판매가 계산기 ============ -->
   <div class="tab-panel" id="tab-sale">
     <div class="subtabs">
@@ -465,73 +560,18 @@
       <div class="grid-2">
         <div class="field">
           <label for="laborCost">인건비 <span class="hint">(VAT포함)</span></label>
+          <select class="mat-select" id="laborSelect" data-cat="labor" data-target="laborCost"></select>
           <input type="number" id="laborCost" placeholder="예: 1000" min="0" step="any" inputmode="numeric">
         </div>
         <div class="field">
           <label for="shippingCost">택배비 <span class="hint">(VAT포함)</span></label>
+          <select class="mat-select" id="shippingSelect" data-cat="shipping" data-target="shippingCost"></select>
           <input type="number" id="shippingCost" placeholder="예: 3300" min="0" step="any" inputmode="numeric">
         </div>
       </div>
 
-      <p class="section-title">부자재 (원, VAT포함 · 개당 가격 × 수량)</p>
-      <div class="grid-2">
-        <div class="field">
-          <label for="boxCost">박스</label>
-          <select class="mat-select" id="boxSelect" data-cat="box" data-target="boxCost"></select>
-          <div class="input-row">
-            <input type="number" id="boxCost" placeholder="예: 1000" min="0" step="any" inputmode="numeric">
-            <div class="input-box has-unit qty"><input type="number" id="boxQty" value="1" min="1" step="1" inputmode="numeric"><span class="unit">개</span></div>
-          </div>
-        </div>
-        <div class="field">
-          <label for="cushionCost">완충재</label>
-          <select class="mat-select" id="cushionSelect" data-cat="cushion" data-target="cushionCost"></select>
-          <div class="input-row">
-            <input type="number" id="cushionCost" placeholder="예: 100" min="0" step="any" inputmode="numeric">
-            <div class="input-box has-unit qty"><input type="number" id="cushionQty" value="1" min="1" step="1" inputmode="numeric"><span class="unit">개</span></div>
-          </div>
-        </div>
-        <div class="field">
-          <label for="aircapCost">에어캡</label>
-          <select class="mat-select" id="aircapSelect" data-cat="aircap" data-target="aircapCost"></select>
-          <div class="input-row">
-            <input type="number" id="aircapCost" placeholder="예: 100" min="0" step="any" inputmode="numeric">
-            <div class="input-box has-unit qty"><input type="number" id="aircapQty" value="1" min="1" step="1" inputmode="numeric"><span class="unit">개</span></div>
-          </div>
-        </div>
-        <div class="field">
-          <label for="caseCost">케이스</label>
-          <select class="mat-select" id="caseSelect" data-cat="case" data-target="caseCost"></select>
-          <div class="input-row">
-            <input type="number" id="caseCost" placeholder="예: 200" min="0" step="any" inputmode="numeric">
-            <div class="input-box has-unit qty"><input type="number" id="caseQty" value="1" min="1" step="1" inputmode="numeric"><span class="unit">개</span></div>
-          </div>
-        </div>
-        <div class="field">
-          <label for="kraftCost">크래프트지</label>
-          <select class="mat-select" id="kraftSelect" data-cat="kraft" data-target="kraftCost"></select>
-          <div class="input-row">
-            <input type="number" id="kraftCost" placeholder="예: 200" min="0" step="any" inputmode="numeric">
-            <div class="input-box has-unit qty"><input type="number" id="kraftQty" value="1" min="1" step="1" inputmode="numeric"><span class="unit">개</span></div>
-          </div>
-        </div>
-        <div class="field">
-          <label for="stringCost">끈</label>
-          <select class="mat-select" id="stringSelect" data-cat="string" data-target="stringCost"></select>
-          <div class="input-row">
-            <input type="number" id="stringCost" placeholder="예: 100" min="0" step="any" inputmode="numeric">
-            <div class="input-box has-unit qty"><input type="number" id="stringQty" value="1" min="1" step="1" inputmode="numeric"><span class="unit">개</span></div>
-          </div>
-        </div>
-        <div class="field">
-          <label for="noticeCost">품질보증·안내지</label>
-          <select class="mat-select" id="noticeSelect" data-cat="notice" data-target="noticeCost"></select>
-          <div class="input-row">
-            <input type="number" id="noticeCost" placeholder="예: 100" min="0" step="any" inputmode="numeric">
-            <div class="input-box has-unit qty"><input type="number" id="noticeQty" value="1" min="1" step="1" inputmode="numeric"><span class="unit">개</span></div>
-          </div>
-        </div>
-      </div>
+      <p class="section-title">부자재 (단가 VAT포함 × 수량)</p>
+      <div class="grid-2" id="matGrid"></div>
 
       <p class="section-title">마진 · 수수료</p>
       <div class="field">
@@ -572,15 +612,7 @@
       <div class="card">
         <div class="field">
           <label>부자재 종류</label>
-          <div class="cat-chips" id="catChips">
-            <button type="button" class="active" data-cat="box">박스</button>
-            <button type="button" data-cat="cushion">완충재</button>
-            <button type="button" data-cat="aircap">에어캡</button>
-            <button type="button" data-cat="case">케이스</button>
-            <button type="button" data-cat="kraft">크래프트지</button>
-            <button type="button" data-cat="string">끈</button>
-            <button type="button" data-cat="notice">품질보증·안내지</button>
-          </div>
+          <div class="cat-chips" id="catChips"></div>
         </div>
 
         <div class="field">
@@ -588,11 +620,15 @@
           <input type="text" id="matName" placeholder="예: 박스 1">
         </div>
 
-        <div class="grid-2">
-          <div class="field">
-            <label for="matPrice">가격 <span class="hint">(원, VAT포함)</span></label>
+        <div class="field">
+          <label for="matPrice">단가 <span class="hint">(VAT포함가)</span></label>
+          <div class="input-box has-unit">
             <input type="number" id="matPrice" placeholder="예: 1000" min="0" step="any" inputmode="numeric">
+            <span class="unit">원</span>
           </div>
+        </div>
+
+        <div class="grid-2" id="matDims">
           <div class="field">
             <label for="matW">가로 (cm)</label>
             <input type="number" id="matW" placeholder="예: 10" min="0" step="any" inputmode="decimal">
@@ -948,26 +984,111 @@
     return isNaN(v) ? 0 : v;
   }
 
+  /* ----- 부자재 종류 정의 & 저장소 ----- */
+  var MAT_KEY = 'saleMaterials';
+  var MAT_CATS = [
+    { id: 'box', name: '박스', ph: '1000' },
+    { id: 'aircell', name: '에어셀', ph: '100' },
+    { id: 'mesh', name: '이중망', ph: '100' },
+    { id: 'pad', name: '패드', ph: '100' },
+    { id: 'bag', name: '투명봉지', ph: '100' },
+    { id: 'pack', name: '팩', ph: '200' },
+    { id: 'kraft', name: '크래프트지', ph: '200' },
+    { id: 'brochure', name: '브로셔', ph: '100' },
+    { id: 'tape', name: '테이프', ph: '100' },
+    { id: 'labor', name: '인건비', ph: '1000' },
+    { id: 'shipping', name: '택배비', ph: '3300' }
+  ];
+  var MAT_NAME = {};
+  MAT_CATS.forEach(function (c) { MAT_NAME[c.id] = c.name; });
+  // 판매가 계산기의 부자재 입력란 (인건비·택배비는 별도 입력란을 사용)
+  var MAT_IDS = MAT_CATS.filter(function (c) {
+    return c.id !== 'labor' && c.id !== 'shipping';
+  }).map(function (c) { return c.id; });
+
+  // 구버전 분류 이관: 완충재→패드, 에어캡→에어셀, 케이스→팩, 품질보증·안내지→브로셔, 끈→테이프
+  var MAT_MIGRATE = {
+    cushion: 'pad', aircap: 'aircell', 'case': 'pack',
+    notice: 'brochure', string: 'tape', wrap: 'kraft'
+  };
+
+  function loadMaterials() {
+    try {
+      var m = JSON.parse(localStorage.getItem(MAT_KEY));
+      if (m && typeof m === 'object' && !Array.isArray(m)) return m;
+    } catch (e) {}
+    return {};
+  }
+  var materials = loadMaterials();
+  Object.keys(MAT_MIGRATE).forEach(function (oldCat) {
+    var newCat = MAT_MIGRATE[oldCat];
+    if (!Array.isArray(materials[oldCat])) return;
+    if (!Array.isArray(materials[newCat])) materials[newCat] = [];
+    materials[oldCat].forEach(function (item) {
+      var dup = materials[newCat].some(function (i) { return i.name === item.name; });
+      if (!dup) materials[newCat].push(item);
+    });
+    delete materials[oldCat];
+  });
+  MAT_CATS.forEach(function (c) {
+    if (!Array.isArray(materials[c.id])) materials[c.id] = [];
+  });
+
+  function storeMaterials() {
+    localStorage.setItem(MAT_KEY, JSON.stringify(materials));
+  }
+  storeMaterials();
+
+  var fruitRefresh = function () {};
+
+  /* ----- 판매가 계산기 부자재 입력란 생성 ----- */
+  (function buildMatGrid() {
+    var grid = $('matGrid');
+    MAT_CATS.forEach(function (cat) {
+      if (MAT_IDS.indexOf(cat.id) < 0) return;
+      var field = document.createElement('div');
+      field.className = 'field';
+      field.innerHTML =
+        '<label for="' + cat.id + 'Cost">' + cat.name + '</label>' +
+        '<select class="mat-select" id="' + cat.id + 'Select" data-cat="' + cat.id + '" data-target="' + cat.id + 'Cost"></select>' +
+        '<div class="input-row">' +
+          '<input type="number" id="' + cat.id + 'Cost" placeholder="' + cat.ph + '" min="0" step="any" inputmode="numeric">' +
+          '<div class="input-box has-unit qty"><input type="number" id="' + cat.id + 'Qty" value="1" min="1" step="1" inputmode="numeric"><span class="unit">개</span></div>' +
+        '</div>';
+      grid.appendChild(field);
+    });
+  })();
+
+  /* ----- 설정: 부자재 종류 칩 생성 ----- */
+  (function buildCatChips() {
+    var box = $('catChips');
+    MAT_CATS.forEach(function (c, i) {
+      var b = document.createElement('button');
+      b.type = 'button';
+      if (i === 0) b.className = 'active';
+      b.dataset.cat = c.id;
+      b.textContent = c.name;
+      box.appendChild(b);
+    });
+  })();
+
   /* ----- 입력값 프리셋 저장 ----- */
   var PRESET_KEY = 'salePresets';
-  var MAT_IDS = ['box', 'cushion', 'aircap', 'case', 'kraft', 'string', 'notice'];
   var PRESET_FIELDS = {
     loss: 'lossRate', labor: 'laborCost', shipping: 'shippingCost',
-    box: 'boxCost', cushion: 'cushionCost', aircap: 'aircapCost',
-    'case': 'caseCost', kraft: 'kraftCost', string: 'stringCost',
-    notice: 'noticeCost', margin: 'marginCost', fee: 'feeRate',
-    boxQty: 'boxQty', cushionQty: 'cushionQty', aircapQty: 'aircapQty',
-    caseQty: 'caseQty', kraftQty: 'kraftQty', stringQty: 'stringQty',
-    noticeQty: 'noticeQty'
+    margin: 'marginCost', fee: 'feeRate'
   };
+  MAT_IDS.forEach(function (id) {
+    PRESET_FIELDS[id] = id + 'Cost';
+    PRESET_FIELDS[id + 'Qty'] = id + 'Qty';
+  });
   var DEFAULT_PRESET_NAME = '기본값';
   var DEFAULT_PRESET = {
-    loss: 10, labor: 1000, shipping: 3300, box: 1000, cushion: 100,
-    aircap: '', 'case': 200, kraft: 200, string: '', notice: 100,
-    margin: 1000, marginType: '원', fee: 20,
-    boxQty: 1, cushionQty: 1, aircapQty: 1, caseQty: 1, kraftQty: 1,
-    stringQty: 1, noticeQty: 1
+    loss: 10, labor: 1000, shipping: 3300,
+    box: 1000, pack: 200, kraft: 200,
+    margin: 1000, marginType: '원', fee: 20
   };
+  MAT_IDS.forEach(function (id) { DEFAULT_PRESET[id + 'Qty'] = 1; });
 
   function loadPresets() {
     try {
@@ -981,16 +1102,18 @@
   if (!presets) {
     presets = {};
     presets[DEFAULT_PRESET_NAME] = DEFAULT_PRESET;
-    storePresets();
   } else {
-    // 구버전 프리셋 호환: 팩 → 케이스, 크래프트지·끈 → 크래프트지
+    // 구버전 프리셋 이관 (분류 이름이 바뀐 항목의 값·수량을 새 분류로 옮김)
     Object.keys(presets).forEach(function (n) {
       var p = presets[n];
-      if (p.pack !== undefined && p['case'] === undefined) p['case'] = p.pack;
-      if (p.wrap !== undefined && p.kraft === undefined) p.kraft = p.wrap;
+      Object.keys(MAT_MIGRATE).forEach(function (oldCat) {
+        var newCat = MAT_MIGRATE[oldCat];
+        if (p[oldCat] !== undefined && p[newCat] === undefined) p[newCat] = p[oldCat];
+        if (p[oldCat + 'Qty'] !== undefined && p[newCat + 'Qty'] === undefined) p[newCat + 'Qty'] = p[oldCat + 'Qty'];
+      });
     });
-    storePresets();
   }
+  storePresets();
 
   function storePresets() {
     localStorage.setItem(PRESET_KEY, JSON.stringify(presets));
@@ -1094,38 +1217,7 @@
   renderPresetSelect();
 
   /* ----- 부자재 설정 (종류별 항목 저장) ----- */
-  var MAT_KEY = 'saleMaterials';
-  var MAT_CATS = {
-    box: '박스', cushion: '완충재', aircap: '에어캡', 'case': '케이스',
-    kraft: '크래프트지', string: '끈', notice: '품질보증·안내지'
-  };
   var currentCat = 'box';
-
-  function loadMaterials() {
-    try {
-      var m = JSON.parse(localStorage.getItem(MAT_KEY));
-      if (m && typeof m === 'object' && !Array.isArray(m)) return m;
-    } catch (e) {}
-    return {};
-  }
-  var materials = loadMaterials();
-  // 구버전 항목 호환: 팩 → 케이스, 크래프트지·끈 → 크래프트지
-  if (Array.isArray(materials.pack) && !Array.isArray(materials['case'])) {
-    materials['case'] = materials.pack;
-    delete materials.pack;
-  }
-  if (Array.isArray(materials.wrap) && !Array.isArray(materials.kraft)) {
-    materials.kraft = materials.wrap;
-    delete materials.wrap;
-  }
-  Object.keys(MAT_CATS).forEach(function (cat) {
-    if (!Array.isArray(materials[cat])) materials[cat] = [];
-  });
-  localStorage.setItem(MAT_KEY, JSON.stringify(materials));
-
-  function storeMaterials() {
-    localStorage.setItem(MAT_KEY, JSON.stringify(materials));
-  }
 
   function matDetailText(item) {
     var dims = [];
@@ -1155,6 +1247,7 @@
       });
       sel.value = prev && materials[cat].some(function (i) { return i.name === prev; }) ? prev : '';
     });
+    fruitRefresh();
   }
 
   document.querySelectorAll('.mat-select').forEach(function (sel) {
@@ -1166,7 +1259,9 @@
   });
 
   function renderMatList() {
-    $('matListTitle').textContent = '저장된 ' + MAT_CATS[currentCat];
+    $('matListTitle').textContent = '저장된 ' + MAT_NAME[currentCat];
+    $('matDims').style.display = (currentCat === 'labor' || currentCat === 'shipping') ? 'none' : '';
+    $('matName').placeholder = '예: ' + MAT_NAME[currentCat] + ' 1';
     var box = $('matList');
     box.innerHTML = '';
     var list = materials[currentCat];
@@ -1274,6 +1369,327 @@
   renderMatList();
   renderMatSelects();
 
+  /* ===== 단가 확인 (과일별 단가) ===== */
+  var FRUIT_KEY = 'unitFruits';
+
+  function loadFruits() {
+    try {
+      var f = JSON.parse(localStorage.getItem(FRUIT_KEY));
+      if (Array.isArray(f)) return f;
+    } catch (e) {}
+    return [];
+  }
+  var fruits = loadFruits();
+
+  function storeFruits() {
+    localStorage.setItem(FRUIT_KEY, JSON.stringify(fruits));
+  }
+
+  function findMat(cat, name) {
+    var list = materials[cat] || [];
+    return list.filter(function (i) { return i.name === name; })[0] || null;
+  }
+
+  function matUnitPrice(cat, name) {
+    var m = findMat(cat, name);
+    return (m && m.price !== '' && !isNaN(m.price)) ? Number(m.price) : 0;
+  }
+
+  function fruitMatTotal(fruit) {
+    var sum = 0;
+    (fruit.items || []).forEach(function (it) {
+      var qty = Number(it.qty) > 0 ? Number(it.qty) : 1;
+      sum += matUnitPrice(it.cat, it.name) * qty;
+    });
+    return sum;
+  }
+
+  function buildFruitCard(fruit) {
+    var card = document.createElement('div');
+    card.className = 'card fruit-card';
+
+    /* 머리: 과일명 + 삭제 */
+    var head = document.createElement('div');
+    head.className = 'fruit-head';
+    var nameInput = document.createElement('input');
+    nameInput.type = 'text';
+    nameInput.placeholder = '과일명 (예: 샤인머스캣)';
+    nameInput.value = fruit.name || '';
+    var delBtn = document.createElement('button');
+    delBtn.type = 'button';
+    delBtn.className = 'preset-btn delete';
+    delBtn.textContent = '삭제';
+    head.appendChild(nameInput);
+    head.appendChild(delBtn);
+    card.appendChild(head);
+
+    /* 과일 단가 */
+    var priceField = document.createElement('div');
+    priceField.className = 'field';
+    var priceLabel = document.createElement('label');
+    priceLabel.innerHTML = '과일 단가 <span class="hint">(VAT포함가)</span>';
+    var priceBox = document.createElement('div');
+    priceBox.className = 'input-box has-unit';
+    var priceInput = document.createElement('input');
+    priceInput.type = 'number';
+    priceInput.min = '0';
+    priceInput.step = 'any';
+    priceInput.inputMode = 'numeric';
+    priceInput.placeholder = '예: 6000';
+    priceInput.value = (fruit.price === undefined || fruit.price === null) ? '' : fruit.price;
+    var priceUnit = document.createElement('span');
+    priceUnit.className = 'unit';
+    priceUnit.textContent = '원';
+    priceBox.appendChild(priceInput);
+    priceBox.appendChild(priceUnit);
+    priceField.appendChild(priceLabel);
+    priceField.appendChild(priceBox);
+    card.appendChild(priceField);
+
+    /* 들어가는 부자재 */
+    var title = document.createElement('p');
+    title.className = 'section-title';
+    title.textContent = '들어가는 부자재';
+    card.appendChild(title);
+
+    var itemsBox = document.createElement('div');
+    card.appendChild(itemsBox);
+
+    /* 부자재 추가 줄 */
+    var addRow = document.createElement('div');
+    addRow.className = 'fruit-add';
+    var catSel = document.createElement('select');
+    MAT_CATS.forEach(function (c) {
+      var o = document.createElement('option');
+      o.value = c.id;
+      o.textContent = c.name;
+      catSel.appendChild(o);
+    });
+    var itemSel = document.createElement('select');
+    var qtyWrap = document.createElement('div');
+    qtyWrap.className = 'input-box has-unit qty';
+    var qtyInput = document.createElement('input');
+    qtyInput.type = 'number';
+    qtyInput.min = '1';
+    qtyInput.step = '1';
+    qtyInput.value = '1';
+    var qtyUnit = document.createElement('span');
+    qtyUnit.className = 'unit';
+    qtyUnit.textContent = '개';
+    qtyWrap.appendChild(qtyInput);
+    qtyWrap.appendChild(qtyUnit);
+    var addBtn = document.createElement('button');
+    addBtn.type = 'button';
+    addBtn.className = 'preset-btn save';
+    addBtn.textContent = '추가';
+    addRow.appendChild(catSel);
+    addRow.appendChild(itemSel);
+    addRow.appendChild(qtyWrap);
+    addRow.appendChild(addBtn);
+    card.appendChild(addRow);
+
+    var status = document.createElement('p');
+    status.className = 'preset-msg';
+    card.appendChild(status);
+
+    /* 합계 */
+    var totalBox = document.createElement('div');
+    totalBox.className = 'fruit-total';
+    var tLabel = document.createElement('span');
+    tLabel.textContent = '합계 단가';
+    var tVal = document.createElement('b');
+    totalBox.appendChild(tLabel);
+    totalBox.appendChild(tVal);
+    var tSub = document.createElement('p');
+    tSub.className = 'fruit-total-sub';
+    card.appendChild(totalBox);
+    card.appendChild(tSub);
+
+    function showStatus(msg, warn) {
+      status.textContent = msg;
+      status.classList.toggle('warn', !!warn);
+      status.classList.add('show');
+      clearTimeout(showStatus._t);
+      showStatus._t = setTimeout(function () { status.classList.remove('show'); }, 2500);
+    }
+
+    function updateTotal() {
+      var fp = parseFloat(priceInput.value);
+      if (isNaN(fp)) fp = 0;
+      var mt = fruitMatTotal(fruit);
+      tVal.textContent = comma(Math.round(fp + mt)) + '원';
+      tSub.textContent = '과일 ' + comma(Math.round(fp)) + '원 + 부자재 ' + comma(Math.round(mt)) + '원';
+    }
+
+    function fillItemSel() {
+      itemSel.innerHTML = '';
+      var list = materials[catSel.value] || [];
+      if (!list.length) {
+        var o = document.createElement('option');
+        o.value = '';
+        o.textContent = '등록된 품목 없음';
+        itemSel.appendChild(o);
+        return;
+      }
+      list.forEach(function (it) {
+        var o = document.createElement('option');
+        o.value = it.name;
+        o.textContent = it.name + (it.price !== '' ? ' (' + comma(it.price) + '원)' : '');
+        itemSel.appendChild(o);
+      });
+    }
+
+    function renderItems() {
+      itemsBox.innerHTML = '';
+      if (!fruit.items || !fruit.items.length) {
+        var p = document.createElement('p');
+        p.className = 'empty';
+        p.textContent = '추가된 부자재가 없습니다';
+        itemsBox.appendChild(p);
+        updateTotal();
+        return;
+      }
+      fruit.items.forEach(function (it, idx) {
+        var m = findMat(it.cat, it.name);
+        var price = matUnitPrice(it.cat, it.name);
+        var qty = Number(it.qty) > 0 ? Number(it.qty) : 1;
+
+        var row = document.createElement('div');
+        row.className = 'fruit-item' + (m ? '' : ' missing');
+
+        var left = document.createElement('div');
+        left.className = 'fi-left';
+        var nm = document.createElement('div');
+        nm.className = 'fi-name';
+        nm.textContent = (MAT_NAME[it.cat] || it.cat) + ' · ' + it.name;
+        var sub = document.createElement('div');
+        sub.className = 'fi-sub';
+        left.appendChild(nm);
+        left.appendChild(sub);
+
+        var right = document.createElement('div');
+        right.className = 'fi-right';
+        var qtyIn = document.createElement('input');
+        qtyIn.type = 'number';
+        qtyIn.min = '1';
+        qtyIn.step = '1';
+        qtyIn.className = 'fi-qty';
+        qtyIn.value = qty;
+        var amt = document.createElement('span');
+        amt.className = 'fi-amt';
+        var rm = document.createElement('button');
+        rm.type = 'button';
+        rm.className = 'fi-del';
+        rm.textContent = '×';
+        rm.title = '이 부자재 빼기';
+        right.appendChild(qtyIn);
+        right.appendChild(amt);
+        right.appendChild(rm);
+
+        function paintRow() {
+          var q = Number(it.qty) > 0 ? Number(it.qty) : 1;
+          amt.textContent = comma(Math.round(price * q)) + '원';
+          if (!m) {
+            sub.textContent = '설정에서 삭제된 품목입니다';
+          } else {
+            var detail = matDetailText(m);
+            sub.textContent = comma(price) + '원 × ' + q + '개' + (detail ? ' · ' + detail : '');
+          }
+        }
+        paintRow();
+
+        qtyIn.addEventListener('input', function () {
+          var v = parseInt(qtyIn.value, 10);
+          it.qty = v > 0 ? v : 1;
+          storeFruits();
+          paintRow();
+          updateTotal();
+        });
+        rm.addEventListener('click', function () {
+          fruit.items.splice(idx, 1);
+          storeFruits();
+          renderItems();
+        });
+
+        row.appendChild(left);
+        row.appendChild(right);
+        itemsBox.appendChild(row);
+      });
+      updateTotal();
+    }
+
+    nameInput.addEventListener('input', function () {
+      fruit.name = nameInput.value;
+      storeFruits();
+    });
+    priceInput.addEventListener('input', function () {
+      var v = parseFloat(priceInput.value);
+      fruit.price = isNaN(v) ? '' : v;
+      storeFruits();
+      updateTotal();
+    });
+    catSel.addEventListener('change', fillItemSel);
+    addBtn.addEventListener('click', function () {
+      if (!itemSel.value) {
+        return showStatus('판매가 계산기 → 설정에서 ' + MAT_NAME[catSel.value] + ' 품목을 먼저 등록해주세요.', true);
+      }
+      var q = parseInt(qtyInput.value, 10);
+      if (!(q > 0)) q = 1;
+      if (!fruit.items) fruit.items = [];
+      var exist = fruit.items.filter(function (i) {
+        return i.cat === catSel.value && i.name === itemSel.value;
+      })[0];
+      if (exist) {
+        exist.qty = (Number(exist.qty) > 0 ? Number(exist.qty) : 1) + q;
+        showStatus("'" + itemSel.value + "' 수량 " + q + '개 추가');
+      } else {
+        fruit.items.push({ cat: catSel.value, name: itemSel.value, qty: q });
+      }
+      qtyInput.value = '1';
+      storeFruits();
+      renderItems();
+    });
+    delBtn.addEventListener('click', function () {
+      if (!confirm("'" + (fruit.name || '이 과일') + "' 항목을 삭제하시겠습니까?")) return;
+      var i = fruits.indexOf(fruit);
+      if (i >= 0) fruits.splice(i, 1);
+      storeFruits();
+      renderFruits();
+    });
+
+    fillItemSel();
+    renderItems();
+    return card;
+  }
+
+  function renderFruits() {
+    var box = $('fruitList');
+    box.innerHTML = '';
+    if (!fruits.length) {
+      var p = document.createElement('p');
+      p.className = 'empty';
+      p.textContent = '아직 추가된 과일이 없습니다. 위의 “+ 과일 추가”를 눌러 시작하세요.';
+      box.appendChild(p);
+      return;
+    }
+    fruits.forEach(function (fruit) { box.appendChild(buildFruitCard(fruit)); });
+  }
+  fruitRefresh = renderFruits;
+
+  $('fruitAddBtn').addEventListener('click', function () {
+    fruits.push({ name: '', price: '', items: [] });
+    storeFruits();
+    renderFruits();
+    var inputs = document.querySelectorAll('#fruitList .fruit-head input');
+    if (inputs.length) {
+      var last = inputs[inputs.length - 1];
+      last.focus();
+      last.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  });
+
+  renderFruits();
+
   function calcSale() {
     var errorMsg = $('saleErrorMsg');
     var resultBox = $('saleResultBox');
@@ -1299,9 +1715,9 @@
 
     var specKg = specUnit.unit === 'kg' ? spec : spec / 1000;
     var rawCost = rawPrice * specKg * (1 + lossRate); // 로스 반영 원물비
-    var materials = 0;
-    MAT_IDS.forEach(function (id) { materials += matCost(id); });
-    var baseCost = rawCost + labor + shipping + materials; // 마진 제외 비용
+    var matTotal = 0;
+    MAT_IDS.forEach(function (id) { matTotal += matCost(id); });
+    var baseCost = rawCost + labor + shipping + matTotal; // 마진 제외 비용
 
     var salePrice, margin;
     if (marginUnit.unit === '%') {
@@ -1339,7 +1755,7 @@
     row('원물비 (로스 ' + comma(lossRate * 100) + '% 반영)', comma(Math.round(rawCost)) + '원');
     if (labor > 0) row('인건비', comma(labor) + '원', 'sub');
     if (shipping > 0) row('택배비', comma(shipping) + '원', 'sub');
-    if (materials > 0) row('부자재 합계', comma(materials) + '원', 'sub');
+    if (matTotal > 0) row('부자재 합계', comma(matTotal) + '원', 'sub');
     if (margin > 0) {
       var marginLabel = marginUnit.unit === '%'
         ? '마진 (판매가의 ' + comma(marginInput) + '%)'
@@ -1354,7 +1770,7 @@
       price: Math.round(salePrice),
       rawCost: Math.round(rawCost),
       shipping: shipping,
-      materials: materials,
+      materials: matTotal,
       labor: labor,
       feeRatePct: feeRate * 100
     };
