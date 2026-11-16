@@ -1,0 +1,669 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>알바 시급 관리</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  :root {
+    --bg: #f4f6f9; --card: #ffffff; --text: #1f2937; --sub: #6b7280; --line: #e5e7eb;
+    --accent: #2f6fed; --accent-dark: #1d5ce0; --soft: #eef4ff; --danger: #dc2626; --ok: #059669;
+    --tabs: #e9edf3; --input: #ffffff;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0f1218; --card: #181c24; --text: #e5e7eb; --sub: #9ca3af; --line: #2a303b;
+      --accent: #6b9bff; --accent-dark: #8bb0ff; --soft: #1b2436; --danger: #f87171; --ok: #34d399;
+      --tabs: #1f242e; --input: #12161d;
+    }
+  }
+  body {
+    font-family: "Pretendard", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+    background: var(--bg); color: var(--text); min-height: 100vh;
+    display: flex; justify-content: center; padding: 24px 16px 60px;
+  }
+  .wrap { width: 100%; max-width: 760px; }
+  .top { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; }
+  .top a { color: var(--sub); text-decoration: none; font-size: 14px; }
+  h1 { font-size: 22px; flex: 1; text-align: center; }
+  .tabs { display: flex; background: var(--tabs); border-radius: 12px; padding: 4px; margin-bottom: 18px; gap: 2px; }
+  .tabs button {
+    flex: 1; padding: 10px 2px; border: none; background: transparent; font-size: 14px; font-weight: 600;
+    color: var(--sub); border-radius: 9px; cursor: pointer; word-break: keep-all;
+  }
+  .tabs button.active { background: var(--card); color: var(--accent); box-shadow: 0 1px 4px rgba(0,0,0,.08); }
+  @media (max-width: 440px) { .tabs button { font-size: 12.5px; } }
+  .panel { display: none; }
+  .panel.active { display: block; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 18px; margin-bottom: 14px; }
+  .card h2 { font-size: 16px; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+  .hint { color: var(--sub); font-size: 12.5px; line-height: 1.55; }
+  .row { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; margin-bottom: 10px; }
+  label { display: block; font-size: 12.5px; color: var(--sub); margin-bottom: 4px; font-weight: 600; }
+  input, select, textarea {
+    width: 100%; padding: 10px 11px; border: 1px solid var(--line); border-radius: 9px; font-size: 15px;
+    background: var(--input); color: var(--text); font-family: inherit;
+  }
+  input:focus, select:focus, textarea:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+  .check { display: flex; align-items: center; gap: 8px; font-size: 14px; color: var(--text); font-weight: 500; margin: 6px 0; cursor: pointer; }
+  .check input { width: 18px; height: 18px; }
+  .btn {
+    padding: 10px 14px; border: none; border-radius: 9px; background: var(--accent); color: #fff;
+    font-size: 14px; font-weight: 700; cursor: pointer; white-space: nowrap;
+  }
+  .btn:hover { filter: brightness(1.05); }
+  .btn.ghost { background: transparent; color: var(--accent); border: 1px solid var(--line); }
+  .btn.danger { background: transparent; color: var(--danger); border: 1px solid var(--line); }
+  .btn.sm { padding: 6px 10px; font-size: 12.5px; }
+  .btns { display: flex; gap: 8px; flex-wrap: wrap; }
+  .result { background: var(--soft); border-radius: 12px; padding: 14px 16px; margin-top: 12px; }
+  .result .line { display: flex; justify-content: space-between; padding: 4px 0; font-size: 14px; }
+  .result .line span:first-child { color: var(--sub); }
+  .result .total { border-top: 1px solid var(--line); margin-top: 6px; padding-top: 10px; font-size: 18px; font-weight: 800; }
+  .result .total span:last-child { color: var(--accent); }
+  .num { font-variant-numeric: tabular-nums; }
+  .table-wrap { overflow-x: auto; margin: 0 -4px; }
+  table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+  th, td { padding: 9px 6px; border-bottom: 1px solid var(--line); text-align: left; white-space: nowrap; }
+  th { color: var(--sub); font-weight: 600; font-size: 12.5px; }
+  td.r, th.r { text-align: right; }
+  .empty { text-align: center; color: var(--sub); padding: 24px 0; font-size: 14px; }
+  .chip { display: inline-block; padding: 2px 8px; border-radius: 99px; font-size: 11.5px; background: var(--soft); color: var(--accent); font-weight: 700; }
+  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin-bottom: 14px; }
+  .stat { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; }
+  .stat .k { font-size: 12px; color: var(--sub); }
+  .stat .v { font-size: 20px; font-weight: 800; margin-top: 4px; }
+  .worker-card { border: 1px solid var(--line); border-radius: 12px; padding: 14px; margin-bottom: 10px; }
+  .worker-card .head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; gap: 8px; }
+  .worker-card .name { font-weight: 800; font-size: 16px; }
+  .worker-card details { margin-top: 8px; font-size: 13px; }
+  .worker-card summary { cursor: pointer; color: var(--accent); font-weight: 600; }
+  .toolbar { display: flex; gap: 8px; flex-wrap: wrap; align-items: end; margin-bottom: 12px; }
+  .toolbar > div { flex: 1; min-width: 130px; }
+  .toast {
+    position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%) translateY(20px); opacity: 0;
+    background: #111827; color: #fff; padding: 10px 16px; border-radius: 10px; font-size: 14px;
+    transition: .2s; pointer-events: none; z-index: 10;
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+  .icon-btn { background: none; border: none; color: var(--sub); cursor: pointer; font-size: 14px; padding: 4px 6px; }
+  .icon-btn:hover { color: var(--danger); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top">
+    <a href="../index.html">← 홈</a>
+    <h1>⏱️ 알바 시급 관리</h1>
+    <span style="width:40px"></span>
+  </div>
+
+  <div class="tabs" role="tablist">
+    <button class="active" data-tab="calc">계산기</button>
+    <button data-tab="shifts">근무 기록</button>
+    <button data-tab="payroll">월 정산</button>
+    <button data-tab="workers">알바생</button>
+    <button data-tab="data">설정·데이터</button>
+  </div>
+
+  <!-- 계산기 -->
+  <section class="panel active" id="tab-calc">
+    <div class="card">
+      <h2>빠른 급여 계산</h2>
+      <div class="row">
+        <div><label>시급 (원)</label><input type="number" id="c-wage" inputmode="numeric"></div>
+        <div><label>하루 근무 시간</label><input type="number" id="c-hours" value="5" step="0.5" inputmode="decimal"></div>
+        <div><label>주 근무 일수</label><input type="number" id="c-days" value="5" min="1" max="7" inputmode="numeric"></div>
+      </div>
+      <div class="row">
+        <div><label>하루 중 야간 시간 (22~06시)</label><input type="number" id="c-night" value="0" step="0.5" inputmode="decimal"></div>
+        <div><label>공제</label>
+          <select id="c-deduct">
+            <option value="none">공제 없음</option>
+            <option value="tax33">사업소득 3.3%</option>
+            <option value="ins">4대보험 (근로자 부담)</option>
+          </select>
+        </div>
+      </div>
+      <label class="check"><input type="checkbox" id="c-five"> 5인 이상 사업장 (야간 · 연장 1.5배)</label>
+      <div class="result" id="c-result"></div>
+      <p class="hint" style="margin-top:10px">월 환산은 한 달을 평균 4.345주로 계산합니다. 주휴수당은 주 15시간 이상일 때 (주 근무시간 ÷ 40 × 8시간 × 시급), 40시간을 넘는 부분은 40시간으로 봅니다.</p>
+    </div>
+  </section>
+
+  <!-- 근무 기록 -->
+  <section class="panel" id="tab-shifts">
+    <div class="card">
+      <h2>근무 추가</h2>
+      <div class="row">
+        <div><label>알바생</label><select id="s-worker"></select></div>
+        <div><label>날짜</label><input type="date" id="s-date"></div>
+      </div>
+      <div class="row">
+        <div><label>출근</label><input type="time" id="s-start" value="09:00"></div>
+        <div><label>퇴근</label><input type="time" id="s-end" value="18:00"></div>
+        <div><label>휴게 (분)</label><input type="number" id="s-break" value="60" step="10" inputmode="numeric"></div>
+      </div>
+      <div class="row">
+        <div><label>메모 (선택)</label><input type="text" id="s-memo" placeholder="대타, 마감 등"></div>
+      </div>
+      <p class="hint" id="s-preview" style="margin-bottom:10px"></p>
+      <div class="btns">
+        <button class="btn" id="s-add">기록 추가</button>
+        <button class="btn ghost" id="s-cancel" style="display:none">수정 취소</button>
+      </div>
+      <p class="hint" style="margin-top:8px">퇴근이 출근보다 이르면 다음 날 퇴근(밤샘)으로 계산합니다.</p>
+    </div>
+
+    <div class="card">
+      <h2>근무 기록</h2>
+      <div class="toolbar">
+        <div><label>월</label><input type="month" id="sl-month"></div>
+        <div><label>알바생</label><select id="sl-worker"></select></div>
+      </div>
+      <div class="table-wrap"><table id="s-table"></table></div>
+    </div>
+  </section>
+
+  <!-- 월 정산 -->
+  <section class="panel" id="tab-payroll">
+    <div class="card">
+      <h2>월 정산 <button class="btn ghost sm" id="p-csv">CSV 받기</button></h2>
+      <div class="toolbar">
+        <div><label>정산 월</label><input type="month" id="p-month"></div>
+      </div>
+      <div class="stats" id="p-stats"></div>
+      <div id="p-list"></div>
+      <p class="hint">주휴수당은 월요일~일요일을 한 주로 보고, 그 주의 일요일이 정산 월에 속하면 이번 달에 넣습니다 (앞 달 날짜의 근무시간도 그 주 계산에 포함). 4대보험 요율은 '설정·데이터' 탭에서 바꿀 수 있는 추정치입니다. 실제 지급 전에는 노무 · 세무 기준을 확인하세요.</p>
+    </div>
+  </section>
+
+  <!-- 알바생 -->
+  <section class="panel" id="tab-workers">
+    <div class="card">
+      <h2 id="w-title">알바생 추가</h2>
+      <div class="row">
+        <div><label>이름</label><input type="text" id="w-name" placeholder="홍길동"></div>
+        <div><label>시급 (원)</label><input type="number" id="w-wage" inputmode="numeric"></div>
+      </div>
+      <div class="row">
+        <div><label>연락처 (선택)</label><input type="tel" id="w-phone" placeholder="010-0000-0000"></div>
+        <div><label>공제</label>
+          <select id="w-deduct">
+            <option value="none">공제 없음</option>
+            <option value="tax33">사업소득 3.3%</option>
+            <option value="ins">4대보험 (근로자 부담)</option>
+          </select>
+        </div>
+      </div>
+      <div class="row">
+        <div><label>입사일 (선택)</label><input type="date" id="w-since"></div>
+        <div><label>메모 (선택)</label><input type="text" id="w-memo" placeholder="계좌, 특이사항 등"></div>
+      </div>
+      <label class="check"><input type="checkbox" id="w-holiday" checked> 주휴수당 지급 대상</label>
+      <div class="btns" style="margin-top:8px">
+        <button class="btn" id="w-save">저장</button>
+        <button class="btn ghost" id="w-cancel" style="display:none">수정 취소</button>
+      </div>
+    </div>
+    <div class="card">
+      <h2>알바생 목록</h2>
+      <div id="w-list"></div>
+    </div>
+  </section>
+
+  <!-- 설정 · 데이터 -->
+  <section class="panel" id="tab-data">
+    <div class="card">
+      <h2>기본 설정</h2>
+      <div class="row">
+        <div><label>사업장 이름</label><input type="text" id="set-shop" placeholder="OO카페"></div>
+        <div><label>기본 시급 (원)</label><input type="number" id="set-wage" inputmode="numeric"></div>
+      </div>
+      <label class="check"><input type="checkbox" id="set-five"> 5인 이상 사업장 (야간 22~06시 · 하루 8시간 초과 근무 0.5배 가산)</label>
+      <h2 style="margin-top:14px">4대보험 근로자 부담률 (%)</h2>
+      <div class="row">
+        <div><label>국민연금</label><input type="number" step="0.001" id="set-np"></div>
+        <div><label>건강보험</label><input type="number" step="0.001" id="set-hi"></div>
+        <div><label>장기요양 (건강보험료 대비)</label><input type="number" step="0.01" id="set-ltc"></div>
+        <div><label>고용보험</label><input type="number" step="0.001" id="set-ei"></div>
+      </div>
+      <p class="hint">기본값은 2026년 기준 추정치입니다 (최저시급 10,320원). 바꾸면 바로 저장됩니다.</p>
+    </div>
+
+    <div class="card">
+      <h2>데이터 관리</h2>
+      <p class="hint" style="margin-bottom:12px">모든 기록은 이 브라우저에만 저장됩니다 (서버로 보내지 않음). 브라우저 데이터를 지우거나 다른 기기에서 열면 보이지 않으니, 주기적으로 백업 파일을 받아 두세요.</p>
+      <div class="stats" id="d-stats"></div>
+      <div class="btns">
+        <button class="btn" id="d-export">백업 받기 (JSON)</button>
+        <button class="btn ghost" id="d-import">백업 불러오기</button>
+        <button class="btn ghost" id="d-csv">전체 근무기록 CSV</button>
+        <button class="btn danger" id="d-clear">전체 삭제</button>
+      </div>
+      <input type="file" id="d-file" accept="application/json,.json" hidden>
+    </div>
+  </section>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+(() => {
+  const KEY = 'alba-pay-v1';
+  const MIN_WAGE_2026 = 10320;
+  const defaults = () => ({
+    settings: { shop: '', wage: MIN_WAGE_2026, five: false, np: 4.75, hi: 3.595, ltc: 13.14, ei: 0.9 },
+    workers: [], shifts: []
+  });
+
+  let db = load();
+  function load() {
+    try {
+      const raw = localStorage.getItem(KEY);
+      if (raw) {
+        const d = JSON.parse(raw);
+        const base = defaults();
+        return { settings: { ...base.settings, ...(d.settings || {}) }, workers: d.workers || [], shifts: d.shifts || [] };
+      }
+    } catch (e) { /* 저장소 사용 불가 */ }
+    return defaults();
+  }
+  function save() {
+    try { localStorage.setItem(KEY, JSON.stringify(db)); }
+    catch (e) { toast('저장하지 못했습니다. 백업 파일을 받아 두세요.'); }
+  }
+
+  const $ = (id) => document.getElementById(id);
+  const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+  const won = (n) => Math.round(n).toLocaleString('ko-KR') + '원';
+  const hrs = (m) => { const h = m / 60; return (Math.round(h * 100) / 100) + '시간'; };
+  const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const pad = (n) => String(n).padStart(2, '0');
+  const ymd = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  const today = () => ymd(new Date());
+  const thisMonth = () => today().slice(0, 7);
+  const DOW = ['일', '월', '화', '수', '목', '금', '토'];
+
+  function toast(msg) {
+    const t = $('toast'); t.textContent = msg; t.classList.add('show');
+    clearTimeout(toast._t); toast._t = setTimeout(() => t.classList.remove('show'), 1800);
+  }
+
+  // ---------- 탭 ----------
+  document.querySelectorAll('.tabs button').forEach(b => b.addEventListener('click', () => {
+    document.querySelectorAll('.tabs button').forEach(x => x.classList.toggle('active', x === b));
+    document.querySelectorAll('.panel').forEach(p => p.classList.toggle('active', p.id === 'tab-' + b.dataset.tab));
+    try { sessionStorage.setItem(KEY + '-tab', b.dataset.tab); } catch (e) {}
+    renderAll();
+  }));
+
+  // ---------- 근무 시간 계산 ----------
+  const toMin = (t) => { const [h, m] = t.split(':').map(Number); return h * 60 + m; };
+  function nightOverlap(s, e) {
+    // s, e: 근무 시작일 0시 기준 분 (e는 다음 날까지 가능). 야간 = 22:00~06:00
+    let n = 0;
+    for (const [a, b] of [[-120, 360], [1320, 1800], [2760, 3240]]) n += Math.max(0, Math.min(e, b) - Math.max(s, a));
+    return n;
+  }
+  function shiftCalc(sh) {
+    const s = toMin(sh.start); let e = toMin(sh.end);
+    if (e <= s) e += 1440;
+    const gross = e - s;
+    const brk = Math.min(Math.max(0, +sh.break || 0), gross);
+    const work = gross - brk;
+    // 휴게시간은 낮 시간에서 먼저 뺀다고 가정
+    const nightRaw = nightOverlap(s, e);
+    const dayRaw = gross - nightRaw;
+    const night = Math.max(0, nightRaw - Math.max(0, brk - dayRaw));
+    const over = Math.max(0, work - 480);
+    return { work, night, over };
+  }
+  function shiftPay(sh, wage, five) {
+    const c = shiftCalc(sh);
+    const base = c.work / 60 * wage;
+    const nightAdd = five ? c.night / 60 * wage * 0.5 : 0;
+    const overAdd = five ? c.over / 60 * wage * 0.5 : 0;
+    return { ...c, base, nightAdd, overAdd, total: base + nightAdd + overAdd };
+  }
+  function weeklyHolidayPay(weekMin, wage) {
+    if (weekMin < 15 * 60) return 0;
+    return Math.min(weekMin, 40 * 60) / 60 / 40 * 8 * wage;
+  }
+  function deductCalc(type, gross) {
+    const s = db.settings;
+    if (type === 'tax33') {
+      const income = Math.floor(gross * 0.03 / 10) * 10;
+      const local = Math.floor(income * 0.1 / 10) * 10;
+      return { total: income + local, detail: [['소득세 3%', income], ['지방소득세 0.3%', local]] };
+    }
+    if (type === 'ins') {
+      const np = Math.floor(gross * s.np / 100 / 10) * 10;
+      const hi = Math.floor(gross * s.hi / 100 / 10) * 10;
+      const ltc = Math.floor(hi * s.ltc / 100 / 10) * 10;
+      const ei = Math.floor(gross * s.ei / 100 / 10) * 10;
+      return { total: np + hi + ltc + ei, detail: [['국민연금', np], ['건강보험', hi], ['장기요양', ltc], ['고용보험', ei]] };
+    }
+    return { total: 0, detail: [] };
+  }
+  const DEDUCT_LABEL = { none: '공제 없음', tax33: '3.3%', ins: '4대보험' };
+
+  // ---------- 빠른 계산기 ----------
+  function renderCalc() {
+    const wage = +$('c-wage').value || 0, h = +$('c-hours').value || 0, d = Math.min(7, +$('c-days').value || 0);
+    const night = Math.min(+$('c-night').value || 0, h), five = $('c-five').checked;
+    const day = h * wage + (five ? night * wage * 0.5 + Math.max(0, h - 8) * wage * 0.5 : 0);
+    const weekH = h * d;
+    const week = day * d;
+    const holiday = weeklyHolidayPay(weekH * 60, wage);
+    const monthGross = (week + holiday) * 4.345;
+    const ded = deductCalc($('c-deduct').value, monthGross);
+    const lines = [
+      ['일급', won(day)],
+      ['주 근무시간', weekH + '시간'],
+      ['주급 (근무분)', won(week)],
+      ['주휴수당 (주)', holiday ? won(holiday) : '해당 없음 (주 15시간 미만)'],
+      ['주급 합계', won(week + holiday)],
+      ['월 예상 (세전)', won(monthGross)],
+    ];
+    if (ded.total) lines.push(['공제 (' + DEDUCT_LABEL[$('c-deduct').value] + ')', '- ' + won(ded.total)]);
+    $('c-result').innerHTML = lines.map(([k, v]) => `<div class="line"><span>${k}</span><span class="num">${v}</span></div>`).join('') +
+      `<div class="line total"><span>월 예상 실수령</span><span class="num">${won(monthGross - ded.total)}</span></div>` +
+      (wage && wage < MIN_WAGE_2026 ? `<p class="hint" style="color:var(--danger);margin-top:6px">2026년 최저시급(${won(MIN_WAGE_2026)})보다 낮습니다.</p>` : '');
+  }
+  ['c-wage', 'c-hours', 'c-days', 'c-night', 'c-deduct', 'c-five'].forEach(id => $(id).addEventListener('input', renderCalc));
+
+  // ---------- 알바생 ----------
+  let editingWorker = null;
+  const workerById = (id) => db.workers.find(w => w.id === id);
+  function resetWorkerForm() {
+    editingWorker = null;
+    $('w-title').textContent = '알바생 추가';
+    $('w-name').value = ''; $('w-wage').value = db.settings.wage; $('w-phone').value = '';
+    $('w-deduct').value = 'none'; $('w-since').value = ''; $('w-memo').value = ''; $('w-holiday').checked = true;
+    $('w-cancel').style.display = 'none';
+  }
+  $('w-save').addEventListener('click', () => {
+    const name = $('w-name').value.trim();
+    const wage = +$('w-wage').value;
+    if (!name) return toast('이름을 입력하세요');
+    if (!wage) return toast('시급을 입력하세요');
+    const data = { name, wage, phone: $('w-phone').value.trim(), deduct: $('w-deduct').value,
+      since: $('w-since').value, memo: $('w-memo').value.trim(), holiday: $('w-holiday').checked };
+    if (editingWorker) Object.assign(workerById(editingWorker), data);
+    else db.workers.push({ id: uid(), active: true, ...data });
+    save(); toast(editingWorker ? '수정했습니다' : '추가했습니다');
+    resetWorkerForm(); renderAll();
+  });
+  $('w-cancel').addEventListener('click', resetWorkerForm);
+  function renderWorkers() {
+    const el = $('w-list');
+    if (!db.workers.length) { el.innerHTML = '<p class="empty">아직 등록된 알바생이 없습니다.</p>'; return; }
+    const m = thisMonth();
+    el.innerHTML = db.workers.map(w => {
+      const shifts = db.shifts.filter(s => s.workerId === w.id);
+      const monthMin = shifts.filter(s => s.date.startsWith(m)).reduce((a, s) => a + shiftCalc(s).work, 0);
+      return `<div class="worker-card">
+        <div class="head">
+          <span><span class="name">${esc(w.name)}</span> ${w.active === false ? '<span class="chip">퇴사</span>' : ''}</span>
+          <span class="btns">
+            <button class="btn ghost sm" data-wedit="${w.id}">수정</button>
+            <button class="btn ghost sm" data-wtoggle="${w.id}">${w.active === false ? '재직으로' : '퇴사 처리'}</button>
+            <button class="btn danger sm" data-wdel="${w.id}">삭제</button>
+          </span>
+        </div>
+        <div class="hint">시급 <b class="num">${won(w.wage)}</b> · ${DEDUCT_LABEL[w.deduct] || '공제 없음'} · 주휴 ${w.holiday ? '대상' : '제외'}
+          ${w.phone ? ' · ' + esc(w.phone) : ''}${w.since ? ' · 입사 ' + esc(w.since) : ''}</div>
+        <div class="hint">이번 달 ${hrs(monthMin)} · 누적 기록 ${shifts.length}건</div>
+        ${w.memo ? `<div class="hint">📝 ${esc(w.memo)}</div>` : ''}
+      </div>`;
+    }).join('');
+  }
+  $('w-list').addEventListener('click', (e) => {
+    const t = e.target;
+    if (t.dataset.wedit) {
+      const w = workerById(t.dataset.wedit); editingWorker = w.id;
+      $('w-title').textContent = w.name + ' 수정';
+      $('w-name').value = w.name; $('w-wage').value = w.wage; $('w-phone').value = w.phone || '';
+      $('w-deduct').value = w.deduct || 'none'; $('w-since').value = w.since || ''; $('w-memo').value = w.memo || '';
+      $('w-holiday').checked = !!w.holiday; $('w-cancel').style.display = '';
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    } else if (t.dataset.wtoggle) {
+      const w = workerById(t.dataset.wtoggle); w.active = w.active === false; save(); renderAll();
+    } else if (t.dataset.wdel) {
+      const w = workerById(t.dataset.wdel);
+      const n = db.shifts.filter(s => s.workerId === w.id).length;
+      if (!confirm(`${w.name} 님과 근무 기록 ${n}건을 모두 삭제할까요?\n기록을 남기려면 '퇴사 처리'를 쓰세요.`)) return;
+      db.workers = db.workers.filter(x => x.id !== w.id);
+      db.shifts = db.shifts.filter(s => s.workerId !== w.id);
+      save(); renderAll(); toast('삭제했습니다');
+    }
+  });
+
+  // ---------- 근무 기록 ----------
+  let editingShift = null;
+  function workerOptions(sel, { all = false, activeOnly = false } = {}) {
+    const cur = sel.value;
+    const list = db.workers.filter(w => !activeOnly || w.active !== false || w.id === cur);
+    sel.innerHTML = (all ? '<option value="">전체</option>' : '') +
+      (list.length ? list.map(w => `<option value="${w.id}">${esc(w.name)}</option>`).join('') : (all ? '' : '<option value="">먼저 알바생을 등록하세요</option>'));
+    if ([...sel.options].some(o => o.value === cur)) sel.value = cur;
+  }
+  function shiftForm() {
+    return { workerId: $('s-worker').value, date: $('s-date').value, start: $('s-start').value, end: $('s-end').value,
+      break: +$('s-break').value || 0, memo: $('s-memo').value.trim() };
+  }
+  function renderPreview() {
+    const f = shiftForm(); const w = workerById(f.workerId);
+    if (!f.start || !f.end || !w) { $('s-preview').textContent = ''; return; }
+    const p = shiftPay(f, w.wage, db.settings.five);
+    $('s-preview').innerHTML = `실근무 <b>${hrs(p.work)}</b>${p.night ? ` (야간 ${hrs(p.night)})` : ''} · 예상 <b>${won(p.total)}</b>`;
+  }
+  ['s-worker', 's-date', 's-start', 's-end', 's-break'].forEach(id => $(id).addEventListener('input', renderPreview));
+  $('s-add').addEventListener('click', () => {
+    const f = shiftForm();
+    if (!f.workerId) return toast("'알바생' 탭에서 먼저 등록하세요");
+    if (!f.date || !f.start || !f.end) return toast('날짜와 시간을 입력하세요');
+    if (shiftCalc(f).work <= 0) return toast('근무 시간이 0입니다');
+    if (editingShift) Object.assign(db.shifts.find(s => s.id === editingShift), f);
+    else db.shifts.push({ id: uid(), ...f });
+    save(); toast(editingShift ? '수정했습니다' : '기록했습니다');
+    cancelShiftEdit();
+    $('sl-month').value = f.date.slice(0, 7);
+    renderAll();
+  });
+  function cancelShiftEdit() {
+    editingShift = null; $('s-add').textContent = '기록 추가'; $('s-cancel').style.display = 'none'; $('s-memo').value = '';
+  }
+  $('s-cancel').addEventListener('click', cancelShiftEdit);
+  ['sl-month', 'sl-worker'].forEach(id => $(id).addEventListener('input', renderShifts));
+  function renderShifts() {
+    const m = $('sl-month').value, wid = $('sl-worker').value;
+    const rows = db.shifts.filter(s => (!m || s.date.startsWith(m)) && (!wid || s.workerId === wid))
+      .sort((a, b) => (b.date + b.start).localeCompare(a.date + a.start));
+    const t = $('s-table');
+    if (!rows.length) { t.innerHTML = '<tr><td class="empty">이 기간에 기록이 없습니다.</td></tr>'; return; }
+    let sumMin = 0, sumPay = 0;
+    const body = rows.map(s => {
+      const w = workerById(s.workerId); const p = shiftPay(s, w ? w.wage : 0, db.settings.five);
+      sumMin += p.work; sumPay += p.total;
+      const d = new Date(s.date + 'T00:00');
+      return `<tr>
+        <td>${s.date.slice(5)} (${DOW[d.getDay()]})</td>
+        <td>${esc(w ? w.name : '?')}</td>
+        <td>${s.start}~${s.end}${s.break ? ` <span class="hint">휴${s.break}</span>` : ''}${s.memo ? ` <span class="hint">· ${esc(s.memo)}</span>` : ''}</td>
+        <td class="r num">${hrs(p.work)}</td>
+        <td class="r num">${won(p.total)}</td>
+        <td class="r"><button class="icon-btn" data-sedit="${s.id}" title="수정">✏️</button><button class="icon-btn" data-sdel="${s.id}" title="삭제">✕</button></td>
+      </tr>`;
+    }).join('');
+    t.innerHTML = `<thead><tr><th>날짜</th><th>이름</th><th>시간</th><th class="r">실근무</th><th class="r">급여</th><th></th></tr></thead>
+      <tbody>${body}</tbody>
+      <tfoot><tr><th colspan="3">합계 ${rows.length}건 (주휴 제외)</th><th class="r num">${hrs(sumMin)}</th><th class="r num">${won(sumPay)}</th><th></th></tr></tfoot>`;
+  }
+  $('s-table').addEventListener('click', (e) => {
+    const t = e.target.closest('button'); if (!t) return;
+    if (t.dataset.sdel) {
+      if (!confirm('이 근무 기록을 삭제할까요?')) return;
+      db.shifts = db.shifts.filter(s => s.id !== t.dataset.sdel); save(); renderAll(); toast('삭제했습니다');
+    } else if (t.dataset.sedit) {
+      const s = db.shifts.find(x => x.id === t.dataset.sedit); editingShift = s.id;
+      $('s-worker').value = s.workerId; $('s-date').value = s.date; $('s-start').value = s.start; $('s-end').value = s.end;
+      $('s-break').value = s.break; $('s-memo').value = s.memo || '';
+      $('s-add').textContent = '수정 저장'; $('s-cancel').style.display = '';
+      renderPreview(); window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  });
+
+  // ---------- 월 정산 ----------
+  function mondayOf(dateStr) {
+    const d = new Date(dateStr + 'T00:00'); const diff = (d.getDay() + 6) % 7;
+    d.setDate(d.getDate() - diff); return d;
+  }
+  function payroll(month) {
+    const five = db.settings.five;
+    return db.workers.map(w => {
+      const mine = db.shifts.filter(s => s.workerId === w.id);
+      const inMonth = mine.filter(s => s.date.startsWith(month));
+      let work = 0, night = 0, base = 0, nightAdd = 0, overAdd = 0;
+      for (const s of inMonth) {
+        const p = shiftPay(s, w.wage, five);
+        work += p.work; night += p.night; base += p.base; nightAdd += p.nightAdd; overAdd += p.overAdd;
+      }
+      // 주휴수당: 일요일이 이번 달에 있는 주
+      const weeks = [];
+      if (w.holiday) {
+        const [y, mo] = month.split('-').map(Number);
+        const last = new Date(y, mo, 0).getDate();
+        for (let day = 1; day <= last; day++) {
+          const d = new Date(y, mo - 1, day);
+          if (d.getDay() !== 0) continue;
+          const sun = ymd(d); const mon = new Date(d); mon.setDate(d.getDate() - 6); const monS = ymd(mon);
+          const min = mine.filter(s => s.date >= monS && s.date <= sun).reduce((a, s) => a + shiftCalc(s).work, 0);
+          if (min > 0) weeks.push({ from: monS, to: sun, min, pay: weeklyHolidayPay(min, w.wage) });
+        }
+      }
+      const holiday = weeks.reduce((a, x) => a + x.pay, 0);
+      const gross = base + nightAdd + overAdd + holiday;
+      const ded = deductCalc(w.deduct || 'none', gross);
+      return { w, count: inMonth.length, work, night, base, nightAdd, overAdd, holiday, weeks, gross, ded, net: gross - ded.total };
+    }).filter(r => r.count > 0 || r.holiday > 0);
+  }
+  function renderPayroll() {
+    const month = $('p-month').value || thisMonth();
+    const rows = payroll(month);
+    const sum = (k) => rows.reduce((a, r) => a + (typeof k === 'function' ? k(r) : r[k]), 0);
+    $('p-stats').innerHTML = [
+      ['인원', rows.length + '명'], ['총 근무', hrs(sum('work'))],
+      ['총 지급액 (세전)', won(sum('gross'))], ['실지급 합계', won(sum('net'))]
+    ].map(([k, v]) => `<div class="stat"><div class="k">${k}</div><div class="v num">${v}</div></div>`).join('');
+    if (!rows.length) { $('p-list').innerHTML = '<p class="empty">이 달에 근무 기록이 없습니다.</p>'; return; }
+    $('p-list').innerHTML = rows.map(r => {
+      const lines = [
+        ['근무 ' + r.count + '일 · ' + hrs(r.work), won(r.base)],
+        r.nightAdd ? ['야간 가산 (' + hrs(r.night) + ')', won(r.nightAdd)] : null,
+        r.overAdd ? ['연장 가산', won(r.overAdd)] : null,
+        r.w.holiday ? ['주휴수당 (' + r.weeks.filter(x => x.pay).length + '주)', won(r.holiday)] : null,
+        ['세전 합계', won(r.gross)],
+        ...r.ded.detail.map(([k, v]) => [k, '- ' + won(v)]),
+      ].filter(Boolean);
+      return `<div class="worker-card">
+        <div class="head"><span class="name">${esc(r.w.name)}</span><span class="chip">시급 ${won(r.w.wage)}</span></div>
+        <div class="result" style="margin-top:0">
+          ${lines.map(([k, v]) => `<div class="line"><span>${k}</span><span class="num">${v}</span></div>`).join('')}
+          <div class="line total"><span>실지급액</span><span class="num">${won(r.net)}</span></div>
+        </div>
+        ${r.weeks.length ? `<details><summary>주별 주휴수당 보기</summary>
+          <table style="margin-top:6px"><tbody>${r.weeks.map(x => `<tr><td>${x.from.slice(5)} ~ ${x.to.slice(5)}</td><td class="r num">${hrs(x.min)}</td><td class="r num">${x.pay ? won(x.pay) : '15시간 미만'}</td></tr>`).join('')}</tbody></table>
+        </details>` : ''}
+      </div>`;
+    }).join('');
+  }
+  $('p-month').addEventListener('input', renderPayroll);
+
+  // ---------- CSV / 백업 ----------
+  function download(name, text, type) {
+    const blob = new Blob([text], { type });
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name;
+    document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  }
+  const csvCell = (v) => { const s = String(v ?? ''); return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
+  const toCsv = (rows) => '﻿' + rows.map(r => r.map(csvCell).join(',')).join('\r\n');
+  $('p-csv').addEventListener('click', () => {
+    const month = $('p-month').value || thisMonth();
+    const rows = payroll(month);
+    if (!rows.length) return toast('내보낼 정산이 없습니다');
+    const head = ['이름', '시급', '근무일수', '근무시간', '기본급', '야간가산', '연장가산', '주휴수당', '세전합계', '공제방식', '공제액', '실지급액'];
+    download(`알바정산_${month}.csv`, toCsv([head, ...rows.map(r => [r.w.name, r.w.wage, r.count, (r.work / 60).toFixed(2),
+      Math.round(r.base), Math.round(r.nightAdd), Math.round(r.overAdd), Math.round(r.holiday), Math.round(r.gross),
+      DEDUCT_LABEL[r.w.deduct || 'none'], r.ded.total, Math.round(r.net)])]), 'text/csv;charset=utf-8');
+  });
+  $('d-csv').addEventListener('click', () => {
+    if (!db.shifts.length) return toast('근무 기록이 없습니다');
+    const rows = [...db.shifts].sort((a, b) => (a.date + a.start).localeCompare(b.date + b.start)).map(s => {
+      const w = workerById(s.workerId); const p = shiftPay(s, w ? w.wage : 0, db.settings.five);
+      return [s.date, w ? w.name : '', s.start, s.end, s.break, (p.work / 60).toFixed(2), (p.night / 60).toFixed(2), w ? w.wage : '', Math.round(p.total), s.memo || ''];
+    });
+    download(`알바근무기록_${today()}.csv`, toCsv([['날짜', '이름', '출근', '퇴근', '휴게(분)', '실근무(시간)', '야간(시간)', '시급', '급여(주휴제외)', '메모'], ...rows]), 'text/csv;charset=utf-8');
+  });
+  $('d-export').addEventListener('click', () => {
+    download(`알바시급관리_백업_${today()}.json`, JSON.stringify({ app: 'alba-pay', version: 1, exportedAt: new Date().toISOString(), ...db }, null, 2), 'application/json');
+  });
+  $('d-import').addEventListener('click', () => $('d-file').click());
+  $('d-file').addEventListener('change', async (e) => {
+    const f = e.target.files[0]; e.target.value = ''; if (!f) return;
+    try {
+      const d = JSON.parse(await f.text());
+      if (!Array.isArray(d.workers) || !Array.isArray(d.shifts)) throw new Error('형식 오류');
+      const merge = confirm(`알바생 ${d.workers.length}명 · 근무 ${d.shifts.length}건을 불러옵니다.\n\n[확인] 지금 데이터에 합치기 (같은 항목은 백업 것으로)\n[취소] 그만두기`);
+      if (!merge) return;
+      const byId = (arr, add) => { const m = new Map(arr.map(x => [x.id, x])); add.forEach(x => x && x.id && m.set(x.id, x)); return [...m.values()]; };
+      db.workers = byId(db.workers, d.workers);
+      db.shifts = byId(db.shifts, d.shifts);
+      if (d.settings) db.settings = { ...db.settings, ...d.settings };
+      save(); syncSettingsForm(); renderAll(); toast('불러왔습니다');
+    } catch (err) { toast('백업 파일을 읽지 못했습니다'); }
+  });
+  $('d-clear').addEventListener('click', () => {
+    if (!confirm('알바생과 근무 기록을 모두 지웁니다. 되돌릴 수 없습니다.\n먼저 백업을 받으셨나요?')) return;
+    if (prompt("정말 지우려면 '삭제'라고 입력하세요") !== '삭제') return;
+    const settings = db.settings; db = defaults(); db.settings = settings;
+    save(); renderAll(); toast('모두 지웠습니다');
+  });
+  function renderDataStats() {
+    const months = new Set(db.shifts.map(s => s.date.slice(0, 7)));
+    $('d-stats').innerHTML = [['알바생', db.workers.length + '명'], ['근무 기록', db.shifts.length + '건'], ['기록된 달', months.size + '개월']]
+      .map(([k, v]) => `<div class="stat"><div class="k">${k}</div><div class="v num">${v}</div></div>`).join('');
+  }
+
+  // ---------- 설정 ----------
+  const SET_FIELDS = { 'set-shop': 'shop', 'set-wage': 'wage', 'set-np': 'np', 'set-hi': 'hi', 'set-ltc': 'ltc', 'set-ei': 'ei' };
+  function syncSettingsForm() {
+    for (const [id, k] of Object.entries(SET_FIELDS)) $(id).value = db.settings[k];
+    $('set-five').checked = !!db.settings.five;
+    $('c-five').checked = !!db.settings.five;
+    if (!$('c-wage').value) $('c-wage').value = db.settings.wage;
+    document.title = (db.settings.shop ? db.settings.shop + ' · ' : '') + '알바 시급 관리';
+  }
+  for (const [id, k] of Object.entries(SET_FIELDS)) $(id).addEventListener('change', () => {
+    db.settings[k] = k === 'shop' ? $(id).value.trim() : (+$(id).value || 0); save(); syncSettingsForm(); renderAll();
+  });
+  $('set-five').addEventListener('change', () => { db.settings.five = $('set-five').checked; save(); syncSettingsForm(); renderAll(); });
+
+  function renderAll() {
+    workerOptions($('s-worker'), { activeOnly: true });
+    workerOptions($('sl-worker'), { all: true });
+    renderCalc(); renderShifts(); renderPayroll(); renderWorkers(); renderDataStats(); renderPreview();
+  }
+
+  // ---------- 시작 ----------
+  $('s-date').value = today(); $('sl-month').value = thisMonth(); $('p-month').value = thisMonth();
+  syncSettingsForm(); resetWorkerForm(); renderAll();
+  try {
+    const tab = sessionStorage.getItem(KEY + '-tab');
+    if (tab) document.querySelector(`.tabs button[data-tab="${tab}"]`)?.click();
+  } catch (e) {}
+})();
+</script>
+</body>
+</html>
