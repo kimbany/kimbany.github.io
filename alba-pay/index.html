@@ -529,7 +529,7 @@
     $('g-date').value = gridMon;
     $('g-label').textContent = `${mdLabel(gridMon)} ~ ${mdLabel(sun)}`;
     const b = basicInfo();
-    $('g-hint').innerHTML = `<b>기본</b> = ${esc(b.text)} (실근무 ${hrs(b.work)}) — '설정·데이터'에서 바꿀 수 있습니다. <b>별도</b>를 누르면 그날 출퇴근 시각을 고릅니다. 별도 시간을 누르면 다시 고칠 수 있습니다. 합계(주급)에는 주휴수당이 포함됩니다.`;
+    $('g-hint').innerHTML = `<b>기본</b> = ${esc(b.text)} (실근무 ${hrs(b.work)}) — '설정·데이터'에서 바꿀 수 있습니다. <b>별도</b>를 누르면 그날 출퇴근 시각을 고릅니다. 둘 중 하나만 고를 수 있고, 선택된 것을 다시 누르면 해제(쉬는 날)됩니다. 별도 시간을 누르면 다시 고칠 수 있습니다. 합계(주급)에는 주휴수당이 포함됩니다.`;
     const t = $('g-table');
     if (!db.workers.length) { t.innerHTML = `<tr><td class="empty">'알바생' 탭에서 먼저 알바생을 등록하세요.</td></tr>`; return; }
     const ws = db.workers.filter(w => visibleInWeek(w, gridMon, sun));
@@ -548,8 +548,8 @@
         if (outside && !ss.length) return `<td class="cell off"><span class="hint">${w.endDate && d >= w.endDate ? '퇴사' : '입사 전'}</span></td>`;
         const kind = !ss.length ? '' : (ss.length === 1 && ss[0].kind === 'basic') ? 'basic' : 'custom';
         return `<td class="cell ${kind ? 'on' : ''}">
-          <label class="ck"><input type="checkbox" data-k="basic" data-w="${w.id}" data-d="${d}" ${kind === 'basic' ? 'checked' : ''}>기본</label>
-          <label class="ck"><input type="checkbox" data-k="custom" data-w="${w.id}" data-d="${d}" ${kind === 'custom' ? 'checked' : ''}>별도</label>
+          <label class="ck"><input type="radio" name="c-${w.id}-${d}" data-k="basic" data-w="${w.id}" data-d="${d}" data-on="${kind === 'basic' ? 1 : 0}" ${kind === 'basic' ? 'checked' : ''}>기본</label>
+          <label class="ck"><input type="radio" name="c-${w.id}-${d}" data-k="custom" data-w="${w.id}" data-d="${d}" data-on="${kind === 'custom' ? 1 : 0}" ${kind === 'custom' ? 'checked' : ''}>별도</label>
           ${kind === 'custom' ? `<button class="cell-time" data-edit="${w.id}|${d}">${ss.map(shiftText).join(', ')}</button>` : ''}
           <div class="cell-pay num">${pay ? won(pay) : ''}</div>
         </td>`;
@@ -609,18 +609,19 @@
       save(); renderAll(); toast(`기본 ${basics.length}칸을 해제했습니다`);
     }
   }
-  $('g-table').addEventListener('change', (e) => {
-    const c = e.target; if (!c.dataset.k) return;
+  // 기본 / 별도 라디오: 둘 중 하나만 선택. 선택된 것을 다시 누르면 해제 (그날 근무 없음)
+  function onCellRadio(c) {
     const { w, d, k } = c.dataset; const s = db.settings;
+    if (c.dataset.on === '1') { removeDay(w, d); save(); renderAll(); return; }
     if (k === 'basic') {
       removeDay(w, d);
-      if (c.checked) db.shifts.push({ id: uid(), workerId: w, date: d, kind: 'basic', mode: 'time', start: s.basicStart, end: s.basicEnd, break: s.basicBreak });
+      db.shifts.push({ id: uid(), workerId: w, date: d, kind: 'basic', mode: 'time', start: s.basicStart, end: s.basicEnd, break: s.basicBreak });
       save(); renderAll();
-    } else if (c.checked) openModal(w, d);
-    else { removeDay(w, d); save(); renderAll(); }
-  });
+    } else openModal(w, d);
+  }
   $('g-table').addEventListener('click', (e) => {
     if (e.target.id === 'g-bulk-save') return bulkSave();
+    if (e.target.matches('input[type=radio][data-k]')) return onCellRadio(e.target);
     const b = e.target.closest('[data-edit]'); if (!b) return;
     const [w, d] = b.dataset.edit.split('|'); openModal(w, d);
   });
