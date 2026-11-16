@@ -163,6 +163,11 @@
   @keyframes shake { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-8px); } 75% { transform: translateX(8px); } }
   .bulk { display: flex; align-items: center; justify-content: center; gap: 4px; margin-top: 6px; flex-wrap: wrap; }
   .bulk .btn { padding: 5px 8px; font-size: 12px; }
+  .savebar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  #g-save { padding: 9px 22px; }
+  #g-save.idle { background: var(--off); color: var(--sub); }
+  #g-status.dirty { color: var(--warn); font-weight: 700; }
+  .cell.changed { box-shadow: inset 0 0 0 2px var(--warn); }
 </style>
 </head>
 <body>
@@ -196,7 +201,10 @@
   <!-- 근무 계산 -->
   <section class="panel active" id="tab-grid">
     <div class="card">
-      <h2>근무 계산</h2>
+      <h2>근무 계산
+        <span class="savebar"><span id="g-status" class="hint"></span>
+          <button class="btn ghost sm" id="g-revert" hidden>되돌리기</button>
+          <button class="btn" id="g-save">저장</button></span></h2>
       <div class="nav">
         <button class="btn ghost sm" id="g-prev" aria-label="이전 주">◀</button>
         <input type="date" id="g-date">
@@ -501,7 +509,7 @@
     return { total: 0, detail: [] };
   }
   const DEDUCT_LABEL = { none: '공제 없음', tax33: '3.3%', ins: '4대보험' };
-  const shiftsOf = (wid, from, to) => db.shifts.filter(s => s.workerId === wid && s.date >= from && s.date <= to)
+  const shiftsOf = (wid, from, to, list = db.shifts) => list.filter(s => s.workerId === wid && s.date >= from && s.date <= to)
     .sort((a, b) => (a.date + (a.start || '')).localeCompare(b.date + (b.start || '')));
   const shiftText = (s) => s.mode === 'dur' ? '직접 ' + hrs(s.minutes) : `${s.start}~${s.end}`;
   function basicInfo() {
@@ -511,6 +519,8 @@
 
   // ---------- 탭 ----------
   document.querySelectorAll('.tabs button').forEach(b => b.addEventListener('click', () => {
+    if (b.dataset.tab !== 'grid' && typeof changedCells === 'function' && changedCells().size
+      && confirm(`근무 계산에 저장하지 않은 변경이 ${changedCells().size}칸 있습니다.\n\n[확인] 지금 저장하기\n[취소] 저장하지 않고 이동 (근무 계산에 그대로 남아 있음)`)) saveGrid();
     document.querySelectorAll('.tabs button').forEach(x => x.classList.toggle('active', x === b));
     document.querySelectorAll('.panel').forEach(p => p.classList.toggle('active', p.id === 'tab-' + b.dataset.tab));
     try { sessionStorage.setItem(KEY + '-tab', b.dataset.tab); } catch (e) {}
@@ -518,9 +528,44 @@
   }));
 
   // ---------- 근무 계산 (주간 표) ----------
+  // 표에서 바꾼 내용은 '저장'을 누르기 전까지 임시(draft)로만 두고, 정산은 저장된 기록(db.shifts)만 씁니다.
   let gridMon = mondayOf(today());
+  let draft = null;
+  const gs = () => draft || db.shifts;
+  const editable = () => { if (!draft) draft = db.shifts.map(x => ({ ...x })); return draft; };
+  const gShifts = (wid, from, to) => shiftsOf(wid, from, to, gs());
+  const sig = (list) => list.map(x => [x.kind, x.mode, x.start, x.end, x.break, x.minutes, x.nightMin].join('|')).sort().join(';');
+  function changedCells() {
+    if (!draft) return new Set();
+    const keys = new Set([...db.shifts, ...draft].map(x => x.workerId + '|' + x.date));
+    const out = new Set();
+    for (const k of keys) {
+      const [w, d] = k.split('|');
+      if (sig(shiftsOf(w, d, d)) !== sig(shiftsOf(w, d, d, draft))) out.add(k);
+    }
+    return out;
+  }
+  function updateSaveBar(changed = changedCells()) {
+    const n = changed.size;
+    $('g-status').textContent = n ? `저장 안 된 변경 ${n}칸` : '저장됨';
+    $('g-status').classList.toggle('dirty', n > 0);
+    $('g-save').classList.toggle('idle', n === 0);
+    $('g-revert').hidden = n === 0;
+  }
+  function saveGrid() {
+    const n = changedCells().size;
+    if (!draft || !n) { draft = null; updateSaveBar(); return toast('바뀐 내용이 없습니다'); }
+    db.shifts = draft; draft = null; save(); renderAll();
+    toast(`저장했습니다 (${n}칸) · 정산에 반영됨`);
+  }
+  $('g-save').addEventListener('click', saveGrid);
+  $('g-revert').addEventListener('click', () => {
+    if (!confirm('저장하지 않은 변경을 모두 버리고 마지막 저장 상태로 되돌릴까요?')) return;
+    draft = null; renderGrid(); toast('되돌렸습니다');
+  });
+  window.addEventListener('beforeunload', (e) => { if (changedCells().size) { e.preventDefault(); e.returnValue = ''; } });
   function visibleInWeek(w, from, to) {
-    if (db.shifts.some(s => s.workerId === w.id && s.date >= from && s.date <= to)) return true;
+    if (gs().some(s => s.workerId === w.id && s.date >= from && s.date <= to)) return true;
     if (w.leave) return false;
     if (w.endDate && w.endDate <= from) return false;
     if (w.startDate && w.startDate > to) return false;
@@ -532,25 +577,26 @@
     $('g-date').value = gridMon;
     $('g-label').textContent = `${mdLabel(gridMon)} ~ ${mdLabel(sun)}`;
     const b = basicInfo();
-    $('g-hint').innerHTML = `<b>기본</b> = ${esc(b.text)} (실근무 ${hrs(b.work)}) — '설정·데이터'에서 바꿀 수 있습니다. <b>별도</b>를 누르면 그날 출퇴근 시각을 고릅니다. 둘 중 하나만 고를 수 있고, 선택된 것을 다시 누르면 해제(쉬는 날)됩니다. 별도 시간을 누르면 다시 고칠 수 있습니다. 합계(주급)에는 주휴수당이 포함됩니다.`;
+    $('g-hint').innerHTML = `<b>기본</b> = ${esc(b.text)} (실근무 ${hrs(b.work)}) — '설정·데이터'에서 바꿀 수 있습니다. 바꾼 칸은 주황 테두리로 표시되고, 위의 <b>[저장]</b>을 눌러야 정산(월 · 주)에 반영됩니다. <b>별도</b>를 누르면 그날 출퇴근 시각을 고릅니다. 둘 중 하나만 고를 수 있고, 선택된 것을 다시 누르면 해제(쉬는 날)됩니다. 별도 시간을 누르면 다시 고칠 수 있습니다. 합계(주급)에는 주휴수당이 포함됩니다.`;
+    const changed = changedCells(); updateSaveBar(changed);
     const t = $('g-table');
     if (!db.workers.length) { t.innerHTML = `<tr><td class="empty">'알바생' 탭에서 먼저 알바생을 등록하세요.</td></tr>`; return; }
     const ws = db.workers.filter(w => visibleInWeek(w, gridMon, sun));
     if (!ws.length) { t.innerHTML = `<tr><td class="empty">이 주에 근무할 알바생이 없습니다 (퇴사 · 휴직 제외).</td></tr>`; return; }
     const dayTot = days.map(() => 0); let grand = 0;
     const cells = bulkCells(ws, days);
-    const allBasic = cells.length > 0 && cells.every(({ w, d }) => shiftsOf(w.id, d, d).length > 0)
-      && cells.some(({ w, d }) => shiftsOf(w.id, d, d).some(s => s.kind === 'basic'));
+    const allBasic = cells.length > 0 && cells.every(({ w, d }) => gShifts(w.id, d, d).length > 0)
+      && cells.some(({ w, d }) => gShifts(w.id, d, d).some(s => s.kind === 'basic'));
     const rows = ws.map(w => {
       const wage = wageOf(w);
       const cells = days.map((d, i) => {
-        const ss = shiftsOf(w.id, d, d);
+        const ss = gShifts(w.id, d, d);
         const outside = (w.endDate && d >= w.endDate) || (w.startDate && d < w.startDate);
         let pay = 0; ss.forEach(s => { pay += shiftPay(s, wage).total; });
         dayTot[i] += pay;
         if (outside && !ss.length) return `<td class="cell off"><span class="hint">${w.endDate && d >= w.endDate ? '퇴사' : '입사 전'}</span></td>`;
         const kind = !ss.length ? '' : (ss.length === 1 && ss[0].kind === 'basic') ? 'basic' : 'custom';
-        return `<td class="cell ${kind ? 'on' : ''}">
+        return `<td class="cell ${kind ? 'on' : ''} ${changed.has(w.id + '|' + d) ? 'changed' : ''}">
           <label class="ck"><input type="radio" name="c-${w.id}-${d}" data-k="basic" data-w="${w.id}" data-d="${d}" data-on="${kind === 'basic' ? 1 : 0}" ${kind === 'basic' ? 'checked' : ''}>기본</label>
           <label class="ck"><input type="radio" name="c-${w.id}-${d}" data-k="custom" data-w="${w.id}" data-d="${d}" data-on="${kind === 'custom' ? 1 : 0}" ${kind === 'custom' ? 'checked' : ''}>별도</label>
           ${kind === 'custom' ? `<button class="cell-time" data-edit="${w.id}|${d}">${ss.map(shiftText).join(', ')}</button>` : ''}
@@ -558,7 +604,7 @@
         </td>`;
       }).join('');
       let weekPay = 0, weekMin = 0;
-      shiftsOf(w.id, gridMon, sun).forEach(s => { const p = shiftPay(s, wage); weekPay += p.total; weekMin += p.work; });
+      gShifts(w.id, gridMon, sun).forEach(s => { const p = shiftPay(s, wage); weekPay += p.total; weekMin += p.work; });
       const hol = w.holiday ? weeklyHolidayPay(weekMin, wage) : 0;
       grand += weekPay + hol;
       return `<tr>
@@ -569,11 +615,11 @@
       </tr>`;
     }).join('');
     t.innerHTML = `<thead><tr><th class="name-col">알바생</th>${days.map(d => `<th>${DOW[dowOf(d)]}<div class="hint">${d.slice(5).replace('-', '/')}</div></th>`).join('')}<th>합계 (주급)
-        <div class="bulk"><label class="ck"><input type="checkbox" id="g-bulk" ${allBasic ? 'checked' : ''}>기본</label><button class="btn" id="g-bulk-save">일괄저장</button></div></th></tr></thead>
+        <div class="bulk"><label class="ck"><input type="checkbox" id="g-bulk" ${allBasic ? 'checked' : ''}>기본</label><button class="btn" id="g-bulk-save">일괄적용</button></div></th></tr></thead>
       <tbody>${rows}</tbody>
       <tfoot><tr><th class="name-col">일별 합계</th>${dayTot.map(v => `<td class="num">${v ? won(v) : '-'}</td>`).join('')}<td class="num" style="color:var(--accent)">${won(grand)}</td></tr></tfoot>`;
   }
-  const removeDay = (wid, d) => { db.shifts = db.shifts.filter(s => !(s.workerId === wid && s.date === d)); };
+  const removeDay = (wid, d) => { draft = editable().filter(s => !(s.workerId === wid && s.date === d)); };
   const gridDays = () => Array.from({ length: db.settings.showSun ? 7 : 6 }, (_, i) => addDays(gridMon, i));
   const gridWorkers = () => db.workers.filter(w => visibleInWeek(w, gridMon, addDays(gridMon, 6)));
   // 일괄 대상: 화면에 보이는 알바생 × 표시 요일 (퇴사 · 입사 전 날짜 제외)
@@ -589,37 +635,37 @@
     const on = $('g-bulk').checked, s = db.settings;
     const cells = bulkCells(gridWorkers(), gridDays());
     if (!cells.length) return toast('일괄 적용할 칸이 없습니다');
-    const isBasic = (w, d) => { const ss = shiftsOf(w.id, d, d); return ss.length === 1 && ss[0].kind === 'basic'; };
+    const isBasic = (w, d) => { const ss = gShifts(w.id, d, d); return ss.length === 1 && ss[0].kind === 'basic'; };
     if (on) {
-      const customs = cells.filter(({ w, d }) => shiftsOf(w.id, d, d).length && !isBasic(w, d));
+      const customs = cells.filter(({ w, d }) => gShifts(w.id, d, d).length && !isBasic(w, d));
       let overwrite = true;
       if (customs.length) overwrite = confirm(`'별도'로 입력한 칸이 ${customs.length}개 있습니다.\n\n[확인] 별도 칸도 모두 기본으로 바꾸기\n[취소] 별도 칸은 그대로 두기`);
       let n = 0;
       for (const { w, d } of cells) {
         if (isBasic(w, d)) continue;
-        if (!overwrite && shiftsOf(w.id, d, d).length) continue;
+        if (!overwrite && gShifts(w.id, d, d).length) continue;
         removeDay(w.id, d);
-        db.shifts.push({ id: uid(), workerId: w.id, date: d, kind: 'basic', mode: 'time', start: s.basicStart, end: s.basicEnd, break: s.basicBreak });
+        editable().push({ id: uid(), workerId: w.id, date: d, kind: 'basic', mode: 'time', start: s.basicStart, end: s.basicEnd, break: s.basicBreak });
         n++;
       }
-      save(); renderAll();
-      toast(n ? `${n}칸을 기본(${s.basicStart}~${s.basicEnd})으로 저장했습니다` : '이미 모두 기본입니다');
+      renderGrid();
+      toast(n ? `${n}칸을 기본으로 바꿨습니다 · 위의 [저장]을 눌러야 정산에 반영됩니다` : '이미 모두 기본입니다');
     } else {
       const basics = cells.filter(({ w, d }) => isBasic(w, d));
-      if (!basics.length) return toast("'기본'을 체크한 뒤 일괄저장을 누르세요");
+      if (!basics.length) return toast("'기본'을 체크한 뒤 일괄적용을 누르세요");
       if (!confirm(`이번 주 '기본' ${basics.length}칸을 모두 해제할까요?\n('별도'로 입력한 칸은 그대로 둡니다)`)) return renderGrid();
       basics.forEach(({ w, d }) => removeDay(w.id, d));
-      save(); renderAll(); toast(`기본 ${basics.length}칸을 해제했습니다`);
+      renderGrid(); toast(`기본 ${basics.length}칸을 해제했습니다 · [저장]을 눌러야 반영됩니다`);
     }
   }
   // 기본 / 별도 라디오: 둘 중 하나만 선택. 선택된 것을 다시 누르면 해제 (그날 근무 없음)
   function onCellRadio(c) {
     const { w, d, k } = c.dataset; const s = db.settings;
-    if (c.dataset.on === '1') { removeDay(w, d); save(); renderAll(); return; }
+    if (c.dataset.on === '1') { removeDay(w, d); renderGrid(); return; }
     if (k === 'basic') {
       removeDay(w, d);
-      db.shifts.push({ id: uid(), workerId: w, date: d, kind: 'basic', mode: 'time', start: s.basicStart, end: s.basicEnd, break: s.basicBreak });
-      save(); renderAll();
+      editable().push({ id: uid(), workerId: w, date: d, kind: 'basic', mode: 'time', start: s.basicStart, end: s.basicEnd, break: s.basicBreak });
+      renderGrid();
     } else openModal(w, d);
   }
   $('g-table').addEventListener('click', (e) => {
@@ -649,7 +695,7 @@
     $('m-prev').innerHTML = `실근무 <b>${hrs(p.work)}</b>${p.night ? ` (야간 ${hrs(p.night)})` : ''} · 일급 <b>${won(p.total)}</b>${toMin(f.end) <= toMin(f.start) ? '<br>퇴근이 출근보다 일러서 다음 날 퇴근으로 계산합니다.' : ''}`;
   }
   function openModal(w, d) {
-    const ss = shiftsOf(w, d, d).filter(s => s.mode !== 'dur');
+    const ss = gShifts(w, d, d).filter(s => s.mode !== 'dur');
     const s = ss[0] || { start: db.settings.basicStart, end: db.settings.basicEnd, break: db.settings.basicBreak };
     modalCtx = { w, d };
     $('m-title').textContent = `${workerById(w).name} · ${mdLabel(d)} 별도 근무`;
@@ -658,14 +704,14 @@
     $('m-br').value = s.break || 0;
     $('m-bg').hidden = false; modalPreview();
   }
-  function closeModal() { modalCtx = null; $('m-bg').hidden = true; renderAll(); }
+  function closeModal() { modalCtx = null; $('m-bg').hidden = true; renderGrid(); }
   ['m-sh', 'm-sm', 'm-eh', 'm-em', 'm-br'].forEach(id => $(id).addEventListener('input', modalPreview));
   $('m-save').addEventListener('click', () => {
     const f = modalShift();
     if (shiftCalc(f).work <= 0) return toast('근무 시간이 0입니다');
     removeDay(modalCtx.w, modalCtx.d);
-    db.shifts.push({ id: uid(), workerId: modalCtx.w, date: modalCtx.d, kind: 'custom', ...f });
-    save(); closeModal(); toast('저장했습니다');
+    editable().push({ id: uid(), workerId: modalCtx.w, date: modalCtx.d, kind: 'custom', ...f });
+    closeModal(); toast('입력했습니다 · 위의 [저장]을 눌러야 정산에 반영됩니다');
   });
   $('m-cancel').addEventListener('click', closeModal);
   $('m-bg').addEventListener('click', (e) => { if (e.target === $('m-bg')) closeModal(); });
@@ -901,6 +947,7 @@
       if (!confirm(`${w.name} 님과 근무 기록 ${n}건을 모두 삭제할까요?\n기록을 남기려면 '퇴사일'을 입력하세요.`)) return;
       db.workers = db.workers.filter(x => x.id !== w.id);
       db.shifts = db.shifts.filter(s => s.workerId !== w.id);
+      if (draft) draft = draft.filter(s => s.workerId !== w.id);
       save(); renderAll(); toast('삭제했습니다');
     }
   });
@@ -963,14 +1010,14 @@
       if (!confirm(`알바생 ${d.workers.length}명 · 근무 ${d.shifts.length}건을 지금 데이터에 합칩니다 (같은 항목은 백업 것으로).`)) return;
       const inc = migrate(d);
       const byId = (arr, add) => { const m = new Map(arr.map(x => [x.id, x])); add.forEach(x => x && x.id && m.set(x.id, x)); return [...m.values()]; };
-      db.workers = byId(db.workers, inc.workers); db.shifts = byId(db.shifts, inc.shifts); db.settings = inc.settings;
+      db.workers = byId(db.workers, inc.workers); db.shifts = byId(db.shifts, inc.shifts); db.settings = inc.settings; draft = null;
       save(); syncSettingsForm(); renderAll(); toast('불러왔습니다');
     } catch (err) { toast('백업 파일을 읽지 못했습니다'); }
   });
   $('d-clear').addEventListener('click', () => {
     if (!confirm('알바생과 근무 기록을 모두 지웁니다. 되돌릴 수 없습니다.\n먼저 백업을 받으셨나요?')) return;
     if (prompt("정말 지우려면 '삭제'라고 입력하세요") !== '삭제') return;
-    const settings = db.settings; db = defaults(); db.settings = settings;
+    const settings = db.settings; db = defaults(); db.settings = settings; draft = null;
     save(); renderAll(); toast('모두 지웠습니다');
   });
   function renderDataStats() {
@@ -1063,7 +1110,7 @@
     if (!confirm('PIN은 되찾을 수 없습니다.\nPIN을 초기화하면 이 브라우저에 저장된 알바생 · 근무 기록이 모두 지워집니다.\n(백업 파일이 있으면 새 PIN을 만든 뒤 불러올 수 있습니다)')) return;
     if (prompt("정말 초기화하려면 '초기화'라고 입력하세요") !== '초기화') return;
     try { localStorage.removeItem(KEY); localStorage.removeItem(PIN_KEY); } catch (e) {}
-    db = defaults(); syncSettingsForm(); showGate();
+    db = defaults(); draft = null; syncSettingsForm(); showGate();
   });
   $('lock-btn').addEventListener('click', showGate);
   $('pin-change').addEventListener('click', async () => {
