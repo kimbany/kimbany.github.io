@@ -147,14 +147,39 @@
   .modal h3 { font-size: 17px; margin-bottom: 14px; }
   .hm { display: flex; align-items: center; gap: 6px; margin-bottom: 12px; font-size: 14px; }
   .hm select { flex: 1; }
+
+  /* PIN 잠금 */
+  #gate { position: fixed; inset: 0; background: var(--bg); display: flex; align-items: center; justify-content: center; padding: 16px; z-index: 50; }
+  #gate[hidden] { display: none; }
+  .gate-card { background: var(--card); border: 1px solid var(--line); border-radius: 18px; padding: 28px 24px; width: 100%; max-width: 340px; text-align: center; }
+  .gate-card h2 { font-size: 19px; margin: 8px 0 6px; }
+  #gate-pin { text-align: center; font-size: 26px; letter-spacing: 10px; margin: 16px 0 6px; }
+  #gate-err { color: var(--danger); font-size: 13px; min-height: 20px; margin-bottom: 8px; }
+  .linkbtn { background: none; border: none; color: var(--sub); font-size: 12.5px; margin-top: 14px; cursor: pointer; text-decoration: underline; font-family: inherit; }
+  .shake { animation: shake .3s; }
+  @keyframes shake { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-8px); } 75% { transform: translateX(8px); } }
+  .bulk { display: flex; align-items: center; justify-content: center; gap: 4px; margin-top: 6px; flex-wrap: wrap; }
+  .bulk .btn { padding: 5px 8px; font-size: 12px; }
 </style>
 </head>
 <body>
-<div class="wrap">
+<div id="gate">
+  <div class="gate-card" id="gate-card">
+    <div style="font-size:34px">🔒</div>
+    <h2 id="gate-title">PIN 번호 입력</h2>
+    <p class="hint" id="gate-sub"></p>
+    <input id="gate-pin" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="6" autocomplete="off" placeholder="••••">
+    <p id="gate-err"></p>
+    <button class="btn" id="gate-ok" style="width:100%">들어가기</button>
+    <button class="linkbtn" id="gate-forgot" hidden>PIN을 잊었어요</button>
+  </div>
+</div>
+
+<div class="wrap" id="app" hidden>
   <div class="top narrow">
-    <a href="../index.html">← 홈</a>
+    <span style="width:56px"></span>
     <h1 id="h-title">⏱️ 알바 시급 관리</h1>
-    <span style="width:40px"></span>
+    <button class="btn ghost sm" id="lock-btn" title="잠그기">🔒 잠금</button>
   </div>
 
   <div class="tabs" role="tablist">
@@ -321,6 +346,17 @@
         <div><label>고용보험</label><input type="number" step="0.001" id="set-ei"></div>
       </div>
       <p class="hint">요율 기본값은 2026년 기준 추정치입니다. 바꾸면 바로 저장됩니다.</p>
+    </div>
+
+    <div class="card">
+      <h2>PIN 번호 변경</h2>
+      <div class="row">
+        <div><label>지금 PIN</label><input type="password" id="pin-cur" inputmode="numeric" maxlength="6" autocomplete="off"></div>
+        <div><label>새 PIN (숫자 4~6자리)</label><input type="password" id="pin-new" inputmode="numeric" maxlength="6" autocomplete="off"></div>
+        <div><label>새 PIN 한 번 더</label><input type="password" id="pin-new2" inputmode="numeric" maxlength="6" autocomplete="off"></div>
+      </div>
+      <button class="btn" id="pin-change">PIN 변경</button>
+      <p class="hint" style="margin-top:10px">PIN은 이 브라우저에 저장된 기록을 남이 못 보게 막는 잠금입니다. 창을 닫으면 다시 PIN을 물어봅니다.</p>
     </div>
 
     <div class="card">
@@ -499,6 +535,9 @@
     const ws = db.workers.filter(w => visibleInWeek(w, gridMon, sun));
     if (!ws.length) { t.innerHTML = `<tr><td class="empty">이 주에 근무할 알바생이 없습니다 (퇴사 · 휴직 제외).</td></tr>`; return; }
     const dayTot = days.map(() => 0); let grand = 0;
+    const cells = bulkCells(ws, days);
+    const allBasic = cells.length > 0 && cells.every(({ w, d }) => shiftsOf(w.id, d, d).length > 0)
+      && cells.some(({ w, d }) => shiftsOf(w.id, d, d).some(s => s.kind === 'basic'));
     const rows = ws.map(w => {
       const wage = wageOf(w);
       const cells = days.map((d, i) => {
@@ -526,11 +565,50 @@
           <div class="hint">${hrs(weekMin)}${hol ? `<br>주휴 ${won(hol)} 포함` : (w.holiday && weekMin ? '<br>주휴 없음 (15h 미만)' : '')}</div></td>
       </tr>`;
     }).join('');
-    t.innerHTML = `<thead><tr><th class="name-col">알바생</th>${days.map(d => `<th>${DOW[dowOf(d)]}<div class="hint">${d.slice(5).replace('-', '/')}</div></th>`).join('')}<th>합계 (주급)</th></tr></thead>
+    t.innerHTML = `<thead><tr><th class="name-col">알바생</th>${days.map(d => `<th>${DOW[dowOf(d)]}<div class="hint">${d.slice(5).replace('-', '/')}</div></th>`).join('')}<th>합계 (주급)
+        <div class="bulk"><label class="ck"><input type="checkbox" id="g-bulk" ${allBasic ? 'checked' : ''}>기본</label><button class="btn" id="g-bulk-save">일괄저장</button></div></th></tr></thead>
       <tbody>${rows}</tbody>
       <tfoot><tr><th class="name-col">일별 합계</th>${dayTot.map(v => `<td class="num">${v ? won(v) : '-'}</td>`).join('')}<td class="num" style="color:var(--accent)">${won(grand)}</td></tr></tfoot>`;
   }
   const removeDay = (wid, d) => { db.shifts = db.shifts.filter(s => !(s.workerId === wid && s.date === d)); };
+  const gridDays = () => Array.from({ length: db.settings.showSun ? 7 : 6 }, (_, i) => addDays(gridMon, i));
+  const gridWorkers = () => db.workers.filter(w => visibleInWeek(w, gridMon, addDays(gridMon, 6)));
+  // 일괄 대상: 화면에 보이는 알바생 × 표시 요일 (퇴사 · 입사 전 날짜 제외)
+  function bulkCells(ws, days) {
+    const out = [];
+    for (const w of ws) for (const d of days) {
+      if ((w.endDate && d >= w.endDate) || (w.startDate && d < w.startDate)) continue;
+      out.push({ w, d });
+    }
+    return out;
+  }
+  function bulkSave() {
+    const on = $('g-bulk').checked, s = db.settings;
+    const cells = bulkCells(gridWorkers(), gridDays());
+    if (!cells.length) return toast('일괄 적용할 칸이 없습니다');
+    const isBasic = (w, d) => { const ss = shiftsOf(w.id, d, d); return ss.length === 1 && ss[0].kind === 'basic'; };
+    if (on) {
+      const customs = cells.filter(({ w, d }) => shiftsOf(w.id, d, d).length && !isBasic(w, d));
+      let overwrite = true;
+      if (customs.length) overwrite = confirm(`'별도'로 입력한 칸이 ${customs.length}개 있습니다.\n\n[확인] 별도 칸도 모두 기본으로 바꾸기\n[취소] 별도 칸은 그대로 두기`);
+      let n = 0;
+      for (const { w, d } of cells) {
+        if (isBasic(w, d)) continue;
+        if (!overwrite && shiftsOf(w.id, d, d).length) continue;
+        removeDay(w.id, d);
+        db.shifts.push({ id: uid(), workerId: w.id, date: d, kind: 'basic', mode: 'time', start: s.basicStart, end: s.basicEnd, break: s.basicBreak });
+        n++;
+      }
+      save(); renderAll();
+      toast(n ? `${n}칸을 기본(${s.basicStart}~${s.basicEnd})으로 저장했습니다` : '이미 모두 기본입니다');
+    } else {
+      const basics = cells.filter(({ w, d }) => isBasic(w, d));
+      if (!basics.length) return toast("'기본'을 체크한 뒤 일괄저장을 누르세요");
+      if (!confirm(`이번 주 '기본' ${basics.length}칸을 모두 해제할까요?\n('별도'로 입력한 칸은 그대로 둡니다)`)) return renderGrid();
+      basics.forEach(({ w, d }) => removeDay(w.id, d));
+      save(); renderAll(); toast(`기본 ${basics.length}칸을 해제했습니다`);
+    }
+  }
   $('g-table').addEventListener('change', (e) => {
     const c = e.target; if (!c.dataset.k) return;
     const { w, d, k } = c.dataset; const s = db.settings;
@@ -542,6 +620,7 @@
     else { removeDay(w, d); save(); renderAll(); }
   });
   $('g-table').addEventListener('click', (e) => {
+    if (e.target.id === 'g-bulk-save') return bulkSave();
     const b = e.target.closest('[data-edit]'); if (!b) return;
     const [w, d] = b.dataset.edit.split('|'); openModal(w, d);
   });
@@ -928,11 +1007,78 @@
     renderGrid(); renderPayroll(); renderWorkers(); renderCalc(); renderDataStats();
   }
 
+  // ---------- PIN 잠금 ----------
+  const PIN_KEY = 'alba-pay-pin', UNLOCK_KEY = 'alba-pay-unlocked';
+  async function pinHash(pin) {
+    const text = 'alba-pay:' + pin;
+    if (window.crypto && crypto.subtle) {
+      const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
+      return [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, '0')).join('');
+    }
+    let h = 0; for (const ch of text) h = (h * 31 + ch.charCodeAt(0)) | 0; return 'f' + h;
+  }
+  const getPin = () => { try { return localStorage.getItem(PIN_KEY); } catch (e) { return null; } };
+  const setPin = (h) => { try { localStorage.setItem(PIN_KEY, h); } catch (e) {} };
+  const validPin = (p) => /^\d{4,6}$/.test(p);
+  let gateStep = 'enter', firstPin = '';
+  function showGate() {
+    $('app').hidden = true; $('gate').hidden = false;
+    try { sessionStorage.removeItem(UNLOCK_KEY); } catch (e) {}
+    gateStep = getPin() ? 'enter' : 'new'; firstPin = '';
+    updateGate();
+  }
+  function updateGate(err = '') {
+    const t = { enter: ['PIN 번호 입력', '알바 관리에 들어가려면 PIN을 입력하세요', '들어가기'],
+      new: ['PIN 만들기', '처음 한 번만 정합니다. 숫자 4~6자리', '다음'],
+      confirm: ['PIN 확인', '같은 PIN을 한 번 더 입력하세요', 'PIN 저장'] }[gateStep];
+    $('gate-title').textContent = t[0]; $('gate-sub').textContent = t[1]; $('gate-ok').textContent = t[2];
+    $('gate-forgot').hidden = gateStep !== 'enter';
+    $('gate-err').textContent = err; $('gate-pin').value = '';
+    if (err) { const c = $('gate-card'); c.classList.remove('shake'); void c.offsetWidth; c.classList.add('shake'); }
+    setTimeout(() => $('gate-pin').focus(), 50);
+  }
+  function unlock() {
+    try { sessionStorage.setItem(UNLOCK_KEY, '1'); } catch (e) {}
+    $('gate').hidden = true; $('app').hidden = false; renderAll();
+  }
+  async function gateSubmit() {
+    const pin = $('gate-pin').value.trim();
+    if (gateStep === 'enter') {
+      if (await pinHash(pin) === getPin()) unlock(); else updateGate('PIN이 맞지 않습니다');
+    } else if (gateStep === 'new') {
+      if (!validPin(pin)) return updateGate('숫자 4~6자리로 입력하세요');
+      firstPin = pin; gateStep = 'confirm'; updateGate();
+    } else {
+      if (pin !== firstPin) { gateStep = 'new'; return updateGate('두 번 입력한 PIN이 다릅니다. 다시 정해 주세요'); }
+      setPin(await pinHash(pin)); toast('PIN을 저장했습니다'); unlock();
+    }
+  }
+  $('gate-ok').addEventListener('click', gateSubmit);
+  $('gate-pin').addEventListener('keydown', (e) => { if (e.key === 'Enter') gateSubmit(); });
+  $('gate-forgot').addEventListener('click', () => {
+    if (!confirm('PIN은 되찾을 수 없습니다.\nPIN을 초기화하면 이 브라우저에 저장된 알바생 · 근무 기록이 모두 지워집니다.\n(백업 파일이 있으면 새 PIN을 만든 뒤 불러올 수 있습니다)')) return;
+    if (prompt("정말 초기화하려면 '초기화'라고 입력하세요") !== '초기화') return;
+    try { localStorage.removeItem(KEY); localStorage.removeItem(PIN_KEY); } catch (e) {}
+    db = defaults(); syncSettingsForm(); showGate();
+  });
+  $('lock-btn').addEventListener('click', showGate);
+  $('pin-change').addEventListener('click', async () => {
+    const cur = $('pin-cur').value.trim(), n1 = $('pin-new').value.trim(), n2 = $('pin-new2').value.trim();
+    if (await pinHash(cur) !== getPin()) return toast('지금 PIN이 맞지 않습니다');
+    if (!validPin(n1)) return toast('새 PIN은 숫자 4~6자리입니다');
+    if (n1 !== n2) return toast('새 PIN 두 칸이 다릅니다');
+    setPin(await pinHash(n1)); ['pin-cur', 'pin-new', 'pin-new2'].forEach(id => { $(id).value = ''; });
+    toast('PIN을 바꿨습니다');
+  });
+
   // ---------- 시작 ----------
   save();
   $('p-month').value = thisMonth(); $('p-week').value = today();
   try { payMode = sessionStorage.getItem(KEY + '-paymode') || 'month'; } catch (e) {}
-  syncSettingsForm(); resetWorkerForm(); renderAll();
+  syncSettingsForm(); resetWorkerForm();
+  let unlocked = false;
+  try { unlocked = sessionStorage.getItem(UNLOCK_KEY) === '1' && !!getPin(); } catch (e) {}
+  if (unlocked) unlock(); else showGate();
   try {
     const tab = sessionStorage.getItem(KEY + '-tab');
     if (tab) document.querySelector(`.tabs button[data-tab="${tab}"]`)?.click();
