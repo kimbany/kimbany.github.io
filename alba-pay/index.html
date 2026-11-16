@@ -89,6 +89,12 @@
   .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
   .icon-btn { background: none; border: none; color: var(--sub); cursor: pointer; font-size: 14px; padding: 4px 6px; }
   .icon-btn:hover { color: var(--danger); }
+  .seg { display: inline-flex; background: var(--tabs); border-radius: 10px; padding: 3px; gap: 2px; margin-bottom: 12px; }
+  .seg button { border: none; background: transparent; padding: 7px 14px; border-radius: 8px; font-size: 13.5px; font-weight: 700; color: var(--sub); cursor: pointer; }
+  .seg button.on { background: var(--card); color: var(--accent); box-shadow: 0 1px 3px rgba(0,0,0,.08); }
+  .week-nav { display: flex; gap: 6px; align-items: center; }
+  .week-nav input { flex: 1; }
+  .week-label { font-size: 14px; font-weight: 700; margin: -4px 0 12px; }
 </style>
 </head>
 <body>
@@ -102,7 +108,7 @@
   <div class="tabs" role="tablist">
     <button class="active" data-tab="calc">계산기</button>
     <button data-tab="shifts">근무 기록</button>
-    <button data-tab="payroll">월 정산</button>
+    <button data-tab="payroll">정산</button>
     <button data-tab="workers">알바생</button>
     <button data-tab="data">설정·데이터</button>
   </div>
@@ -113,11 +119,14 @@
       <h2>빠른 급여 계산</h2>
       <div class="row">
         <div><label>시급 (원)</label><input type="number" id="c-wage" inputmode="numeric"></div>
-        <div><label>하루 근무 시간</label><input type="number" id="c-hours" value="5" step="0.5" inputmode="decimal"></div>
         <div><label>주 근무 일수</label><input type="number" id="c-days" value="5" min="1" max="7" inputmode="numeric"></div>
       </div>
       <div class="row">
-        <div><label>하루 중 야간 시간 (22~06시)</label><input type="number" id="c-night" value="0" step="0.5" inputmode="decimal"></div>
+        <div><label>하루 근무 (시간)</label><input type="number" id="c-h" value="5" min="0" inputmode="numeric"></div>
+        <div><label>하루 근무 (분)</label><input type="number" id="c-m" value="0" min="0" max="59" inputmode="numeric"></div>
+      </div>
+      <div class="row">
+        <div><label>하루 중 야간 (분, 22~06시)</label><input type="number" id="c-night" value="0" min="0" inputmode="numeric"></div>
         <div><label>공제</label>
           <select id="c-deduct">
             <option value="none">공제 없음</option>
@@ -140,10 +149,19 @@
         <div><label>알바생</label><select id="s-worker"></select></div>
         <div><label>날짜</label><input type="date" id="s-date"></div>
       </div>
-      <div class="row">
-        <div><label>출근</label><input type="time" id="s-start" value="09:00"></div>
-        <div><label>퇴근</label><input type="time" id="s-end" value="18:00"></div>
-        <div><label>휴게 (분)</label><input type="number" id="s-break" value="60" step="10" inputmode="numeric"></div>
+      <div class="seg" id="s-mode">
+        <button class="on" data-mode="time">출퇴근 시각</button>
+        <button data-mode="dur">근무시간 직접 (시간·분)</button>
+      </div>
+      <div class="row" id="s-row-time">
+        <div><label>출근</label><input type="time" id="s-start" value="09:00" step="60"></div>
+        <div><label>퇴근</label><input type="time" id="s-end" value="18:00" step="60"></div>
+        <div><label>휴게 (분)</label><input type="number" id="s-break" value="60" min="0" inputmode="numeric"></div>
+      </div>
+      <div class="row" id="s-row-dur" style="display:none">
+        <div><label>근무 (시간)</label><input type="number" id="s-dh" value="4" min="0" inputmode="numeric"></div>
+        <div><label>근무 (분)</label><input type="number" id="s-dm" value="0" min="0" max="59" inputmode="numeric"></div>
+        <div><label>그중 야간 (분)</label><input type="number" id="s-dn" value="0" min="0" inputmode="numeric"></div>
       </div>
       <div class="row">
         <div><label>메모 (선택)</label><input type="text" id="s-memo" placeholder="대타, 마감 등"></div>
@@ -153,7 +171,7 @@
         <button class="btn" id="s-add">기록 추가</button>
         <button class="btn ghost" id="s-cancel" style="display:none">수정 취소</button>
       </div>
-      <p class="hint" style="margin-top:8px">퇴근이 출근보다 이르면 다음 날 퇴근(밤샘)으로 계산합니다.</p>
+      <p class="hint" style="margin-top:8px">분 단위로 계산합니다 (급여 = 근무 분 × 분당 단가). 퇴근이 출근보다 이르면 다음 날 퇴근(밤샘)으로 봅니다.</p>
     </div>
 
     <div class="card">
@@ -169,13 +187,27 @@
   <!-- 월 정산 -->
   <section class="panel" id="tab-payroll">
     <div class="card">
-      <h2>월 정산 <button class="btn ghost sm" id="p-csv">CSV 받기</button></h2>
-      <div class="toolbar">
+      <h2><span id="p-title">주 정산</span> <button class="btn ghost sm" id="p-csv">CSV 받기</button></h2>
+      <div class="seg" id="p-mode">
+        <button class="on" data-mode="week">주 정산 (주급)</button>
+        <button data-mode="month">월 정산</button>
+      </div>
+      <div class="toolbar" id="p-bar-week">
+        <div><label>정산 주 (그 주의 아무 날짜)</label>
+          <div class="week-nav">
+            <button class="btn ghost sm" id="p-prev" aria-label="이전 주">◀</button>
+            <input type="date" id="p-week">
+            <button class="btn ghost sm" id="p-next" aria-label="다음 주">▶</button>
+          </div>
+        </div>
+      </div>
+      <div class="week-label" id="p-week-label"></div>
+      <div class="toolbar" id="p-bar-month" style="display:none">
         <div><label>정산 월</label><input type="month" id="p-month"></div>
       </div>
       <div class="stats" id="p-stats"></div>
       <div id="p-list"></div>
-      <p class="hint">주휴수당은 월요일~일요일을 한 주로 보고, 그 주의 일요일이 정산 월에 속하면 이번 달에 넣습니다 (앞 달 날짜의 근무시간도 그 주 계산에 포함). 4대보험 요율은 '설정·데이터' 탭에서 바꿀 수 있는 추정치입니다. 실제 지급 전에는 노무 · 세무 기준을 확인하세요.</p>
+      <p class="hint">한 주는 월요일~일요일입니다. 주 정산은 그 주 근무분과 그 주 주휴수당을 합해 보여 줍니다. 월 정산에서는 일요일이 그 달에 있는 주의 주휴수당을 넣습니다 (앞 달 날짜의 근무시간도 그 주 계산에 포함). 4대보험 요율은 '설정·데이터' 탭에서 바꿀 수 있는 추정치입니다. 실제 지급 전에는 노무 · 세무 기준을 확인하세요.</p>
     </div>
   </section>
 
@@ -221,6 +253,16 @@
         <div><label>사업장 이름</label><input type="text" id="set-shop" placeholder="OO카페"></div>
         <div><label>기본 시급 (원)</label><input type="number" id="set-wage" inputmode="numeric"></div>
       </div>
+      <div class="row">
+        <div><label>분당 단가 원 미만 처리</label>
+          <select id="set-round">
+            <option value="exact">그대로 (시급 ÷ 60)</option>
+            <option value="floor">버림</option>
+            <option value="round">반올림</option>
+            <option value="ceil">올림</option>
+          </select>
+        </div>
+      </div>
       <label class="check"><input type="checkbox" id="set-five"> 5인 이상 사업장 (야간 22~06시 · 하루 8시간 초과 근무 0.5배 가산)</label>
       <h2 style="margin-top:14px">4대보험 근로자 부담률 (%)</h2>
       <div class="row">
@@ -253,7 +295,7 @@
   const KEY = 'alba-pay-v1';
   const MIN_WAGE_2026 = 10320;
   const defaults = () => ({
-    settings: { shop: '', wage: MIN_WAGE_2026, five: false, np: 4.75, hi: 3.595, ltc: 13.14, ei: 0.9 },
+    settings: { shop: '', wage: MIN_WAGE_2026, five: false, round: 'exact', np: 4.75, hi: 3.595, ltc: 13.14, ei: 0.9 },
     workers: [], shifts: []
   });
 
@@ -277,7 +319,15 @@
   const $ = (id) => document.getElementById(id);
   const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
   const won = (n) => Math.round(n).toLocaleString('ko-KR') + '원';
-  const hrs = (m) => { const h = m / 60; return (Math.round(h * 100) / 100) + '시간'; };
+  const hrs = (m) => {
+    m = Math.round(m); const h = Math.floor(m / 60), mm = m % 60;
+    return h ? (mm ? `${h}시간 ${mm}분` : `${h}시간`) : `${mm}분`;
+  };
+  const perMin = (wage) => {
+    const r = wage / 60, mode = db.settings.round;
+    return mode === 'floor' ? Math.floor(r) : mode === 'round' ? Math.round(r) : mode === 'ceil' ? Math.ceil(r) : r;
+  };
+  const perMinLabel = (wage) => { const r = perMin(wage); return (Number.isInteger(r) ? r.toLocaleString('ko-KR') : r.toFixed(2)) + '원'; };
   const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const pad = (n) => String(n).padStart(2, '0');
   const ymd = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
@@ -307,6 +357,10 @@
     return n;
   }
   function shiftCalc(sh) {
+    if (sh.mode === 'dur') {
+      const work = Math.max(0, +sh.minutes || 0);
+      return { work, night: Math.min(work, Math.max(0, +sh.nightMin || 0)), over: Math.max(0, work - 480) };
+    }
     const s = toMin(sh.start); let e = toMin(sh.end);
     if (e <= s) e += 1440;
     const gross = e - s;
@@ -321,14 +375,16 @@
   }
   function shiftPay(sh, wage, five) {
     const c = shiftCalc(sh);
-    const base = c.work / 60 * wage;
-    const nightAdd = five ? c.night / 60 * wage * 0.5 : 0;
-    const overAdd = five ? c.over / 60 * wage * 0.5 : 0;
+    const rate = perMin(wage);
+    const base = c.work * rate;
+    const nightAdd = five ? c.night * rate * 0.5 : 0;
+    const overAdd = five ? c.over * rate * 0.5 : 0;
     return { ...c, base, nightAdd, overAdd, total: base + nightAdd + overAdd };
   }
   function weeklyHolidayPay(weekMin, wage) {
     if (weekMin < 15 * 60) return 0;
-    return Math.min(weekMin, 40 * 60) / 60 / 40 * 8 * wage;
+    // 주휴시간(분) = 주 근무분 ÷ 40시간 × 8시간 → 분당 단가로 계산
+    return Math.min(weekMin, 40 * 60) / 5 * perMin(wage);
   }
   function deductCalc(type, gross) {
     const s = db.settings;
@@ -350,17 +406,20 @@
 
   // ---------- 빠른 계산기 ----------
   function renderCalc() {
-    const wage = +$('c-wage').value || 0, h = +$('c-hours').value || 0, d = Math.min(7, +$('c-days').value || 0);
-    const night = Math.min(+$('c-night').value || 0, h), five = $('c-five').checked;
-    const day = h * wage + (five ? night * wage * 0.5 + Math.max(0, h - 8) * wage * 0.5 : 0);
-    const weekH = h * d;
+    const wage = +$('c-wage').value || 0, d = Math.min(7, +$('c-days').value || 0);
+    const dayMin = (+$('c-h').value || 0) * 60 + (+$('c-m').value || 0);
+    const five = $('c-five').checked;
+    const p = shiftPay({ mode: 'dur', minutes: dayMin, nightMin: +$('c-night').value || 0 }, wage, five);
+    const day = p.total;
+    const weekMin = dayMin * d;
     const week = day * d;
-    const holiday = weeklyHolidayPay(weekH * 60, wage);
+    const holiday = weeklyHolidayPay(weekMin, wage);
     const monthGross = (week + holiday) * 4.345;
     const ded = deductCalc($('c-deduct').value, monthGross);
     const lines = [
-      ['일급', won(day)],
-      ['주 근무시간', weekH + '시간'],
+      ['분당 단가', perMinLabel(wage)],
+      ['일급 (' + hrs(dayMin) + ')', won(day)],
+      ['주 근무시간', hrs(weekMin)],
       ['주급 (근무분)', won(week)],
       ['주휴수당 (주)', holiday ? won(holiday) : '해당 없음 (주 15시간 미만)'],
       ['주급 합계', won(week + holiday)],
@@ -371,7 +430,7 @@
       `<div class="line total"><span>월 예상 실수령</span><span class="num">${won(monthGross - ded.total)}</span></div>` +
       (wage && wage < MIN_WAGE_2026 ? `<p class="hint" style="color:var(--danger);margin-top:6px">2026년 최저시급(${won(MIN_WAGE_2026)})보다 낮습니다.</p>` : '');
   }
-  ['c-wage', 'c-hours', 'c-days', 'c-night', 'c-deduct', 'c-five'].forEach(id => $(id).addEventListener('input', renderCalc));
+  ['c-wage', 'c-h', 'c-m', 'c-days', 'c-night', 'c-deduct', 'c-five'].forEach(id => $(id).addEventListener('input', renderCalc));
 
   // ---------- 알바생 ----------
   let editingWorker = null;
@@ -412,7 +471,7 @@
             <button class="btn danger sm" data-wdel="${w.id}">삭제</button>
           </span>
         </div>
-        <div class="hint">시급 <b class="num">${won(w.wage)}</b> · ${DEDUCT_LABEL[w.deduct] || '공제 없음'} · 주휴 ${w.holiday ? '대상' : '제외'}
+        <div class="hint">시급 <b class="num">${won(w.wage)}</b> (분당 ${perMinLabel(w.wage)}) ·${DEDUCT_LABEL[w.deduct] || '공제 없음'} · 주휴 ${w.holiday ? '대상' : '제외'}
           ${w.phone ? ' · ' + esc(w.phone) : ''}${w.since ? ' · 입사 ' + esc(w.since) : ''}</div>
         <div class="hint">이번 달 ${hrs(monthMin)} · 누적 기록 ${shifts.length}건</div>
         ${w.memo ? `<div class="hint">📝 ${esc(w.memo)}</div>` : ''}
@@ -449,21 +508,33 @@
       (list.length ? list.map(w => `<option value="${w.id}">${esc(w.name)}</option>`).join('') : (all ? '' : '<option value="">먼저 알바생을 등록하세요</option>'));
     if ([...sel.options].some(o => o.value === cur)) sel.value = cur;
   }
+  let shiftMode = 'time';
+  function setShiftMode(m) {
+    shiftMode = m;
+    $('s-mode').querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.mode === m));
+    $('s-row-time').style.display = m === 'time' ? '' : 'none';
+    $('s-row-dur').style.display = m === 'dur' ? '' : 'none';
+    renderPreview();
+  }
+  $('s-mode').addEventListener('click', (e) => { const b = e.target.closest('button'); if (b) setShiftMode(b.dataset.mode); });
   function shiftForm() {
-    return { workerId: $('s-worker').value, date: $('s-date').value, start: $('s-start').value, end: $('s-end').value,
-      break: +$('s-break').value || 0, memo: $('s-memo').value.trim() };
+    const common = { workerId: $('s-worker').value, date: $('s-date').value, memo: $('s-memo').value.trim() };
+    if (shiftMode === 'dur') return { ...common, mode: 'dur', start: '', end: '', break: 0,
+      minutes: (+$('s-dh').value || 0) * 60 + (+$('s-dm').value || 0), nightMin: +$('s-dn').value || 0 };
+    return { ...common, mode: 'time', start: $('s-start').value, end: $('s-end').value, break: +$('s-break').value || 0,
+      minutes: null, nightMin: null };
   }
   function renderPreview() {
     const f = shiftForm(); const w = workerById(f.workerId);
-    if (!f.start || !f.end || !w) { $('s-preview').textContent = ''; return; }
+    if (!w || (f.mode === 'time' && (!f.start || !f.end))) { $('s-preview').textContent = ''; return; }
     const p = shiftPay(f, w.wage, db.settings.five);
     $('s-preview').innerHTML = `실근무 <b>${hrs(p.work)}</b>${p.night ? ` (야간 ${hrs(p.night)})` : ''} · 예상 <b>${won(p.total)}</b>`;
   }
-  ['s-worker', 's-date', 's-start', 's-end', 's-break'].forEach(id => $(id).addEventListener('input', renderPreview));
+  ['s-worker', 's-date', 's-start', 's-end', 's-break', 's-dh', 's-dm', 's-dn'].forEach(id => $(id).addEventListener('input', renderPreview));
   $('s-add').addEventListener('click', () => {
     const f = shiftForm();
     if (!f.workerId) return toast("'알바생' 탭에서 먼저 등록하세요");
-    if (!f.date || !f.start || !f.end) return toast('날짜와 시간을 입력하세요');
+    if (!f.date || (f.mode === 'time' && (!f.start || !f.end))) return toast('날짜와 시간을 입력하세요');
     if (shiftCalc(f).work <= 0) return toast('근무 시간이 0입니다');
     if (editingShift) Object.assign(db.shifts.find(s => s.id === editingShift), f);
     else db.shifts.push({ id: uid(), ...f });
@@ -491,7 +562,7 @@
       return `<tr>
         <td>${s.date.slice(5)} (${DOW[d.getDay()]})</td>
         <td>${esc(w ? w.name : '?')}</td>
-        <td>${s.start}~${s.end}${s.break ? ` <span class="hint">휴${s.break}</span>` : ''}${s.memo ? ` <span class="hint">· ${esc(s.memo)}</span>` : ''}</td>
+        <td>${s.mode === 'dur' ? `직접 입력${s.nightMin ? ` <span class="hint">야간${s.nightMin}분</span>` : ''}` : `${s.start}~${s.end}`}${s.break ?` <span class="hint">휴${s.break}</span>` : ''}${s.memo ? ` <span class="hint">· ${esc(s.memo)}</span>` : ''}</td>
         <td class="r num">${hrs(p.work)}</td>
         <td class="r num">${won(p.total)}</td>
         <td class="r"><button class="icon-btn" data-sedit="${s.id}" title="수정">✏️</button><button class="icon-btn" data-sdel="${s.id}" title="삭제">✕</button></td>
@@ -508,78 +579,118 @@
       db.shifts = db.shifts.filter(s => s.id !== t.dataset.sdel); save(); renderAll(); toast('삭제했습니다');
     } else if (t.dataset.sedit) {
       const s = db.shifts.find(x => x.id === t.dataset.sedit); editingShift = s.id;
-      $('s-worker').value = s.workerId; $('s-date').value = s.date; $('s-start').value = s.start; $('s-end').value = s.end;
-      $('s-break').value = s.break; $('s-memo').value = s.memo || '';
+      $('s-worker').value = s.workerId; $('s-date').value = s.date; $('s-memo').value = s.memo || '';
+      if (s.mode === 'dur') {
+        $('s-dh').value = Math.floor(s.minutes / 60); $('s-dm').value = s.minutes % 60; $('s-dn').value = s.nightMin || 0;
+      } else { $('s-start').value = s.start; $('s-end').value = s.end; $('s-break').value = s.break; }
+      setShiftMode(s.mode === 'dur' ? 'dur' : 'time');
       $('s-add').textContent = '수정 저장'; $('s-cancel').style.display = '';
       renderPreview(); window.scrollTo({ top: 0, behavior: 'smooth' });
     }
   });
 
-  // ---------- 월 정산 ----------
+  // ---------- 정산 (주 / 월) ----------
   function mondayOf(dateStr) {
     const d = new Date(dateStr + 'T00:00'); const diff = (d.getDay() + 6) % 7;
     d.setDate(d.getDate() - diff); return d;
   }
-  function payroll(month) {
+  const addDays = (dateStr, n) => { const d = new Date(dateStr + 'T00:00'); d.setDate(d.getDate() + n); return ymd(d); };
+  const mdLabel = (dateStr) => { const d = new Date(dateStr + 'T00:00'); return `${d.getMonth() + 1}/${d.getDate()}(${DOW[d.getDay()]})`; };
+  function weeksOfMonth(month) {
+    const [y, mo] = month.split('-').map(Number);
+    const last = new Date(y, mo, 0).getDate(); const out = [];
+    for (let day = 1; day <= last; day++) {
+      const d = new Date(y, mo - 1, day);
+      if (d.getDay() === 0) { const to = ymd(d); out.push({ from: addDays(to, -6), to }); }
+    }
+    return out;
+  }
+  let payMode = 'week';
+  function period() {
+    if (payMode === 'week') {
+      const from = ymd(mondayOf($('p-week').value || today()));
+      const to = addDays(from, 6);
+      return { from, to, weeks: [{ from, to }], name: `${from}_주`, label: `${mdLabel(from)} ~ ${mdLabel(to)}` };
+    }
+    const month = $('p-month').value || thisMonth();
+    const [y, mo] = month.split('-').map(Number);
+    return { from: month + '-01', to: `${month}-${pad(new Date(y, mo, 0).getDate())}`, weeks: weeksOfMonth(month), name: month, label: `${y}년 ${mo}월` };
+  }
+  function payroll(pr) {
     const five = db.settings.five;
     return db.workers.map(w => {
       const mine = db.shifts.filter(s => s.workerId === w.id);
-      const inMonth = mine.filter(s => s.date.startsWith(month));
+      const inRange = mine.filter(s => s.date >= pr.from && s.date <= pr.to);
       let work = 0, night = 0, base = 0, nightAdd = 0, overAdd = 0;
-      for (const s of inMonth) {
+      for (const s of inRange) {
         const p = shiftPay(s, w.wage, five);
         work += p.work; night += p.night; base += p.base; nightAdd += p.nightAdd; overAdd += p.overAdd;
       }
-      // 주휴수당: 일요일이 이번 달에 있는 주
       const weeks = [];
-      if (w.holiday) {
-        const [y, mo] = month.split('-').map(Number);
-        const last = new Date(y, mo, 0).getDate();
-        for (let day = 1; day <= last; day++) {
-          const d = new Date(y, mo - 1, day);
-          if (d.getDay() !== 0) continue;
-          const sun = ymd(d); const mon = new Date(d); mon.setDate(d.getDate() - 6); const monS = ymd(mon);
-          const min = mine.filter(s => s.date >= monS && s.date <= sun).reduce((a, s) => a + shiftCalc(s).work, 0);
-          if (min > 0) weeks.push({ from: monS, to: sun, min, pay: weeklyHolidayPay(min, w.wage) });
-        }
+      if (w.holiday) for (const wk of pr.weeks) {
+        const min = mine.filter(s => s.date >= wk.from && s.date <= wk.to).reduce((a, s) => a + shiftCalc(s).work, 0);
+        if (min > 0) weeks.push({ ...wk, min, pay: weeklyHolidayPay(min, w.wage) });
       }
       const holiday = weeks.reduce((a, x) => a + x.pay, 0);
-      const gross = base + nightAdd + overAdd + holiday;
+      const gross = Math.round(base + nightAdd + overAdd + holiday);
       const ded = deductCalc(w.deduct || 'none', gross);
-      return { w, count: inMonth.length, work, night, base, nightAdd, overAdd, holiday, weeks, gross, ded, net: gross - ded.total };
+      return { w, count: inRange.length, days: new Set(inRange.map(s => s.date)).size, work, night, base, nightAdd, overAdd, holiday, weeks, gross, ded, net: gross - ded.total };
     }).filter(r => r.count > 0 || r.holiday > 0);
   }
   function renderPayroll() {
-    const month = $('p-month').value || thisMonth();
-    const rows = payroll(month);
-    const sum = (k) => rows.reduce((a, r) => a + (typeof k === 'function' ? k(r) : r[k]), 0);
+    const isWeek = payMode === 'week';
+    $('p-mode').querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.mode === payMode));
+    $('p-bar-week').style.display = isWeek ? '' : 'none';
+    $('p-bar-month').style.display = isWeek ? 'none' : '';
+    $('p-title').textContent = isWeek ? '주 정산' : '월 정산';
+    const pr = period();
+    $('p-week-label').textContent = pr.label;
+    const rows = payroll(pr);
+    const sum = (k) => rows.reduce((a, r) => a + r[k], 0);
     $('p-stats').innerHTML = [
       ['인원', rows.length + '명'], ['총 근무', hrs(sum('work'))],
-      ['총 지급액 (세전)', won(sum('gross'))], ['실지급 합계', won(sum('net'))]
+      ['총 지급액 (세전)', won(sum('gross'))], [isWeek ? '이번 주 지급 합계' : '실지급 합계', won(sum('net'))]
     ].map(([k, v]) => `<div class="stat"><div class="k">${k}</div><div class="v num">${v}</div></div>`).join('');
-    if (!rows.length) { $('p-list').innerHTML = '<p class="empty">이 달에 근무 기록이 없습니다.</p>'; return; }
+    if (!rows.length) { $('p-list').innerHTML = `<p class="empty">이 ${isWeek ? '주' : '달'}에 근무 기록이 없습니다.</p>`; return; }
     $('p-list').innerHTML = rows.map(r => {
       const lines = [
-        ['근무 ' + r.count + '일 · ' + hrs(r.work), won(r.base)],
+        ['근무 ' + r.days + '일 · ' + hrs(r.work), won(r.base)],
         r.nightAdd ? ['야간 가산 (' + hrs(r.night) + ')', won(r.nightAdd)] : null,
         r.overAdd ? ['연장 가산', won(r.overAdd)] : null,
-        r.w.holiday ? ['주휴수당 (' + r.weeks.filter(x => x.pay).length + '주)', won(r.holiday)] : null,
+        r.w.holiday ? (isWeek
+          ? ['주휴수당', r.holiday ? won(r.holiday) : '해당 없음 (15시간 미만)']
+          : ['주휴수당 (' + r.weeks.filter(x => x.pay).length + '주)', won(r.holiday)]) : null,
         ['세전 합계', won(r.gross)],
         ...r.ded.detail.map(([k, v]) => [k, '- ' + won(v)]),
       ].filter(Boolean);
+      const shifts = db.shifts.filter(s => s.workerId === r.w.id && s.date >= pr.from && s.date <= pr.to)
+        .sort((a, b) => (a.date + a.start).localeCompare(b.date + b.start));
       return `<div class="worker-card">
-        <div class="head"><span class="name">${esc(r.w.name)}</span><span class="chip">시급 ${won(r.w.wage)}</span></div>
+        <div class="head"><span class="name">${esc(r.w.name)}</span><span class="chip">시급 ${won(r.w.wage)} · 분당 ${perMinLabel(r.w.wage)}</span></div>
         <div class="result" style="margin-top:0">
           ${lines.map(([k, v]) => `<div class="line"><span>${k}</span><span class="num">${v}</span></div>`).join('')}
-          <div class="line total"><span>실지급액</span><span class="num">${won(r.net)}</span></div>
+          <div class="line total"><span>${isWeek ? '이번 주 지급액' : '실지급액'}</span><span class="num">${won(r.net)}</span></div>
         </div>
-        ${r.weeks.length ? `<details><summary>주별 주휴수당 보기</summary>
-          <table style="margin-top:6px"><tbody>${r.weeks.map(x => `<tr><td>${x.from.slice(5)} ~ ${x.to.slice(5)}</td><td class="r num">${hrs(x.min)}</td><td class="r num">${x.pay ? won(x.pay) : '15시간 미만'}</td></tr>`).join('')}</tbody></table>
-        </details>` : ''}
+        <details><summary>${isWeek ? '일별 근무 보기' : '주별 내역 보기'}</summary>
+          <table style="margin-top:6px"><tbody>${isWeek
+            ? shifts.map(s => { const p = shiftPay(s, r.w.wage, db.settings.five);
+                return `<tr><td>${mdLabel(s.date)}</td><td>${s.mode === 'dur' ? '직접 입력' : s.start + '~' + s.end}</td><td class="r num">${hrs(p.work)}</td><td class="r num">${won(p.total)}</td></tr>`; }).join('')
+            : r.weeks.map(x => `<tr><td>${mdLabel(x.from)} ~ ${mdLabel(x.to)}</td><td class="r num">${hrs(x.min)}</td><td class="r num">${x.pay ? '주휴 ' + won(x.pay) : '15시간 미만'}</td></tr>`).join('')
+          }</tbody></table>
+        </details>
       </div>`;
     }).join('');
   }
+  $('p-mode').addEventListener('click', (e) => {
+    const b = e.target.closest('button'); if (!b) return;
+    payMode = b.dataset.mode; try { sessionStorage.setItem(KEY + '-paymode', payMode); } catch (err) {}
+    renderPayroll();
+  });
   $('p-month').addEventListener('input', renderPayroll);
+  $('p-week').addEventListener('input', renderPayroll);
+  const shiftWeek = (n) => { $('p-week').value = addDays(ymd(mondayOf($('p-week').value || today())), n); renderPayroll(); };
+  $('p-prev').addEventListener('click', () => shiftWeek(-7));
+  $('p-next').addEventListener('click', () => shiftWeek(7));
 
   // ---------- CSV / 백업 ----------
   function download(name, text, type) {
@@ -590,21 +701,21 @@
   const csvCell = (v) => { const s = String(v ?? ''); return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
   const toCsv = (rows) => '﻿' + rows.map(r => r.map(csvCell).join(',')).join('\r\n');
   $('p-csv').addEventListener('click', () => {
-    const month = $('p-month').value || thisMonth();
-    const rows = payroll(month);
+    const pr = period();
+    const rows = payroll(pr);
     if (!rows.length) return toast('내보낼 정산이 없습니다');
-    const head = ['이름', '시급', '근무일수', '근무시간', '기본급', '야간가산', '연장가산', '주휴수당', '세전합계', '공제방식', '공제액', '실지급액'];
-    download(`알바정산_${month}.csv`, toCsv([head, ...rows.map(r => [r.w.name, r.w.wage, r.count, (r.work / 60).toFixed(2),
-      Math.round(r.base), Math.round(r.nightAdd), Math.round(r.overAdd), Math.round(r.holiday), Math.round(r.gross),
+    const head = ['기간', '이름', '시급', '분당단가', '근무일수', '근무(분)', '근무시간', '기본급', '야간가산', '연장가산', '주휴수당', '세전합계', '공제방식', '공제액', '실지급액'];
+    download(`알바정산_${pr.name}.csv`, toCsv([head, ...rows.map(r => [`${pr.from}~${pr.to}`, r.w.name, r.w.wage, perMin(r.w.wage), r.days, r.work, hrs(r.work),
+      Math.round(r.base), Math.round(r.nightAdd), Math.round(r.overAdd), Math.round(r.holiday), r.gross,
       DEDUCT_LABEL[r.w.deduct || 'none'], r.ded.total, Math.round(r.net)])]), 'text/csv;charset=utf-8');
   });
   $('d-csv').addEventListener('click', () => {
     if (!db.shifts.length) return toast('근무 기록이 없습니다');
     const rows = [...db.shifts].sort((a, b) => (a.date + a.start).localeCompare(b.date + b.start)).map(s => {
       const w = workerById(s.workerId); const p = shiftPay(s, w ? w.wage : 0, db.settings.five);
-      return [s.date, w ? w.name : '', s.start, s.end, s.break, (p.work / 60).toFixed(2), (p.night / 60).toFixed(2), w ? w.wage : '', Math.round(p.total), s.memo || ''];
+      return [s.date, w ? w.name : '', s.start, s.end, s.break, p.work, p.night, w ? w.wage : '', Math.round(p.total), s.memo || ''];
     });
-    download(`알바근무기록_${today()}.csv`, toCsv([['날짜', '이름', '출근', '퇴근', '휴게(분)', '실근무(시간)', '야간(시간)', '시급', '급여(주휴제외)', '메모'], ...rows]), 'text/csv;charset=utf-8');
+    download(`알바근무기록_${today()}.csv`, toCsv([['날짜', '이름', '출근', '퇴근', '휴게(분)', '실근무(분)', '야간(분)', '시급', '급여(주휴제외)', '메모'], ...rows]), 'text/csv;charset=utf-8');
   });
   $('d-export').addEventListener('click', () => {
     download(`알바시급관리_백업_${today()}.json`, JSON.stringify({ app: 'alba-pay', version: 1, exportedAt: new Date().toISOString(), ...db }, null, 2), 'application/json');
@@ -641,6 +752,7 @@
   function syncSettingsForm() {
     for (const [id, k] of Object.entries(SET_FIELDS)) $(id).value = db.settings[k];
     $('set-five').checked = !!db.settings.five;
+    $('set-round').value = db.settings.round || 'exact';
     $('c-five').checked = !!db.settings.five;
     if (!$('c-wage').value) $('c-wage').value = db.settings.wage;
     document.title = (db.settings.shop ? db.settings.shop + ' · ' : '') + '알바 시급 관리';
@@ -648,6 +760,7 @@
   for (const [id, k] of Object.entries(SET_FIELDS)) $(id).addEventListener('change', () => {
     db.settings[k] = k === 'shop' ? $(id).value.trim() : (+$(id).value || 0); save(); syncSettingsForm(); renderAll();
   });
+  $('set-round').addEventListener('change', () => { db.settings.round = $('set-round').value; save(); renderAll(); });
   $('set-five').addEventListener('change', () => { db.settings.five = $('set-five').checked; save(); syncSettingsForm(); renderAll(); });
 
   function renderAll() {
@@ -657,7 +770,8 @@
   }
 
   // ---------- 시작 ----------
-  $('s-date').value = today(); $('sl-month').value = thisMonth(); $('p-month').value = thisMonth();
+  $('s-date').value = today(); $('sl-month').value = thisMonth(); $('p-month').value = thisMonth(); $('p-week').value = today();
+  try { payMode = sessionStorage.getItem(KEY + '-paymode') || 'week'; } catch (e) {}
   syncSettingsForm(); resetWorkerForm(); renderAll();
   try {
     const tab = sessionStorage.getItem(KEY + '-tab');
