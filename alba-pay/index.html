@@ -615,7 +615,7 @@
       </tr>`;
     }).join('');
     t.innerHTML = `<thead><tr><th class="name-col">알바생</th>${days.map(d => `<th>${DOW[dowOf(d)]}<div class="hint">${d.slice(5).replace('-', '/')}</div></th>`).join('')}<th>합계 (주급)
-        <div class="bulk"><label class="ck"><input type="checkbox" id="g-bulk" ${allBasic ? 'checked' : ''}>기본</label><button class="btn" id="g-bulk-save">일괄적용</button></div></th></tr></thead>
+        <div class="bulk"><label class="ck"><input type="checkbox" id="g-bulk" ${allBasic ? 'checked' : ''}>기본</label><button class="btn" id="g-bulk-save">일괄반영</button></div></th></tr></thead>
       <tbody>${rows}</tbody>
       <tfoot><tr><th class="name-col">일별 합계</th>${dayTot.map(v => `<td class="num">${v ? won(v) : '-'}</td>`).join('')}<td class="num" style="color:var(--accent)">${won(grand)}</td></tr></tfoot>`;
   }
@@ -652,7 +652,7 @@
       toast(n ? `${n}칸을 기본으로 바꿨습니다 · 위의 [저장]을 눌러야 정산에 반영됩니다` : '이미 모두 기본입니다');
     } else {
       const basics = cells.filter(({ w, d }) => isBasic(w, d));
-      if (!basics.length) return toast("'기본'을 체크한 뒤 일괄적용을 누르세요");
+      if (!basics.length) return toast("'기본'을 체크한 뒤 일괄반영을 누르세요");
       if (!confirm(`이번 주 '기본' ${basics.length}칸을 모두 해제할까요?\n('별도'로 입력한 칸은 그대로 둡니다)`)) return renderGrid();
       basics.forEach(({ w, d }) => removeDay(w.id, d));
       renderGrid(); toast(`기본 ${basics.length}칸을 해제했습니다 · [저장]을 눌러야 반영됩니다`);
