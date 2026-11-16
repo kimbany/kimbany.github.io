@@ -118,7 +118,8 @@
   .hero { background: var(--soft); border-radius: 14px; padding: 16px 18px; margin-bottom: 14px; }
   .hero .k { font-size: 13px; color: var(--sub); font-weight: 700; }
   .hero .v { font-size: 28px; font-weight: 900; color: var(--accent); margin: 4px 0; }
-  .cal { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+  .cal { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; }
+  .cal-day { min-width: 0; overflow: hidden; }
   .cal .dow { text-align: center; font-size: 12px; color: var(--sub); font-weight: 700; padding: 4px 0; }
   .cal .dow.sun { color: var(--danger); }
   .cal-day {
@@ -131,8 +132,10 @@
   .cal-day.has { background: var(--soft); }
   .cal-day.sel { outline: 2px solid var(--accent); }
   .cal-day.today .dn { color: var(--accent); }
-  .cal-day .dp { white-space: nowrap; letter-spacing: -0.3px; }
-  @media (max-width: 480px) { .cal { gap: 3px; } .cal-day { min-height: 52px; padding: 4px 3px; } .cal-day .dp { font-size: 9.5px; } }
+  .cal-day .dp { display: flex; flex-wrap: wrap; justify-content: flex-end; column-gap: 3px; letter-spacing: -0.3px; width: 100%; }
+  .cal-day .dp > span { white-space: nowrap; }
+  .cal-day .dc { color: var(--sub); font-weight: 600; }
+  @media (max-width: 480px) { .cal { gap: 3px; } .cal-day { min-height: 52px; padding: 4px 3px; } .cal-day .dp { font-size: 9px; letter-spacing: -0.4px; } .cal-day .dp .wu { display: none; } .cal-day .dp > span { width: 100%; text-align: right; } }
   table.tight { font-size: 12.5px; }
   table.tight th, table.tight td { padding: 6px 3px; }
   table.tight td.wrap { white-space: normal; }
@@ -769,7 +772,7 @@
     for (let day = 1; day <= last; day++) {
       const d = `${pr.month}-${pad(day)}`, v = dayTot[d] || 0;
       html += `<button class="cal-day ${v ? 'has' : ''} ${d === selDay ? 'sel' : ''} ${d === td ? 'today' : ''}" data-day="${d}">
-        <span class="dn">${day}</span><span class="dp num">${v ? Math.round(v).toLocaleString('ko-KR') : ''}</span></button>`;
+        <span class="dn">${day}</span><span class="dp num">${v ? `<span class="dc">(${new Set((dayRows[d] || []).map(x => x.r.w.id)).size}명)</span><span class="dw">${Math.round(v).toLocaleString('ko-KR')}<span class="wu">원</span></span>` : ''}</span></button>`;
     }
     $('pm-cal').innerHTML = html;
     if (selDay && selDay.startsWith(pr.month)) {
