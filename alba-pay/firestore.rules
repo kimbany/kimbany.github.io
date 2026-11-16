@@ -1,0 +1,18 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // PIN 로그인 계정 (alba-pay/index.html 의 ALBA_LOGIN_EMAIL 과 같아야 합니다)
+    function isOwner() {
+      return request.auth != null && request.auth.token.email == 'owner@alba-pay.local';
+    }
+    // PIN 을 만들었는지 여부만 담긴 문서: 누구나 읽기, 주인만 쓰기
+    match /alba_pay_public/{doc} {
+      allow read: if true;
+      allow write: if isOwner();
+    }
+    // 알바생 · 근무 기록 · 설정: PIN 으로 로그인한 주인만
+    match /alba_pay/{document=**} {
+      allow read, write: if isOwner();
+    }
+  }
+}

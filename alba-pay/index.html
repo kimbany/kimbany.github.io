@@ -163,6 +163,11 @@
   @keyframes shake { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-8px); } 75% { transform: translateX(8px); } }
   .bulk { display: flex; align-items: center; justify-content: center; gap: 4px; margin-top: 6px; flex-wrap: wrap; }
   .bulk .btn { padding: 5px 8px; font-size: 12px; }
+  .badge { display: inline-block; font-size: 12px; font-weight: 700; padding: 3px 10px; border-radius: 99px; background: var(--off); color: var(--sub); }
+  .badge.ok { background: var(--soft); color: var(--accent); }
+  .badge.busy { color: var(--sub); }
+  .badge.err { color: var(--danger); }
+  .badge.local { color: var(--warn); }
   .savebar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
   #g-save { padding: 9px 22px; }
   #g-save.idle { background: var(--off); color: var(--sub); }
@@ -189,6 +194,7 @@
     <h1 id="h-title">⏱️ 알바 시급 관리</h1>
     <button class="btn ghost sm" id="lock-btn" title="잠그기">🔒 잠금</button>
   </div>
+  <div class="narrow" style="text-align:center;margin:-8px auto 12px"><span id="cloud-badge" class="badge"></span></div>
 
   <div class="tabs" role="tablist">
     <button class="active" data-tab="grid">근무 계산</button>
@@ -264,7 +270,7 @@
       </div>
       <div class="row">
         <div><label>입사일</label><input type="date" id="w-start"></div>
-        <div><label>퇴사일 (그날부터 근무 계산에서 빠짐)</label><input type="date" id="w-end"></div>
+        <div><label>퇴사일 (마지막 근무일 · 다음 날부터 빠짐)</label><input type="date" id="w-end"></div>
       </div>
       <label class="check"><input type="checkbox" id="w-leave"> 잠시 휴직 (근무 계산에서 안 보임)</label>
       <details style="margin:8px 0 4px">
@@ -367,12 +373,12 @@
         <div><label>새 PIN 한 번 더</label><input type="password" id="pin-new2" inputmode="numeric" maxlength="6" autocomplete="off"></div>
       </div>
       <button class="btn" id="pin-change">PIN 변경</button>
-      <p class="hint" style="margin-top:10px">PIN은 이 브라우저에 저장된 기록을 남이 못 보게 막는 잠금입니다. 창을 닫으면 다시 PIN을 물어봅니다.</p>
+      <p class="hint" style="margin-top:10px">창을 닫으면 다시 PIN을 물어봅니다.</p>
     </div>
 
     <div class="card">
       <h2>데이터 관리</h2>
-      <p class="hint" style="margin-bottom:12px">모든 기록은 이 브라우저에만 저장됩니다 (서버로 보내지 않음). 브라우저 데이터를 지우거나 다른 기기에서 열면 보이지 않으니, 주기적으로 백업 파일을 받아 두세요.</p>
+      <p class="hint" style="margin-bottom:12px" id="d-where"></p>
       <div class="stats" id="d-stats"></div>
       <div class="btns">
         <button class="btn" id="d-export">백업 받기 (JSON)</button>
@@ -405,6 +411,21 @@
 <div class="toast" id="toast"></div>
 
 <script>
+/* =====================================================================
+   서버(Firebase) 설정
+   - 값을 채우면 서버 모드: 어느 컴퓨터 · 휴대폰에서 열어도 같은 데이터를 봅니다.
+   - null 이면 로컬 모드: 이 브라우저에만 저장됩니다 (기기마다 다름).
+   - 처음 설정하는 방법은 alba-pay/SETUP.md 를 보세요.
+   ===================================================================== */
+const ALBA_FIREBASE_CONFIG = null;
+// 예시:
+// const ALBA_FIREBASE_CONFIG = {
+//   apiKey: "...", authDomain: "....firebaseapp.com", projectId: "...",
+//   storageBucket: "....firebasestorage.app", messagingSenderId: "...", appId: "..."
+// };
+// PIN 을 검사하는 내부용 로그인 계정 이름 (실제 메일 주소 아님). 한 번 정하면 바꾸지 않습니다.
+const ALBA_LOGIN_EMAIL = 'owner@alba-pay.local';
+
 (() => {
   const KEY = 'alba-pay-v1';
   const MIN_WAGE_2026 = 10320;
@@ -445,14 +466,119 @@
     }
     return out;
   }
-  let db = load();
-  function load() {
-    try { const raw = localStorage.getItem(KEY); if (raw) return migrate(JSON.parse(raw)); } catch (e) {}
-    return defaults();
-  }
+  // 테스트(에뮬레이터)용 주입값이 있으면 그것을, 없으면 위의 설정을 씁니다.
+  const TEST = window.__ALBA_TEST__ || null;
+  const FB_CONFIG = (TEST && TEST.config) || ALBA_FIREBASE_CONFIG;
+  const CLOUD = !!(FB_CONFIG && FB_CONFIG.projectId);
+  const readLocal = () => { try { const raw = localStorage.getItem(KEY); return raw ? migrate(JSON.parse(raw)) : null; } catch (e) { return null; } };
+  let db = CLOUD ? defaults() : (readLocal() || defaults());
   function save() {
+    if (CLOUD) return cloudSave();
     try { localStorage.setItem(KEY, JSON.stringify(db)); }
     catch (e) { toast('저장하지 못했습니다. 백업 파일을 받아 두세요.'); }
+  }
+
+  // ---------- 서버 저장 (Firestore) ----------
+  // alba_pay/main                 { settings, workers }
+  // alba_pay/main/months/{YYYY-MM} { shifts: [...] }   ← 달마다 문서 하나
+  // alba_pay_public/meta          { initialized }      ← PIN 을 만들었는지 (누구나 읽기만 가능)
+  const cloud = { auth: null, fs: null, unsub: [], main: undefined, months: undefined, sent: { main: null, months: {} }, ready: false };
+  const loadScript = (src) => new Promise((ok, bad) => { const el = document.createElement('script'); el.src = src; el.onload = ok; el.onerror = bad; document.head.appendChild(el); });
+  async function cloudInit() {
+    const v = 'https://www.gstatic.com/firebasejs/10.12.0/';
+    await loadScript(v + 'firebase-app-compat.js');
+    await Promise.all([loadScript(v + 'firebase-auth-compat.js'), loadScript(v + 'firebase-firestore-compat.js')]);
+    firebase.initializeApp(FB_CONFIG);
+    cloud.auth = firebase.auth(); cloud.fs = firebase.firestore();
+    if (TEST && TEST.emulator) {
+      cloud.auth.useEmulator('http://127.0.0.1:' + TEST.emulator.auth);
+      cloud.fs.useEmulator('127.0.0.1', TEST.emulator.firestore);
+    }
+    // 창(탭)을 닫으면 로그아웃 → 다시 열면 PIN 을 묻습니다.
+    await cloud.auth.setPersistence(firebase.auth.Auth.Persistence.SESSION);
+  }
+  const mainRef = () => cloud.fs.collection('alba_pay').doc('main');
+  const monthsRef = () => mainRef().collection('months');
+  const metaRef = () => cloud.fs.collection('alba_pay_public').doc('meta');
+  const mainJson = (d) => JSON.stringify({ settings: d.settings, workers: d.workers });
+  function groupByMonth(shifts) {
+    const g = {}; for (const x of shifts) (g[x.date.slice(0, 7)] = g[x.date.slice(0, 7)] || []).push(x);
+    for (const k in g) g[k].sort((a, b) => (a.date + (a.start || '') + a.id).localeCompare(b.date + (b.start || '') + b.id));
+    return g;
+  }
+  function setCloudBadge(state, text) {
+    const el = $('cloud-badge'); if (!el) return;
+    el.className = 'badge ' + state; el.textContent = text;
+  }
+  async function cloudSave() {
+    if (!cloud.ready) return;
+    const batch = cloud.fs.batch(); let n = 0;
+    const mj = mainJson(db);
+    if (mj !== cloud.sent.main) { batch.set(mainRef(), { ...JSON.parse(mj), updatedAt: firebase.firestore.FieldValue.serverTimestamp() }); cloud.sent.main = mj; n++; }
+    const g = groupByMonth(db.shifts);
+    for (const ym of new Set([...Object.keys(g), ...Object.keys(cloud.sent.months)])) {
+      const j = g[ym] ? JSON.stringify(g[ym]) : null;
+      if (j === cloud.sent.months[ym]) continue;
+      if (j) { batch.set(monthsRef().doc(ym), { shifts: g[ym] }); cloud.sent.months[ym] = j; }
+      else { batch.delete(monthsRef().doc(ym)); delete cloud.sent.months[ym]; }
+      n++;
+    }
+    if (!n) return;
+    setCloudBadge('busy', '☁ 서버에 저장 중…');
+    try { await batch.commit(); setCloudBadge('ok', '☁ 서버 저장됨 · ' + new Date().toTimeString().slice(0, 5)); }
+    catch (e) {
+      console.error(e); setCloudBadge('err', '⚠ 서버 저장 실패');
+      cloud.sent = { main: null, months: {} };
+      toast('서버에 저장하지 못했습니다. 인터넷 연결을 확인하세요.');
+    }
+  }
+  // 서버 데이터가 바뀌면(다른 컴퓨터에서 저장 포함) 화면을 새로 그립니다.
+  function applyCloud() {
+    if (cloud.main === undefined || cloud.months === undefined) return;
+    const shifts = Object.values(cloud.months).flat();
+    // 저장 안 한 표 변경(draft)이 있으면, 내가 바꾼 칸만 새 서버 데이터 위에 다시 얹습니다.
+    const mine = draft ? changedCells() : null, keep = draft;
+    db = migrate({ ...(cloud.main || {}), shifts });
+    if (mine) {
+      const key = (x) => x.workerId + '|' + x.date;
+      draft = [...db.shifts.filter(x => !mine.has(key(x))).map(x => ({ ...x })), ...keep.filter(x => mine.has(key(x)))];
+    }
+    cloud.sent.main = cloud.main ? mainJson(db) : null;
+    cloud.sent.months = {}; const g = groupByMonth(db.shifts);
+    for (const ym in cloud.months) cloud.sent.months[ym] = g[ym] ? JSON.stringify(g[ym]) : null;
+    if (!cloud.ready) { cloud.ready = true; cloudFirstLoad(); }
+    if (!$('app').hidden) { syncSettingsForm(); renderAll(); }
+  }
+  function cloudStart() {
+    return new Promise((resolve) => {
+      cloud.main = undefined; cloud.months = undefined; cloud.ready = false; cloud._resolve = resolve;
+      const fail = (e) => { console.error(e); setCloudBadge('err', '⚠ 서버 연결 끊김'); toast('서버와 연결이 끊겼습니다. 새로고침 해 주세요.'); };
+      cloud.unsub.push(mainRef().onSnapshot((snap) => { cloud.main = snap.exists ? snap.data() : null; applyCloud(); }, fail));
+      cloud.unsub.push(monthsRef().onSnapshot((qs) => {
+        cloud.months = {}; qs.forEach(d => { cloud.months[d.id] = d.data().shifts || []; }); applyCloud();
+      }, fail));
+    });
+  }
+  function cloudStop() { cloud.unsub.forEach(f => f()); cloud.unsub = []; cloud.ready = false; db = defaults(); draft = null; }
+  // 처음 서버에 들어왔을 때: 이 컴퓨터에만 있던 기록(로컬 모드 시절)을 서버로 옮깁니다.
+  function cloudFirstLoad() {
+    const local = readLocal();
+    let moved = false;
+    try { moved = localStorage.getItem(KEY + '-moved') === '1'; } catch (e) {}
+    if (local && !moved && (local.workers.length || local.shifts.length)) {
+      const msg = `이 컴퓨터에만 저장돼 있던 기록이 있습니다 (알바생 ${local.workers.length}명 · 근무 ${local.shifts.length}건).\n\n` +
+        (cloud.main ? '서버 기록에 합칠까요? (같은 항목은 서버 것을 유지)' : '서버로 옮길까요? 옮기면 모든 기기에서 보입니다.');
+      if (confirm(msg)) {
+        const byId = (base, add) => { const m = new Map(add.map(x => [x.id, x])); base.forEach(x => m.set(x.id, x)); return [...m.values()]; };
+        if (cloud.main) { db.workers = byId(db.workers, local.workers); db.shifts = byId(db.shifts, local.shifts); }
+        else db = local;
+        try { localStorage.setItem(KEY + '-moved', '1'); localStorage.setItem(KEY + '-backup', JSON.stringify(local)); localStorage.removeItem(KEY); } catch (e) {}
+        toast('이 컴퓨터의 기록을 서버로 옮겼습니다');
+      }
+    }
+    if (!cloud.main) save(); else cloudSave();
+    setCloudBadge('ok', '☁ 서버 저장 · 모든 기기 공유');
+    if (cloud._resolve) { cloud._resolve(); cloud._resolve = null; }
   }
   function toast(msg) {
     const t = $('toast'); t.textContent = msg; t.classList.add('show');
@@ -555,7 +681,10 @@
   function saveGrid() {
     const n = changedCells().size;
     if (!draft || !n) { draft = null; updateSaveBar(); return toast('바뀐 내용이 없습니다'); }
-    db.shifts = draft; draft = null; save(); renderAll();
+    // 바뀐 칸만 덮어써서, 그사이 다른 컴퓨터에서 저장한 다른 칸은 그대로 둡니다.
+    const ch = changedCells(), key = (x) => x.workerId + '|' + x.date;
+    db.shifts = [...db.shifts.filter(x => !ch.has(key(x))), ...draft.filter(x => ch.has(key(x)))];
+    draft = null; save(); renderAll();
     toast(`저장했습니다 (${n}칸) · 정산에 반영됨`);
   }
   $('g-save').addEventListener('click', saveGrid);
@@ -567,7 +696,7 @@
   function visibleInWeek(w, from, to) {
     if (gs().some(s => s.workerId === w.id && s.date >= from && s.date <= to)) return true;
     if (w.leave) return false;
-    if (w.endDate && w.endDate <= from) return false;
+    if (w.endDate && w.endDate < from) return false; // 퇴사일은 마지막 근무일
     if (w.startDate && w.startDate > to) return false;
     return true;
   }
@@ -591,10 +720,10 @@
       const wage = wageOf(w);
       const cells = days.map((d, i) => {
         const ss = gShifts(w.id, d, d);
-        const outside = (w.endDate && d >= w.endDate) || (w.startDate && d < w.startDate);
+        const outside = (w.endDate && d > w.endDate) || (w.startDate && d < w.startDate);
         let pay = 0; ss.forEach(s => { pay += shiftPay(s, wage).total; });
         dayTot[i] += pay;
-        if (outside && !ss.length) return `<td class="cell off"><span class="hint">${w.endDate && d >= w.endDate ? '퇴사' : '입사 전'}</span></td>`;
+        if (outside && !ss.length) return `<td class="cell off"><span class="hint">${w.endDate && d > w.endDate ? '퇴사' : '입사 전'}</span></td>`;
         const kind = !ss.length ? '' : (ss.length === 1 && ss[0].kind === 'basic') ? 'basic' : 'custom';
         return `<td class="cell ${kind ? 'on' : ''} ${changed.has(w.id + '|' + d) ? 'changed' : ''}">
           <label class="ck"><input type="radio" name="c-${w.id}-${d}" data-k="basic" data-w="${w.id}" data-d="${d}" data-on="${kind === 'basic' ? 1 : 0}" ${kind === 'basic' ? 'checked' : ''}>기본</label>
@@ -626,7 +755,7 @@
   function bulkCells(ws, days) {
     const out = [];
     for (const w of ws) for (const d of days) {
-      if ((w.endDate && d >= w.endDate) || (w.startDate && d < w.startDate)) continue;
+      if ((w.endDate && d > w.endDate) || (w.startDate && d < w.startDate)) continue;
       out.push({ w, d });
     }
     return out;
@@ -892,7 +1021,7 @@
     const data = { name, phone: $('w-phone').value.trim(), startDate: $('w-start').value, endDate: $('w-end').value,
       leave: $('w-leave').checked, customWage: +$('w-wage').value || null, deduct: $('w-deduct').value,
       memo: $('w-memo').value.trim(), holiday: $('w-holiday').checked };
-    if (data.startDate && data.endDate && data.endDate <= data.startDate) return toast('퇴사일이 입사일보다 늦어야 합니다');
+    if (data.startDate && data.endDate && data.endDate < data.startDate) return toast('퇴사일이 입사일보다 빠를 수 없습니다');
     if (editingWorker) Object.assign(workerById(editingWorker), data);
     else db.workers.push({ id: uid(), ...data });
     save(); toast(editingWorker ? '수정했습니다' : '추가했습니다');
@@ -901,7 +1030,8 @@
   $('w-cancel').addEventListener('click', resetWorkerForm);
   function workerStatus(w) {
     const td = today();
-    if (w.endDate && w.endDate <= td) return `<span class="chip gray">퇴사 ${esc(w.endDate)}</span>`;
+    if (w.endDate && w.endDate < td) return `<span class="chip gray">퇴사 ${esc(w.endDate)}</span>`;
+    if (w.endDate === td) return '<span class="chip warn">오늘 마지막 근무</span>';
     if (w.leave) return '<span class="chip warn">잠시 휴직</span>';
     if (w.endDate) return `<span class="chip warn">퇴사 예정 ${esc(w.endDate)}</span>`;
     return '<span class="chip">근무 중</span>';
@@ -1021,6 +1151,9 @@
     save(); renderAll(); toast('모두 지웠습니다');
   });
   function renderDataStats() {
+    $('d-where').textContent = CLOUD
+      ? '기록은 서버(Firebase)에 저장되어 PIN으로 들어오는 모든 컴퓨터 · 휴대폰에서 같은 데이터를 봅니다. 그래도 가끔 백업 파일을 받아 두면 안전합니다.'
+      : '지금은 기록이 이 브라우저에만 저장됩니다 (다른 기기와 공유 안 됨). 서버 설정을 마치면 모든 기기에서 같은 데이터를 봅니다.';
     const months = new Set(db.shifts.map(s => s.date.slice(0, 7)));
     $('d-stats').innerHTML = [['알바생', db.workers.length + '명'], ['근무 기록', db.shifts.length + '건'], ['기록된 달', months.size + '개월']]
       .map(([k, v]) => `<div class="stat"><div class="k">${k}</div><div class="v num">${v}</div></div>`).join('');
@@ -1069,18 +1202,35 @@
     let h = 0; for (const ch of text) h = (h * 31 + ch.charCodeAt(0)) | 0; return 'f' + h;
   }
   const getPin = () => { try { return localStorage.getItem(PIN_KEY); } catch (e) { return null; } };
+  const pinPw = (pin) => `alba-${pin}-pin`; // Firebase 비밀번호는 6자 이상이어야 해서 앞뒤를 붙입니다.
+  const authMsg = (e) => {
+    const c = (e && e.code) || '';
+    if (/invalid-credential|wrong-password|user-not-found|invalid-login/.test(c)) return 'PIN이 맞지 않습니다';
+    if (/too-many-requests/.test(c)) return '여러 번 틀려서 잠시 막혔습니다. 몇 분 뒤 다시 해 주세요';
+    if (/network/.test(c)) return '인터넷 연결을 확인하세요';
+    if (/operation-not-allowed/.test(c)) return 'Firebase 에서 이메일/비밀번호 로그인을 켜 주세요 (SETUP.md)';
+    return '로그인하지 못했습니다 (' + (c || e.message) + ')';
+  };
   const setPin = (h) => { try { localStorage.setItem(PIN_KEY, h); } catch (e) {} };
   const validPin = (p) => /^\d{4,6}$/.test(p);
   let gateStep = 'enter', firstPin = '';
-  function showGate() {
+  async function showGate() {
     $('app').hidden = true; $('gate').hidden = false;
     try { sessionStorage.removeItem(UNLOCK_KEY); } catch (e) {}
-    gateStep = getPin() ? 'enter' : 'new'; firstPin = '';
-    updateGate();
+    firstPin = '';
+    if (!CLOUD) { gateStep = getPin() ? 'enter' : 'new'; return updateGate(); }
+    gateStep = 'enter'; updateGate(); $('gate-sub').textContent = '서버에 연결하는 중…';
+    try {
+      if (cloud.auth.currentUser) await cloud.auth.signOut();
+      cloudStop();
+      const meta = await metaRef().get();
+      gateStep = meta.exists && meta.data().initialized ? 'enter' : 'new';
+      updateGate();
+    } catch (e) { console.error(e); updateGate('서버에 연결하지 못했습니다. 인터넷을 확인하고 새로고침 하세요'); }
   }
   function updateGate(err = '') {
     const t = { enter: ['PIN 번호 입력', '알바 관리에 들어가려면 PIN을 입력하세요', '들어가기'],
-      new: ['PIN 만들기', '처음 한 번만 정합니다. 숫자 4~6자리', '다음'],
+      new: ['PIN 만들기', CLOUD ? '처음 한 번만 정합니다. 모든 기기에서 이 PIN을 씁니다. 숫자 4~6자리' : '처음 한 번만 정합니다. 숫자 4~6자리', '다음'],
       confirm: ['PIN 확인', '같은 PIN을 한 번 더 입력하세요', 'PIN 저장'] }[gateStep];
     $('gate-title').textContent = t[0]; $('gate-sub').textContent = t[1]; $('gate-ok').textContent = t[2];
     $('gate-forgot').hidden = gateStep !== 'enter';
@@ -1090,10 +1240,37 @@
   }
   function unlock() {
     try { sessionStorage.setItem(UNLOCK_KEY, '1'); } catch (e) {}
-    $('gate').hidden = true; $('app').hidden = false; renderAll();
+    $('gate').hidden = true; $('app').hidden = false; syncSettingsForm(); renderAll();
+  }
+  async function cloudEnter(fn) {
+    $('gate-ok').disabled = true; $('gate-sub').textContent = '확인하는 중…';
+    try { await fn(); await cloudStart(); unlock(); }
+    finally { $('gate-ok').disabled = false; }
   }
   async function gateSubmit() {
     const pin = $('gate-pin').value.trim();
+    if (CLOUD) {
+      if (gateStep === 'enter') {
+        try { await cloudEnter(() => cloud.auth.signInWithEmailAndPassword(ALBA_LOGIN_EMAIL, pinPw(pin))); }
+        catch (e) { updateGate(authMsg(e)); }
+      } else if (gateStep === 'new') {
+        if (!validPin(pin)) return updateGate('숫자 4~6자리로 입력하세요');
+        firstPin = pin; gateStep = 'confirm'; updateGate();
+      } else {
+        if (pin !== firstPin) { gateStep = 'new'; return updateGate('두 번 입력한 PIN이 다릅니다. 다시 정해 주세요'); }
+        try {
+          await cloudEnter(async () => {
+            await cloud.auth.createUserWithEmailAndPassword(ALBA_LOGIN_EMAIL, pinPw(pin));
+            await metaRef().set({ initialized: true });
+          });
+          toast('PIN을 만들었습니다. 모든 기기에서 이 PIN으로 들어옵니다');
+        } catch (e) {
+          if (/email-already-in-use/.test(e.code || '')) { gateStep = 'enter'; return updateGate('이미 만든 PIN이 있습니다. 그 PIN을 입력하세요'); }
+          gateStep = 'new'; updateGate(authMsg(e));
+        }
+      }
+      return;
+    }
     if (gateStep === 'enter') {
       if (await pinHash(pin) === getPin()) unlock(); else updateGate('PIN이 맞지 않습니다');
     } else if (gateStep === 'new') {
@@ -1107,6 +1284,7 @@
   $('gate-ok').addEventListener('click', gateSubmit);
   $('gate-pin').addEventListener('keydown', (e) => { if (e.key === 'Enter') gateSubmit(); });
   $('gate-forgot').addEventListener('click', () => {
+    if (CLOUD) return alert('PIN은 되찾을 수 없지만, 기록은 서버에 그대로 있습니다.\n\n새 PIN을 만들려면 Firebase 콘솔에서:\n1) Authentication → 사용자 → ' + ALBA_LOGIN_EMAIL + ' 삭제\n2) Firestore → alba_pay_public → meta 문서 삭제\n그다음 이 화면을 새로고침하면 새 PIN을 만들 수 있습니다.');
     if (!confirm('PIN은 되찾을 수 없습니다.\nPIN을 초기화하면 이 브라우저에 저장된 알바생 · 근무 기록이 모두 지워집니다.\n(백업 파일이 있으면 새 PIN을 만든 뒤 불러올 수 있습니다)')) return;
     if (prompt("정말 초기화하려면 '초기화'라고 입력하세요") !== '초기화') return;
     try { localStorage.removeItem(KEY); localStorage.removeItem(PIN_KEY); } catch (e) {}
@@ -1115,6 +1293,18 @@
   $('lock-btn').addEventListener('click', showGate);
   $('pin-change').addEventListener('click', async () => {
     const cur = $('pin-cur').value.trim(), n1 = $('pin-new').value.trim(), n2 = $('pin-new2').value.trim();
+    if (CLOUD) {
+      if (!validPin(n1)) return toast('새 PIN은 숫자 4~6자리입니다');
+      if (n1 !== n2) return toast('새 PIN 두 칸이 다릅니다');
+      try {
+        const u = cloud.auth.currentUser;
+        await u.reauthenticateWithCredential(firebase.auth.EmailAuthProvider.credential(ALBA_LOGIN_EMAIL, pinPw(cur)));
+        await u.updatePassword(pinPw(n1));
+        ['pin-cur', 'pin-new', 'pin-new2'].forEach(id => { $(id).value = ''; });
+        toast('PIN을 바꿨습니다. 모든 기기에서 새 PIN을 씁니다');
+      } catch (e) { toast(/invalid-credential|wrong-password/.test(e.code || '') ? '지금 PIN이 맞지 않습니다' : authMsg(e)); }
+      return;
+    }
     if (await pinHash(cur) !== getPin()) return toast('지금 PIN이 맞지 않습니다');
     if (!validPin(n1)) return toast('새 PIN은 숫자 4~6자리입니다');
     if (n1 !== n2) return toast('새 PIN 두 칸이 다릅니다');
@@ -1123,13 +1313,26 @@
   });
 
   // ---------- 시작 ----------
-  save();
   $('p-month').value = thisMonth(); $('p-week').value = today();
   try { payMode = sessionStorage.getItem(KEY + '-paymode') || 'month'; } catch (e) {}
   syncSettingsForm(); resetWorkerForm();
-  let unlocked = false;
-  try { unlocked = sessionStorage.getItem(UNLOCK_KEY) === '1' && !!getPin(); } catch (e) {}
-  if (unlocked) unlock(); else showGate();
+  if (CLOUD) {
+    setCloudBadge('busy', '☁ 서버 연결 중…');
+    $('gate').hidden = false; $('gate-title').textContent = '연결 중'; $('gate-sub').textContent = '서버에 연결하는 중…';
+    $('gate-pin').hidden = true; $('gate-ok').hidden = true;
+    cloudInit().then(() => new Promise(r => { const off = cloud.auth.onAuthStateChanged(u => { off(); r(u); }); }))
+      .then(async (user) => {
+        $('gate-pin').hidden = false; $('gate-ok').hidden = false;
+        if (user) { await cloudStart(); unlock(); } else showGate();
+      })
+      .catch((e) => { console.error(e); $('gate-sub').textContent = '서버에 연결하지 못했습니다. 인터넷을 확인하고 새로고침 하세요.'; });
+  } else {
+    save();
+    setCloudBadge('local', '💻 이 기기에만 저장 중 (다른 기기와 공유 안 됨)');
+    let unlocked = false;
+    try { unlocked = sessionStorage.getItem(UNLOCK_KEY) === '1' && !!getPin(); } catch (e) {}
+    if (unlocked) unlock(); else showGate();
+  }
   try {
     const tab = sessionStorage.getItem(KEY + '-tab');
     if (tab) document.querySelector(`.tabs button[data-tab="${tab}"]`)?.click();
