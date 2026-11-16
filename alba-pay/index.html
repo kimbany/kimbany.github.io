@@ -417,7 +417,14 @@
    - null 이면 로컬 모드: 이 브라우저에만 저장됩니다 (기기마다 다름).
    - 처음 설정하는 방법은 alba-pay/SETUP.md 를 보세요.
    ===================================================================== */
-const ALBA_FIREBASE_CONFIG = null;
+const ALBA_FIREBASE_CONFIG = {
+  apiKey: "AIzaSyAvIElYJi9H7DcWpMGsjx1oWjc0TEa26IU",
+  authDomain: "alba-pay-82d7c.firebaseapp.com",
+  projectId: "alba-pay-82d7c",
+  storageBucket: "alba-pay-82d7c.firebasestorage.app",
+  messagingSenderId: "293313110958",
+  appId: "1:293313110958:web:1115ce69542324ec6fde3f"
+};
 // 예시:
 // const ALBA_FIREBASE_CONFIG = {
 //   apiKey: "...", authDomain: "....firebaseapp.com", projectId: "...",
@@ -1202,7 +1209,7 @@ const ALBA_LOGIN_EMAIL = 'owner@alba-pay.local';
     let h = 0; for (const ch of text) h = (h * 31 + ch.charCodeAt(0)) | 0; return 'f' + h;
   }
   const getPin = () => { try { return localStorage.getItem(PIN_KEY); } catch (e) { return null; } };
-  const pinPw = (pin) => `alba-${pin}-pin`; // Firebase 비밀번호는 6자 이상이어야 해서 앞뒤를 붙입니다.
+  const pinPw = (pin) => `Alba-${pin}-pin!`; // Firebase 비밀번호 규칙(6자 이상 · 대소문자 · 특수문자)을 맞추려고 앞뒤를 붙입니다.
   const authMsg = (e) => {
     const c = (e && e.code) || '';
     if (/invalid-credential|wrong-password|user-not-found|invalid-login/.test(c)) return 'PIN이 맞지 않습니다';
