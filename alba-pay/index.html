@@ -501,8 +501,8 @@ const ALBA_LOGIN_EMAIL = 'owner@alba-pay.local';
       cloud.auth.useEmulator('http://127.0.0.1:' + TEST.emulator.auth);
       cloud.fs.useEmulator('127.0.0.1', TEST.emulator.firestore);
     }
-    // 창(탭)을 닫으면 로그아웃 → 다시 열면 PIN 을 묻습니다.
-    await cloud.auth.setPersistence(firebase.auth.Auth.Persistence.SESSION);
+    // 로그인은 브라우저에 남겨 두고, '브라우저를 켜 둔 동안'만 유효한 쿠키(잠금 해제 표시)로 PIN 재입력 여부를 정합니다.
+    await cloud.auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL);
   }
   const mainRef = () => cloud.fs.collection('alba_pay').doc('main');
   const monthsRef = () => mainRef().collection('months');
@@ -1199,7 +1199,14 @@ const ALBA_LOGIN_EMAIL = 'owner@alba-pay.local';
   }
 
   // ---------- PIN 잠금 ----------
-  const PIN_KEY = 'alba-pay-pin', UNLOCK_KEY = 'alba-pay-unlocked';
+  const PIN_KEY = 'alba-pay-pin';
+  // 잠금 해제 표시: 만료일 없는 쿠키라 새로고침 · 새 탭에서는 유지되고, 브라우저를 닫거나 컴퓨터를 끄면 사라집니다.
+  const UNLOCK_COOKIE = 'alba_pay_unlocked';
+  const setUnlocked = (on) => {
+    const secure = location.protocol === 'https:' ? '; Secure' : '';
+    document.cookie = on ? `${UNLOCK_COOKIE}=1; path=/; SameSite=Strict${secure}` : `${UNLOCK_COOKIE}=; path=/; max-age=0; SameSite=Strict${secure}`;
+  };
+  const isUnlocked = () => document.cookie.split('; ').includes(UNLOCK_COOKIE + '=1');
   async function pinHash(pin) {
     const text = 'alba-pay:' + pin;
     if (window.crypto && crypto.subtle) {
@@ -1223,7 +1230,7 @@ const ALBA_LOGIN_EMAIL = 'owner@alba-pay.local';
   let gateStep = 'enter', firstPin = '';
   async function showGate() {
     $('app').hidden = true; $('gate').hidden = false;
-    try { sessionStorage.removeItem(UNLOCK_KEY); } catch (e) {}
+    setUnlocked(false);
     firstPin = '';
     if (!CLOUD) { gateStep = getPin() ? 'enter' : 'new'; return updateGate(); }
     gateStep = 'enter'; updateGate(); $('gate-sub').textContent = '서버에 연결하는 중…';
@@ -1246,7 +1253,7 @@ const ALBA_LOGIN_EMAIL = 'owner@alba-pay.local';
     setTimeout(() => $('gate-pin').focus(), 50);
   }
   function unlock() {
-    try { sessionStorage.setItem(UNLOCK_KEY, '1'); } catch (e) {}
+    setUnlocked(true);
     $('gate').hidden = true; $('app').hidden = false; syncSettingsForm(); renderAll();
   }
   async function cloudEnter(fn) {
@@ -1258,7 +1265,13 @@ const ALBA_LOGIN_EMAIL = 'owner@alba-pay.local';
     const pin = $('gate-pin').value.trim();
     if (CLOUD) {
       if (gateStep === 'enter') {
-        try { await cloudEnter(() => cloud.auth.signInWithEmailAndPassword(ALBA_LOGIN_EMAIL, pinPw(pin))); }
+        try {
+          await cloudEnter(async () => {
+            await cloud.auth.signInWithEmailAndPassword(ALBA_LOGIN_EMAIL, pinPw(pin));
+            // PIN 을 만드는 도중 새로고침 등으로 표시가 빠졌다면 채워 둡니다.
+            metaRef().set({ initialized: true }).catch(() => {});
+          });
+        }
         catch (e) { updateGate(authMsg(e)); }
       } else if (gateStep === 'new') {
         if (!validPin(pin)) return updateGate('숫자 4~6자리로 입력하세요');
@@ -1330,14 +1343,14 @@ const ALBA_LOGIN_EMAIL = 'owner@alba-pay.local';
     cloudInit().then(() => new Promise(r => { const off = cloud.auth.onAuthStateChanged(u => { off(); r(u); }); }))
       .then(async (user) => {
         $('gate-pin').hidden = false; $('gate-ok').hidden = false;
-        if (user) { await cloudStart(); unlock(); } else showGate();
+        if (user && isUnlocked()) { await cloudStart(); unlock(); } else showGate(); // showGate 가 남은 로그인을 정리합니다
       })
       .catch((e) => { console.error(e); $('gate-sub').textContent = '서버에 연결하지 못했습니다. 인터넷을 확인하고 새로고침 하세요.'; });
   } else {
     save();
     setCloudBadge('local', '💻 이 기기에만 저장 중 (다른 기기와 공유 안 됨)');
     let unlocked = false;
-    try { unlocked = sessionStorage.getItem(UNLOCK_KEY) === '1' && !!getPin(); } catch (e) {}
+    unlocked = isUnlocked() && !!getPin();
     if (unlocked) unlock(); else showGate();
   }
   try {
