@@ -1233,7 +1233,47 @@ function parsePaldogam(matrix) {
   if (!items.length) throw new Error('데이터 행을 찾지 못했습니다');
   return items;
 }
-const PARSERS = { cafe24:parseCafe24, smartstore:parseSmartstore, ssg:parseSsg, baemin:parseBaemin, paldogam:parsePaldogam };
+/* -------------------------------------------------- 파서: 쿠팡(윙) 배송목록 */
+function parseCoupang(matrix) {
+  const hi = headerIndex(matrix, ['주문번호','노출상품ID']);
+  if (hi < 0) throw new Error('쿠팡 양식(주문번호·노출상품ID 열)을 찾지 못했습니다');
+  const f = colFinder(matrix[hi]);
+  const col = {
+    orderNo:f.eq('주문번호'), orderDate:f.eq('주문일'),
+    productName:f.eq('등록상품명'), optionName:f.eq('등록옵션명'),
+    productCode:f.eq('노출상품ID'), optionCode:f.eq('옵션ID'), sellerCode:f.eq('업체상품코드'),
+    qty:f.sw('구매수'), unit:f.sw('옵션판매가'), pay:f.eq('결제액'),
+    buyerName:f.eq('구매자'), status:f.eq('주문상태'), cancelDate:f.sw('취소'),
+  };
+  const need = ['orderNo','productCode','qty'];
+  const miss = need.filter(k => col[k] < 0);
+  if (miss.length) throw new Error('쿠팡 열을 찾지 못했습니다: '+miss.join(','));
+  const g = (r,k) => col[k]>=0 ? (r[col[k]]||'') : '';
+  const items = [];
+  for (let i=hi+1;i<matrix.length;i++) {
+    const r = matrix[i]; if (!r || !String(g(r,'orderNo')).trim()) continue;
+    const qty = parseNum(g(r,'qty')) || 1;
+    const unit = parseNum(g(r,'unit'));
+    const gross = unit>0 ? unit*qty : parseNum(g(r,'pay'));   // 매출 = 옵션판매가 × 수량(배송비 제외), 없으면 결제액
+    const pc = String(g(r,'productCode')).trim() || '(코드없음)';
+    const oc = String(g(r,'optionCode')).trim() || '__NONE__';
+    const status = String(g(r,'status'));
+    const cancelled = status.indexOf('취소')>=0 || status.indexOf('환불')>=0 || status.indexOf('반품')>=0 || String(g(r,'cancelDate')).trim()!=='';
+    const dateRaw = String(g(r,'orderDate')).trim();
+    items.push({
+      orderNo:String(g(r,'orderNo')).trim(), itemOrderNo:String(g(r,'orderNo')).trim()+'-'+oc,
+      orderDateTime:dateRaw, orderDate:normDateStr(dateRaw),
+      buyerName:String(g(r,'buyerName')).trim(),
+      productCode:pc, optionCode:oc,
+      productName:String(g(r,'productName')).trim(), optionName:cleanOption(g(r,'optionName')),
+      qty, listPrice:unit, grossAmount:gross, netAmount:gross,
+      isCancelled:cancelled,
+    });
+  }
+  if (!items.length) throw new Error('데이터 행을 찾지 못했습니다');
+  return items;
+}
+const PARSERS = { cafe24:parseCafe24, smartstore:parseSmartstore, ssg:parseSsg, baemin:parseBaemin, paldogam:parsePaldogam, coupang:parseCoupang };
 window.__PARSERS = PARSERS;
 
 /* -------------------------------------------------- 요약 */
