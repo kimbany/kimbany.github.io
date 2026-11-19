@@ -112,8 +112,24 @@ input[type="search"] { width: 240px; max-width: 100%; }
 .tablewrap.free { max-height: none; }
 table.led { border-collapse: separate; border-spacing: 0; width: max-content; min-width: 100%; font-size: 13px; }
 .led th, .led td { border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); padding: 5px 9px; white-space: nowrap; }
-.led thead th { position: sticky; top: 0; background: var(--surface-2); z-index: 2; font-weight: 600; text-align: center; color: var(--ink); }
-.led thead tr:nth-child(2) th { top: 31px; font-weight: 500; color: var(--muted); font-size: 12px; }
+.led thead { position: sticky; top: 0; z-index: 3; }
+.led thead th { background: var(--surface-2); font-weight: 600; text-align: center; color: var(--ink); }
+.led thead tr.r2 th, .led thead tr.r3 th { font-weight: 500; color: var(--muted); font-size: 12px; }
+.led thead th.fee { color: var(--accent); font-weight: 700; }
+.led thead th.basic { color: var(--ink); font-weight: 600; }
+.led td.ch { text-align: right; font-variant-numeric: tabular-nums; }
+.led td.cell input.dirty { border-color: var(--warn); background: var(--warn-bg); }
+.led tr.dayrow td { background: var(--surface-2); font-weight: 700; border-top: 2px solid var(--line-strong); }
+.savebar { position: sticky; bottom: calc(env(safe-area-inset-bottom, 0px) + 12px); margin-top: 12px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap;
+  background: var(--ink); color: var(--bg); padding: 10px 14px; border-radius: 10px; box-shadow: var(--shadow); z-index: 5; }
+.savebar input { flex: 1; min-width: 160px; }
+.savebar .btn:not(.primary) { color: var(--ink); }
+.daterange { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--muted); flex-wrap: wrap; }
+.chanlist { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0 14px; }
+.chanitem { display: inline-flex; gap: 4px; align-items: center; border: 1px solid var(--line); border-radius: 8px; padding: 3px 6px; background: var(--surface-2); font-size: 12px; }
+.chanitem input { width: 84px; padding: 3px 6px; }
+.chanitem input.fee { width: 54px; text-align: right; }
+.chanitem button { border: 0; background: none; cursor: pointer; color: var(--muted); font-size: 14px; }
 .led thead th.brand { font-weight: 700; }
 .led .num { text-align: right; font-variant-numeric: tabular-nums; }
 .led .c { text-align: center; }
@@ -254,6 +270,9 @@ body.ro .w { display: none !important; }
     </div>
     <nav class="menu" aria-label="메뉴">
       <a href="#prices" data-nav="prices">제품별 가격표</a>
+      <a href="#adjust" data-nav="adjust">판매가 수정</a>
+      <a href="#daily" data-nav="daily">일별 가격 변동</a>
+      <a href="#cost" data-nav="cost">단가 이력</a>
       <a href="#products" data-nav="products">제품 관리</a>
       <a href="#materials" data-nav="materials">부자재 관리</a>
       <a href="#config" data-nav="config">기타 설정</a>
@@ -274,7 +293,7 @@ body.ro .w { display: none !important; }
     <div class="viewhead">
       <div>
         <h1>제품별 가격표</h1>
-        <p class="sub">원가(단가 + 부자재)와 판매처별 정상가 · 판매가 · 할인가</p>
+        <p class="sub">판매처별 기본 가격과 마진, 채널별 수수료를 뺀 마진(마진율)을 한눈에 봐요. 가격을 고치려면 <a href="#adjust">판매가 수정</a>에서 하세요.</p>
       </div>
     </div>
     <div class="toolbar">
@@ -282,8 +301,7 @@ body.ro .w { display: none !important; }
       <div class="seg" id="p-type" role="group" aria-label="구분"></div>
       <div class="seg" id="p-mode" role="group" aria-label="발송 방식"></div>
       <span class="grow"></span>
-      <label class="switch"><input type="checkbox" id="p-margin"> 마진 보기</label>
-      <label class="switch w"><input type="checkbox" id="p-edit"> 표에서 바로 수정</label>
+      <label class="switch"><input type="checkbox" id="p-chan"> 채널별 마진</label>
       <button class="btn" id="p-csv" type="button">CSV 내보내기</button>
     </div>
     <div class="toolbar">
@@ -293,6 +311,49 @@ body.ro .w { display: none !important; }
     <div id="p-table"></div>
   </section>
 
+  <!-- 판매가 수정 -->
+  <section class="view" id="v-adjust" hidden>
+    <div class="viewhead">
+      <div>
+        <h1>판매가 수정</h1>
+        <p class="sub">기본 정상가 · 판매가 · 배송비를 고치면 마진과 채널별 마진이 바로 계산돼요. 저장하면 제품별 가격표에 반영되고 일별 가격 변동에 남아요.</p>
+      </div>
+    </div>
+    <div class="toolbar">
+      <input id="a-q" type="search" placeholder="상품명 · 등급 · 업체 검색" aria-label="검색">
+      <div class="seg" id="a-type" role="group" aria-label="구분"></div>
+      <span class="grow"></span>
+      <label class="switch"><input type="checkbox" id="a-chan"> 채널별 마진</label>
+    </div>
+    <div class="toolbar">
+      <span class="hint">판매처</span>
+      <div class="chips" id="a-brands"></div>
+    </div>
+    <div id="a-table"></div>
+    <div class="savebar" id="a-bar" hidden>
+      <span>바뀐 칸 <b id="a-count">0</b>개</span>
+      <input id="a-memo" type="text" placeholder="변동 사유 (선택) · 예: 주말 행사가" aria-label="변동 사유">
+      <button class="btn" type="button" data-act="adjust-revert">되돌리기</button>
+      <button class="btn primary" type="button" data-act="adjust-save">저장</button>
+    </div>
+  </section>
+
+  <!-- 일별 가격 변동 -->
+  <section class="view" id="v-daily" hidden>
+    <div class="viewhead">
+      <div>
+        <h1>일별 가격 변동</h1>
+        <p class="sub">판매가 수정에서 바꾼 정상가 · 판매가 · 배송비를 날짜별로 쌓아 보여 줘요. 하루에 여러 번 바꾸면 그날 처음 값 → 마지막 값으로 묶어요.</p>
+      </div>
+    </div>
+    <div class="toolbar">
+      <select id="d-target" aria-label="제품"></select>
+      <div class="seg" id="d-brand" role="group" aria-label="판매처"></div>
+      <span class="daterange">기간 <input id="d-from" type="date" aria-label="시작일"> ~ <input id="d-to" type="date" aria-label="종료일"></span>
+    </div>
+    <div id="d-table"></div>
+  </section>
+
   <!-- 메뉴2 -->
   <section class="view" id="v-products" hidden>
     <div class="viewhead">
@@ -300,7 +361,6 @@ body.ro .w { display: none !important; }
         <h1>제품 관리</h1>
         <p class="sub">제품 추가 · 수정, 발송 방식과 업체, 단가 변동을 기록합니다</p>
       </div>
-      <div class="subtabs"><a href="#products" aria-current="page">제품 목록</a><a href="#history">변동 기록</a></div>
     </div>
     <div class="toolbar">
       <input id="pl-q" type="search" placeholder="상품명 · 등급 · 업체 검색" aria-label="검색">
@@ -311,13 +371,12 @@ body.ro .w { display: none !important; }
     <div id="pl-table"></div>
   </section>
 
-  <section class="view" id="v-history" hidden>
+  <section class="view" id="v-cost" hidden>
     <div class="viewhead">
       <div>
-        <h1>제품 관리</h1>
-        <p class="sub">단가 · 업체 · 발송 방식 · 판매가가 바뀐 날짜와 내용</p>
+        <h1>단가 이력</h1>
+        <p class="sub">제품 단가 · 부자재 단가 · 업체 · 발송 방식이 바뀐 날짜를 쌓아 보여 줘요. 단가는 제품 관리 · 부자재 관리에서 바꿔요.</p>
       </div>
-      <div class="subtabs"><a href="#products">제품 목록</a><a href="#history" aria-current="page">변동 기록</a></div>
     </div>
     <div class="toolbar">
       <select id="h-target" aria-label="대상"></select>
@@ -413,7 +472,7 @@ const PB_SEED = {"brands":{"b-gyul":{"name":"귤타민","sort":20},"b-kakao":{"n
   const lsGet = (k, d) => { try { const v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } };
   const lsSet = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} };
 
-  const PRICE_FIELDS = [["regular", "정상가"], ["sale", "판매가"], ["discount", "할인가"], ["shipping", "택배비"]];
+  const PRICE_FIELDS = [["regular", "정상가"], ["sale", "판매가"], ["shipping", "배송비"]];
   const KINDS = { cost: "단가", vendor: "업체·발송", price: "판매가", material: "부자재", info: "정보", create: "등록", delete: "삭제" };
   const DEFAULT_CONFIG = { types: ["선물용", "가정용"], grades: ["소과", "중소과", "중과", "중대과", "대과", "특대과"], defaultShipping: "무배" };
 
@@ -421,7 +480,7 @@ const PB_SEED = {"brands":{"b-gyul":{"name":"귤타민","sort":20},"b-kakao":{"n
   const S = { products: [], brands: [], materials: [], vendors: [], history: [], config: { ...DEFAULT_CONFIG }, canWrite: false, connected: false, loaded: false };
   const ui = {
     view: "prices",
-    pq: "", ptype: "all", pmode: "all", hidden: new Set(lsGet("pb.hiddenBrands", [])), margin: !!lsGet("pb.margin", false), edit: false,
+    pq: "", ptype: "all", pmode: "all", hidden: new Set(lsGet("pb.hiddenBrands", [])), chan: lsGet("pb.chan", true) !== false, edit: false, drafts: {}, dtarget: "", dbrand: "all", dfrom: "", dto: "",
     plq: "", plmode: "all", htarget: "", hkind: "all", hq: "", mq: "", importText: "", importPlan: null
   };
   let db = null, fb = null;
@@ -431,13 +490,32 @@ const PB_SEED = {"brands":{"b-gyul":{"name":"귤타민","sort":20},"b-kakao":{"n
   const products = () => S.products.slice().sort(bySort);
   const vendorName = id => { const v = S.vendors.find(x => x.id === id); return v ? v.name : (id ? "(삭제된 업체)" : ""); };
   const matById = id => S.materials.find(m => m.id === id);
-  const matCost = p => (p.materials || []).reduce((s, m) => { const mm = matById(m.id); return s + (mm ? (num(mm.cost) || 0) * (num(m.qty) || 0) : 0); }, 0);
+  const matCost = p => p.mode !== "self" ? 0 : (p.materials || []).reduce((s, m) => { const mm = matById(m.id); return s + (mm ? (num(mm.cost) || 0) * (num(m.qty) || 0) : 0); }, 0);
   const totalCost = p => (num(p.unitCost) || 0) + matCost(p);
   const typeClass = t => { const i = S.config.types.indexOf(t); return i === 0 ? "t0" : i === 1 ? "t1" : "t2"; };
   const label = p => [p.name, p.type, [p.grade, p.weight, p.count].filter(Boolean).join(" ")].filter(Boolean).join(" · ");
   const modeText = p => p.mode === "self" ? "자체 포장" : (vendorName(p.vendorId) || "업체 발송");
-  const isSold = pr => !!pr && (pr.regular != null || pr.sale != null || pr.discount != null);
-  const effPrice = pr => pr ? (pr.discount ?? pr.sale ?? pr.regular ?? null) : null;
+  const isSold = pr => !!pr && (pr.regular != null || pr.sale != null);
+  const effPrice = pr => pr ? (pr.sale ?? pr.regular ?? null) : null;
+  const shipNum = pr => (pr && typeof pr.shipping === "number") ? pr.shipping : (num(pr && pr.shipping) || 0);
+  const shipText = v => v == null || v === "" ? "" : (typeof v === "number" ? won(v) : String(v));
+  // 배송비 칸: 숫자면 금액(원), 아니면 '무배' 같은 글자
+  const parseField = (f, raw) => {
+    const t = String(raw ?? "").trim();
+    if (f !== "shipping") return num(t);
+    if (!t) return null;
+    return /^[\d,\s]+원?$/.test(t) ? num(t) : t;
+  };
+  // 마진 = 판매가(없으면 정상가) − 수수료 − 원가 − 배송비(금액일 때)
+  const calcMargin = (p, pr, fee) => {
+    const price = effPrice(pr); if (price == null) return null;
+    const m = price - price * (fee || 0) / 100 - totalCost(p) - shipNum(pr);
+    return { m, r: price ? m / price * 100 : 0 };
+  };
+  const mHTML = c => c == null ? "" : `<span class="${c.m >= 0 ? "pos" : "neg"}">${won(c.m)}</span>`;
+  const rHTML = c => c == null ? "" : `<span class="${c.m >= 0 ? "pos" : "neg"}">${c.r.toFixed(1)}%</span>`;
+  const chHTML = c => c == null ? "" : `<span class="${c.m >= 0 ? "pos" : "neg"}">${won(c.m)}</span><span class="pct">(${c.r.toFixed(1)}%)</span>`;
+  const brandChannels = b => (b.channels || []).filter(c => c && c.name);
   const matchQ = (p, q) => {
     if (!q) return true;
     const hay = [p.name, p.type, p.grade, p.weight, p.count, modeText(p), p.note].join(" ").toLowerCase();
@@ -484,7 +562,7 @@ const PB_SEED = {"brands":{"b-gyul":{"name":"귤타민","sort":20},"b-kakao":{"n
       await db.collection("history").add({ at, target: "product", memo: "", ...e });
     }
   }
-  function setReadonly() { S.canWrite = false; ui.edit = false; document.body.classList.add("ro"); updateAuthUI(); renderView(); }
+  function setReadonly() { S.canWrite = false; document.body.classList.add("ro"); updateAuthUI(); renderView(); }
   function setEditable() { S.canWrite = true; document.body.classList.remove("ro"); updateAuthUI(); renderView(); }
   function updateAuthUI() {
     const b = $("#mode-badge"), btn = $("#unlock-btn");
@@ -499,12 +577,12 @@ const PB_SEED = {"brands":{"b-gyul":{"name":"귤타민","sort":20},"b-kakao":{"n
   }
 
   // ---------- routing ----------
-  const VIEWS = ["prices", "products", "history", "materials", "config"];
+  const VIEWS = ["prices", "adjust", "daily", "cost", "products", "materials", "config"];
   function route() {
     const h = (location.hash || "").replace("#", "");
     ui.view = VIEWS.includes(h) ? h : "prices";
     VIEWS.forEach(v => { $("#v-" + v).hidden = v !== ui.view; });
-    const navKey = ui.view === "history" ? "products" : ui.view;
+    const navKey = ui.view;
     $$("nav.menu a").forEach(a => a.setAttribute("aria-current", a.dataset.nav === navKey ? "page" : "false"));
     renderView();
   }
@@ -518,7 +596,7 @@ const PB_SEED = {"brands":{"b-gyul":{"name":"귤타민","sort":20},"b-kakao":{"n
     let selS = null, selE = null;
     try { if (key) { selS = a.selectionStart; selE = a.selectionEnd; } } catch (e) {}
     renderDatalists();
-    ({ prices: renderPrices, products: renderProducts, history: renderHistory, materials: renderMaterials, config: renderConfig })[ui.view]();
+    ({ prices: renderPrices, adjust: renderAdjust, daily: renderDaily, cost: renderHistory, products: renderProducts, materials: renderMaterials, config: renderConfig })[ui.view]();
     if (key) {
       const el = document.querySelector('[data-key="' + CSS.escape(key) + '"]');
       if (el && el !== document.activeElement) { el.focus(); try { if (selS != null) el.setSelectionRange(selS, selE); } catch (e) {} }
@@ -537,30 +615,37 @@ const PB_SEED = {"brands":{"b-gyul":{"name":"귤타민","sort":20},"b-kakao":{"n
   function emptyHTML(title, body) { return `<div class="tablewrap free"><div class="empty"><strong>${esc(title)}</strong>${body}</div></div>`; }
   function loadingOr(html) { return S.connected ? html : `<div class="tablewrap free"><div class="empty">데이터를 불러오는 중…</div></div>`; }
 
-  // ---------- 메뉴1: 가격표 ----------
-  function renderPrices() {
-    $("#p-type").innerHTML = segHTML([["all", "전체"], ...S.config.types.map(t => [t, t])], ui.ptype, "ptype");
-    $("#p-mode").innerHTML = segHTML([["all", "전체"], ["vendor", "업체 발송"], ["self", "자체 포장"]], ui.pmode, "pmode");
-    $("#p-brands").innerHTML = brands().map(b => `<button type="button" class="chip" data-brand="${esc(b.id)}" aria-pressed="${!ui.hidden.has(b.id)}">${esc(b.name)}</button>`).join("")
-      || `<span class="hint">설정에서 판매처를 추가하세요</span>`;
-    $("#p-margin").checked = ui.margin;
-    $("#p-edit").checked = ui.edit;
-
-    const list = products().filter(p => (ui.ptype === "all" || p.type === ui.ptype) && (ui.pmode === "all" || (p.mode || "vendor") === ui.pmode) && matchQ(p, ui.pq));
+  // ---------- 가격표 (보기 · 수정 공용) ----------
+  function renderFilters(pre) {
+    $("#" + pre + "-type").innerHTML = segHTML([["all", "전체"], ...S.config.types.map(t => [t, t])], ui.ptype, "ptype");
+    const pm = $("#" + pre + "-mode"); if (pm) pm.innerHTML = segHTML([["all", "전체"], ["vendor", "업체 발송"], ["self", "자체 포장"]], ui.pmode, "pmode");
+    $("#" + pre + "-brands").innerHTML = brands().map(b => `<button type="button" class="chip" data-brand="${esc(b.id)}" aria-pressed="${!ui.hidden.has(b.id)}">${esc(b.name)}</button>`).join("")
+      || `<span class="hint">기타 설정에서 판매처를 추가하세요</span>`;
+    $("#" + pre + "-chan").checked = ui.chan;
+    const q = $("#" + pre + "-q"); if (q && document.activeElement !== q) q.value = ui.pq;
+  }
+  const filtered = () => products().filter(p => (ui.ptype === "all" || p.type === ui.ptype) && (ui.pmode === "all" || (p.mode || "vendor") === ui.pmode) && matchQ(p, ui.pq));
+  const dKey = (pid, bid, f) => pid + "|" + bid + "|" + f;
+  function curPrice(p, bid) {
+    const old = (p.prices || {})[bid] || {};
+    const o = { regular: old.regular ?? null, sale: old.sale ?? null, shipping: old.shipping ?? null };
+    PRICE_FIELDS.forEach(([f]) => { const k = dKey(p.id, bid, f); if (k in ui.drafts) o[f] = parseField(f, ui.drafts[k]); });
+    return o;
+  }
+  function ledgerHTML(list, editable) {
     const bs = brands().filter(b => !ui.hidden.has(b.id));
-    const host = $("#p-table");
-    if (!S.connected) { host.innerHTML = loadingOr(""); return; }
-    if (!S.products.length) { host.innerHTML = emptyHTML("아직 등록된 제품이 없어요", `<p>제품 관리에서 첫 제품을 추가하면 이 표에 판매처별 가격이 정리돼요.</p><p class="w"><a class="btn primary" href="#products">제품 관리로 가기</a></p>`); return; }
-    if (!list.length) { host.innerHTML = emptyHTML("조건에 맞는 제품이 없어요", `<p>검색어나 구분 · 발송 필터를 바꿔 보세요.</p>`); return; }
-
-    const sub = ui.margin ? 5 : 4;
-    let h = `<p class="summary">제품 <b>${list.length}</b>개 · 판매처 <b>${bs.length}</b>곳 표시${ui.edit ? " · <b>수정 모드</b>: 칸을 고치고 Enter 또는 다른 칸으로 이동하면 저장돼요" : ""}</p>`;
-    h += `<div class="tablewrap"><table class="led"><thead><tr>
-      <th rowspan="2">상품명</th><th rowspan="2">업체 / 발송</th><th rowspan="2">구분</th><th rowspan="2">등급</th><th rowspan="2">중량</th><th rowspan="2">수량</th>
-      <th rowspan="2">단가</th><th rowspan="2">부자재</th><th rowspan="2">원가</th>`;
-    bs.forEach(b => { h += `<th class="brand bstart" colspan="${sub}">${esc(b.name)}</th>`; });
-    h += `</tr><tr>`;
-    bs.forEach(() => { h += `<th class="bstart">정상가</th><th>판매가</th><th>할인가</th><th>택배비</th>${ui.margin ? "<th>마진</th>" : ""}`; });
+    const cbs = ui.chan ? bs.filter(b => brandChannels(b).length) : [];
+    let h = `<div class="tablewrap"><table class="led"><thead><tr>
+      <th rowspan="3">상품명</th><th rowspan="3">업체</th><th rowspan="3">브릭스</th><th rowspan="3">구분</th><th rowspan="3">등급</th><th rowspan="3">중량</th><th rowspan="3">수량</th>
+      <th rowspan="3">단가</th><th rowspan="3">부자재</th><th rowspan="3">원가</th>`;
+    bs.forEach(b => { h += `<th class="brand bstart" colspan="5">${esc(b.name)}</th>`; });
+    cbs.forEach(b => { h += `<th class="brand bstart" colspan="${brandChannels(b).length}">${esc(b.name)} 채널</th>`; });
+    h += `</tr><tr class="r2">`;
+    bs.forEach(() => { h += `<th class="bstart basic" colspan="5">기본</th>`; });
+    cbs.forEach(b => brandChannels(b).forEach((c, i) => { h += `<th class="${i === 0 ? "bstart " : ""}basic">${esc(c.name)}</th>`; }));
+    h += `</tr><tr class="r3">`;
+    bs.forEach(() => { h += `<th class="bstart">정상가</th><th>판매가</th><th>배송비</th><th>마진</th><th>마진율</th>`; });
+    cbs.forEach(b => brandChannels(b).forEach((c, i) => { h += `<th class="${i === 0 ? "bstart " : ""}fee">${esc(String(c.fee ?? 0))}%</th>`; }));
     h += `</tr></thead><tbody>`;
     groupOf(list).forEach(g => {
       const n = g.items.length;
@@ -570,67 +655,132 @@ const PB_SEED = {"brands":{"b-gyul":{"name":"귤타민","sort":20},"b-kakao":{"n
         if (i === 0) {
           h += `<td class="gcell pname" rowspan="${n}"><button type="button" data-act="edit-product" data-id="${esc(p.id)}" title="제품 수정">${esc(p.name)}</button></td>`;
           h += `<td class="gcell vend" rowspan="${n}">${p.mode === "self" ? '<span class="tag self">자체 포장</span>' : esc(vendorName(p.vendorId) || "업체 미지정")}</td>`;
-          h += `<td class="gcell ${typeClass(p.type)}" rowspan="${n}">${esc(p.type)}</td>`;
         }
+        h += `<td class="c ${typeClass(p.type)}">${esc(p.brix || "")}</td>`;
+        if (i === 0) h += `<td class="gcell ${typeClass(p.type)}" rowspan="${n}">${esc(p.type)}</td>`;
         h += `<td class="c">${esc(p.grade)}</td><td class="c">${esc(p.weight)}</td><td class="c">${esc(p.count)}</td>`;
-        h += `<td class="num">${won(p.unitCost)}</td><td class="num muted">${mc ? won(mc) : "–"}</td><td class="num cost">${won(tc)}</td>`;
+        h += `<td class="num">${won(p.unitCost)}</td><td class="num muted">${p.mode === "self" ? (mc ? won(mc) : "0") : "–"}</td><td class="num cost">${won(tc)}</td>`;
         bs.forEach(b => {
-          const pr = (p.prices || {})[b.id];
+          const pr = editable ? curPrice(p, b.id) : ((p.prices || {})[b.id] || {});
           const sold = isSold(pr);
-          if (ui.edit && S.canWrite) {
-            PRICE_FIELDS.forEach(([f], j) => {
-              const v = pr ? pr[f] : null;
-              const val = f === "shipping" ? (v ?? "") : won(v);
-              h += `<td class="cell ${j === 0 ? "bstart " : ""}${sold ? "" : "na"}"><input type="text" ${f === "shipping" ? 'class="ship"' : 'inputmode="numeric"'} value="${esc(val)}" data-key="${esc(p.id + ":" + b.id + ":" + f)}" data-pid="${esc(p.id)}" data-bid="${esc(b.id)}" data-f="${f}" aria-label="${esc(b.name + " " + f)}"></td>`;
+          const c = sold ? calcMargin(p, pr, 0) : null;
+          if (editable) {
+            PRICE_FIELDS.forEach(([f, t], j) => {
+              const k = dKey(p.id, b.id, f);
+              const dirty = k in ui.drafts;
+              const v = dirty ? ui.drafts[k] : (f === "shipping" ? shipText(pr[f]) : won(pr[f]));
+              h += `<td class="cell ${j === 0 ? "bstart " : ""}${sold ? "" : "na"}"><input type="text" class="${f === "shipping" ? "ship " : ""}${dirty ? "dirty" : ""}" ${f === "shipping" ? "" : 'inputmode="numeric"'} value="${esc(v)}" data-key="${esc(k)}" data-pid="${esc(p.id)}" data-bid="${esc(b.id)}" data-f="${f}" aria-label="${esc(p.name + " " + b.name + " " + t)}"></td>`;
             });
           } else if (!sold) {
-            h += `<td class="na bstart">–</td><td class="na">–</td><td class="na">–</td><td class="na">–</td>`;
+            h += `<td class="na bstart">–</td><td class="na">–</td><td class="na">–</td>`;
           } else {
-            h += `<td class="num bstart">${won(pr.regular)}</td><td class="num">${won(pr.sale)}</td><td class="num">${pr.discount != null ? won(pr.discount) : '<span class="muted">–</span>'}</td><td class="c">${esc(pr.shipping ?? "")}</td>`;
+            h += `<td class="num bstart">${won(pr.regular)}</td><td class="num">${won(pr.sale)}</td><td class="c">${esc(shipText(pr.shipping))}</td>`;
           }
-          if (ui.margin) {
-            const ep = effPrice(pr);
-            if (!sold || ep == null) h += `<td class="na">–</td>`;
-            else { const m = ep - tc; const pct = ep ? Math.round(m / ep * 100) : 0; h += `<td class="num ${m >= 0 ? "pos" : "neg"}">${won(m)}<span class="pct">${pct}%</span></td>`; }
-          }
+          h += sold ? `<td class="num" data-mc="${esc(p.id + "|" + b.id)}">${mHTML(c)}</td><td class="num" data-mr="${esc(p.id + "|" + b.id)}">${rHTML(c)}</td>`
+                    : `<td class="na" data-mc="${esc(p.id + "|" + b.id)}">–</td><td class="na" data-mr="${esc(p.id + "|" + b.id)}">–</td>`;
+        });
+        cbs.forEach(b => {
+          const pr = editable ? curPrice(p, b.id) : ((p.prices || {})[b.id] || {});
+          const sold = isSold(pr);
+          brandChannels(b).forEach((ch, j) => {
+            const c = sold ? calcMargin(p, pr, num(ch.fee) || 0) : null;
+            h += `<td class="${sold ? "ch" : "na"}${j === 0 ? " bstart" : ""}" data-ch="${esc(p.id + "|" + b.id + "|" + j)}">${sold ? chHTML(c) : "–"}</td>`;
+          });
         });
         h += `</tr>`;
       });
     });
     h += `</tbody></table></div>`;
-    if (ui.margin) h += `<p class="hint">마진 = 할인가(없으면 판매가, 그것도 없으면 정상가) − 원가. 택배비 · 수수료는 빠져 있어요.</p>`;
-    host.innerHTML = h;
+    h += `<p class="hint">마진 = 판매가(없으면 정상가) − 원가 − 배송비(금액으로 적은 경우). 채널 마진은 여기서 판매가 × 수수료를 더 뺀 값이에요. 원가는 업체 발송이면 단가, 자체 포장이면 단가 + 부자재예요.</p>`;
+    return h;
   }
-
-  async function savePriceCell(inp) {
-    const p = S.products.find(x => x.id === inp.dataset.pid);
-    const b = S.brands.find(x => x.id === inp.dataset.bid);
-    if (!p || !b) return;
-    const f = inp.dataset.f;
-    const old = (p.prices || {})[b.id] || {};
-    const prev = old[f] ?? null;
-    const nv = f === "shipping" ? (inp.value.trim() || null) : num(inp.value);
-    if (nv === prev) { if (f !== "shipping") inp.value = won(prev); return; }
-    const cur = { regular: old.regular ?? null, sale: old.sale ?? null, discount: old.discount ?? null, shipping: old.shipping ?? null };
-    cur[f] = nv;
-    if (f !== "shipping" && nv != null && !cur.shipping) cur.shipping = S.config.defaultShipping || null;
-    inp.classList.add("saving");
-    const fl = PRICE_FIELDS.find(x => x[0] === f)[1];
-    await guard(async () => {
-      await db.doc("products/" + p.id).update({ prices: { [b.id]: cur }, updatedAt: new Date().toISOString() });
-      await addHist([{ kind: "price", targetId: p.id, label: label(p), field: b.name + " " + fl, from: prev, to: nv, date: today() }]);
-    }, `${b.name} ${fl} 저장됨`);
-    inp.classList.remove("saving");
+  function renderPrices() {
+    renderFilters("p");
+    const host = $("#p-table");
+    if (!S.connected) { host.innerHTML = loadingOr(""); return; }
+    if (!S.products.length) { host.innerHTML = emptyHTML("아직 등록된 제품이 없어요", `<p>제품 관리에서 첫 제품을 추가하면 이 표에 판매처별 가격이 정리돼요.</p>`); return; }
+    const list = filtered();
+    if (!list.length) { host.innerHTML = emptyHTML("조건에 맞는 제품이 없어요", `<p>검색어나 구분 · 발송 필터를 바꿔 보세요.</p>`); return; }
+    host.innerHTML = `<p class="summary">제품 <b>${list.length}</b>개</p>` + ledgerHTML(list, false);
+  }
+  function renderAdjust() {
+    renderFilters("a");
+    const host = $("#a-table");
+    updateAdjustBar();
+    if (!S.connected) { host.innerHTML = loadingOr(""); return; }
+    if (!S.canWrite) { host.innerHTML = emptyHTML("가격을 고치려면 PIN이 필요해요", `<p>오른쪽 위 <b>수정하기</b>를 누르고 PIN을 넣어 주세요.</p><p><button class="btn primary" type="button" data-act="unlock">수정하기</button></p>`); return; }
+    if (!S.products.length) { host.innerHTML = emptyHTML("아직 등록된 제품이 없어요", ""); return; }
+    const list = filtered();
+    if (!list.length) { host.innerHTML = emptyHTML("조건에 맞는 제품이 없어요", ""); return; }
+    host.innerHTML = `<p class="summary">제품 <b>${list.length}</b>개 · 칸을 고치면 노란색으로 표시되고, 아래 <b>저장</b>을 눌러야 반영돼요. 정상가 · 판매가를 모두 비우면 그 판매처에서는 판매 안 함이 돼요.</p>` + ledgerHTML(list, true);
+  }
+  function updateAdjustBar() {
+    const n = Object.keys(ui.drafts).length;
+    $("#a-bar").hidden = !(n && S.canWrite && ui.view === "adjust");
+    $("#a-count").textContent = n;
+  }
+  function onAdjustInput(inp) {
+    const p = S.products.find(x => x.id === inp.dataset.pid); if (!p) return;
+    const bid = inp.dataset.bid, f = inp.dataset.f, k = dKey(p.id, bid, f);
+    const stored = ((p.prices || {})[bid] || {})[f] ?? null;
+    if ((parseField(f, inp.value) ?? null) === stored) delete ui.drafts[k]; else ui.drafts[k] = inp.value;
+    inp.classList.toggle("dirty", k in ui.drafts);
+    const pr = curPrice(p, bid), sold = isSold(pr), c = sold ? calcMargin(p, pr, 0) : null;
+    const id = p.id + "|" + bid;
+    const mc = document.querySelector(`[data-mc="${CSS.escape(id)}"]`), mr = document.querySelector(`[data-mr="${CSS.escape(id)}"]`);
+    if (mc) { mc.className = sold ? "num" : "na"; mc.innerHTML = sold ? mHTML(c) : "–"; }
+    if (mr) { mr.className = sold ? "num" : "na"; mr.innerHTML = sold ? rHTML(c) : "–"; }
+    $$(`[data-pid="${CSS.escape(p.id)}"][data-bid="${CSS.escape(bid)}"]`).forEach(x => x.closest("td").classList.toggle("na", !sold));
+    const b = S.brands.find(x => x.id === bid);
+    if (b) brandChannels(b).forEach((ch, j) => {
+      const td = document.querySelector(`[data-ch="${CSS.escape(id + "|" + j)}"]`); if (!td) return;
+      const cc = sold ? calcMargin(p, pr, num(ch.fee) || 0) : null;
+      td.className = (sold ? "ch" : "na") + (j === 0 ? " bstart" : ""); td.innerHTML = sold ? chHTML(cc) : "–";
+    });
+    updateAdjustBar();
+  }
+  async function saveAdjust(btn) {
+    const keys = Object.keys(ui.drafts); if (!keys.length) return;
+    const byP = {};
+    keys.forEach(k => { const [pid, bid] = k.split("|"); (byP[pid] = byP[pid] || new Set()).add(bid); });
+    const memo = $("#a-memo").value.trim(), date = today(), now = new Date().toISOString();
+    btn.disabled = true;
+    let cells = 0;
+    const ok = await guard(async () => {
+      for (const pid of Object.keys(byP)) {
+        const p = S.products.find(x => x.id === pid); if (!p) continue;
+        const patch = {}, hist = [];
+        for (const bid of byP[pid]) {
+          const old = (p.prices || {})[bid] || {};
+          const next = curPrice(p, bid);
+          if (isSold(next) && next.shipping == null && !isSold(old)) next.shipping = S.config.defaultShipping || null;
+          const b = S.brands.find(x => x.id === bid);
+          PRICE_FIELDS.forEach(([f, t]) => {
+            const from = old[f] ?? null, to = next[f] ?? null;
+            if (from !== to) { hist.push({ kind: "price", bid, pf: f, field: (b ? b.name : "") + " " + t, from, to }); cells++; }
+          });
+          patch[bid] = next;
+        }
+        if (!hist.length) continue;
+        await db.doc("products/" + pid).update({ prices: patch, updatedAt: now });
+        await addHist(hist.map(x => ({ ...x, targetId: pid, label: label(p), date, memo })));
+      }
+    });
+    btn.disabled = false;
+    if (ok) { ui.drafts = {}; $("#a-memo").value = ""; toast(cells ? `저장했어요 · ${cells}칸 바뀜` : "바뀐 내용이 없어요"); renderView(); }
   }
 
   function exportCSV() {
     const bs = brands().filter(b => !ui.hidden.has(b.id));
-    const head = ["상품명", "업체/발송", "구분", "등급", "중량", "수량", "단가", "부자재", "원가"];
-    bs.forEach(b => PRICE_FIELDS.forEach(([, t]) => head.push(b.name + " " + t)));
+    const head = ["상품명", "업체/발송", "브릭스", "구분", "등급", "중량", "수량", "단가", "부자재", "원가"];
+    bs.forEach(b => ["정상가", "판매가", "배송비", "마진", "마진율(%)"].forEach(t => head.push(b.name + " " + t)));
+    bs.forEach(b => brandChannels(b).forEach(c => head.push(`${b.name} ${c.name}(${c.fee}%) 마진`)));
     const rows = [head];
     products().forEach(p => {
-      const r = [p.name, modeText(p), p.type, p.grade, p.weight, p.count, num(p.unitCost) ?? "", matCost(p), totalCost(p)];
-      bs.forEach(b => { const pr = (p.prices || {})[b.id] || {}; PRICE_FIELDS.forEach(([f]) => r.push(pr[f] ?? "")); });
+      const r = [p.name, modeText(p), p.brix || "", p.type, p.grade, p.weight, p.count, num(p.unitCost) ?? "", matCost(p), totalCost(p)];
+      bs.forEach(b => { const pr = (p.prices || {})[b.id] || {}; const c = isSold(pr) ? calcMargin(p, pr, 0) : null;
+        r.push(pr.regular ?? "", pr.sale ?? "", pr.shipping ?? "", c ? Math.round(c.m) : "", c ? c.r.toFixed(1) : ""); });
+      bs.forEach(b => { const pr = (p.prices || {})[b.id] || {}; brandChannels(b).forEach(ch => { const c = isSold(pr) ? calcMargin(p, pr, num(ch.fee) || 0) : null; r.push(c ? Math.round(c.m) : ""); }); });
       rows.push(r);
     });
     const csv = "﻿" + rows.map(r => r.map(c => { const s = String(c ?? ""); return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; }).join(",")).join("\r\n");
@@ -649,13 +799,13 @@ const PB_SEED = {"brands":{"b-gyul":{"name":"귤타민","sort":20},"b-kakao":{"n
     if (!list.length) { host.innerHTML = emptyHTML("조건에 맞는 제품이 없어요", ""); return; }
     const bs = brands();
     let h = `<p class="summary">제품 <b>${list.length}</b>개</p><div class="tablewrap"><table class="led"><thead><tr>
-      <th>상품명</th><th>구분</th><th>등급</th><th>중량</th><th>수량</th><th>발송</th><th>업체</th><th>단가</th><th>부자재</th><th>원가</th><th>판매처</th><th>최근 단가·업체 변동</th><th class="w"></th></tr></thead><tbody>`;
+      <th>상품명</th><th>구분</th><th>브릭스</th><th>등급</th><th>중량</th><th>수량</th><th>발송</th><th>업체</th><th>단가</th><th>부자재</th><th>원가</th><th>판매처</th><th>최근 단가·업체 변동</th><th class="w"></th></tr></thead><tbody>`;
     groupOf(list).forEach(g => g.items.forEach((p, i) => {
       const lc = lastChange(p.id);
       const soldAt = bs.filter(b => isSold((p.prices || {})[b.id])).map(b => b.name);
       h += `<tr class="${i === 0 ? "gstart" : ""}">
         <td class="pname"><button type="button" data-act="edit-product" data-id="${esc(p.id)}">${esc(p.name)}</button></td>
-        <td class="c ${typeClass(p.type)}">${esc(p.type)}</td><td class="c">${esc(p.grade)}</td><td class="c">${esc(p.weight)}</td><td class="c">${esc(p.count)}</td>
+        <td class="c ${typeClass(p.type)}">${esc(p.type)}</td><td class="c">${esc(p.brix || "")}</td><td class="c">${esc(p.grade)}</td><td class="c">${esc(p.weight)}</td><td class="c">${esc(p.count)}</td>
         <td class="c">${p.mode === "self" ? '<span class="tag self">자체 포장</span>' : '<span class="tag vendor">업체 발송</span>'}</td>
         <td>${p.mode === "self" ? '<span class="muted">–</span>' : esc(vendorName(p.vendorId) || "미지정")}</td>
         <td class="num">${won(p.unitCost)}</td><td class="num muted">${matCost(p) ? won(matCost(p)) : "–"}</td><td class="num cost">${won(totalCost(p))}</td>
@@ -686,23 +836,75 @@ const PB_SEED = {"brands":{"b-gyul":{"name":"귤타민","sort":20},"b-kakao":{"n
     S.materials.slice().sort(bySort).forEach(m => opts.push(["m:" + m.id, "부자재 · " + m.name]));
     if (!opts.some(o => o[0] === ui.htarget)) ui.htarget = "";
     sel.innerHTML = opts.map(([v, t]) => `<option value="${esc(v)}"${v === ui.htarget ? " selected" : ""}>${esc(t)}</option>`).join("");
-    $("#h-kind").innerHTML = segHTML([["all", "전체"], ["cost", "단가"], ["vendor", "업체·발송"], ["price", "판매가"], ["material", "부자재"], ["info", "정보"], ["create", "등록·삭제"]], ui.hkind, "hkind");
+    $("#h-kind").innerHTML = segHTML([["all", "전체"], ["cost", "단가"], ["vendor", "업체·발송"], ["material", "부자재"], ["info", "정보"], ["create", "등록·삭제"]], ui.hkind, "hkind");
     const host = $("#h-table");
     if (!S.connected) { host.innerHTML = loadingOr(""); return; }
     const q = ui.hq.toLowerCase();
     const list = S.history.slice().sort(histSort).filter(x => {
+      if (x.kind === "price") return false;
       if (ui.htarget) { const [t, id] = [ui.htarget.slice(0, 1), ui.htarget.slice(2)]; if (x.targetId !== id || (t === "m") !== (x.target === "material")) return false; }
       if (ui.hkind !== "all") { if (ui.hkind === "create" ? !(x.kind === "create" || x.kind === "delete") : x.kind !== ui.hkind) return false; }
       if (q && ![x.label, x.field, x.memo, x.from, x.to].join(" ").toLowerCase().includes(q)) return false;
       return true;
     });
-    if (!S.history.length) { host.innerHTML = emptyHTML("아직 기록이 없어요", "<p>제품의 단가 · 업체 · 발송 방식 · 판매가를 바꾸면 날짜와 함께 여기에 쌓여요.</p>"); return; }
+    if (!S.history.some(x => x.kind !== "price")) { host.innerHTML = emptyHTML("아직 기록이 없어요", "<p>제품 관리에서 단가 · 업체 · 발송 방식을, 부자재 관리에서 부자재 단가를 바꾸면 날짜와 함께 여기에 쌓여요.</p>"); return; }
     if (!list.length) { host.innerHTML = emptyHTML("조건에 맞는 기록이 없어요", ""); return; }
     let h = `<p class="summary">기록 <b>${list.length}</b>건</p><div class="tablewrap"><table class="led"><thead><tr><th>적용일</th><th>대상</th><th>항목</th><th>변경 내용</th><th>사유 · 메모</th><th>입력 시각</th></tr></thead><tbody>`;
     list.forEach(x => {
       h += `<tr><td class="c" style="font-variant-numeric:tabular-nums">${esc(x.date)}</td><td>${esc(x.label)}</td>
         <td><span class="kind k-${esc(x.kind)}">${esc(KINDS[x.kind] || x.kind)}</span>${x.kind === "create" || x.kind === "delete" ? "" : esc(x.field)}</td>
         <td>${histChange(x)}</td><td>${esc(x.memo || "")}</td><td class="muted">${esc(stamp(x.at))}</td></tr>`;
+    });
+    h += `</tbody></table></div>`;
+    host.innerHTML = h;
+  }
+
+  // ---------- 일별 가격 변동 ----------
+  const DOW = ["일", "월", "화", "수", "목", "금", "토"];
+  const dayLabel = d => { const x = new Date(d + "T00:00"); return isNaN(x) ? d : `${d} (${DOW[x.getDay()]})`; };
+  function histBrandId(x) {
+    if (x.bid) return x.bid;
+    const b = S.brands.slice().sort((a, c) => c.name.length - a.name.length).find(b => String(x.field || "").startsWith(b.name + " "));
+    return b ? b.id : "";
+  }
+  function renderDaily() {
+    const sel = $("#d-target");
+    const opts = [["", "전체 제품"]]; products().forEach(p => opts.push([p.id, label(p)]));
+    if (!opts.some(o => o[0] === ui.dtarget)) ui.dtarget = "";
+    sel.innerHTML = opts.map(([v, t]) => `<option value="${esc(v)}"${v === ui.dtarget ? " selected" : ""}>${esc(t)}</option>`).join("");
+    $("#d-brand").innerHTML = segHTML([["all", "전체"], ...brands().map(b => [b.id, b.name])], ui.dbrand, "dbrand");
+    $("#d-from").value = ui.dfrom; $("#d-to").value = ui.dto;
+    const host = $("#d-table");
+    if (!S.connected) { host.innerHTML = loadingOr(""); return; }
+    const raw = S.history.filter(x => x.kind === "price").sort((a, b) => String(a.at || "").localeCompare(String(b.at || "")));
+    if (!raw.length) { host.innerHTML = emptyHTML("아직 가격 변동이 없어요", `<p><a href="#adjust">판매가 수정</a>에서 가격을 고치고 저장하면 날짜별로 여기에 쌓여요.</p>`); return; }
+    const agg = new Map();
+    raw.forEach(x => {
+      const bid = histBrandId(x);
+      if (ui.dtarget && x.targetId !== ui.dtarget) return;
+      if (ui.dbrand !== "all" && bid !== ui.dbrand) return;
+      if (ui.dfrom && x.date < ui.dfrom) return;
+      if (ui.dto && x.date > ui.dto) return;
+      const k = x.date + "|" + x.targetId + "|" + x.field;
+      const a = agg.get(k);
+      if (!a) agg.set(k, { ...x, bid, count: 1 });
+      else { a.to = x.to; a.count++; if (x.memo) a.memo = x.memo; a.at = x.at; a.label = x.label; }
+    });
+    const rows = [...agg.values()].filter(x => (x.from ?? null) !== (x.to ?? null));
+    if (!rows.length) { host.innerHTML = emptyHTML("조건에 맞는 변동이 없어요", ""); return; }
+    const byDay = new Map();
+    rows.forEach(x => { if (!byDay.has(x.date)) byDay.set(x.date, []); byDay.get(x.date).push(x); });
+    const days = [...byDay.keys()].sort().reverse();
+    const pOrder = new Map(products().map((p, i) => [p.id, i]));
+    let h = `<p class="summary"><b>${days.length}</b>일 · 변동 <b>${rows.length}</b>건</p><div class="tablewrap"><table class="led"><thead><tr><th>날짜</th><th>상품</th><th>판매처</th><th>항목</th><th>변경</th><th>사유</th></tr></thead><tbody>`;
+    days.forEach(d => {
+      const list = byDay.get(d).sort((a, b) => (pOrder.get(a.targetId) ?? 1e9) - (pOrder.get(b.targetId) ?? 1e9) || String(a.field).localeCompare(String(b.field)));
+      h += `<tr class="dayrow"><td colspan="6">${esc(dayLabel(d))} · ${list.length}건</td></tr>`;
+      list.forEach(x => {
+        const b = S.brands.find(y => y.id === x.bid);
+        const fl = x.pf ? (PRICE_FIELDS.find(f => f[0] === x.pf) || [, x.pf])[1] : String(x.field || "").replace(b ? b.name + " " : "", "");
+        h += `<tr><td class="c muted">${esc(d.slice(5))}</td><td>${esc(x.label)}</td><td>${esc(b ? b.name : "")}</td><td>${esc(fl)}${x.count > 1 ? ` <span class="hint">(${x.count}번 수정)</span>` : ""}</td><td>${histChange(x)}</td><td>${esc(x.memo || "")}</td></tr>`;
+      });
     });
     h += `</tbody></table></div>`;
     host.innerHTML = h;
@@ -735,12 +937,15 @@ const PB_SEED = {"brands":{"b-gyul":{"name":"귤타민","sort":20},"b-kakao":{"n
     if (!S.connected) { host.innerHTML = loadingOr(""); return; }
     const bs = brands();
     const vs = S.vendors.slice().sort(bySort);
-    let h = `<div class="panel"><h3>판매처 (브랜드)</h3><p class="hint">가격표에 판매처별 정상가 · 판매가 · 할인가 · 택배비 칸이 생겨요. 순서는 화살표로 바꿔요.</p><div class="rowlist">`;
+    const dis = S.canWrite ? "" : "disabled";
+    let h = `<div class="panel" style="grid-column:1/-1"><h3>판매처 (브랜드) · 채널 수수료</h3><p class="hint">판매처마다 기본 정상가 · 판매가 · 배송비를 넣어요. 그 아래 채널(스스 · 쿠팡 등)과 수수료(%)를 넣으면 가격표에 채널별 마진이 나와요. 순서는 화살표로 바꿔요.</p><div class="rowlist">`;
     bs.forEach((b, i) => {
-      h += `<div class="rowitem"><input type="text" value="${esc(b.name)}" data-key="brand:${esc(b.id)}" data-rename="brand" data-id="${esc(b.id)}" aria-label="판매처 이름">
+      h += `<div class="rowitem"><input type="text" value="${esc(b.name)}" data-key="brand:${esc(b.id)}" data-rename="brand" data-id="${esc(b.id)}" aria-label="판매처 이름" ${dis}>
         <button class="btn sm w" type="button" data-act="brand-up" data-id="${esc(b.id)}" ${i === 0 ? "disabled" : ""} aria-label="위로">↑</button>
         <button class="btn sm w" type="button" data-act="brand-down" data-id="${esc(b.id)}" ${i === bs.length - 1 ? "disabled" : ""} aria-label="아래로">↓</button>
-        <button class="btn sm danger w" type="button" data-act="brand-del" data-id="${esc(b.id)}">삭제</button></div>`;
+        <button class="btn sm danger w" type="button" data-act="brand-del" data-id="${esc(b.id)}">삭제</button></div>
+        <div class="chanlist">${brandChannels(b).map((c, j) => `<span class="chanitem"><input type="text" value="${esc(c.name)}" data-key="chn:${esc(b.id)}:${j}" data-chname="${esc(b.id)}" data-j="${j}" aria-label="채널 이름" ${dis}><input type="text" class="fee" inputmode="decimal" value="${esc(String(c.fee ?? ""))}" data-key="chf:${esc(b.id)}:${j}" data-chfee="${esc(b.id)}" data-j="${j}" aria-label="수수료" ${dis}>%<button type="button" class="w" data-act="chan-del" data-id="${esc(b.id)}" data-j="${j}" aria-label="${esc(c.name)} 빼기">×</button></span>`).join("")}
+          <span class="chanitem w"><input type="text" id="addch-name-${esc(b.id)}" placeholder="채널 이름"><input type="text" class="fee" inputmode="decimal" id="addch-fee-${esc(b.id)}" placeholder="수수료">%<button type="button" class="btn sm" data-act="chan-add" data-id="${esc(b.id)}">추가</button></span></div>`;
     });
     if (!bs.length) h += `<p class="muted">판매처가 없어요.</p>`;
     h += `</div><div class="addrow w"><input id="add-brand" type="text" placeholder="예: 스마트스토어"><button class="btn primary" type="button" data-act="brand-add">추가</button></div></div>`;
@@ -772,10 +977,10 @@ const PB_SEED = {"brands":{"b-gyul":{"name":"귤타민","sort":20},"b-kakao":{"n
   //         "prices": { "판매처 이름": { "regular", "sale", "discount"?, "shipping"? } } }, ...]
   const sameKey = (a, b) => ["name", "type", "grade", "weight", "count"].every(k => String(a[k] || "").trim() === String(b[k] || "").trim());
   function planImport(text) {
-    let arr;
+    let arr, brandsCfg = [];
     try { arr = JSON.parse(text); } catch (e) { return { error: "형식이 맞지 않아요. Claude 가 준 글을 처음부터 끝까지 그대로 붙여 넣어 주세요." }; }
-    if (arr && !Array.isArray(arr)) arr = arr.products;
-    if (!Array.isArray(arr) || !arr.length) return { error: "넣을 제품이 없어요." };
+    if (arr && !Array.isArray(arr)) { brandsCfg = Array.isArray(arr.brands) ? arr.brands.filter(b => b && b.name) : []; arr = arr.products || []; }
+    if (!Array.isArray(arr) || (!arr.length && !brandsCfg.length)) return { error: "넣을 내용이 없어요." };
     const rows = [], errors = [];
     arr.forEach((r, i) => {
       if (!r || !String(r.name || "").trim()) { errors.push((i + 1) + "번째 줄: 상품명이 없어요"); return; }
@@ -783,14 +988,14 @@ const PB_SEED = {"brands":{"b-gyul":{"name":"귤타민","sort":20},"b-kakao":{"n
       if (cost == null) { errors.push((i + 1) + "번째 줄(" + r.name + "): 단가가 없어요"); return; }
       const row = {
         name: String(r.name).trim(), type: String(r.type || "").trim(), grade: String(r.grade || "").trim(),
-        weight: String(r.weight || "").trim(), count: String(r.count || "").trim(),
+        weight: String(r.weight || "").trim(), count: String(r.count || "").trim(), brix: r.brix == null ? null : String(r.brix).trim(),
         vendor: String(r.vendor || "").trim(), mode: r.mode === "self" || (!r.vendor && r.mode !== "vendor") ? "self" : "vendor",
         unitCost: cost, prices: {}
       };
       Object.entries(r.prices || {}).forEach(([bn, pr]) => {
         if (!pr) return;
-        const o = { regular: num(pr.regular), sale: num(pr.sale), discount: num(pr.discount), shipping: pr.shipping == null || pr.shipping === "" ? null : String(pr.shipping) };
-        if (o.regular == null && o.sale == null && o.discount == null) return;
+        const o = { regular: num(pr.regular), sale: num(pr.sale), shipping: typeof pr.shipping === "number" ? pr.shipping : parseField("shipping", pr.shipping) };
+        if (o.regular == null && o.sale == null) return;
         if (o.shipping == null) o.shipping = S.config.defaultShipping || null;
         row.prices[String(bn).trim()] = o;
       });
@@ -799,9 +1004,9 @@ const PB_SEED = {"brands":{"b-gyul":{"name":"귤타민","sort":20},"b-kakao":{"n
     });
     const brandNames = new Set(S.brands.map(b => b.name));
     const vendorNames = new Set(S.vendors.map(v => v.name));
-    const newBrands = [...new Set(rows.flatMap(r => Object.keys(r.prices)))].filter(n => !brandNames.has(n));
+    const newBrands = [...new Set([...brandsCfg.map(b => String(b.name).trim()), ...rows.flatMap(r => Object.keys(r.prices))])].filter(n => !brandNames.has(n));
     const newVendors = [...new Set(rows.filter(r => r.mode === "vendor" && r.vendor).map(r => r.vendor))].filter(n => !vendorNames.has(n));
-    return { rows, errors, newBrands, newVendors };
+    return { rows, errors, newBrands, newVendors, brandsCfg };
   }
   function importPanelHTML() {
     const pl = ui.importPlan;
@@ -810,12 +1015,13 @@ const PB_SEED = {"brands":{"b-gyul":{"name":"귤타민","sort":20},"b-kakao":{"n
     else if (pl) {
       const nNew = pl.rows.filter(r => !r.existing).length, nUp = pl.rows.length - nNew;
       pv = `<p><b>${pl.rows.length}</b>개 확인 · 새로 추가 <b>${nNew}</b> · 가격 바꿈 <b>${nUp}</b></p>`;
+      if (pl.brandsCfg.length) pv += `<p class="hint">채널 수수료 설정: ${pl.brandsCfg.map(b => esc(b.name) + " " + (b.channels || []).length + "개").join(", ")}</p>`;
       if (pl.newBrands.length) pv += `<p class="hint">새 판매처: ${esc(pl.newBrands.join(", "))}</p>`;
       if (pl.newVendors.length) pv += `<p class="hint">새 업체: ${esc(pl.newVendors.join(", "))}</p>`;
       if (pl.errors.length) pv += `<p class="neg">${pl.errors.map(esc).join("<br>")}</p>`;
       pv += `<div class="tablewrap free" style="max-height:260px"><table class="led"><thead><tr><th></th><th>상품</th><th>업체</th><th>단가</th><th>판매처</th></tr></thead><tbody>${pl.rows.map(r => `<tr><td class="c">${r.existing ? '<span class="tag">바꿈</span>' : '<span class="tag self">새로</span>'}</td><td>${esc(label(r))}</td><td>${r.mode === "self" ? "자체 포장" : esc(r.vendor)}</td><td class="num">${won(r.unitCost)}</td><td class="muted">${esc(Object.keys(r.prices).join(", ") || "–")}</td></tr>`).join("")}</tbody></table></div>`;
     }
-    const canRun = pl && !pl.error && pl.rows.length;
+    const canRun = pl && !pl.error && (pl.rows.length || pl.brandsCfg.length);
     return `<div class="panel w" style="grid-column:1/-1"><h3>한꺼번에 넣기</h3>
       <p class="hint">Claude 에게 가격표 이미지를 보내면 여기에 붙여 넣을 글을 만들어 줘요. 붙여 넣고 <b>미리 보기</b> → <b>가져오기</b>. 상품명 · 구분 · 등급 · 중량 · 수량이 같은 제품은 새로 만들지 않고 단가 · 가격만 바꾸며, 바뀐 내용은 변동 기록에 남아요.</p>
       <textarea id="import-text" data-key="import-text" rows="6" style="width:100%;font-family:ui-monospace,monospace;font-size:12px" placeholder='[{"name":"시나노골드","type":"선물용","grade":"중과","weight":"2.5kg","count":"10-14과","vendor":"휘프레쉬","unitCost":14000,"prices":{"몽프루이":{"regular":24900,"sale":15900}}}]'>${esc(ui.importText)}</textarea>
@@ -824,7 +1030,7 @@ const PB_SEED = {"brands":{"b-gyul":{"name":"귤타민","sort":20},"b-kakao":{"n
   }
   async function runImport(btn) {
     const pl = planImport(ui.importText); ui.importPlan = pl;
-    if (pl.error || !pl.rows.length) { renderView(); return; }
+    if (pl.error || !(pl.rows.length || pl.brandsCfg.length)) { renderView(); return; }
     btn.disabled = true; btn.textContent = "넣는 중…";
     let created = 0, updated = 0, logged = 0;
     const ok = await guard(async () => {
@@ -832,12 +1038,18 @@ const PB_SEED = {"brands":{"b-gyul":{"name":"귤타민","sort":20},"b-kakao":{"n
       const vendorId = {}; S.vendors.forEach(v => { vendorId[v.name] = v.id; });
       let bSort = Math.max(0, ...S.brands.map(b => b.sort || 0)), vSort = Math.max(0, ...S.vendors.map(v => v.sort || 0));
       for (const n of pl.newBrands) { const id = rid("b"); bSort += 10; await db.doc("brands/" + id).set({ name: n, sort: bSort }); brandId[n] = id; }
+      for (const bc of pl.brandsCfg) {
+        if (!Array.isArray(bc.channels)) continue;
+        const chans = bc.channels.filter(c => c && c.name).map(c => ({ name: String(c.name).trim(), fee: num(c.fee) ?? 0 }));
+        await db.doc("brands/" + brandId[String(bc.name).trim()]).update({ channels: chans });
+      }
       for (const n of pl.newVendors) { const id = rid("v"); vSort += 10; await db.doc("vendors/" + id).set({ name: n, contact: "", sort: vSort }); vendorId[n] = id; }
       let pSort = Math.max(0, ...S.products.map(p => p.sort || 0));
       const now = new Date().toISOString(), date = today(), memo = "한꺼번에 넣기";
       for (const r of pl.rows) {
         const prices = {}; Object.entries(r.prices).forEach(([bn, o]) => { prices[brandId[bn]] = o; });
-        const body = { name: r.name, type: r.type, grade: r.grade, weight: r.weight, count: r.count, mode: r.mode, vendorId: r.mode === "vendor" ? (vendorId[r.vendor] || null) : null, unitCost: r.unitCost };
+        const body = { name: r.name, type: r.type, grade: r.grade, weight: r.weight, count: r.count, mode: r.mode,
+          ...(r.brix != null ? { brix: r.brix } : {}), vendorId: r.mode === "vendor" ? (vendorId[r.vendor] || null) : null, unitCost: r.unitCost };
         const ex = r.existing && S.products.find(p => p.id === r.existing.id);
         if (ex) {
           const full = JSON.parse(JSON.stringify(ex)); delete full.id;
@@ -856,7 +1068,7 @@ const PB_SEED = {"brands":{"b-gyul":{"name":"귤타민","sort":20},"b-kakao":{"n
       }
     });
     btn.textContent = "가져오기";
-    if (ok) { ui.importText = ""; ui.importPlan = null; toast(`새로 ${created}개 · 바꿈 ${updated}개 넣었어요` + (logged ? ` (변동 ${logged}건 기록)` : "")); }
+    if (ok) { ui.importText = ""; ui.importPlan = null; toast((pl.brandsCfg.length ? "채널 수수료 설정 · " : "") + `새로 ${created}개 · 바꿈 ${updated}개 넣었어요` + (logged ? ` (변동 ${logged}건 기록)` : "")); }
     renderView();
   }
 
@@ -891,7 +1103,7 @@ const PB_SEED = {"brands":{"b-gyul":{"name":"귤타민","sort":20},"b-kakao":{"n
       const pr = (p.prices || {})[b.id] || {};
       const sold = isSold(pr);
       prices += `<tr data-brow="${esc(b.id)}"><td><label class="switch bn"><input type="checkbox" data-sold="${esc(b.id)}" ${sold ? "checked" : ""}> ${esc(b.name)}</label></td>
-        ${PRICE_FIELDS.map(([f]) => `<td><input type="text" ${f === "shipping" ? 'class="ship"' : 'inputmode="numeric"'} data-pf="${f}" value="${esc(f === "shipping" ? (pr[f] ?? (sold ? "" : S.config.defaultShipping || "")) : won(pr[f]))}" ${sold ? "" : "disabled"} aria-label="${esc(b.name)} ${f}"></td>`).join("")}
+        ${PRICE_FIELDS.map(([f]) => `<td><input type="text" ${f === "shipping" ? 'class="ship"' : 'inputmode="numeric"'} data-pf="${f}" value="${esc(f === "shipping" ? (pr[f] != null ? shipText(pr[f]) : (sold ? "" : S.config.defaultShipping || "")) : won(pr[f]))}" ${sold ? "" : "disabled"} aria-label="${esc(b.name)} ${f}"></td>`).join("")}
         <td class="mg" data-mg="${esc(b.id)}"></td></tr>`;
     });
     const html = `
@@ -903,12 +1115,13 @@ const PB_SEED = {"brands":{"b-gyul":{"name":"귤타민","sort":20},"b-kakao":{"n
           <label class="field"><span>등급</span><input id="ed-grade" type="text" list="dl-grades" value="${esc(p.grade || "")}" placeholder="예: 중과"></label>
           <label class="field"><span>중량</span><input id="ed-weight" type="text" list="dl-weights" value="${esc(p.weight || "")}" placeholder="예: 1.8kg"></label>
           <label class="field"><span>수량</span><input id="ed-count" type="text" value="${esc(p.count || "")}" placeholder="예: 8-9과"></label>
+          <label class="field"><span>브릭스</span><input id="ed-brix" type="text" value="${esc(p.brix || "")}" placeholder="예: 14"></label>
         </div></fieldset>
 
         <fieldset><legend>발송 방식</legend>
           <div class="modes">
-            <label class="modecard"><input type="radio" name="ed-mode" id="ed-mode-vendor" value="vendor" ${p.mode !== "self" ? "checked" : ""}><span><b>업체 발송</b><small>업체가 포장해서 고객에게 바로 보내요</small></span></label>
-            <label class="modecard"><input type="radio" name="ed-mode" id="ed-mode-self" value="self" ${p.mode === "self" ? "checked" : ""}><span><b>자체 포장</b><small>우리가 받아서 포장해 보내요</small></span></label>
+            <label class="modecard"><input type="radio" name="ed-mode" id="ed-mode-vendor" value="vendor" ${p.mode !== "self" ? "checked" : ""}><span><b>업체 발송</b><small>업체가 포장해서 보내요 · 원가 = 단가</small></span></label>
+            <label class="modecard"><input type="radio" name="ed-mode" id="ed-mode-self" value="self" ${p.mode === "self" ? "checked" : ""}><span><b>우리 발송 (자체 포장)</b><small>우리가 포장해서 보내요 · 원가 = 단가 + 부자재</small></span></label>
           </div>
           <div class="grid" id="ed-vendor-row">
             <label class="field"><span class="req">업체</span><select id="ed-vendor">${vendorOpts}</select></label>
@@ -918,14 +1131,16 @@ const PB_SEED = {"brands":{"b-gyul":{"name":"귤타민","sort":20},"b-kakao":{"n
 
         <fieldset><legend>단가</legend>
           <div class="grid"><label class="field"><span class="req">상품 단가 (원)</span><input id="ed-cost" type="text" inputmode="numeric" value="${esc(won(p.unitCost))}" placeholder="예: 16,500"></label></div>
-          <p class="hint" style="margin:10px 0 0">부자재 <span id="ed-mathint"></span></p>
-          <div class="matrows" id="ed-mats"></div>
-          <button class="btn sm" type="button" data-act="ed-addmat">+ 부자재 넣기</button>
-          <div class="totals"><div><span>상품 단가</span><b id="ed-t-unit">0</b></div><div><span>부자재</span><b id="ed-t-mat">0</b></div><div class="grand"><span>원가 합계</span><b id="ed-t-all">0</b></div></div>
+          <p class="hint" style="margin:10px 0 0" id="ed-mathint"></p>
+          <div id="ed-matblock">
+            <div class="matrows" id="ed-mats"></div>
+            <button class="btn sm" type="button" data-act="ed-addmat">+ 부자재 넣기</button>
+          </div>
+          <div class="totals"><div><span>단가</span><b id="ed-t-unit">0</b></div><div><span>부자재가</span><b id="ed-t-mat">0</b></div><div class="grand"><span>원가 (가격표에 쓰는 값)</span><b id="ed-t-all">0</b></div></div>
         </fieldset>
 
         <fieldset><legend>판매처별 가격 (원)</legend>
-          ${brands().length ? `<div style="overflow-x:auto"><table class="pgrid"><thead><tr><th>판매처</th><th>정상가</th><th>판매가</th><th>할인가</th><th>택배비</th><th>마진</th></tr></thead><tbody>${prices}</tbody></table></div>
+          ${brands().length ? `<div style="overflow-x:auto"><table class="pgrid"><thead><tr><th>판매처</th><th>정상가</th><th>판매가</th><th>배송비</th><th>마진</th></tr></thead><tbody>${prices}</tbody></table></div>
           <p class="hint">판매하지 않는 곳은 체크를 끄세요. 가격표에서 회색 –로 보여요.</p>` : `<p class="muted">기타 설정에서 판매처를 먼저 추가하세요.</p>`}
         </fieldset>
 
@@ -951,8 +1166,10 @@ const PB_SEED = {"brands":{"b-gyul":{"name":"귤타민","sort":20},"b-kakao":{"n
     const self = $("#ed-mode-self") && $("#ed-mode-self").checked;
     $("#ed-vendor-row").hidden = !!self;
     $("#ed-vnew-wrap").hidden = $("#ed-vendor").value !== "__new";
+    const mb = $("#ed-matblock"); if (mb) mb.hidden = !self;
     const hint = $("#ed-mathint");
-    if (hint) hint.textContent = self ? "· 자체 포장이면 박스 · 완충재 등 실제로 쓰는 부자재를 넣어 주세요." : "· 업체 단가에 포장이 포함돼 있으면 비워 두세요. 따로 드는 것만 넣으세요.";
+    if (hint) hint.textContent = self ? "부자재: 우리 발송이라 박스 · 완충재 등 쓰는 부자재를 넣으면 단가에 더해져요." : "부자재: 업체 발송이라 업체 단가에 포장이 포함돼요. 부자재는 더하지 않아요.";
+    updateTotals();
   }
   function renderEdMats() {
     const box = $("#ed-mats"); if (!box) return;
@@ -966,15 +1183,17 @@ const PB_SEED = {"brands":{"b-gyul":{"name":"귤타민","sort":20},"b-kakao":{"n
   function updateTotals() {
     if (!$("#ed-cost")) return;
     const unit = num($("#ed-cost").value) || 0;
-    const mat = ed.materials.reduce((s, m) => { const mm = matById(m.id); return s + (mm ? (num(mm.cost) || 0) * (num(m.qty) || 0) : 0); }, 0);
+    const selfMode = $("#ed-mode-self").checked;
+    const mat = !selfMode ? 0 : ed.materials.reduce((s, m) => { const mm = matById(m.id); return s + (mm ? (num(mm.cost) || 0) * (num(m.qty) || 0) : 0); }, 0);
     $("#ed-t-unit").textContent = won(unit); $("#ed-t-mat").textContent = won(mat); $("#ed-t-all").textContent = won(unit + mat);
     $$("[data-brow]").forEach(tr => {
       const on = $("[data-sold]", tr).checked;
-      const get = f => num($(`[data-pf="${f}"]`, tr).value);
-      const ep = get("discount") ?? get("sale") ?? get("regular");
+      const get = f => parseField(f, $(`[data-pf="${f}"]`, tr).value);
+      const ep = get("sale") ?? get("regular");
       const cell = $("[data-mg]", tr);
       if (!on || ep == null) { cell.innerHTML = '<span class="muted">–</span>'; return; }
-      const m = ep - unit - mat;
+      const sh = get("shipping");
+      const m = ep - unit - mat - (typeof sh === "number" ? sh : 0);
       cell.innerHTML = `<span class="${m >= 0 ? "pos" : "neg"}">${won(m)}</span>`;
     });
   }
@@ -985,12 +1204,12 @@ const PB_SEED = {"brands":{"b-gyul":{"name":"귤타민","sort":20},"b-kakao":{"n
     $$("[data-brow]").forEach(tr => {
       const bid = tr.dataset.brow; const on = $("[data-sold]", tr).checked;
       const o = {};
-      PRICE_FIELDS.forEach(([f]) => { const raw = $(`[data-pf="${f}"]`, tr).value; o[f] = on ? (f === "shipping" ? (raw.trim() || null) : num(raw)) : null; });
-      if (on && o.regular == null && o.sale == null && o.discount == null) o.__empty = true;
+      PRICE_FIELDS.forEach(([f]) => { const raw = $(`[data-pf="${f}"]`, tr).value; o[f] = on ? parseField(f, raw) : null; });
+      if (on && o.regular == null && o.sale == null) o.__empty = true;
       prices[bid] = o;
     });
     return {
-      name: v("ed-name"), type: $("#ed-type").value, grade: v("ed-grade"), weight: v("ed-weight"), count: v("ed-count"),
+      name: v("ed-name"), type: $("#ed-type").value, grade: v("ed-grade"), weight: v("ed-weight"), count: v("ed-count"), brix: v("ed-brix"),
       mode, vendorSel: $("#ed-vendor").value, vendorNew: v("ed-vnew"), unitCost: num($("#ed-cost").value),
       materials: ed.materials.filter(m => m.id).map(m => ({ id: m.id, qty: num(m.qty) ?? 1 })),
       prices, note: ($("#ed-note").value || "").trim(), date: $("#ed-date").value || today(), memo: v("ed-memo")
@@ -1001,7 +1220,7 @@ const PB_SEED = {"brands":{"b-gyul":{"name":"귤타민","sort":20},"b-kakao":{"n
   function diffProduct(prev, next) {
     const out = [];
     const push = (kind, field, from, to) => { if ((from ?? null) !== (to ?? null)) out.push({ kind, field, from: from ?? null, to: to ?? null }); };
-    [["name", "상품명"], ["type", "구분"], ["grade", "등급"], ["weight", "중량"], ["count", "수량"]].forEach(([k, t]) => push("info", t, prev[k] || null, next[k] || null));
+    [["name", "상품명"], ["type", "구분"], ["grade", "등급"], ["weight", "중량"], ["count", "수량"], ["brix", "브릭스"]].forEach(([k, t]) => push("info", t, prev[k] || null, next[k] || null));
     const pm = prev.mode === "self" ? "self" : "vendor";
     if (pm !== next.mode) push("vendor", "발송 방식", pm === "self" ? "자체 포장" : "업체 발송", next.mode === "self" ? "자체 포장" : "업체 발송");
     if (next.mode === "vendor" && (pm !== "vendor" || prev.vendorId !== next.vendorId)) push("vendor", "업체", pm === "vendor" ? vendorName(prev.vendorId) || null : null, vendorName(next.vendorId));
@@ -1035,7 +1254,7 @@ const PB_SEED = {"brands":{"b-gyul":{"name":"귤타민","sort":20},"b-kakao":{"n
       }
       const prices = {};
       Object.keys(n.prices).forEach(k => { const o = { ...n.prices[k] }; delete o.__empty; prices[k] = o; });
-      const body = { name: n.name, type: n.type, grade: n.grade, weight: n.weight, count: n.count, mode: n.mode, vendorId, unitCost: n.unitCost, materials: n.materials, note: n.note };
+      const body = { name: n.name, type: n.type, grade: n.grade, weight: n.weight, count: n.count, brix: n.brix, mode: n.mode, vendorId, unitCost: n.unitCost, materials: n.materials, note: n.note };
       const now = new Date().toISOString();
       if (ed.id) {
         const prev = S.products.find(p => p.id === ed.id);
@@ -1133,12 +1352,13 @@ const PB_SEED = {"brands":{"b-gyul":{"name":"귤타민","sort":20},"b-kakao":{"n
 
   // ---------- events ----------
   document.addEventListener("click", async e => {
-    const seg = e.target.closest("[data-ptype],[data-pmode],[data-plmode],[data-hkind],[data-brand]");
+    const seg = e.target.closest("[data-ptype],[data-pmode],[data-plmode],[data-hkind],[data-brand],[data-dbrand]");
     if (seg) {
       if (seg.dataset.ptype) ui.ptype = seg.dataset.ptype;
       else if (seg.dataset.pmode) ui.pmode = seg.dataset.pmode;
       else if (seg.dataset.plmode) ui.plmode = seg.dataset.plmode;
       else if (seg.dataset.hkind) ui.hkind = seg.dataset.hkind;
+      else if (seg.dataset.dbrand) ui.dbrand = seg.dataset.dbrand;
       else if (seg.dataset.brand) { const id = seg.dataset.brand; ui.hidden.has(id) ? ui.hidden.delete(id) : ui.hidden.add(id); lsSet("pb.hiddenBrands", [...ui.hidden]); }
       renderView(); return;
     }
@@ -1162,6 +1382,25 @@ const PB_SEED = {"brands":{"b-gyul":{"name":"귤타민","sort":20},"b-kakao":{"n
         break;
       }
       case "csv": exportCSV(); break;
+      case "unlock": if (!S.canWrite) openGate(); break;
+      case "adjust-save": await saveAdjust(b); break;
+      case "adjust-revert": ui.drafts = {}; renderView(); toast("고친 칸을 되돌렸어요"); break;
+      case "chan-add": {
+        const br = S.brands.find(x => x.id === id); if (!br) break;
+        const ni = $("#addch-name-" + CSS.escape(id)), fi = $("#addch-fee-" + CSS.escape(id));
+        const name = ni.value.trim(), fee = num(fi.value);
+        if (!name) { ni.focus(); break; }
+        if (fee == null) { toast("수수료(%)를 넣어 주세요.", true); fi.focus(); break; }
+        await guard(() => db.doc("brands/" + id).update({ channels: [...brandChannels(br).map(c => ({ name: c.name, fee: num(c.fee) ?? 0 })), { name, fee }] }), `${name} 채널을 추가했어요`);
+        break;
+      }
+      case "chan-del": {
+        const br = S.brands.find(x => x.id === id); if (!br) break;
+        if (!armed(b)) break;
+        const arr = brandChannels(br).map(c => ({ name: c.name, fee: num(c.fee) ?? 0 })); arr.splice(+b.dataset.j, 1);
+        await guard(() => db.doc("brands/" + id).update({ channels: arr }), "채널을 뺐어요");
+        break;
+      }
       case "seed": await seedData(b); break;
       case "import-preview": ui.importPlan = planImport(ui.importText); renderView(); break;
       case "import-run": await runImport(b); break;
@@ -1209,9 +1448,18 @@ const PB_SEED = {"brands":{"b-gyul":{"name":"귤타민","sort":20},"b-kakao":{"n
 
   document.addEventListener("change", async e => {
     const t = e.target;
-    if (t.id === "p-margin") { ui.margin = t.checked; lsSet("pb.margin", ui.margin); renderView(); return; }
-    if (t.id === "p-edit") { ui.edit = t.checked; renderView(); return; }
-    if (t.dataset.pid && t.dataset.f) { savePriceCell(t); return; }
+    if (t.id === "p-chan" || t.id === "a-chan") { ui.chan = t.checked; lsSet("pb.chan", ui.chan); renderView(); return; }
+    if (t.dataset.pid && t.dataset.f) { if (ui.drafts[dKey(t.dataset.pid, t.dataset.bid, t.dataset.f)] != null && t.dataset.f !== "shipping") { const n = num(t.value); if (n != null) { t.value = won(n); onAdjustInput(t); } } return; }
+    if (t.id === "d-target") { ui.dtarget = t.value; renderView(); return; }
+    if (t.id === "d-from" || t.id === "d-to") { ui[t.id === "d-from" ? "dfrom" : "dto"] = t.value; renderView(); return; }
+    if (t.dataset.chname || t.dataset.chfee) {
+      const bid = t.dataset.chname || t.dataset.chfee; const br = S.brands.find(x => x.id === bid); if (!br) return;
+      const arr = brandChannels(br).map(c => ({ name: c.name, fee: num(c.fee) ?? 0 })); const j = +t.dataset.j; if (!arr[j]) return;
+      if (t.dataset.chname) { if (!t.value.trim()) { renderView(); return; } arr[j].name = t.value.trim(); }
+      else { const f = num(t.value); if (f == null) { renderView(); return; } arr[j].fee = f; }
+      await guard(() => db.doc("brands/" + bid).update({ channels: arr }), "저장했어요");
+      return;
+    }
     if (t.name === "ed-mode" || t.id === "ed-vendor") { syncVendorRow(); return; }
     if (t.id === "h-target") { ui.htarget = t.value; renderView(); return; }
     if (t.dataset.mi !== undefined) { ed.materials[+t.dataset.mi].id = t.value; renderEdMats(); updateTotals(); return; }
@@ -1231,7 +1479,8 @@ const PB_SEED = {"brands":{"b-gyul":{"name":"귤타민","sort":20},"b-kakao":{"n
   });
   document.addEventListener("input", e => {
     const t = e.target;
-    if (t.id === "p-q") { ui.pq = t.value; renderPricesDebounced(); }
+    if (t.id === "p-q" || t.id === "a-q") { ui.pq = t.value; renderPricesDebounced(); }
+    else if (t.dataset.pid && t.dataset.f) onAdjustInput(t);
     else if (t.id === "pl-q") { ui.plq = t.value; renderView(); }
     else if (t.id === "h-q") { ui.hq = t.value; renderView(); }
     else if (t.id === "m-q") { ui.mq = t.value; renderView(); }
@@ -1240,6 +1489,7 @@ const PB_SEED = {"brands":{"b-gyul":{"name":"귤타민","sort":20},"b-kakao":{"n
     else if (t.id === "ed-cost" || t.dataset.pf) updateTotals();
   });
   let pqT; function renderPricesDebounced() { clearTimeout(pqT); pqT = setTimeout(renderView, 120); }
+  window.addEventListener("beforeunload", e => { if (Object.keys(ui.drafts).length) { e.preventDefault(); e.returnValue = ""; } });
   document.addEventListener("keydown", e => {
     if (e.key === "Escape" && !$("#gate").hidden) { closeGate(); return; }
     if (e.key === "Escape" && !$("#drawer").hidden) closeDrawer();
