@@ -119,6 +119,9 @@ table.led { border-collapse: separate; border-spacing: 0; width: max-content; mi
 .led thead th.basic { color: var(--ink); font-weight: 600; }
 .led td.ch { text-align: right; font-variant-numeric: tabular-nums; }
 .led td.cell input.dirty { border-color: var(--warn); background: var(--warn-bg); }
+.led td.up { color: var(--up); font-weight: 700; }
+.led td.down { color: var(--down); font-weight: 700; }
+.led th.datecol { min-width: 84px; }
 .led tr.dayrow td { background: var(--surface-2); font-weight: 700; border-top: 2px solid var(--line-strong); }
 .savebar { position: sticky; bottom: calc(env(safe-area-inset-bottom, 0px) + 12px); margin-top: 12px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap;
   background: var(--ink); color: var(--bg); padding: 10px 14px; border-radius: 10px; box-shadow: var(--shadow); z-index: 5; }
@@ -383,9 +386,12 @@ body.ro .w { display: none !important; }
       </div>
     </div>
     <div class="toolbar">
+      <div class="seg" id="h-view" role="group" aria-label="보기"></div>
       <select id="h-target" aria-label="대상"></select>
       <div class="seg" id="h-kind" role="group" aria-label="항목"></div>
-      <input id="h-q" type="search" placeholder="내용 · 메모 검색" aria-label="검색">
+      <div class="seg" id="h-type" role="group" aria-label="구분"></div>
+      <input id="h-q" type="search" placeholder="검색" aria-label="검색">
+      <label class="switch" id="h-changed-wrap"><input type="checkbox" id="h-changed"> 단가가 바뀐 제품만</label>
     </div>
     <div id="h-table"></div>
   </section>
@@ -485,7 +491,7 @@ const PB_SEED = {"brands":{"b-gyul":{"name":"귤타민","sort":20},"b-kakao":{"n
   const ui = {
     view: "prices",
     pq: "", ptype: "all", pmode: "all", hidden: new Set(lsGet("pb.hiddenBrands", [])), chan: lsGet("pb.chan", true) !== false, edit: false, drafts: {}, dtarget: "", dbrand: "all", dfrom: "", dto: "",
-    plq: "", plmode: "all", htarget: "", hkind: "all", hq: "", mq: "", importText: "", importPlan: null
+    plq: "", plmode: "all", htarget: "", hkind: "all", hq: "", hview: lsGet("pb.hview", "table"), htype: "all", hchanged: lsGet("pb.hchanged", true) !== false, mq: "", importText: "", importPlan: null
   };
   let db = null, fb = null;
 
@@ -840,7 +846,74 @@ const PB_SEED = {"brands":{"b-gyul":{"name":"귤타민","sort":20},"b-kakao":{"n
     if (x.kind === "create" || x.kind === "delete") s = esc(x.to ?? x.from ?? "");
     return s;
   }
+  // ---------- 단가 이력: 날짜별 표 ----------
+  // 제품마다 단가가 바뀐 날짜(등록 · 단가 변동)를 모아, 날짜 열마다 그날 기준 단가를 보여 줍니다.
+  function costTimeline(p) {
+    const ev = S.history.filter(x => x.targetId === p.id && (x.target || "product") === "product" && (x.kind === "create" || (x.kind === "cost" && /단가/.test(x.field || ""))))
+      .sort((a, b) => (String(a.date) + String(a.at)).localeCompare(String(b.date) + String(b.at)));
+    let created = null; const changes = [];
+    ev.forEach(x => {
+      if (x.kind === "create") { created = created || x.date; const m = String(x.to || "").match(/단가\s*([\d,]+)/); if (m) changes.push({ date: x.date, v: num(m[1]), from: null }); }
+      else changes.push({ date: x.date, v: num(x.to), from: num(x.from) });
+    });
+    const first = changes[0];
+    const initial = first ? (first.from != null ? first.from : first.v) : num(p.unitCost);
+    return { created, changes, initial, moved: changes.some(c => c.from != null && c.from !== c.v) };
+  }
+  function costAt(tl, d) {
+    if (tl.created && d < tl.created) return null;
+    let v = tl.initial;
+    tl.changes.forEach(c => { if (c.date <= d) v = c.v; });
+    return v;
+  }
+  const dateHead = d => { const x = new Date(d + "T00:00"); return isNaN(x) ? d : `${x.getMonth() + 1}월 ${x.getDate()}일`; };
+  function renderCostTable() {
+    const host = $("#h-table");
+    let list = products().filter(p => (ui.htype === "all" || p.type === ui.htype) && matchQ(p, ui.hq));
+    const tls = new Map(list.map(p => [p.id, costTimeline(p)]));
+    if (ui.hchanged) list = list.filter(p => tls.get(p.id).moved);
+    if (!list.length) { host.innerHTML = emptyHTML(ui.hchanged ? "단가가 바뀐 제품이 없어요" : "조건에 맞는 제품이 없어요", ui.hchanged ? "<p>'단가가 바뀐 제품만'을 끄면 모든 제품의 날짜별 단가를 볼 수 있어요.</p>" : ""); return; }
+    const dates = [...new Set(list.flatMap(p => tls.get(p.id).changes.map(c => c.date)))].sort().reverse();
+    if (!dates.length) dates.push(today());
+    let h = `<p class="summary">제품 <b>${list.length}</b>개 · 날짜 <b>${dates.length}</b>개 · 맨 왼쪽 날짜가 가장 최근이에요. 바로 전 날짜보다 오른 칸은 빨강, 내린 칸은 초록으로 표시해요.</p>`;
+    h += `<div class="tablewrap"><table class="led"><thead><tr><th>상품명</th><th>업체</th><th>브릭스</th><th>구분</th><th>등급</th><th>중량</th><th>수량</th>${dates.map((d, i) => `<th class="${i === 0 ? "bstart " : ""}datecol">${esc(dateHead(d))}</th>`).join("")}</tr></thead><tbody>`;
+    groupOf(list).forEach(g => {
+      const n = g.items.length;
+      g.items.forEach((p, i) => {
+        const tl = tls.get(p.id);
+        h += `<tr class="${i === 0 ? "gstart" : ""}">`;
+        if (i === 0) {
+          h += `<td class="gcell pname" rowspan="${n}"><button type="button" data-act="edit-product" data-id="${esc(p.id)}" title="제품 수정">${esc(p.name)}</button></td>`;
+          h += `<td class="gcell vend" rowspan="${n}">${p.mode === "self" ? '<span class="tag self">자체 포장</span>' : esc(vendorName(p.vendorId) || "업체 미지정")}</td>`;
+          h += `<td class="gcell ${typeClass(p.type)}" rowspan="${n}">${esc(p.brix || "")}</td>`;
+          h += `<td class="gcell ${typeClass(p.type)}" rowspan="${n}">${esc(p.type)}</td>`;
+        }
+        h += `<td class="c">${esc(p.grade)}</td><td class="c">${esc(p.weight)}</td><td class="c">${esc(p.count)}</td>`;
+        dates.forEach((d, j) => {
+          const v = costAt(tl, d), older = j + 1 < dates.length ? costAt(tl, dates[j + 1]) : null;
+          const cls = v == null ? "na" : (older != null && v !== older ? (v > older ? "num up" : "num down") : "num");
+          h += `<td class="${cls}${j === 0 ? " bstart" : ""}">${v == null ? "–" : won(v)}</td>`;
+        });
+        h += `</tr>`;
+      });
+    });
+    h += `</tbody></table></div><p class="hint">단가는 제품 관리에서 고쳐요. 저장할 때 적은 적용일이 이 표의 날짜가 돼요.</p>`;
+    host.innerHTML = h;
+  }
+
   function renderHistory() {
+    $("#h-view").innerHTML = segHTML([["table", "날짜별 표"], ["list", "변동 목록"]], ui.hview, "hview");
+    const tableMode = ui.hview === "table";
+    $("#h-target").hidden = tableMode; $("#h-kind").hidden = tableMode;
+    $("#h-type").hidden = !tableMode; $("#h-changed-wrap").hidden = !tableMode;
+    $("#h-q").placeholder = tableMode ? "상품명 · 등급 · 업체 검색" : "내용 · 메모 검색";
+    if (document.activeElement !== $("#h-q")) $("#h-q").value = ui.hq;
+    if (tableMode) {
+      $("#h-type").innerHTML = segHTML([["all", "전체"], ...S.config.types.map(t => [t, t])], ui.htype, "htype");
+      $("#h-changed").checked = ui.hchanged;
+      if (!S.connected) { $("#h-table").innerHTML = loadingOr(""); return; }
+      renderCostTable(); return;
+    }
     const sel = $("#h-target");
     const opts = [["", "전체 대상"]];
     products().forEach(p => opts.push(["p:" + p.id, label(p)]));
@@ -1376,13 +1449,15 @@ const PB_SEED = {"brands":{"b-gyul":{"name":"귤타민","sort":20},"b-kakao":{"n
 
   // ---------- events ----------
   document.addEventListener("click", async e => {
-    const seg = e.target.closest("[data-ptype],[data-pmode],[data-plmode],[data-hkind],[data-brand],[data-dbrand]");
+    const seg = e.target.closest("[data-ptype],[data-pmode],[data-plmode],[data-hkind],[data-brand],[data-dbrand],[data-hview],[data-htype]");
     if (seg) {
       if (seg.dataset.ptype) ui.ptype = seg.dataset.ptype;
       else if (seg.dataset.pmode) ui.pmode = seg.dataset.pmode;
       else if (seg.dataset.plmode) ui.plmode = seg.dataset.plmode;
       else if (seg.dataset.hkind) ui.hkind = seg.dataset.hkind;
       else if (seg.dataset.dbrand) ui.dbrand = seg.dataset.dbrand;
+      else if (seg.dataset.hview) { ui.hview = seg.dataset.hview; lsSet("pb.hview", ui.hview); }
+      else if (seg.dataset.htype) ui.htype = seg.dataset.htype;
       else if (seg.dataset.brand) { const id = seg.dataset.brand; ui.hidden.has(id) ? ui.hidden.delete(id) : ui.hidden.add(id); lsSet("pb.hiddenBrands", [...ui.hidden]); }
       renderView(); return;
     }
@@ -1474,6 +1549,7 @@ const PB_SEED = {"brands":{"b-gyul":{"name":"귤타민","sort":20},"b-kakao":{"n
     const t = e.target;
     if (t.id === "p-chan" || t.id === "a-chan") { ui.chan = t.checked; lsSet("pb.chan", ui.chan); renderView(); return; }
     if (t.dataset.pid && t.dataset.f) { if (ui.drafts[dKey(t.dataset.pid, t.dataset.bid, t.dataset.f)] != null && t.dataset.f !== "shipping") { const n = num(t.value); if (n != null) { t.value = won(n); onAdjustInput(t); } } return; }
+    if (t.id === "h-changed") { ui.hchanged = t.checked; lsSet("pb.hchanged", ui.hchanged); renderView(); return; }
     if (t.id === "d-target") { ui.dtarget = t.value; renderView(); return; }
     if (t.id === "d-from" || t.id === "d-to") { ui[t.id === "d-from" ? "dfrom" : "dto"] = t.value; renderView(); return; }
     if (t.dataset.chon) {
