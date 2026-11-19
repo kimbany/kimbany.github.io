@@ -122,6 +122,12 @@ table.led { border-collapse: separate; border-spacing: 0; width: max-content; mi
 .led td.up { color: var(--up); font-weight: 700; }
 .led td.down { color: var(--down); font-weight: 700; }
 .led th.datecol { min-width: 84px; }
+.mgrid td select { padding: 3px 4px; font-size: 12px; max-width: 120px; }
+.mgrid td input.qty { width: 52px; text-align: right; padding: 3px 5px; }
+.mgrid td input[type="checkbox"] { accent-color: var(--accent); width: 16px; height: 16px; }
+.mgrid tr.editing td { background: var(--warn-bg); }
+.linkcell { all: unset; cursor: pointer; text-decoration: underline dotted; text-underline-offset: 3px; }
+.linkcell:hover { color: var(--accent); }
 .led tr.dayrow td { background: var(--surface-2); font-weight: 700; border-top: 2px solid var(--line-strong); }
 .savebar { position: sticky; bottom: calc(env(safe-area-inset-bottom, 0px) + 12px); margin-top: 12px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap;
   background: var(--ink); color: var(--bg); padding: 10px 14px; border-radius: 10px; box-shadow: var(--shadow); z-index: 5; }
@@ -401,12 +407,17 @@ body.ro .w { display: none !important; }
     <div class="viewhead">
       <div>
         <h1>부자재 관리</h1>
-        <p class="sub">박스 · 완충재 · 아이스팩 등 포장에 드는 자재와 개당 단가</p>
+        <p class="sub">제품마다 판매처별로 쓰는 부자재와, 부자재별 개당 단가</p>
       </div>
-      <button class="btn primary w" type="button" data-act="new-material">+ 부자재 추가</button>
+      <div class="subtabs" id="m-tab"></div>
     </div>
     <div class="toolbar">
-      <input id="m-q" type="search" placeholder="부자재 검색" aria-label="검색">
+      <input id="m-q" type="search" placeholder="검색" aria-label="검색">
+      <div class="seg" id="m-brand" role="group" aria-label="판매처"></div>
+      <div class="seg" id="m-type" role="group" aria-label="구분"></div>
+      <label class="switch" id="m-vendor-wrap"><input type="checkbox" id="m-vendor"> 업체 발송 제품도 보기</label>
+      <span class="grow"></span>
+      <button class="btn primary w" type="button" data-act="new-material" id="m-add">+ 부자재 추가</button>
     </div>
     <div id="m-table"></div>
   </section>
@@ -491,7 +502,7 @@ const PB_SEED = {"brands":{"b-gyul":{"name":"귤타민","sort":20},"b-kakao":{"n
   const ui = {
     view: "prices",
     pq: "", ptype: "all", pmode: "all", hidden: new Set(lsGet("pb.hiddenBrands", [])), chan: lsGet("pb.chan", true) !== false, edit: false, drafts: {}, dtarget: "", dbrand: "all", dfrom: "", dto: "",
-    plq: "", plmode: "all", htarget: "", hkind: "all", hq: "", hview: lsGet("pb.hview", "table"), htype: "all", hchanged: lsGet("pb.hchanged", true) !== false, mq: "", importText: "", importPlan: null
+    plq: "", plmode: "all", htarget: "", hkind: "all", mtab: lsGet("pb.mtab", "grid"), mgb: "all", mgtype: "all", mgvendor: false, medit: null, hq: "", hview: lsGet("pb.hview", "table"), htype: "all", hchanged: lsGet("pb.hchanged", true) !== false, mq: "", importText: "", importPlan: null
   };
   let db = null, fb = null;
 
@@ -707,7 +718,7 @@ const PB_SEED = {"brands":{"b-gyul":{"name":"귤타민","sort":20},"b-kakao":{"n
           } else {
             h += `<td class="num bstart">${won(pr.regular)}</td><td class="num">${won(pr.sale)}</td><td class="c">${esc(shipText(pr.shipping))}</td>`;
           }
-          const pk = p.mode === "self" ? `<td class="num muted" title="부자재 ${won(listCost(matsFor(p, b.id)))} + 기본 ${won(listCost(baseList(p.weight)))}">${won(packCost(p, b.id))}</td>` : `<td class="c muted" title="업체 발송: 단가에 포장 포함${listCost(matsFor(p, b.id)) ? " · 자체 발송으로 바꾸면 " + won(packCostRaw(p, b.id)) + "원" : ""}">업체</td>`;
+          const pk = p.mode === "self" ? `<td class="num muted"><button type="button" class="linkcell" data-act="goto-mats" data-id="${esc(p.id)}" data-bid="${esc(b.id)}" title="부자재 ${won(listCost(matsFor(p, b.id)))} + 기본 ${won(listCost(baseList(p.weight)))} · 눌러서 부자재 보기">${won(packCost(p, b.id))}</button></td>` : `<td class="c muted" title="업체 발송: 단가에 포장 포함${listCost(matsFor(p, b.id)) ? " · 자체 발송으로 바꾸면 " + won(packCostRaw(p, b.id)) + "원" : ""}">업체</td>`;
           h += sold || editable ? pk : `<td class="na">–</td>`;
           h += sold ? `<td class="num" data-mc="${esc(p.id + "|" + b.id)}">${mHTML(c)}</td><td class="num" data-mr="${esc(p.id + "|" + b.id)}">${rHTML(c)}</td>`
                     : `<td class="na" data-mc="${esc(p.id + "|" + b.id)}">–</td><td class="na" data-mr="${esc(p.id + "|" + b.id)}">–</td>`;
@@ -1011,19 +1022,140 @@ const PB_SEED = {"brands":{"b-gyul":{"name":"귤타민","sort":20},"b-kakao":{"n
   }
 
   // ---------- 메뉴3: 부자재 ----------
+  // ---------- 제품별 부자재 표 ----------
+  const MAT_CATS = ["박스", "에어셀", "이중망", "패드", "팩", "크래프트지", "봉지", "브로셔", "기타"];
+  const NOQTY = new Set(["크래프트지", "브로셔"]);
+  const inferCat = n => { n = String(n || "");
+    if (/박스/.test(n)) return "박스"; if (/에어셀/.test(n)) return "에어셀"; if (/망/.test(n)) return "이중망"; if (/패드/.test(n)) return "패드";
+    if (/^팩|팩\s|팩\(/.test(n)) return "팩"; if (/크래프트/.test(n)) return "크래프트지"; if (/봉지/.test(n)) return "봉지"; if (/브로셔/.test(n)) return "브로셔";
+    if (/택배|인건비|테이프/.test(n)) return "기본"; return "기타"; };
+  const matCat = m => (m && m.cat) || inferCat(m && m.name);
+  const baseIds = () => new Set([...(S.config.baseMats || []).map(m => m.id), S.config.shipLight, S.config.shipHeavy].filter(Boolean));
+  const catMats = c => { const bi = baseIds(); return S.materials.slice().sort(bySort).filter(m => !bi.has(m.id) && matCat(m) === c); };
+  const shortName = (m, c) => String(m.name).replace(c === "박스" ? /\s*박스/ : c === "팩" ? /^팩\s*/ : c === "이중망" ? /^이중망/ : /$^/, "").replace(/^\((.*)\)$/, "$1").trim() || m.name;
+  function gridCats() { return MAT_CATS.filter(c => catMats(c).length); }
+  function rowsForGrid() {
+    const q = ui.mq.toLowerCase();
+    const list = products().filter(p => (ui.mgvendor || p.mode === "self") && (ui.mgtype === "all" || p.type === ui.mgtype) && (!q || [p.name, p.type, p.grade, p.weight, p.count, modeText(p)].join(" ").toLowerCase().includes(q)));
+    const out = [];
+    groupOf(list).forEach(g => g.items.forEach(p => brands().forEach(b => {
+      if (ui.mgb !== "all" && ui.mgb !== b.id) return;
+      const sold = isSold((p.prices || {})[b.id]); const has = ((p.matsByBrand || {})[b.id] || []).length > 0;
+      if (sold || has || (ui.medit && ui.medit.pid === p.id && ui.medit.bid === b.id)) out.push({ p, b, sold });
+    })));
+    return out;
+  }
+  function draftFrom(p, bid) {
+    const d = {}; const L = matsFor(p, bid);
+    gridCats().forEach(c => { const it = L.find(x => matCat(matById(x.id)) === c); d[c] = it ? { on: true, id: it.id, qty: it.qty } : { on: false, id: (catMats(c)[0] || {}).id || "", qty: 1 }; });
+    return d;
+  }
+  function renderMatGrid() {
+    const host = $("#m-table");
+    const cats = gridCats();
+    const base = (S.config.baseMats || []).map(m => matById(m.id)).filter(Boolean);
+    const sl = matById(S.config.shipLight), sh = matById(S.config.shipHeavy);
+    if (!cats.length) { host.innerHTML = emptyHTML("부자재가 아직 없어요", `<p>「부자재 단가」 탭에서 부자재를 먼저 등록하거나, 기타 설정의 <b>한꺼번에 넣기</b>로 넣어 주세요.</p>`); return; }
+    const rows = rowsForGrid();
+    if (!rows.length) { host.innerHTML = emptyHTML("보여 줄 제품이 없어요", `<p>자체 발송 제품 중 판매하거나 부자재를 넣은 판매처가 있는 제품이 여기에 나와요. "업체 발송 제품도 보기"를 켜면 더 보여요.</p>`); return; }
+    const colsOf = c => 1 + (catMats(c).length > 1 ? 1 : 0) + (NOQTY.has(c) ? 0 : 1);
+    let h = `<p class="summary"><b>${rows.length}</b>줄 · 한 줄 = 그 제품을 그 판매처에서 팔 때의 포장이에요. 고치면 제품별 가격표의 포장비 · 마진에 바로 반영돼요.</p>`;
+    h += `<div class="tablewrap"><table class="led mgrid"><thead><tr><th rowspan="2">상품명</th><th rowspan="2">판매처</th><th rowspan="2">구분</th><th rowspan="2">등급</th><th rowspan="2">중량</th><th rowspan="2">수량</th>`;
+    cats.forEach(c => { h += `<th class="brand bstart" colspan="${colsOf(c)}">${esc(c)}</th>`; });
+    h += `<th class="brand bstart" colspan="${base.length + (sl ? 1 : 0) + (sh ? 1 : 0)}">기본 (자동)</th><th rowspan="2" class="bstart">포장비</th><th rowspan="2" class="w"></th></tr><tr class="r2">`;
+    cats.forEach(c => { h += `<th class="bstart">사용</th>${catMats(c).length > 1 ? "<th>종류</th>" : ""}${NOQTY.has(c) ? "" : "<th>수량</th>"}`; });
+    base.forEach((m, i) => { h += `<th class="${i === 0 ? "bstart" : ""}">${esc(m.name.replace(/\(.*\)/, ""))}</th>`; });
+    if (sl) h += `<th class="${base.length ? "" : "bstart"}">${esc(sl.name.replace("택배비", "택배").trim())}<br><span class="hint">${won(sl.cost)}</span></th>`;
+    if (sh) h += `<th>${esc(sh.name.replace("택배비", "택배").trim())}<br><span class="hint">${won(sh.cost)}</span></th>`;
+    h += `</tr></thead><tbody>`;
+    let lastP = null;
+    rows.forEach(({ p, b, sold }) => {
+      const editing = ui.medit && ui.medit.pid === p.id && ui.medit.bid === b.id;
+      const L = matsFor(p, b.id);
+      const d = editing ? ui.medit.draft : null;
+      h += `<tr class="${p.id !== lastP ? "gstart" : ""}${editing ? " editing" : ""}">`;
+      h += `<td class="pname"><button type="button" data-act="edit-product" data-id="${esc(p.id)}" title="제품 수정">${esc(p.name)}</button></td>`;
+      h += `<td class="c"><b>${esc(b.name)}</b>${sold ? "" : '<br><span class="hint">판매 안 함</span>'}</td><td class="c ${typeClass(p.type)}">${esc(p.type)}</td><td class="c">${esc(p.grade)}</td><td class="c">${esc(p.weight)}</td><td class="c">${esc(p.count)}</td>`;
+      cats.forEach(c => {
+        const multi = catMats(c).length > 1;
+        if (editing) {
+          const x = d[c];
+          h += `<td class="c bstart"><input type="checkbox" data-mgon="${esc(c)}" ${x.on ? "checked" : ""} aria-label="${esc(c)} 사용"></td>`;
+          if (multi) h += `<td><select data-mgid="${esc(c)}" ${x.on ? "" : "disabled"} aria-label="${esc(c)} 종류">${catMats(c).map(m => `<option value="${esc(m.id)}"${m.id === x.id ? " selected" : ""}>${esc(shortName(m, c))}</option>`).join("")}</select></td>`;
+          if (!NOQTY.has(c)) h += `<td><input type="text" inputmode="decimal" class="qty" data-mgq="${esc(c)}" value="${esc(String(x.qty ?? 1))}" ${x.on ? "" : "disabled"} aria-label="${esc(c)} 수량"></td>`;
+        } else {
+          const items = L.filter(x => matCat(matById(x.id)) === c);
+          const it = items[0], mm = it && matById(it.id);
+          h += `<td class="c bstart">${it ? "O" : ""}</td>`;
+          if (multi) h += `<td class="c">${mm ? esc(shortName(mm, c)) : ""}</td>`;
+          if (!NOQTY.has(c)) h += `<td class="c">${it ? esc(String(it.qty)) + (items.length > 1 ? ` <span class="hint">외 ${items.length - 1}</span>` : "") : ""}</td>`;
+        }
+      });
+      base.forEach((m, i) => { h += `<td class="c${i === 0 ? " bstart" : ""}">O</td>`; });
+      const heavy = wKg(p.weight) >= (num(S.config.heavyKg) || 6);
+      if (sl) h += `<td class="c${base.length ? "" : " bstart"}">${!heavy || !sh ? "O" : ""}</td>`;
+      if (sh) h += `<td class="c">${heavy ? "O" : ""}</td>`;
+      const cost = editing ? (() => { const tmp = { ...p, matsByBrand: { ...(p.matsByBrand || {}), [b.id]: listFromDraft(p, b.id, d) } }; return packCostRaw(tmp, b.id); })() : packCostRaw(p, b.id);
+      h += `<td class="num bstart cost" data-mgcost="1">${won(cost)}${p.mode === "self" ? "" : '<br><span class="tag">업체 발송 · 계산 안 함</span>'}</td>`;
+      h += `<td class="w c" style="white-space:nowrap">${editing ? `<button class="btn sm primary" type="button" data-act="mg-save">저장</button> <button class="btn sm" type="button" data-act="mg-cancel">취소</button>` : `<button class="btn sm" type="button" data-act="mg-edit" data-id="${esc(p.id)}" data-bid="${esc(b.id)}">수정</button>`}</td>`;
+      h += `</tr>`;
+      lastP = p.id;
+    });
+    h += `</tbody></table></div><p class="hint">기본(테이프 · 인건비 · 택배비)은 기타 설정에서 정한 대로 자동으로 들어가요. 택배비는 중량 ${num(S.config.heavyKg) || 6}kg 이상이면 무거운 택배비예요. 같은 분류를 두 개 이상 쓰면 "외 1"처럼 보이고, 그건 제품 수정 창에서 고쳐요.</p>`;
+    host.innerHTML = h;
+  }
+  function listFromDraft(p, bid, d) {
+    const cats = gridCats();
+    const keep = matsFor(p, bid).filter(x => { const c = matCat(matById(x.id)); return !cats.includes(c); });
+    const extra = [];
+    cats.forEach(c => { const items = matsFor(p, bid).filter(x => matCat(matById(x.id)) === c); if (items.length > 1 && d[c].on) extra.push(...items.slice(1)); });
+    const main = cats.filter(c => d[c].on && d[c].id).map(c => ({ id: d[c].id, qty: NOQTY.has(c) ? 1 : (num(d[c].qty) ?? 1) }));
+    return [...main, ...extra, ...keep];
+  }
+  async function saveMatGrid(btn) {
+    const e = ui.medit; if (!e) return;
+    const p = S.products.find(x => x.id === e.pid), b = S.brands.find(x => x.id === e.bid); if (!p || !b) return;
+    const before = matsFor(p, b.id), after = listFromDraft(p, b.id, e.draft);
+    const a = matSummary(before), z = matSummary(after);
+    btn.disabled = true;
+    const ok = await guard(async () => {
+      if (a === z) return;
+      await db.doc("products/" + p.id).update({ matsByBrand: { [b.id]: after }, updatedAt: new Date().toISOString() });
+      await addHist([{ kind: "material", targetId: p.id, label: label(p), field: b.name + " 부자재", from: a, to: z, date: today(), memo: "부자재 표에서 수정" }]);
+    }, a === z ? "바뀐 내용이 없어요" : "저장했어요");
+    if (ok) { ui.medit = null; renderView(); } else btn.disabled = false;
+  }
+  function updateGridCost() {
+    const e = ui.medit; if (!e) return;
+    const p = S.products.find(x => x.id === e.pid); if (!p) return;
+    const tmp = { ...p, matsByBrand: { ...(p.matsByBrand || {}), [e.bid]: listFromDraft(p, e.bid, e.draft) } };
+    const td = document.querySelector("tr.editing [data-mgcost]"); if (td) td.firstChild.textContent = won(packCostRaw(tmp, e.bid));
+  }
+
   function renderMaterials() {
     const host = $("#m-table");
+    $("#m-tab").innerHTML = [["grid", "제품별 부자재"], ["list", "부자재 단가"]].map(([v, t]) => `<a href="#materials" data-mtab="${v}" aria-current="${ui.mtab === v ? "page" : "false"}">${t}</a>`).join("");
+    const grid = ui.mtab === "grid";
+    $("#m-brand").hidden = !grid; $("#m-type").hidden = !grid; $("#m-vendor-wrap").hidden = !grid; $("#m-add").hidden = grid;
+    $("#m-q").placeholder = grid ? "상품명 · 등급 · 업체 검색" : "부자재 검색";
+    if (document.activeElement !== $("#m-q")) $("#m-q").value = ui.mq;
+    if (grid) {
+      $("#m-brand").innerHTML = segHTML([["all", "전체"], ...brands().map(b => [b.id, b.name])], ui.mgb, "mgb");
+      $("#m-type").innerHTML = segHTML([["all", "전체"], ...S.config.types.map(t => [t, t])], ui.mgtype, "mgtype");
+      $("#m-vendor").checked = ui.mgvendor;
+    }
     if (!S.connected) { host.innerHTML = loadingOr(""); return; }
+    if (grid) { renderMatGrid(); return; }
     const q = ui.mq.toLowerCase();
     const list = S.materials.slice().sort(bySort).filter(m => !q || [m.name, m.spec, m.supplier, m.note].join(" ").toLowerCase().includes(q));
     if (!S.materials.length) { host.innerHTML = emptyHTML("등록된 부자재가 없어요", `<p>박스, 완충재, 아이스팩, 스티커처럼 포장에 드는 자재를 등록하면 제품 원가에 더할 수 있어요.</p><p class="w"><button class="btn primary" data-act="new-material" type="button">+ 부자재 추가</button></p>`); return; }
     if (!list.length) { host.innerHTML = emptyHTML("조건에 맞는 부자재가 없어요", ""); return; }
-    let h = `<div class="tablewrap free"><table class="led"><thead><tr><th>부자재</th><th>규격</th><th>구매처</th><th>개당 단가</th><th>사용 제품</th><th>최근 단가 변동</th><th>메모</th><th class="w"></th></tr></thead><tbody>`;
+    let h = `<div class="tablewrap free"><table class="led"><thead><tr><th>분류</th><th>부자재</th><th>규격</th><th>구매처</th><th>개당 단가</th><th>사용 제품</th><th>최근 단가 변동</th><th>메모</th><th class="w"></th></tr></thead><tbody>`;
     list.forEach(m => {
       const used = S.products.filter(p => usesMat(p, m.id));
       const isBase = (S.config.baseMats || []).some(x => x.id === m.id) || S.config.shipLight === m.id || S.config.shipHeavy === m.id;
       const lc = S.history.filter(x => x.target === "material" && x.targetId === m.id && x.kind === "cost").sort(histSort)[0];
-      h += `<tr><td><b>${esc(m.name)}</b></td><td>${esc(m.spec || "")}</td><td>${esc(m.supplier || "")}</td><td class="num cost">${won(m.cost)}</td>
+      h += `<tr><td class="c">${esc(matCat(m))}</td><td><b>${esc(m.name)}</b></td><td>${esc(m.spec || "")}</td><td>${esc(m.supplier || "")}</td><td class="num cost">${won(m.cost)}</td>
         <td class="muted">${isBase ? "기본 (모든 자체 발송)" : used.length ? used.length + "개" : "–"}</td><td class="muted">${lc ? esc(lc.date) + " · " + won(lc.from) + " → " + won(lc.to) : "–"}</td>
         <td class="muted">${esc(m.note || "")}</td>
         <td class="w"><button class="btn sm" type="button" data-act="edit-material" data-id="${esc(m.id)}">수정</button></td></tr>`;
@@ -1498,6 +1630,7 @@ const PB_SEED = {"brands":{"b-gyul":{"name":"귤타민","sort":20},"b-kakao":{"n
           <label class="field"><span class="req">이름</span><input id="mt-name" type="text" value="${esc(m ? m.name : "")}" placeholder="예: 2.5kg 선물박스"></label>
           <label class="field"><span>규격</span><input id="mt-spec" type="text" value="${esc(m ? m.spec || "" : "")}" placeholder="예: 30×25×12cm"></label>
           <label class="field"><span>구매처</span><input id="mt-supplier" type="text" value="${esc(m ? m.supplier || "" : "")}"></label>
+          <label class="field"><span>분류</span><select id="mt-cat">${[...MAT_CATS, "기본"].map(c => `<option${(m ? matCat(m) : "박스") === c ? " selected" : ""}>${c}</option>`).join("")}</select></label>
           <label class="field"><span class="req">개당 단가 (원)</span><input id="mt-cost" type="text" inputmode="numeric" value="${esc(m ? won(m.cost) : "")}" placeholder="예: 850"></label>
           <label class="field wide"><span>메모</span><input id="mt-note" type="text" value="${esc(m ? m.note || "" : "")}"></label>
         </div></fieldset>
@@ -1514,7 +1647,7 @@ const PB_SEED = {"brands":{"b-gyul":{"name":"귤타민","sort":20},"b-kakao":{"n
     const name = $("#mt-name").value.trim(), cost = num($("#mt-cost").value);
     if (!name) { toast("이름을 넣어 주세요.", true); return; }
     if (cost == null) { toast("개당 단가를 넣어 주세요.", true); return; }
-    const body = { name, spec: $("#mt-spec").value.trim(), supplier: $("#mt-supplier").value.trim(), cost, note: $("#mt-note").value.trim() };
+    const body = { name, spec: $("#mt-spec").value.trim(), supplier: $("#mt-supplier").value.trim(), cost, note: $("#mt-note").value.trim(), cat: $("#mt-cat").value };
     const id = drawerMode.id;
     await guard(async () => {
       if (id) {
@@ -1546,7 +1679,7 @@ const PB_SEED = {"brands":{"b-gyul":{"name":"귤타민","sort":20},"b-kakao":{"n
 
   // ---------- events ----------
   document.addEventListener("click", async e => {
-    const seg = e.target.closest("[data-ptype],[data-pmode],[data-plmode],[data-hkind],[data-brand],[data-dbrand],[data-hview],[data-htype]");
+    const seg = e.target.closest("[data-ptype],[data-pmode],[data-plmode],[data-hkind],[data-brand],[data-dbrand],[data-hview],[data-htype],[data-mgb],[data-mgtype],[data-mtab]");
     if (seg) {
       if (seg.dataset.ptype) ui.ptype = seg.dataset.ptype;
       else if (seg.dataset.pmode) ui.pmode = seg.dataset.pmode;
@@ -1555,6 +1688,9 @@ const PB_SEED = {"brands":{"b-gyul":{"name":"귤타민","sort":20},"b-kakao":{"n
       else if (seg.dataset.dbrand) ui.dbrand = seg.dataset.dbrand;
       else if (seg.dataset.hview) { ui.hview = seg.dataset.hview; lsSet("pb.hview", ui.hview); }
       else if (seg.dataset.htype) ui.htype = seg.dataset.htype;
+      else if (seg.dataset.mgb) ui.mgb = seg.dataset.mgb;
+      else if (seg.dataset.mgtype) ui.mgtype = seg.dataset.mgtype;
+      else if (seg.dataset.mtab) { e.preventDefault(); ui.mtab = seg.dataset.mtab; lsSet("pb.mtab", ui.mtab); ui.mq = ""; }
       else if (seg.dataset.brand) { const id = seg.dataset.brand; ui.hidden.has(id) ? ui.hidden.delete(id) : ui.hidden.add(id); lsSet("pb.hiddenBrands", [...ui.hidden]); }
       renderView(); return;
     }
@@ -1585,6 +1721,14 @@ const PB_SEED = {"brands":{"b-gyul":{"name":"귤타민","sort":20},"b-kakao":{"n
         break;
       }
       case "csv": exportCSV(); break;
+      case "mg-edit": {
+        if (!S.canWrite) { openGate(); break; }
+        const p = S.products.find(x => x.id === id); if (!p) break;
+        ui.medit = { pid: id, bid: b.dataset.bid, draft: draftFrom(p, b.dataset.bid) }; renderView(); break;
+      }
+      case "mg-cancel": ui.medit = null; renderView(); break;
+      case "mg-save": await saveMatGrid(b); break;
+      case "goto-mats": { const p = S.products.find(x => x.id === id); if (!p) break; ui.mtab = "grid"; ui.mgb = b.dataset.bid || "all"; ui.mq = p.name; ui.mgvendor = p.mode !== "self"; location.hash = "#materials"; renderView(); break; }
       case "unlock": if (!S.canWrite) openGate(); break;
       case "adjust-save": await saveAdjust(b); break;
       case "adjust-revert": ui.drafts = {}; renderView(); toast("고친 칸을 되돌렸어요"); break;
@@ -1656,6 +1800,13 @@ const PB_SEED = {"brands":{"b-gyul":{"name":"귤타민","sort":20},"b-kakao":{"n
     const t = e.target;
     if (t.id === "p-chan" || t.id === "a-chan") { ui.chan = t.checked; lsSet("pb.chan", ui.chan); renderView(); return; }
     if (t.dataset.pid && t.dataset.f) { if (ui.drafts[dKey(t.dataset.pid, t.dataset.bid, t.dataset.f)] != null && t.dataset.f !== "shipping") { const n = num(t.value); if (n != null) { t.value = won(n); onAdjustInput(t); } } return; }
+    if (t.id === "m-vendor") { ui.mgvendor = t.checked; renderView(); return; }
+    if (ui.medit && (t.dataset.mgon || t.dataset.mgid)) {
+      const c = t.dataset.mgon || t.dataset.mgid; const x = ui.medit.draft[c];
+      if (t.dataset.mgon) { x.on = t.checked; if (x.on && !x.id) x.id = (catMats(c)[0] || {}).id || ""; const tr = t.closest("tr"); $$(`[data-mgid="${CSS.escape(c)}"],[data-mgq="${CSS.escape(c)}"]`, tr).forEach(el => { el.disabled = !x.on; }); }
+      else x.id = t.value;
+      updateGridCost(); return;
+    }
     if (t.id === "h-changed") { ui.hchanged = t.checked; lsSet("pb.hchanged", ui.hchanged); renderView(); return; }
     if (t.id === "d-target") { ui.dtarget = t.value; renderView(); return; }
     if (t.id === "d-from" || t.id === "d-to") { ui[t.id === "d-from" ? "dfrom" : "dto"] = t.value; renderView(); return; }
@@ -1704,6 +1855,7 @@ const PB_SEED = {"brands":{"b-gyul":{"name":"귤타민","sort":20},"b-kakao":{"n
     else if (t.id === "pl-q") { ui.plq = t.value; renderView(); }
     else if (t.id === "h-q") { ui.hq = t.value; renderView(); }
     else if (t.id === "m-q") { ui.mq = t.value; renderView(); }
+    else if (ui.medit && t.dataset.mgq) { ui.medit.draft[t.dataset.mgq].qty = t.value; updateGridCost(); }
     else if (t.id === "import-text") { ui.importText = t.value; if (ui.importPlan) { ui.importPlan = null; const pv = $("#import-preview"); if (pv) pv.innerHTML = ""; const rb = $("[data-act=import-run]"); if (rb) rb.disabled = true; } }
     else if (t.dataset.mq !== undefined) { ed.mats[ed.mb][+t.dataset.mq].qty = t.value; const row = t.closest(".matrow"); const mm = matById(ed.mats[ed.mb][+t.dataset.mq].id); $(".num", row).textContent = mm ? won((num(mm.cost) || 0) * (num(t.value) || 0)) : "–"; updateTotals(); }
     else if (t.id === "ed-cost" || t.id === "ed-weight" || t.dataset.pf) updateTotals();
