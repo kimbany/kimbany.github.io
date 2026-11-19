@@ -1,0 +1,14 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // 수정 PIN 로그인 계정 (prices/index.html 의 PB_EDITOR_EMAIL 과 같아야 합니다)
+    function isPriceEditor() {
+      return request.auth != null && request.auth.token.email == 'editor@price-book.local';
+    }
+    // 과일 가격 장부: 보기는 누구나, 수정은 PIN 으로 로그인했을 때만
+    match /price_book/{document=**} {
+      allow read: if true;
+      allow write: if isPriceEditor();
+    }
+  }
+}
