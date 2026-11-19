@@ -636,7 +636,7 @@ const PB_SEED = {"brands":{"b-gyul":{"name":"귤타민","sort":20},"b-kakao":{"n
     const bs = brands().filter(b => !ui.hidden.has(b.id));
     const cbs = ui.chan ? bs.filter(b => brandChannels(b).length) : [];
     let h = `<div class="tablewrap"><table class="led"><thead><tr>
-      <th rowspan="3">상품명</th><th rowspan="3">업체</th><th rowspan="3">브릭스</th><th rowspan="3">구분</th><th rowspan="3">등급</th><th rowspan="3">중량</th><th rowspan="3">수량</th>
+      <th rowspan="3">상품명</th><th rowspan="3">업체</th><th rowspan="3">원산지</th><th rowspan="3">브릭스</th><th rowspan="3">구분</th><th rowspan="3">등급</th><th rowspan="3">중량</th><th rowspan="3">수량</th>
       <th rowspan="3">단가</th><th rowspan="3">부자재</th><th rowspan="3">원가</th>`;
     bs.forEach(b => { h += `<th class="brand bstart" colspan="5">${esc(b.name)}</th>`; });
     cbs.forEach(b => { h += `<th class="brand bstart" colspan="${brandChannels(b).length}">${esc(b.name)} 채널</th>`; });
@@ -656,7 +656,7 @@ const PB_SEED = {"brands":{"b-gyul":{"name":"귤타민","sort":20},"b-kakao":{"n
           h += `<td class="gcell pname" rowspan="${n}"><button type="button" data-act="edit-product" data-id="${esc(p.id)}" title="제품 수정">${esc(p.name)}</button></td>`;
           h += `<td class="gcell vend" rowspan="${n}">${p.mode === "self" ? '<span class="tag self">자체 포장</span>' : esc(vendorName(p.vendorId) || "업체 미지정")}</td>`;
         }
-        h += `<td class="c ${typeClass(p.type)}">${esc(p.brix || "")}</td>`;
+        h += `<td class="c ${typeClass(p.type)}">${esc(p.origin || "")}</td><td class="c ${typeClass(p.type)}">${esc(p.brix || "")}</td>`;
         if (i === 0) h += `<td class="gcell ${typeClass(p.type)}" rowspan="${n}">${esc(p.type)}</td>`;
         h += `<td class="c">${esc(p.grade)}</td><td class="c">${esc(p.weight)}</td><td class="c">${esc(p.count)}</td>`;
         h += `<td class="num">${won(p.unitCost)}</td><td class="num muted">${p.mode === "self" ? (mc ? won(mc) : "0") : "–"}</td><td class="num cost">${won(tc)}</td>`;
@@ -772,12 +772,12 @@ const PB_SEED = {"brands":{"b-gyul":{"name":"귤타민","sort":20},"b-kakao":{"n
 
   function exportCSV() {
     const bs = brands().filter(b => !ui.hidden.has(b.id));
-    const head = ["상품명", "업체/발송", "브릭스", "구분", "등급", "중량", "수량", "단가", "부자재", "원가"];
+    const head = ["상품명", "업체/발송", "원산지", "브릭스", "구분", "등급", "중량", "수량", "단가", "부자재", "원가"];
     bs.forEach(b => ["정상가", "판매가", "배송비", "마진", "마진율(%)"].forEach(t => head.push(b.name + " " + t)));
     bs.forEach(b => brandChannels(b).forEach(c => head.push(`${b.name} ${c.name}(${c.fee}%) 마진`)));
     const rows = [head];
     products().forEach(p => {
-      const r = [p.name, modeText(p), p.brix || "", p.type, p.grade, p.weight, p.count, num(p.unitCost) ?? "", matCost(p), totalCost(p)];
+      const r = [p.name, modeText(p), p.origin || "", p.brix || "", p.type, p.grade, p.weight, p.count, num(p.unitCost) ?? "", matCost(p), totalCost(p)];
       bs.forEach(b => { const pr = (p.prices || {})[b.id] || {}; const c = isSold(pr) ? calcMargin(p, pr, 0) : null;
         r.push(pr.regular ?? "", pr.sale ?? "", pr.shipping ?? "", c ? Math.round(c.m) : "", c ? c.r.toFixed(1) : ""); });
       bs.forEach(b => { const pr = (p.prices || {})[b.id] || {}; brandChannels(b).forEach(ch => { const c = isSold(pr) ? calcMargin(p, pr, num(ch.fee) || 0) : null; r.push(c ? Math.round(c.m) : ""); }); });
@@ -799,13 +799,13 @@ const PB_SEED = {"brands":{"b-gyul":{"name":"귤타민","sort":20},"b-kakao":{"n
     if (!list.length) { host.innerHTML = emptyHTML("조건에 맞는 제품이 없어요", ""); return; }
     const bs = brands();
     let h = `<p class="summary">제품 <b>${list.length}</b>개</p><div class="tablewrap"><table class="led"><thead><tr>
-      <th>상품명</th><th>구분</th><th>브릭스</th><th>등급</th><th>중량</th><th>수량</th><th>발송</th><th>업체</th><th>단가</th><th>부자재</th><th>원가</th><th>판매처</th><th>최근 단가·업체 변동</th><th class="w"></th></tr></thead><tbody>`;
+      <th>상품명</th><th>구분</th><th>원산지</th><th>브릭스</th><th>등급</th><th>중량</th><th>수량</th><th>발송</th><th>업체</th><th>단가</th><th>부자재</th><th>원가</th><th>판매처</th><th>최근 단가·업체 변동</th><th class="w"></th></tr></thead><tbody>`;
     groupOf(list).forEach(g => g.items.forEach((p, i) => {
       const lc = lastChange(p.id);
       const soldAt = bs.filter(b => isSold((p.prices || {})[b.id])).map(b => b.name);
       h += `<tr class="${i === 0 ? "gstart" : ""}">
         <td class="pname"><button type="button" data-act="edit-product" data-id="${esc(p.id)}">${esc(p.name)}</button></td>
-        <td class="c ${typeClass(p.type)}">${esc(p.type)}</td><td class="c">${esc(p.brix || "")}</td><td class="c">${esc(p.grade)}</td><td class="c">${esc(p.weight)}</td><td class="c">${esc(p.count)}</td>
+        <td class="c ${typeClass(p.type)}">${esc(p.type)}</td><td class="c">${esc(p.origin || "")}</td><td class="c">${esc(p.brix || "")}</td><td class="c">${esc(p.grade)}</td><td class="c">${esc(p.weight)}</td><td class="c">${esc(p.count)}</td>
         <td class="c">${p.mode === "self" ? '<span class="tag self">자체 포장</span>' : '<span class="tag vendor">업체 발송</span>'}</td>
         <td>${p.mode === "self" ? '<span class="muted">–</span>' : esc(vendorName(p.vendorId) || "미지정")}</td>
         <td class="num">${won(p.unitCost)}</td><td class="num muted">${matCost(p) ? won(matCost(p)) : "–"}</td><td class="num cost">${won(totalCost(p))}</td>
@@ -988,7 +988,8 @@ const PB_SEED = {"brands":{"b-gyul":{"name":"귤타민","sort":20},"b-kakao":{"n
       if (cost == null) { errors.push((i + 1) + "번째 줄(" + r.name + "): 단가가 없어요"); return; }
       const row = {
         name: String(r.name).trim(), type: String(r.type || "").trim(), grade: String(r.grade || "").trim(),
-        weight: String(r.weight || "").trim(), count: String(r.count || "").trim(), brix: r.brix == null ? null : String(r.brix).trim(),
+        weight: String(r.weight || "").trim(), count: String(r.count || "").trim(), brix: r.brix == null ? null : String(r.brix).trim(), origin: r.origin == null ? null : String(r.origin).trim(),
+        costHistory: Array.isArray(r.costHistory) ? r.costHistory.map(c => ({ date: String(c.date || "").slice(0, 10), unitCost: num(c.unitCost) })).filter(c => /^\d{4}-\d{2}-\d{2}$/.test(c.date) && c.unitCost != null).sort((a, b) => a.date.localeCompare(b.date)) : [],
         vendor: String(r.vendor || "").trim(), mode: r.mode === "self" || (!r.vendor && r.mode !== "vendor") ? "self" : "vendor",
         unitCost: cost, prices: {}
       };
@@ -1019,7 +1020,7 @@ const PB_SEED = {"brands":{"b-gyul":{"name":"귤타민","sort":20},"b-kakao":{"n
       if (pl.newBrands.length) pv += `<p class="hint">새 판매처: ${esc(pl.newBrands.join(", "))}</p>`;
       if (pl.newVendors.length) pv += `<p class="hint">새 업체: ${esc(pl.newVendors.join(", "))}</p>`;
       if (pl.errors.length) pv += `<p class="neg">${pl.errors.map(esc).join("<br>")}</p>`;
-      pv += `<div class="tablewrap free" style="max-height:260px"><table class="led"><thead><tr><th></th><th>상품</th><th>업체</th><th>단가</th><th>판매처</th></tr></thead><tbody>${pl.rows.map(r => `<tr><td class="c">${r.existing ? '<span class="tag">바꿈</span>' : '<span class="tag self">새로</span>'}</td><td>${esc(label(r))}</td><td>${r.mode === "self" ? "자체 포장" : esc(r.vendor)}</td><td class="num">${won(r.unitCost)}</td><td class="muted">${esc(Object.keys(r.prices).join(", ") || "–")}</td></tr>`).join("")}</tbody></table></div>`;
+      pv += `<div class="tablewrap free" style="max-height:260px"><table class="led"><thead><tr><th></th><th>상품</th><th>업체</th><th>단가</th><th>판매처</th></tr></thead><tbody>${pl.rows.map(r => `<tr><td class="c">${r.existing ? '<span class="tag">바꿈</span>' : '<span class="tag self">새로</span>'}</td><td>${esc(label(r))}</td><td>${r.mode === "self" ? "자체 포장" : esc(r.vendor || "업체 미지정")}</td><td class="num">${won(r.unitCost)}</td><td class="muted">${esc(Object.keys(r.prices).join(", ") || "–")}${r.costHistory.length ? ` · 단가 이력 ${r.costHistory.length}개` : ""}</td></tr>`).join("")}</tbody></table></div>`;
     }
     const canRun = pl && !pl.error && (pl.rows.length || pl.brandsCfg.length);
     return `<div class="panel w" style="grid-column:1/-1"><h3>한꺼번에 넣기</h3>
@@ -1037,6 +1038,8 @@ const PB_SEED = {"brands":{"b-gyul":{"name":"귤타민","sort":20},"b-kakao":{"n
       const brandId = {}; S.brands.forEach(b => { brandId[b.name] = b.id; });
       const vendorId = {}; S.vendors.forEach(v => { vendorId[v.name] = v.id; });
       let bSort = Math.max(0, ...S.brands.map(b => b.sort || 0)), vSort = Math.max(0, ...S.vendors.map(v => v.sort || 0));
+      const newTypes = [...new Set(pl.rows.map(r => r.type).filter(t => t && !S.config.types.includes(t)))];
+      if (newTypes.length) await saveConfig({ types: [...S.config.types, ...newTypes] });
       for (const n of pl.newBrands) { const id = rid("b"); bSort += 10; await db.doc("brands/" + id).set({ name: n, sort: bSort }); brandId[n] = id; }
       for (const bc of pl.brandsCfg) {
         if (!Array.isArray(bc.channels)) continue;
@@ -1049,7 +1052,7 @@ const PB_SEED = {"brands":{"b-gyul":{"name":"귤타민","sort":20},"b-kakao":{"n
       for (const r of pl.rows) {
         const prices = {}; Object.entries(r.prices).forEach(([bn, o]) => { prices[brandId[bn]] = o; });
         const body = { name: r.name, type: r.type, grade: r.grade, weight: r.weight, count: r.count, mode: r.mode,
-          ...(r.brix != null ? { brix: r.brix } : {}), vendorId: r.mode === "vendor" ? (vendorId[r.vendor] || null) : null, unitCost: r.unitCost };
+          ...(r.brix != null ? { brix: r.brix } : {}), ...(r.origin != null ? { origin: r.origin } : {}), vendorId: r.mode === "vendor" ? (vendorId[r.vendor] || null) : null, unitCost: r.unitCost };
         const ex = r.existing && S.products.find(p => p.id === r.existing.id);
         if (ex) {
           const full = JSON.parse(JSON.stringify(ex)); delete full.id;
@@ -1062,7 +1065,16 @@ const PB_SEED = {"brands":{"b-gyul":{"name":"귤타민","sort":20},"b-kakao":{"n
         } else {
           const id = rid("p"); pSort += 10;
           await db.doc("products/" + id).set({ ...body, materials: [], prices, note: "", sort: pSort, createdAt: now, updatedAt: now });
-          await addHist([{ kind: "create", targetId: id, label: label(body), field: "제품 등록", from: null, to: `단가 ${won(r.unitCost)}원 · ${r.mode === "self" ? "자체 포장" : "업체 발송(" + r.vendor + ")"}`, date, memo }]);
+          const ch = r.costHistory;
+          const firstCost = ch.length ? ch[0].unitCost : r.unitCost;
+          const sendText = r.mode === "self" ? "자체 포장" : "업체 발송(" + (r.vendor || "업체 미지정") + ")";
+          await addHist([{ kind: "create", targetId: id, label: label(body), field: "제품 등록", from: null, to: `단가 ${won(firstCost)}원 · ${sendText}`, date: ch.length ? ch[0].date : date, memo }]);
+          let prev = firstCost;
+          for (const c of ch.slice(1)) {
+            if (c.unitCost !== prev) await addHist([{ kind: "cost", targetId: id, label: label(body), field: "상품 단가", from: prev, to: c.unitCost, date: c.date, memo: "시트 단가 기록" }]);
+            prev = c.unitCost;
+          }
+          if (ch.length && prev !== r.unitCost) await addHist([{ kind: "cost", targetId: id, label: label(body), field: "상품 단가", from: prev, to: r.unitCost, date, memo }]);
           created++;
         }
       }
@@ -1115,6 +1127,7 @@ const PB_SEED = {"brands":{"b-gyul":{"name":"귤타민","sort":20},"b-kakao":{"n
           <label class="field"><span>등급</span><input id="ed-grade" type="text" list="dl-grades" value="${esc(p.grade || "")}" placeholder="예: 중과"></label>
           <label class="field"><span>중량</span><input id="ed-weight" type="text" list="dl-weights" value="${esc(p.weight || "")}" placeholder="예: 1.8kg"></label>
           <label class="field"><span>수량</span><input id="ed-count" type="text" value="${esc(p.count || "")}" placeholder="예: 8-9과"></label>
+          <label class="field"><span>원산지</span><input id="ed-origin" type="text" value="${esc(p.origin || "")}" placeholder="예: 경북 청송"></label>
           <label class="field"><span>브릭스</span><input id="ed-brix" type="text" value="${esc(p.brix || "")}" placeholder="예: 14"></label>
         </div></fieldset>
 
@@ -1209,7 +1222,7 @@ const PB_SEED = {"brands":{"b-gyul":{"name":"귤타민","sort":20},"b-kakao":{"n
       prices[bid] = o;
     });
     return {
-      name: v("ed-name"), type: $("#ed-type").value, grade: v("ed-grade"), weight: v("ed-weight"), count: v("ed-count"), brix: v("ed-brix"),
+      name: v("ed-name"), type: $("#ed-type").value, grade: v("ed-grade"), weight: v("ed-weight"), count: v("ed-count"), origin: v("ed-origin"), brix: v("ed-brix"),
       mode, vendorSel: $("#ed-vendor").value, vendorNew: v("ed-vnew"), unitCost: num($("#ed-cost").value),
       materials: ed.materials.filter(m => m.id).map(m => ({ id: m.id, qty: num(m.qty) ?? 1 })),
       prices, note: ($("#ed-note").value || "").trim(), date: $("#ed-date").value || today(), memo: v("ed-memo")
@@ -1220,7 +1233,7 @@ const PB_SEED = {"brands":{"b-gyul":{"name":"귤타민","sort":20},"b-kakao":{"n
   function diffProduct(prev, next) {
     const out = [];
     const push = (kind, field, from, to) => { if ((from ?? null) !== (to ?? null)) out.push({ kind, field, from: from ?? null, to: to ?? null }); };
-    [["name", "상품명"], ["type", "구분"], ["grade", "등급"], ["weight", "중량"], ["count", "수량"], ["brix", "브릭스"]].forEach(([k, t]) => push("info", t, prev[k] || null, next[k] || null));
+    [["name", "상품명"], ["type", "구분"], ["grade", "등급"], ["weight", "중량"], ["count", "수량"], ["origin", "원산지"], ["brix", "브릭스"]].forEach(([k, t]) => push("info", t, prev[k] || null, next[k] || null));
     const pm = prev.mode === "self" ? "self" : "vendor";
     if (pm !== next.mode) push("vendor", "발송 방식", pm === "self" ? "자체 포장" : "업체 발송", next.mode === "self" ? "자체 포장" : "업체 발송");
     if (next.mode === "vendor" && (pm !== "vendor" || prev.vendorId !== next.vendorId)) push("vendor", "업체", pm === "vendor" ? vendorName(prev.vendorId) || null : null, vendorName(next.vendorId));
@@ -1254,7 +1267,7 @@ const PB_SEED = {"brands":{"b-gyul":{"name":"귤타민","sort":20},"b-kakao":{"n
       }
       const prices = {};
       Object.keys(n.prices).forEach(k => { const o = { ...n.prices[k] }; delete o.__empty; prices[k] = o; });
-      const body = { name: n.name, type: n.type, grade: n.grade, weight: n.weight, count: n.count, brix: n.brix, mode: n.mode, vendorId, unitCost: n.unitCost, materials: n.materials, note: n.note };
+      const body = { name: n.name, type: n.type, grade: n.grade, weight: n.weight, count: n.count, origin: n.origin, brix: n.brix, mode: n.mode, vendorId, unitCost: n.unitCost, materials: n.materials, note: n.note };
       const now = new Date().toISOString();
       if (ed.id) {
         const prev = S.products.find(p => p.id === ed.id);
