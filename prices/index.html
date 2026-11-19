@@ -378,7 +378,14 @@ body.ro .w { display: none !important; }
    서버(Firebase) 설정 — 과일 가격 장부 전용 프로젝트. 설정 방법은 prices/SETUP.md
    null 이면 서버에 연결하지 않고 "서버 설정이 아직 없어요" 안내만 보여 줍니다.
    ===================================================================== */
-const PB_FIREBASE_CONFIG = null;
+const PB_FIREBASE_CONFIG = {
+  apiKey: "AIzaSyC7TxRpRXPcNYs_Lba5bvAVEAnLWZwJcnA",
+  authDomain: "price-book-71125.firebaseapp.com",
+  projectId: "price-book-71125",
+  storageBucket: "price-book-71125.firebasestorage.app",
+  messagingSenderId: "349829575356",
+  appId: "1:349829575356:web:bbe5828e7de86f5d6bd6b9"
+};
 // 수정 PIN 을 검사하는 내부용 로그인 계정 (실제 메일 주소 아님). 한 번 정하면 바꾸지 않습니다.
 const PB_EDITOR_EMAIL = "editor@price-book.local";
 // 처음 한 번 넣는 데이터 (스프레드시트에서 옮긴 제품 · 판매처 · 업체)
