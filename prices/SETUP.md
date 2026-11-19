@@ -1,40 +1,43 @@
-# 과일 가격 장부 — 서버 설정
+# 과일 가격 장부 — 서버(Firebase) 설정
 
 주소: https://invedory.com/prices/
+보기는 누구나, 수정 · 추가 · 삭제는 오른쪽 위 **수정하기** → PIN.
+알바 시급 관리와는 **다른 Firebase 프로젝트**를 씁니다.
 
-- **보기**는 로그인 없이 누구나 됩니다.
-- **수정 · 추가 · 삭제**는 오른쪽 위 **수정하기** → PIN 을 넣어야 됩니다.
-- 데이터는 알바 시급 관리와 같은 Firebase 프로젝트(`alba-pay-82d7c`)의 `price_book/` 아래에 저장됩니다.
-  알바 기록(`alba_pay/`)과는 규칙으로 나뉘어 있어서 서로 보이지 않습니다.
+## 1. 프로젝트 만들기
+1. https://console.firebase.google.com → 구글 로그인.
+2. **+ 프로젝트 만들기** (또는 "Firebase 프로젝트 시작하기").
+3. 이름: `price-book` → 약관 체크 → 계속.
+4. Google 애널리틱스: **사용 안 함** → 프로젝트 만들기 → 완료되면 계속.
 
-## 처음 한 번: 규칙 게시 (1분)
+## 2. 웹 앱 등록 → 설정값
+1. 프로젝트 첫 화면의 **`</>`** (웹) 아이콘.
+2. 앱 닉네임 `price-book`, Firebase 호스팅은 체크하지 않음 → **앱 등록**.
+3. 나오는 `const firebaseConfig = { ... }` 를 복사 → Claude 에게 보내거나 `prices/index.html` 의 `PB_FIREBASE_CONFIG = null` 자리에 넣습니다.
 
-1. https://console.firebase.google.com → `alba-pay` 프로젝트 → **Firestore Database → 규칙** 탭.
-2. 내용을 모두 지우고 `alba-pay/firestore.rules` 파일 내용을 그대로 붙여 넣고 **게시**.
-   (기존 알바 규칙에 `price_book` 부분이 더해진 것입니다. 알바 규칙은 그대로입니다.)
+## 3. 로그인(PIN 용) 켜기
+1. 왼쪽 **빌드 → Authentication → 시작하기**.
+2. **Sign-in method → 이메일/비밀번호 → 사용 설정** 켜고 저장 (이메일 링크는 끔).
+3. **설정 → 승인된 도메인 → 도메인 추가** → `invedory.com`.
 
-이메일/비밀번호 로그인과 `invedory.com` 승인 도메인은 알바 시급 관리 때 이미 켜 두었으므로 따로 할 일이 없습니다.
+## 4. 데이터베이스 + 규칙
+1. 왼쪽 **빌드 → Firestore Database → 데이터베이스 만들기**.
+2. 버전이 나오면 **Standard**, 위치 **asia-northeast3 (Seoul)**, **프로덕션 모드**로 만들기.
+3. **규칙** 탭 → 내용을 지우고 `prices/firestore.rules` 를 붙여 넣고 **게시**.
 
-## 처음 들어가기
-
-1. https://invedory.com/prices/ 를 엽니다.
-2. **수정하기** → **PIN 만들기** (숫자 4~6자리). 수정하는 모든 사람이 이 PIN 을 씁니다.
-3. 위에 "서버가 비어 있어요" 가 보이면 **시트 데이터 넣기** → 스프레드시트에서 옮긴 제품 23개 · 판매처 3곳 · 업체(휘프레쉬)가 들어갑니다.
+## 5. 처음 들어가기
+1. https://invedory.com/prices/ → **수정하기** → **PIN 만들기** (숫자 4~6자리).
+2. "서버가 비어 있어요" → **시트 데이터 넣기** (제품 23개 · 판매처 3곳 · 휘프레쉬).
 
 ## 자주 묻는 것
-
 | 상황 | 해결 |
 |---|---|
-| "서버 규칙이 아직 적용되지 않았어요" | 위 규칙 게시를 했는지 확인하세요. |
-| PIN 을 잊었어요 | 콘솔 → Authentication → 사용자에서 `editor@price-book.local` 삭제, Firestore → `price_book/main/meta/pin` 문서 삭제 → 새로고침하면 새 PIN 을 만들 수 있습니다. **기록은 그대로 남습니다.** |
-| 수정하고 나서 | 공용 컴퓨터라면 **잠그기**를 누르세요. 브라우저를 닫으면 자동으로 잠깁니다. |
+| "서버 규칙이 아직 적용되지 않았어요" | 4-3 규칙 게시를 확인하세요. |
+| "이메일/비밀번호 로그인을 켜 주세요" | 3-2 를 확인하세요. |
+| PIN 을 잊었어요 | Authentication → 사용자에서 `editor@price-book.local` 삭제, Firestore → `price_book/main/meta/pin` 삭제 → 새로고침 후 새 PIN. **기록은 그대로입니다.** |
 
-## 데이터가 저장되는 곳
-
-`price_book/main/` 아래:
-`products` (제품 · 단가 · 판매처별 가격), `brands` (판매처), `vendors` (업체), `materials` (부자재),
-`history` (단가 · 업체 · 발송 방식 · 판매가 변동 기록), `config/main` (구분 · 등급 · 기본 택배비), `meta/pin` (PIN 을 만들었는지)
+## 저장 위치
+`price_book/main/` 아래 `products` · `brands` · `vendors` · `materials` · `history` · `config/main` · `meta/pin`
 
 ## 비용
-
-Firebase 무료(Spark) 요금제: 하루 읽기 5만 · 쓰기 2만 · 저장 1GB. 제품 수백 개 · 기록 수천 건이어도 한도 안이라 비용이 들지 않습니다.
+무료(Spark) 요금제: 하루 읽기 5만 · 쓰기 2만 · 저장 1GB. 이 용도로는 비용이 들지 않습니다.

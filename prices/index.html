@@ -375,17 +375,10 @@ body.ro .w { display: none !important; }
 
 <script>
 /* =====================================================================
-   서버(Firebase) 설정 — alba-pay 와 같은 프로젝트를 씁니다. 데이터는 price_book/ 아래에만 저장됩니다.
-   처음 설정 · 규칙은 prices/SETUP.md 를 보세요.
+   서버(Firebase) 설정 — 과일 가격 장부 전용 프로젝트. 설정 방법은 prices/SETUP.md
+   null 이면 서버에 연결하지 않고 "서버 설정이 아직 없어요" 안내만 보여 줍니다.
    ===================================================================== */
-const PB_FIREBASE_CONFIG = {
-  apiKey: "AIzaSyAvIElYJi9H7DcWpMGsjx1oWjc0TEa26IU",
-  authDomain: "alba-pay-82d7c.firebaseapp.com",
-  projectId: "alba-pay-82d7c",
-  storageBucket: "alba-pay-82d7c.firebasestorage.app",
-  messagingSenderId: "293313110958",
-  appId: "1:293313110958:web:1115ce69542324ec6fde3f"
-};
+const PB_FIREBASE_CONFIG = null;
 // 수정 PIN 을 검사하는 내부용 로그인 계정 (실제 메일 주소 아님). 한 번 정하면 바꾸지 않습니다.
 const PB_EDITOR_EMAIL = "editor@price-book.local";
 // 처음 한 번 넣는 데이터 (스프레드시트에서 옮긴 제품 · 판매처 · 업체)
@@ -1185,6 +1178,9 @@ const PB_SEED = {"brands":{"b-gyul":{"name":"귤타민","sort":20},"b-kakao":{"n
     };
   }
   async function connect() {
+    if (!PB_FIREBASE_CONFIG || !PB_FIREBASE_CONFIG.projectId) {
+      banner("서버 설정이 아직 없어요. Firebase 프로젝트를 연결하면 가격표가 보여요 (prices/SETUP.md)."); S.connected = true; renderView(); return;
+    }
     try {
       const v = "https://www.gstatic.com/firebasejs/10.12.0/";
       await loadScript(v + "firebase-app-compat.js");
