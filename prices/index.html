@@ -528,6 +528,10 @@ const PB_SEED = {"brands":{"b-gyul":{"name":"귤타민","sort":20},"b-kakao":{"n
       if (!idx.has(k)) { idx.set(k, groups.length); groups.push({ key: k, items: [] }); }
       groups[idx.get(k)].items.push(p);
     });
+    // 묶음 안에서는 시트처럼 중량 → 등급(소과 → 특대과) 순서로
+    const wNum = p => { const m = String(p.weight || "").match(/[\d.]+/); return m ? parseFloat(m[0]) : Infinity; };
+    const gIdx = p => { const i = S.config.grades.indexOf(p.grade); return i < 0 ? Infinity : i; };
+    groups.forEach(g => g.items.sort((a, b) => (wNum(a) - wNum(b)) || (gIdx(a) - gIdx(b)) || bySort(a, b)));
     return groups;
   }
   function lastChange(pid) {
