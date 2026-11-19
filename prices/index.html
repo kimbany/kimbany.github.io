@@ -129,6 +129,10 @@ table.led { border-collapse: separate; border-spacing: 0; width: max-content; mi
 .chanitem { display: inline-flex; gap: 4px; align-items: center; border: 1px solid var(--line); border-radius: 8px; padding: 3px 6px; background: var(--surface-2); font-size: 12px; }
 .chanitem input { width: 84px; padding: 3px 6px; }
 .chanitem input.fee { width: 54px; text-align: right; }
+.chanitem.off { opacity: .55; background: var(--surface); border-style: dashed; }
+.chanon { display: inline-flex; align-items: center; gap: 3px; cursor: pointer; font-size: 11px; font-weight: 700; color: var(--down); }
+.chanitem.off .chanon { color: var(--muted); }
+.chanon input { accent-color: var(--down); width: 14px; height: 14px; margin: 0; }
 .chanitem button { border: 0; background: none; cursor: pointer; color: var(--muted); font-size: 14px; }
 .led thead th.brand { font-weight: 700; }
 .led .num { text-align: right; font-variant-numeric: tabular-nums; }
@@ -515,7 +519,10 @@ const PB_SEED = {"brands":{"b-gyul":{"name":"귤타민","sort":20},"b-kakao":{"n
   const mHTML = c => c == null ? "" : `<span class="${c.m >= 0 ? "pos" : "neg"}">${won(c.m)}</span>`;
   const rHTML = c => c == null ? "" : `<span class="${c.m >= 0 ? "pos" : "neg"}">${c.r.toFixed(1)}%</span>`;
   const chHTML = c => c == null ? "" : `<span class="${c.m >= 0 ? "pos" : "neg"}">${won(c.m)}</span><span class="pct">(${c.r.toFixed(1)}%)</span>`;
-  const brandChannels = b => (b.channels || []).filter(c => c && c.name);
+  // 모든 채널(설정 화면용)과 켜 둔 채널(가격표용). on 이 false 면 꺼진 채널.
+  const allChannels = b => (b.channels || []).filter(c => c && c.name);
+  const brandChannels = b => allChannels(b).filter(c => c.on !== false);
+  const chanCopy = b => allChannels(b).map(c => ({ name: c.name, fee: num(c.fee) ?? 0, on: c.on !== false }));
   const matchQ = (p, q) => {
     if (!q) return true;
     const hay = [p.name, p.type, p.grade, p.weight, p.count, modeText(p), p.note].join(" ").toLowerCase();
@@ -528,6 +535,10 @@ const PB_SEED = {"brands":{"b-gyul":{"name":"귤타민","sort":20},"b-kakao":{"n
       if (!idx.has(k)) { idx.set(k, groups.length); groups.push({ key: k, items: [] }); }
       groups[idx.get(k)].items.push(p);
     });
+    // 묶음 안에서는 시트처럼 중량 → 등급(소과 → 특대과) 순서로
+    const wNum = p => { const m = String(p.weight || "").match(/[\d.]+/); return m ? parseFloat(m[0]) : Infinity; };
+    const gIdx = p => { const i = S.config.grades.indexOf(p.grade); return i < 0 ? Infinity : i; };
+    groups.forEach(g => g.items.sort((a, b) => (wNum(a) - wNum(b)) || (gIdx(a) - gIdx(b)) || bySort(a, b)));
     return groups;
   }
   function lastChange(pid) {
@@ -938,13 +949,13 @@ const PB_SEED = {"brands":{"b-gyul":{"name":"귤타민","sort":20},"b-kakao":{"n
     const bs = brands();
     const vs = S.vendors.slice().sort(bySort);
     const dis = S.canWrite ? "" : "disabled";
-    let h = `<div class="panel" style="grid-column:1/-1"><h3>판매처 (브랜드) · 채널 수수료</h3><p class="hint">판매처마다 기본 정상가 · 판매가 · 배송비를 넣어요. 그 아래 채널(스스 · 쿠팡 등)과 수수료(%)를 넣으면 가격표에 채널별 마진이 나와요. 순서는 화살표로 바꿔요.</p><div class="rowlist">`;
+    let h = `<div class="panel" style="grid-column:1/-1"><h3>판매처 (브랜드) · 채널 수수료</h3><p class="hint">판매처마다 기본 정상가 · 판매가 · 배송비를 넣어요. 그 아래 채널(스스 · 쿠팡 등)과 수수료(%)를 넣으면 가격표에 채널별 마진이 나와요. 잠시 운영하지 않는 채널은 ON 을 눌러 OFF 로 끄면 가격표에서 빠지고, 다시 켜면 그대로 돌아와요. 순서는 화살표로 바꿔요.</p><div class="rowlist">`;
     bs.forEach((b, i) => {
       h += `<div class="rowitem"><input type="text" value="${esc(b.name)}" data-key="brand:${esc(b.id)}" data-rename="brand" data-id="${esc(b.id)}" aria-label="판매처 이름" ${dis}>
         <button class="btn sm w" type="button" data-act="brand-up" data-id="${esc(b.id)}" ${i === 0 ? "disabled" : ""} aria-label="위로">↑</button>
         <button class="btn sm w" type="button" data-act="brand-down" data-id="${esc(b.id)}" ${i === bs.length - 1 ? "disabled" : ""} aria-label="아래로">↓</button>
         <button class="btn sm danger w" type="button" data-act="brand-del" data-id="${esc(b.id)}">삭제</button></div>
-        <div class="chanlist">${brandChannels(b).map((c, j) => `<span class="chanitem"><input type="text" value="${esc(c.name)}" data-key="chn:${esc(b.id)}:${j}" data-chname="${esc(b.id)}" data-j="${j}" aria-label="채널 이름" ${dis}><input type="text" class="fee" inputmode="decimal" value="${esc(String(c.fee ?? ""))}" data-key="chf:${esc(b.id)}:${j}" data-chfee="${esc(b.id)}" data-j="${j}" aria-label="수수료" ${dis}>%<button type="button" class="w" data-act="chan-del" data-id="${esc(b.id)}" data-j="${j}" aria-label="${esc(c.name)} 빼기">×</button></span>`).join("")}
+        <div class="chanlist">${allChannels(b).map((c, j) => `<span class="chanitem${c.on === false ? " off" : ""}"><label class="chanon" title="${c.on === false ? "꺼짐: 가격표에 안 보여요" : "켜짐: 가격표에 보여요"}"><input type="checkbox" data-chon="${esc(b.id)}" data-j="${j}" ${c.on === false ? "" : "checked"} aria-label="${esc(c.name)} 운영" ${dis}><span>${c.on === false ? "OFF" : "ON"}</span></label><input type="text" value="${esc(c.name)}" data-key="chn:${esc(b.id)}:${j}" data-chname="${esc(b.id)}" data-j="${j}" aria-label="채널 이름" ${dis}><input type="text" class="fee" inputmode="decimal" value="${esc(String(c.fee ?? ""))}" data-key="chf:${esc(b.id)}:${j}" data-chfee="${esc(b.id)}" data-j="${j}" aria-label="수수료" ${dis}>%<button type="button" class="w" data-act="chan-del" data-id="${esc(b.id)}" data-j="${j}" aria-label="${esc(c.name)} 빼기">×</button></span>`).join("")}
           <span class="chanitem w"><input type="text" id="addch-name-${esc(b.id)}" placeholder="채널 이름"><input type="text" class="fee" inputmode="decimal" id="addch-fee-${esc(b.id)}" placeholder="수수료">%<button type="button" class="btn sm" data-act="chan-add" data-id="${esc(b.id)}">추가</button></span></div>`;
     });
     if (!bs.length) h += `<p class="muted">판매처가 없어요.</p>`;
@@ -1043,7 +1054,7 @@ const PB_SEED = {"brands":{"b-gyul":{"name":"귤타민","sort":20},"b-kakao":{"n
       for (const n of pl.newBrands) { const id = rid("b"); bSort += 10; await db.doc("brands/" + id).set({ name: n, sort: bSort }); brandId[n] = id; }
       for (const bc of pl.brandsCfg) {
         if (!Array.isArray(bc.channels)) continue;
-        const chans = bc.channels.filter(c => c && c.name).map(c => ({ name: String(c.name).trim(), fee: num(c.fee) ?? 0 }));
+        const chans = bc.channels.filter(c => c && c.name).map(c => ({ name: String(c.name).trim(), fee: num(c.fee) ?? 0, on: c.on !== false }));
         await db.doc("brands/" + brandId[String(bc.name).trim()]).update({ channels: chans });
       }
       for (const n of pl.newVendors) { const id = rid("v"); vSort += 10; await db.doc("vendors/" + id).set({ name: n, contact: "", sort: vSort }); vendorId[n] = id; }
@@ -1404,13 +1415,13 @@ const PB_SEED = {"brands":{"b-gyul":{"name":"귤타민","sort":20},"b-kakao":{"n
         const name = ni.value.trim(), fee = num(fi.value);
         if (!name) { ni.focus(); break; }
         if (fee == null) { toast("수수료(%)를 넣어 주세요.", true); fi.focus(); break; }
-        await guard(() => db.doc("brands/" + id).update({ channels: [...brandChannels(br).map(c => ({ name: c.name, fee: num(c.fee) ?? 0 })), { name, fee }] }), `${name} 채널을 추가했어요`);
+        await guard(() => db.doc("brands/" + id).update({ channels: [...chanCopy(br), { name, fee, on: true }] }), `${name} 채널을 추가했어요`);
         break;
       }
       case "chan-del": {
         const br = S.brands.find(x => x.id === id); if (!br) break;
         if (!armed(b)) break;
-        const arr = brandChannels(br).map(c => ({ name: c.name, fee: num(c.fee) ?? 0 })); arr.splice(+b.dataset.j, 1);
+        const arr = chanCopy(br); arr.splice(+b.dataset.j, 1);
         await guard(() => db.doc("brands/" + id).update({ channels: arr }), "채널을 뺐어요");
         break;
       }
@@ -1465,9 +1476,16 @@ const PB_SEED = {"brands":{"b-gyul":{"name":"귤타민","sort":20},"b-kakao":{"n
     if (t.dataset.pid && t.dataset.f) { if (ui.drafts[dKey(t.dataset.pid, t.dataset.bid, t.dataset.f)] != null && t.dataset.f !== "shipping") { const n = num(t.value); if (n != null) { t.value = won(n); onAdjustInput(t); } } return; }
     if (t.id === "d-target") { ui.dtarget = t.value; renderView(); return; }
     if (t.id === "d-from" || t.id === "d-to") { ui[t.id === "d-from" ? "dfrom" : "dto"] = t.value; renderView(); return; }
+    if (t.dataset.chon) {
+      const br = S.brands.find(x => x.id === t.dataset.chon); if (!br) return;
+      const arr = chanCopy(br); const j = +t.dataset.j; if (!arr[j]) return;
+      arr[j].on = t.checked;
+      await guard(() => db.doc("brands/" + br.id).update({ channels: arr }), `${arr[j].name} 채널을 ${t.checked ? "켰어요" : "껐어요"}`);
+      return;
+    }
     if (t.dataset.chname || t.dataset.chfee) {
       const bid = t.dataset.chname || t.dataset.chfee; const br = S.brands.find(x => x.id === bid); if (!br) return;
-      const arr = brandChannels(br).map(c => ({ name: c.name, fee: num(c.fee) ?? 0 })); const j = +t.dataset.j; if (!arr[j]) return;
+      const arr = chanCopy(br); const j = +t.dataset.j; if (!arr[j]) return;
       if (t.dataset.chname) { if (!t.value.trim()) { renderView(); return; } arr[j].name = t.value.trim(); }
       else { const f = num(t.value); if (f == null) { renderView(); return; } arr[j].fee = f; }
       await guard(() => db.doc("brands/" + bid).update({ channels: arr }), "저장했어요");
