@@ -1,0 +1,1308 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>과일 가격 장부</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22%3E%3Cpath fill=%22%23B3261E%22 d=%22M12 7c-1.6-1.1-4.6-1.4-6.3.6C3.6 10 4.4 15 6.6 18c1.3 1.8 2.7 2.6 4 2 .8-.3 1.2-.3 2 0 1.3.6 2.7-.2 4-2 2.2-3 3-8 .9-10.4C15.8 5.6 13.6 5.9 12 7z%22/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600;700&family=Black+Han+Sans&display=swap">
+<style>
+/* Layout: sticky top bar with 4 menus; each menu is a toolbar + one wide, horizontally scrolling ledger table. Editors open in a right-side drawer. */
+:root {
+  --bg: #F3F5F2;
+  --surface: #FFFFFF;
+  --surface-2: #F8FAF7;
+  --ink: #1C2420;
+  --muted: #646E68;
+  --line: #DCE1DA;
+  --line-strong: #AEB8B0;
+  --accent: #B3261E;
+  --accent-ink: #FFFFFF;
+  --accent-soft: #FBE9E7;
+  --gift: #F7D9D6;
+  --home: #DCEBD5;
+  --other: #E6E9F2;
+  --na: #E3E6E1;
+  --up: #B3261E;
+  --down: #1E7A4C;
+  --warn: #8A5A00;
+  --warn-bg: #FFF3D6;
+  --shadow: 0 10px 40px rgba(20, 30, 24, .18);
+  --f-body: "IBM Plex Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif;
+  --f-display: "Black Han Sans", "IBM Plex Sans KR", "Apple SD Gothic Neo", sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #121614; --surface: #1A201C; --surface-2: #161B18; --ink: #E6EBE6; --muted: #98A39C;
+    --line: #2C342F; --line-strong: #4A564E; --accent: #F0766A; --accent-ink: #1A0E0C; --accent-soft: #3A1F1C;
+    --gift: #43292A; --home: #233628; --other: #262B38; --na: #232925; --up: #F0766A; --down: #5CC48E;
+    --warn: #F2C46B; --warn-bg: #3A2F14; --shadow: 0 10px 40px rgba(0, 0, 0, .5);
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #121614; --surface: #1A201C; --surface-2: #161B18; --ink: #E6EBE6; --muted: #98A39C;
+  --line: #2C342F; --line-strong: #4A564E; --accent: #F0766A; --accent-ink: #1A0E0C; --accent-soft: #3A1F1C;
+  --gift: #43292A; --home: #233628; --other: #262B38; --na: #232925; --up: #F0766A; --down: #5CC48E;
+  --warn: #F2C46B; --warn-bg: #3A2F14; --shadow: 0 10px 40px rgba(0, 0, 0, .5);
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html { padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); -webkit-text-size-adjust: 100%; }
+body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--f-body); font-size: 14px; line-height: 1.5; }
+img { max-width: 100%; }
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 30; background: var(--surface); }
+.wrap { max-width: 1600px; margin: 0 auto; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+button, input, select, textarea { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* top bar */
+.top { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 20; background: var(--surface); border-bottom: 1px solid var(--line); }
+.top .wrap { display: flex; align-items: center; gap: 20px; padding-block: 10px; flex-wrap: wrap; }
+.logo { font-family: var(--f-display); font-size: 22px; letter-spacing: .5px; color: var(--accent); white-space: nowrap; display: flex; align-items: center; gap: 8px; }
+.logo svg { width: 22px; height: 22px; }
+nav.menu { display: flex; gap: 4px; overflow-x: auto; min-width: 0; flex: 1; }
+nav.menu a { text-decoration: none; color: var(--muted); padding: 8px 14px; border-radius: 8px; white-space: nowrap; font-weight: 600; }
+nav.menu a:hover { color: var(--ink); background: var(--surface-2); }
+nav.menu a[aria-current="page"] { color: var(--accent); background: var(--accent-soft); }
+
+main { padding-block: 20px 60px; }
+.view[hidden] { display: none; }
+.viewhead { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
+h1 { font-size: 22px; margin: 0; letter-spacing: -.3px; text-wrap: balance; }
+h2 { font-size: 17px; margin: 0; }
+h3 { font-size: 15px; margin: 0 0 8px; }
+.sub { color: var(--muted); margin: 2px 0 0; font-size: 13px; }
+.subtabs { display: flex; gap: 2px; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 3px; }
+.subtabs a { text-decoration: none; color: var(--muted); padding: 6px 12px; border-radius: 7px; font-weight: 600; font-size: 13px; }
+.subtabs a[aria-current="page"] { background: var(--ink); color: var(--bg); }
+
+.toolbar { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; margin-bottom: 12px; }
+.toolbar .grow { flex: 1; }
+input[type="search"], input[type="text"], input[type="date"], input:not([type]), select, textarea {
+  background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 7px 10px; min-width: 0;
+}
+input:focus, select:focus, textarea:focus { border-color: var(--accent); outline: none; }
+input[type="search"] { width: 240px; max-width: 100%; }
+.seg { display: inline-flex; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 2px; flex-wrap: wrap; }
+.seg button { border: 0; background: none; padding: 5px 10px; border-radius: 6px; cursor: pointer; color: var(--muted); font-size: 13px; font-weight: 500; }
+.seg button[aria-pressed="true"] { background: var(--ink); color: var(--bg); }
+.chips { display: inline-flex; gap: 6px; flex-wrap: wrap; }
+.chip { border: 1px solid var(--line); background: var(--surface); border-radius: 999px; padding: 4px 11px; cursor: pointer; font-size: 13px; color: var(--muted); }
+.chip[aria-pressed="true"] { border-color: var(--ink); color: var(--ink); font-weight: 600; }
+.chip[aria-pressed="true"]::before { content: "✓ "; }
+.switch { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; cursor: pointer; user-select: none; }
+.switch input { accent-color: var(--accent); width: 16px; height: 16px; }
+
+.btn { border: 1px solid var(--line); background: var(--surface); border-radius: 8px; padding: 7px 13px; cursor: pointer; font-weight: 600; font-size: 13px; white-space: nowrap; }
+.btn:hover { border-color: var(--line-strong); }
+.btn.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.btn.primary:hover { filter: brightness(1.05); }
+.btn.danger { color: var(--up); }
+.btn.danger.armed { background: var(--up); color: var(--surface); border-color: var(--up); }
+.btn.sm { padding: 4px 9px; font-size: 12px; }
+.btn.link { border: 0; background: none; padding: 0; color: var(--accent); text-decoration: underline; text-underline-offset: 2px; }
+.btn:disabled { opacity: .45; cursor: default; }
+
+/* ledger table */
+.tablewrap { overflow: auto; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; max-height: calc(100vh - 230px); min-height: 160px; }
+.tablewrap.free { max-height: none; }
+table.led { border-collapse: separate; border-spacing: 0; width: max-content; min-width: 100%; font-size: 13px; }
+.led th, .led td { border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); padding: 5px 9px; white-space: nowrap; }
+.led thead th { position: sticky; top: 0; background: var(--surface-2); z-index: 2; font-weight: 600; text-align: center; color: var(--ink); }
+.led thead tr:nth-child(2) th { top: 31px; font-weight: 500; color: var(--muted); font-size: 12px; }
+.led thead th.brand { font-weight: 700; }
+.led .num { text-align: right; font-variant-numeric: tabular-nums; }
+.led .c { text-align: center; }
+.led tbody tr:hover td:not(.gcell) { background: color-mix(in srgb, var(--accent-soft) 45%, transparent); }
+.led tr.gstart td { border-top: 2px solid var(--line-strong); }
+.led tbody tr:first-child td { border-top: 0; }
+.led .bstart { border-left: 2px solid var(--line-strong); }
+.led .gcell { vertical-align: middle; text-align: center; background: var(--surface); }
+.led .pname { font-weight: 700; color: var(--accent); }
+.led .pname button { all: unset; cursor: pointer; }
+.led .pname button:hover { text-decoration: underline; }
+.led .t0 { background: var(--gift); font-weight: 600; }
+.led .t1 { background: var(--home); font-weight: 600; }
+.led .t2 { background: var(--other); font-weight: 600; }
+.led td.na { background: var(--na); color: var(--muted); text-align: center; }
+.led td.cost { font-weight: 700; }
+.led td.muted, .muted { color: var(--muted); }
+.led td.cell { padding: 2px 3px; }
+.led td.cell input { width: 78px; text-align: right; padding: 3px 6px; border-radius: 5px; font-variant-numeric: tabular-nums; border: 1px solid transparent; background: var(--surface-2); }
+.led td.cell input.ship { width: 56px; text-align: center; }
+.led td.cell input:hover { border-color: var(--line); }
+.led td.cell input:focus { border-color: var(--accent); background: var(--surface); }
+.led td.cell.na input { background: transparent; }
+.led td.cell input.saving { border-color: var(--warn); }
+.pos { color: var(--down); }
+.neg { color: var(--up); }
+.pct { color: var(--muted); font-size: 11px; margin-left: 3px; }
+.vend { font-size: 12px; }
+.tag { display: inline-block; padding: 1px 7px; border-radius: 999px; font-size: 11px; font-weight: 600; border: 1px solid var(--line); color: var(--muted); background: var(--surface); }
+.tag.self { border-color: var(--down); color: var(--down); }
+.tag.vendor { border-color: var(--line-strong); color: var(--ink); }
+
+.kind { display: inline-block; font-size: 11px; font-weight: 700; padding: 1px 7px; border-radius: 4px; margin-right: 6px; background: var(--surface-2); border: 1px solid var(--line); }
+.k-cost { color: var(--accent); border-color: var(--accent); }
+.k-vendor { color: var(--down); border-color: var(--down); }
+.k-price { color: var(--warn); border-color: var(--warn); }
+.k-create { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+.k-delete { background: var(--up); color: var(--surface); border-color: var(--up); }
+.arrow { color: var(--muted); margin: 0 5px; }
+.from { color: var(--muted); text-decoration: line-through; text-decoration-color: var(--line-strong); }
+.delta { font-size: 12px; font-weight: 600; margin-left: 6px; }
+.delta.up { color: var(--up); }
+.delta.down { color: var(--down); }
+
+.empty { padding: 40px 20px; text-align: center; color: var(--muted); }
+.empty strong { display: block; color: var(--ink); font-size: 15px; margin-bottom: 4px; }
+.summary { color: var(--muted); font-size: 13px; margin: 0 0 8px; }
+.summary b { color: var(--ink); font-variant-numeric: tabular-nums; }
+
+.banner { padding: 9px 14px; border-radius: 8px; margin-bottom: 12px; font-size: 13px; background: var(--warn-bg); color: var(--warn); border: 1px solid color-mix(in srgb, var(--warn) 30%, transparent); }
+.banner[hidden] { display: none; }
+
+/* cards for settings */
+.cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 420px), 1fr)); gap: 16px; align-items: start; }
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 16px; min-width: 0; }
+.panel .hint { margin: 0 0 12px; }
+.rowlist { display: flex; flex-direction: column; gap: 6px; }
+.rowitem { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.rowitem input { flex: 1; min-width: 100px; }
+.addrow { display: flex; gap: 6px; margin-top: 10px; flex-wrap: wrap; }
+.addrow input { flex: 1; min-width: 120px; }
+.taglist { display: flex; flex-wrap: wrap; gap: 6px; }
+.taglist .chip { cursor: default; color: var(--ink); display: inline-flex; gap: 4px; align-items: center; }
+.taglist .chip button { border: 0; background: none; cursor: pointer; color: var(--muted); padding: 0 2px; font-size: 14px; line-height: 1; }
+.hint { color: var(--muted); font-size: 12px; }
+
+/* drawer */
+.drawer { position: fixed; inset: 0; z-index: 40; background: rgba(10, 16, 12, .38); display: flex; justify-content: flex-end; }
+.drawer[hidden] { display: none; }
+.drawer-panel { background: var(--bg); width: min(760px, 100%); height: 100%; overflow-y: auto; box-shadow: var(--shadow);
+  padding: calc(env(safe-area-inset-top, 0px) + 0px) max(18px, env(safe-area-inset-right, 0px)) calc(env(safe-area-inset-bottom, 0px) + 24px) 18px; }
+.dh { position: sticky; top: 0; background: var(--bg); display: flex; align-items: center; justify-content: space-between; gap: 8px; padding-block: 14px 10px; border-bottom: 1px solid var(--line); margin-bottom: 14px; z-index: 2; }
+fieldset { border: 1px solid var(--line); border-radius: 10px; background: var(--surface); padding: 12px 14px 14px; margin: 0 0 12px; min-width: 0; }
+legend { font-weight: 700; padding: 0 6px; font-size: 13px; }
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; }
+.field { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.field > span { font-size: 12px; color: var(--muted); font-weight: 500; }
+.field.wide { grid-column: 1 / -1; }
+.req::after { content: " *"; color: var(--accent); }
+.modes { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 8px; margin-bottom: 10px; }
+.modecard { border: 1.5px solid var(--line); border-radius: 9px; padding: 10px 12px; display: flex; gap: 10px; cursor: pointer; align-items: flex-start; }
+.modecard:has(input:checked) { border-color: var(--accent); background: var(--accent-soft); }
+.modecard input { accent-color: var(--accent); margin-top: 3px; }
+.modecard b { display: block; }
+.modecard small { color: var(--muted); }
+.matrows { display: flex; flex-direction: column; gap: 6px; margin: 8px 0; }
+.matrow { display: grid; grid-template-columns: 1fr 70px 90px 30px; gap: 6px; align-items: center; }
+.matrow .num { text-align: right; font-variant-numeric: tabular-nums; }
+.matrow input { text-align: right; }
+.totals { display: flex; gap: 18px; flex-wrap: wrap; padding-top: 10px; border-top: 1px dashed var(--line); margin-top: 8px; font-variant-numeric: tabular-nums; }
+.totals div span { color: var(--muted); font-size: 12px; display: block; }
+.totals div b { font-size: 17px; }
+.totals .grand b { color: var(--accent); }
+.pgrid { width: 100%; border-collapse: collapse; font-size: 13px; }
+.pgrid th { text-align: left; font-size: 12px; color: var(--muted); font-weight: 500; padding: 4px; }
+.pgrid td { padding: 4px; border-top: 1px solid var(--line); }
+.pgrid input[type="text"] { width: 100%; min-width: 64px; text-align: right; font-variant-numeric: tabular-nums; }
+.pgrid input.ship { text-align: center; }
+.pgrid input:disabled { opacity: .4; }
+.pgrid .bn { font-weight: 600; white-space: nowrap; }
+.pgrid .mg { white-space: nowrap; font-variant-numeric: tabular-nums; font-size: 12px; }
+.dfoot { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin: 14px 0 20px; }
+.dfoot .grow { flex: 1; }
+.histmini { font-size: 13px; }
+.histmini li { padding: 6px 0; border-bottom: 1px solid var(--line); list-style: none; }
+.histmini ul { padding: 0; margin: 0; }
+.histmini .d { color: var(--muted); font-variant-numeric: tabular-nums; margin-right: 8px; }
+
+.toast { position: fixed; left: 50%; bottom: calc(env(safe-area-inset-bottom, 0px) + 22px); transform: translateX(-50%) translateY(20px); background: var(--ink); color: var(--bg);
+  padding: 10px 16px; border-radius: 9px; font-weight: 600; opacity: 0; pointer-events: none; transition: opacity .2s, transform .2s; z-index: 60; max-width: calc(100% - 32px); }
+.toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+.toast.err { background: var(--up); color: var(--surface); }
+
+body.ro .w { display: none !important; }
+.authbox { display: flex; align-items: center; gap: 8px; margin-left: auto; }
+.gate { align-items: center; justify-content: center; padding: 16px; }
+.gate-card { background: var(--surface); border-radius: 14px; box-shadow: var(--shadow); padding: 22px; width: min(360px, 100%); text-align: center; }
+.gate-card h2 { margin-bottom: 4px; }
+#gate-pin { text-align: center; font-size: 24px; letter-spacing: 10px; width: 100%; margin: 14px 0 4px; }
+#gate-err { min-height: 20px; margin: 4px 0 10px; font-size: 13px; color: var(--up); }
+.gate-card .dfoot { justify-content: center; margin: 0 0 10px; }
+.seedbox { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+@media (max-width: 640px) {
+  .top .wrap { gap: 6px; }
+  nav.menu { flex-basis: 100%; }
+  .matrow { grid-template-columns: 1fr 60px 76px 28px; }
+}
+@media (prefers-reduced-motion: reduce) { .toast { transition: none; } }
+</style>
+</head>
+<body class="ro">
+
+<header class="top">
+  <div class="wrap">
+    <div class="logo">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 7c-1.6-1.1-4.6-1.4-6.3.6C3.6 10 4.4 15 6.6 18c1.3 1.8 2.7 2.6 4 2 .8-.3 1.2-.3 2 0 1.3.6 2.7-.2 4-2 2.2-3 3-8 .9-10.4C15.8 5.6 13.6 5.9 12 7z"/><path fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" d="M12 7c0-2 .6-3.3 2.2-4.2"/></svg>
+      과일 가격 장부
+    </div>
+    <nav class="menu" aria-label="메뉴">
+      <a href="#prices" data-nav="prices">제품별 가격표</a>
+      <a href="#products" data-nav="products">제품 관리</a>
+      <a href="#materials" data-nav="materials">부자재 관리</a>
+      <a href="#config" data-nav="config">기타 설정</a>
+    </nav>
+    <div class="authbox">
+      <span class="tag" id="mode-badge">보기 전용</span>
+      <button class="btn" id="unlock-btn" type="button">수정하기</button>
+    </div>
+  </div>
+</header>
+
+<main class="wrap">
+  <div id="banner" class="banner" hidden></div>
+  <div id="seedbox" class="banner seedbox" hidden><span>서버가 비어 있어요. 스프레드시트에서 옮긴 제품 23개 · 판매처 3곳 · 업체를 넣을까요?</span><button class="btn primary" type="button" data-act="seed">시트 데이터 넣기</button></div>
+
+  <!-- 메뉴1 -->
+  <section class="view" id="v-prices">
+    <div class="viewhead">
+      <div>
+        <h1>제품별 가격표</h1>
+        <p class="sub">원가(단가 + 부자재)와 판매처별 정상가 · 판매가 · 할인가</p>
+      </div>
+    </div>
+    <div class="toolbar">
+      <input id="p-q" type="search" placeholder="상품명 · 등급 · 업체 검색" aria-label="검색">
+      <div class="seg" id="p-type" role="group" aria-label="구분"></div>
+      <div class="seg" id="p-mode" role="group" aria-label="발송 방식"></div>
+      <span class="grow"></span>
+      <label class="switch"><input type="checkbox" id="p-margin"> 마진 보기</label>
+      <label class="switch w"><input type="checkbox" id="p-edit"> 표에서 바로 수정</label>
+      <button class="btn" id="p-csv" type="button">CSV 내보내기</button>
+    </div>
+    <div class="toolbar">
+      <span class="hint">판매처</span>
+      <div class="chips" id="p-brands"></div>
+    </div>
+    <div id="p-table"></div>
+  </section>
+
+  <!-- 메뉴2 -->
+  <section class="view" id="v-products" hidden>
+    <div class="viewhead">
+      <div>
+        <h1>제품 관리</h1>
+        <p class="sub">제품 추가 · 수정, 발송 방식과 업체, 단가 변동을 기록합니다</p>
+      </div>
+      <div class="subtabs"><a href="#products" aria-current="page">제품 목록</a><a href="#history">변동 기록</a></div>
+    </div>
+    <div class="toolbar">
+      <input id="pl-q" type="search" placeholder="상품명 · 등급 · 업체 검색" aria-label="검색">
+      <div class="seg" id="pl-mode" role="group" aria-label="발송 방식"></div>
+      <span class="grow"></span>
+      <button class="btn primary w" type="button" data-act="new-product">+ 제품 추가</button>
+    </div>
+    <div id="pl-table"></div>
+  </section>
+
+  <section class="view" id="v-history" hidden>
+    <div class="viewhead">
+      <div>
+        <h1>제품 관리</h1>
+        <p class="sub">단가 · 업체 · 발송 방식 · 판매가가 바뀐 날짜와 내용</p>
+      </div>
+      <div class="subtabs"><a href="#products">제품 목록</a><a href="#history" aria-current="page">변동 기록</a></div>
+    </div>
+    <div class="toolbar">
+      <select id="h-target" aria-label="대상"></select>
+      <div class="seg" id="h-kind" role="group" aria-label="항목"></div>
+      <input id="h-q" type="search" placeholder="내용 · 메모 검색" aria-label="검색">
+    </div>
+    <div id="h-table"></div>
+  </section>
+
+  <!-- 메뉴3 -->
+  <section class="view" id="v-materials" hidden>
+    <div class="viewhead">
+      <div>
+        <h1>부자재 관리</h1>
+        <p class="sub">박스 · 완충재 · 아이스팩 등 포장에 드는 자재와 개당 단가</p>
+      </div>
+      <button class="btn primary w" type="button" data-act="new-material">+ 부자재 추가</button>
+    </div>
+    <div class="toolbar">
+      <input id="m-q" type="search" placeholder="부자재 검색" aria-label="검색">
+    </div>
+    <div id="m-table"></div>
+  </section>
+
+  <!-- 메뉴4 -->
+  <section class="view" id="v-config" hidden>
+    <div class="viewhead">
+      <div>
+        <h1>기타 설정</h1>
+        <p class="sub">판매처(브랜드), 업체, 구분 · 등급 목록</p>
+      </div>
+    </div>
+    <div class="cols" id="cfg"></div>
+  </section>
+</main>
+
+<datalist id="dl-names"></datalist>
+<datalist id="dl-grades"></datalist>
+<datalist id="dl-weights"></datalist>
+
+<aside class="drawer" id="drawer" hidden>
+  <div class="drawer-panel" role="dialog" aria-modal="true" aria-labelledby="drawer-title" id="drawer-body"></div>
+</aside>
+<div class="drawer gate" id="gate" hidden>
+  <div class="gate-card" role="dialog" aria-modal="true" aria-labelledby="gate-title">
+    <h2 id="gate-title">PIN 입력</h2>
+    <p class="sub" id="gate-sub"></p>
+    <input id="gate-pin" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="6" autocomplete="off" aria-label="PIN">
+    <p id="gate-err"></p>
+    <div class="dfoot"><button class="btn primary" id="gate-ok" type="button">확인</button><button class="btn" id="gate-cancel" type="button">취소</button></div>
+    <p class="hint" id="gate-hint">보기는 누구나 할 수 있고, 수정 · 추가 · 삭제할 때만 PIN이 필요해요.</p>
+  </div>
+</div>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script>
+/* =====================================================================
+   서버(Firebase) 설정 — alba-pay 와 같은 프로젝트를 씁니다. 데이터는 price_book/ 아래에만 저장됩니다.
+   처음 설정 · 규칙은 prices/SETUP.md 를 보세요.
+   ===================================================================== */
+const PB_FIREBASE_CONFIG = {
+  apiKey: "AIzaSyAvIElYJi9H7DcWpMGsjx1oWjc0TEa26IU",
+  authDomain: "alba-pay-82d7c.firebaseapp.com",
+  projectId: "alba-pay-82d7c",
+  storageBucket: "alba-pay-82d7c.firebasestorage.app",
+  messagingSenderId: "293313110958",
+  appId: "1:293313110958:web:1115ce69542324ec6fde3f"
+};
+// 수정 PIN 을 검사하는 내부용 로그인 계정 (실제 메일 주소 아님). 한 번 정하면 바꾸지 않습니다.
+const PB_EDITOR_EMAIL = "editor@price-book.local";
+// 처음 한 번 넣는 데이터 (스프레드시트에서 옮긴 제품 · 판매처 · 업체)
+const PB_SEED = {"brands":{"b-gyul":{"name":"귤타민","sort":20},"b-kakao":{"name":"카카오톡딜_귤타민","sort":10},"b-mong":{"name":"몽프루이","sort":30}},"config":{"main":{"defaultShipping":"무배","grades":["소과","중소과","중과","중대과","대과","특대과"],"types":["선물용","가정용"]}},"products":{"p-001":{"count":"8-9과","createdAt":"2026-11-19T00:00:00.000Z","grade":"중과","materials":[],"mode":"vendor","name":"감홍사과","note":"","prices":{"b-mong":{"discount":null,"regular":36900,"sale":17900,"shipping":"무배"}},"sort":10,"type":"선물용","unitCost":16500,"updatedAt":"2026-11-19T00:00:00.000Z","vendorId":"v-whfresh","weight":"1.8kg"},"p-002":{"count":"5-7과","createdAt":"2026-11-19T00:00:00.000Z","grade":"대과","materials":[],"mode":"vendor","name":"감홍사과","note":"","prices":{"b-mong":{"discount":null,"regular":38900,"sale":19900,"shipping":"무배"}},"sort":20,"type":"선물용","unitCost":18500,"updatedAt":"2026-11-19T00:00:00.000Z","vendorId":"v-whfresh","weight":"1.8kg"},"p-003":{"count":"11-14과","createdAt":"2026-11-19T00:00:00.000Z","grade":"중과","materials":[],"mode":"vendor","name":"감홍사과","note":"","prices":{"b-mong":{"discount":null,"regular":43900,"sale":25900,"shipping":"무배"}},"sort":30,"type":"선물용","unitCost":23000,"updatedAt":"2026-11-19T00:00:00.000Z","vendorId":"v-whfresh","weight":"2.5kg"},"p-004":{"count":"6-10과","createdAt":"2026-11-19T00:00:00.000Z","grade":"대과","materials":[],"mode":"vendor","name":"감홍사과","note":"","prices":{"b-mong":{"discount":null,"regular":45900,"sale":28900,"shipping":"무배"}},"sort":40,"type":"선물용","unitCost":25800,"updatedAt":"2026-11-19T00:00:00.000Z","vendorId":"v-whfresh","weight":"2.5kg"},"p-005":{"count":"23-28과","createdAt":"2026-11-19T00:00:00.000Z","grade":"소과","materials":[],"mode":"vendor","name":"감홍사과","note":"","prices":{"b-mong":{"discount":null,"regular":53900,"sale":36900,"shipping":"무배"}},"sort":50,"type":"선물용","unitCost":33500,"updatedAt":"2026-11-19T00:00:00.000Z","vendorId":"v-whfresh","weight":"4.5kg"},"p-006":{"count":"18-22과","createdAt":"2026-11-19T00:00:00.000Z","grade":"중과","materials":[],"mode":"vendor","name":"감홍사과","note":"","prices":{"b-mong":{"discount":null,"regular":56900,"sale":39900,"shipping":"무배"}},"sort":60,"type":"선물용","unitCost":36000,"updatedAt":"2026-11-19T00:00:00.000Z","vendorId":"v-whfresh","weight":"4.5kg"},"p-007":{"count":"14-17과","createdAt":"2026-11-19T00:00:00.000Z","grade":"대과","materials":[],"mode":"vendor","name":"감홍사과","note":"","prices":{"b-mong":{"discount":null,"regular":61900,"sale":44900,"shipping":"무배"}},"sort":70,"type":"선물용","unitCost":41000,"updatedAt":"2026-11-19T00:00:00.000Z","vendorId":"v-whfresh","weight":"4.5kg"},"p-008":{"count":"9-13과","createdAt":"2026-11-19T00:00:00.000Z","grade":"특대과","materials":[],"mode":"vendor","name":"감홍사과","note":"","prices":{"b-mong":{"discount":null,"regular":64900,"sale":47900,"shipping":"무배"}},"sort":80,"type":"선물용","unitCost":43500,"updatedAt":"2026-11-19T00:00:00.000Z","vendorId":"v-whfresh","weight":"4.5kg"},"p-009":{"count":"8-9과","createdAt":"2026-11-19T00:00:00.000Z","grade":"중과","materials":[],"mode":"vendor","name":"감홍사과","note":"","prices":{"b-gyul":{"discount":null,"regular":24900,"sale":15900,"shipping":"무배"},"b-mong":{"discount":null,"regular":24900,"sale":15900,"shipping":"무배"}},"sort":90,"type":"가정용","unitCost":14000,"updatedAt":"2026-11-19T00:00:00.000Z","vendorId":"v-whfresh","weight":"1.8kg"},"p-010":{"count":"5-7과","createdAt":"2026-11-19T00:00:00.000Z","grade":"대과","materials":[],"mode":"vendor","name":"감홍사과","note":"","prices":{"b-gyul":{"discount":null,"regular":25900,"sale":16900,"shipping":"무배"},"b-mong":{"discount":null,"regular":25900,"sale":16900,"shipping":"무배"}},"sort":100,"type":"가정용","unitCost":15500,"updatedAt":"2026-11-19T00:00:00.000Z","vendorId":"v-whfresh","weight":"1.8kg"},"p-011":{"count":"11-14과","createdAt":"2026-11-19T00:00:00.000Z","grade":"중과","materials":[],"mode":"vendor","name":"감홍사과","note":"","prices":{"b-gyul":{"discount":null,"regular":28900,"sale":19900,"shipping":"무배"},"b-mong":{"discount":null,"regular":28900,"sale":19900,"shipping":"무배"}},"sort":110,"type":"가정용","unitCost":18100,"updatedAt":"2026-11-19T00:00:00.000Z","vendorId":"v-whfresh","weight":"2.5kg"},"p-012":{"count":"6-10과","createdAt":"2026-11-19T00:00:00.000Z","grade":"대과","materials":[],"mode":"vendor","name":"감홍사과","note":"","prices":{"b-gyul":{"discount":null,"regular":30900,"sale":22900,"shipping":"무배"},"b-mong":{"discount":null,"regular":30900,"sale":22900,"shipping":"무배"}},"sort":120,"type":"가정용","unitCost":20900,"updatedAt":"2026-11-19T00:00:00.000Z","vendorId":"v-whfresh","weight":"2.5kg"},"p-013":{"count":"23-28과","createdAt":"2026-11-19T00:00:00.000Z","grade":"소과","materials":[],"mode":"vendor","name":"감홍사과","note":"","prices":{"b-gyul":{"discount":null,"regular":34900,"sale":27900,"shipping":"무배"},"b-mong":{"discount":null,"regular":34900,"sale":27900,"shipping":"무배"}},"sort":130,"type":"가정용","unitCost":24800,"updatedAt":"2026-11-19T00:00:00.000Z","vendorId":"v-whfresh","weight":"4.5kg"},"p-014":{"count":"18-22과","createdAt":"2026-11-19T00:00:00.000Z","grade":"중과","materials":[],"mode":"vendor","name":"감홍사과","note":"","prices":{"b-gyul":{"discount":null,"regular":37900,"sale":29900,"shipping":"무배"},"b-mong":{"discount":null,"regular":37900,"sale":29900,"shipping":"무배"}},"sort":140,"type":"가정용","unitCost":27300,"updatedAt":"2026-11-19T00:00:00.000Z","vendorId":"v-whfresh","weight":"4.5kg"},"p-015":{"count":"14-17과","createdAt":"2026-11-19T00:00:00.000Z","grade":"대과","materials":[],"mode":"vendor","name":"감홍사과","note":"","prices":{"b-gyul":{"discount":null,"regular":42900,"sale":35900,"shipping":"무배"},"b-mong":{"discount":null,"regular":42900,"sale":35900,"shipping":"무배"}},"sort":150,"type":"가정용","unitCost":32300,"updatedAt":"2026-11-19T00:00:00.000Z","vendorId":"v-whfresh","weight":"4.5kg"},"p-016":{"count":"9-13과","createdAt":"2026-11-19T00:00:00.000Z","grade":"특대과","materials":[],"mode":"vendor","name":"감홍사과","note":"","prices":{"b-gyul":{"discount":null,"regular":44900,"sale":38900,"shipping":"무배"},"b-mong":{"discount":null,"regular":44900,"sale":38900,"shipping":"무배"}},"sort":160,"type":"가정용","unitCost":34800,"updatedAt":"2026-11-19T00:00:00.000Z","vendorId":"v-whfresh","weight":"4.5kg"},"p-017":{"count":"14-16과","createdAt":"2026-11-19T00:00:00.000Z","grade":"소과","materials":[],"mode":"vendor","name":"시나노골드","note":"","prices":{"b-mong":{"discount":null,"regular":19900,"sale":9900,"shipping":"무배"}},"sort":170,"type":"선물용","unitCost":9000,"updatedAt":"2026-11-19T00:00:00.000Z","vendorId":"v-whfresh","weight":"1.8kg"},"p-018":{"count":"10-13과","createdAt":"2026-11-19T00:00:00.000Z","grade":"중소과","materials":[],"mode":"vendor","name":"시나노골드","note":"","prices":{"b-mong":{"discount":null,"regular":20900,"sale":11900,"shipping":"무배"}},"sort":180,"type":"선물용","unitCost":10000,"updatedAt":"2026-11-19T00:00:00.000Z","vendorId":"v-whfresh","weight":"1.8kg"},"p-019":{"count":"7-9과","createdAt":"2026-11-19T00:00:00.000Z","grade":"중과","materials":[],"mode":"vendor","name":"시나노골드","note":"","prices":{"b-mong":{"discount":null,"regular":21900,"sale":12900,"shipping":"무배"}},"sort":190,"type":"선물용","unitCost":11000,"updatedAt":"2026-11-19T00:00:00.000Z","vendorId":"v-whfresh","weight":"1.8kg"},"p-020":{"count":"5-6과","createdAt":"2026-11-19T00:00:00.000Z","grade":"중대과","materials":[],"mode":"vendor","name":"시나노골드","note":"","prices":{"b-mong":{"discount":null,"regular":22900,"sale":13900,"shipping":"무배"}},"sort":200,"type":"선물용","unitCost":12000,"updatedAt":"2026-11-19T00:00:00.000Z","vendorId":"v-whfresh","weight":"1.8kg"},"p-021":{"count":"19-21과","createdAt":"2026-11-19T00:00:00.000Z","grade":"소과","materials":[],"mode":"vendor","name":"시나노골드","note":"","prices":{"b-mong":{"discount":null,"regular":21900,"sale":12900,"shipping":"무배"}},"sort":210,"type":"선물용","unitCost":11200,"updatedAt":"2026-11-19T00:00:00.000Z","vendorId":"v-whfresh","weight":"2.5kg"},"p-022":{"count":"15-18과","createdAt":"2026-11-19T00:00:00.000Z","grade":"중소과","materials":[],"mode":"vendor","name":"시나노골드","note":"","prices":{"b-mong":{"discount":null,"regular":22900,"sale":13900,"shipping":"무배"}},"sort":220,"type":"선물용","unitCost":12600,"updatedAt":"2026-11-19T00:00:00.000Z","vendorId":"v-whfresh","weight":"2.5kg"},"p-023":{"count":"10-14과","createdAt":"2026-11-19T00:00:00.000Z","grade":"중과","materials":[],"mode":"vendor","name":"시나노골드","note":"","prices":{"b-mong":{"discount":null,"regular":24900,"sale":15900,"shipping":"무배"}},"sort":230,"type":"선물용","unitCost":14000,"updatedAt":"2026-11-19T00:00:00.000Z","vendorId":"v-whfresh","weight":"2.5kg"}},"vendors":{"v-whfresh":{"contact":"","name":"휘프레쉬","sort":10}}};
+
+(function () {
+  "use strict";
+  // ---------- helpers ----------
+  const $ = (s, r) => (r || document).querySelector(s);
+  const $$ = (s, r) => Array.from((r || document).querySelectorAll(s));
+  const esc = s => String(s == null ? "" : s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  const num = v => {
+    if (v === null || v === undefined) return null;
+    const s = String(v).replace(/[^\d.\-]/g, "");
+    if (s === "" || s === "-" || s === ".") return null;
+    const n = Number(s);
+    return Number.isFinite(n) ? n : null;
+  };
+  const won = n => (n === null || n === undefined || n === "") ? "" : Math.round(Number(n)).toLocaleString("ko-KR");
+  const pad = n => String(n).padStart(2, "0");
+  const today = () => { const d = new Date(); return d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate()); };
+  const stamp = iso => { if (!iso) return ""; const d = new Date(iso); if (isNaN(d)) return ""; return (d.getMonth() + 1) + "/" + d.getDate() + " " + pad(d.getHours()) + ":" + pad(d.getMinutes()); };
+  const rid = p => p + "-" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+  const bySort = (a, b) => ((a.sort ?? 0) - (b.sort ?? 0)) || String(a.id).localeCompare(String(b.id));
+  const lsGet = (k, d) => { try { const v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } };
+  const lsSet = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} };
+
+  const PRICE_FIELDS = [["regular", "정상가"], ["sale", "판매가"], ["discount", "할인가"], ["shipping", "택배비"]];
+  const KINDS = { cost: "단가", vendor: "업체·발송", price: "판매가", material: "부자재", info: "정보", create: "등록", delete: "삭제" };
+  const DEFAULT_CONFIG = { types: ["선물용", "가정용"], grades: ["소과", "중소과", "중과", "중대과", "대과", "특대과"], defaultShipping: "무배" };
+
+  // ---------- state ----------
+  const S = { products: [], brands: [], materials: [], vendors: [], history: [], config: { ...DEFAULT_CONFIG }, canWrite: false, connected: false, loaded: false };
+  const ui = {
+    view: "prices",
+    pq: "", ptype: "all", pmode: "all", hidden: new Set(lsGet("pb.hiddenBrands", [])), margin: !!lsGet("pb.margin", false), edit: false,
+    plq: "", plmode: "all", htarget: "", hkind: "all", hq: "", mq: ""
+  };
+  let db = null, fb = null;
+
+  // ---------- derived ----------
+  const brands = () => S.brands.slice().sort(bySort);
+  const products = () => S.products.slice().sort(bySort);
+  const vendorName = id => { const v = S.vendors.find(x => x.id === id); return v ? v.name : (id ? "(삭제된 업체)" : ""); };
+  const matById = id => S.materials.find(m => m.id === id);
+  const matCost = p => (p.materials || []).reduce((s, m) => { const mm = matById(m.id); return s + (mm ? (num(mm.cost) || 0) * (num(m.qty) || 0) : 0); }, 0);
+  const totalCost = p => (num(p.unitCost) || 0) + matCost(p);
+  const typeClass = t => { const i = S.config.types.indexOf(t); return i === 0 ? "t0" : i === 1 ? "t1" : "t2"; };
+  const label = p => [p.name, p.type, [p.grade, p.weight, p.count].filter(Boolean).join(" ")].filter(Boolean).join(" · ");
+  const modeText = p => p.mode === "self" ? "자체 포장" : (vendorName(p.vendorId) || "업체 발송");
+  const isSold = pr => !!pr && (pr.regular != null || pr.sale != null || pr.discount != null);
+  const effPrice = pr => pr ? (pr.discount ?? pr.sale ?? pr.regular ?? null) : null;
+  const matchQ = (p, q) => {
+    if (!q) return true;
+    const hay = [p.name, p.type, p.grade, p.weight, p.count, modeText(p), p.note].join(" ").toLowerCase();
+    return q.toLowerCase().split(/\s+/).every(w => hay.includes(w));
+  };
+  function groupOf(list) {
+    const groups = [], idx = new Map();
+    list.forEach(p => {
+      const k = [p.name, p.type, p.mode, p.mode === "self" ? "" : p.vendorId].join("|");
+      if (!idx.has(k)) { idx.set(k, groups.length); groups.push({ key: k, items: [] }); }
+      groups[idx.get(k)].items.push(p);
+    });
+    return groups;
+  }
+  function lastChange(pid) {
+    const h = S.history.filter(x => x.targetId === pid && (x.kind === "cost" || x.kind === "vendor"));
+    return h.length ? h.sort(histSort)[0] : null;
+  }
+  const histSort = (a, b) => String(b.date || "").localeCompare(String(a.date || "")) || String(b.at || "").localeCompare(String(a.at || ""));
+
+  // ---------- toast / banner ----------
+  let toastT;
+  function toast(msg, err) {
+    const t = $("#toast"); t.textContent = msg; t.className = "toast show" + (err ? " err" : "");
+    clearTimeout(toastT); toastT = setTimeout(() => { t.className = "toast" + (err ? " err" : ""); }, err ? 4200 : 2200);
+  }
+  function banner(msg) { const b = $("#banner"); if (msg) { b.textContent = msg; b.hidden = false; } else b.hidden = true; }
+
+  // ---------- writes ----------
+  async function guard(fn, okMsg) {
+    if (!db) { toast("데이터 저장소에 연결되지 않았어요.", true); return false; }
+    try { await fn(); if (okMsg) toast(okMsg); return true; }
+    catch (e) {
+      const code = e && e.code;
+      if (code === "permission-denied") { toast("수정하려면 위의 '수정하기'에서 PIN을 넣어 주세요.", true); return false; }
+      if (code === "resource-exhausted") { toast("오늘 쓸 수 있는 저장 한도를 넘었어요. 내일 다시 해 주세요.", true); return false; }
+      toast("저장하지 못했어요. 잠시 뒤 다시 시도해 주세요. (" + (code || "error") + ")", true);
+      console.error(e); return false;
+    }
+  }
+  async function addHist(entries) {
+    const at = new Date().toISOString();
+    for (const e of entries) {
+      await db.collection("history").add({ at, target: "product", memo: "", ...e });
+    }
+  }
+  function setReadonly() { S.canWrite = false; ui.edit = false; document.body.classList.add("ro"); updateAuthUI(); renderView(); }
+  function setEditable() { S.canWrite = true; document.body.classList.remove("ro"); updateAuthUI(); renderView(); }
+  function updateAuthUI() {
+    const b = $("#mode-badge"), btn = $("#unlock-btn");
+    b.textContent = S.canWrite ? "수정 가능" : "보기 전용";
+    b.className = "tag " + (S.canWrite ? "self" : "");
+    btn.textContent = S.canWrite ? "잠그기" : "수정하기";
+    renderSeedBox();
+  }
+  function renderSeedBox() {
+    const box = $("#seedbox"); if (!box) return;
+    box.hidden = !(S.canWrite && S.loaded && !S.products.length && !S.brands.length);
+  }
+
+  // ---------- routing ----------
+  const VIEWS = ["prices", "products", "history", "materials", "config"];
+  function route() {
+    const h = (location.hash || "").replace("#", "");
+    ui.view = VIEWS.includes(h) ? h : "prices";
+    VIEWS.forEach(v => { $("#v-" + v).hidden = v !== ui.view; });
+    const navKey = ui.view === "history" ? "products" : ui.view;
+    $$("nav.menu a").forEach(a => a.setAttribute("aria-current", a.dataset.nav === navKey ? "page" : "false"));
+    renderView();
+  }
+
+  // ---------- render dispatcher ----------
+  let rafPending = false;
+  function changed() { if (rafPending) return; rafPending = true; requestAnimationFrame(() => { rafPending = false; renderView(); refreshDrawer(); }); }
+  function renderView() {
+    const a = document.activeElement;
+    const key = a && a.dataset ? a.dataset.key : null;
+    let selS = null, selE = null;
+    try { if (key) { selS = a.selectionStart; selE = a.selectionEnd; } } catch (e) {}
+    renderDatalists();
+    ({ prices: renderPrices, products: renderProducts, history: renderHistory, materials: renderMaterials, config: renderConfig })[ui.view]();
+    if (key) {
+      const el = document.querySelector('[data-key="' + CSS.escape(key) + '"]');
+      if (el && el !== document.activeElement) { el.focus(); try { if (selS != null) el.setSelectionRange(selS, selE); } catch (e) {} }
+    }
+  }
+  function renderDatalists() {
+    const names = [...new Set(S.products.map(p => p.name).filter(Boolean))];
+    $("#dl-names").innerHTML = names.map(n => `<option value="${esc(n)}">`).join("");
+    $("#dl-grades").innerHTML = S.config.grades.map(n => `<option value="${esc(n)}">`).join("");
+    const ws = [...new Set(S.products.map(p => p.weight).filter(Boolean))];
+    $("#dl-weights").innerHTML = ws.map(n => `<option value="${esc(n)}">`).join("");
+  }
+  function segHTML(opts, cur, attr) {
+    return opts.map(([v, t]) => `<button type="button" data-${attr}="${esc(v)}" aria-pressed="${v === cur}">${esc(t)}</button>`).join("");
+  }
+  function emptyHTML(title, body) { return `<div class="tablewrap free"><div class="empty"><strong>${esc(title)}</strong>${body}</div></div>`; }
+  function loadingOr(html) { return S.connected ? html : `<div class="tablewrap free"><div class="empty">데이터를 불러오는 중…</div></div>`; }
+
+  // ---------- 메뉴1: 가격표 ----------
+  function renderPrices() {
+    $("#p-type").innerHTML = segHTML([["all", "전체"], ...S.config.types.map(t => [t, t])], ui.ptype, "ptype");
+    $("#p-mode").innerHTML = segHTML([["all", "전체"], ["vendor", "업체 발송"], ["self", "자체 포장"]], ui.pmode, "pmode");
+    $("#p-brands").innerHTML = brands().map(b => `<button type="button" class="chip" data-brand="${esc(b.id)}" aria-pressed="${!ui.hidden.has(b.id)}">${esc(b.name)}</button>`).join("")
+      || `<span class="hint">설정에서 판매처를 추가하세요</span>`;
+    $("#p-margin").checked = ui.margin;
+    $("#p-edit").checked = ui.edit;
+
+    const list = products().filter(p => (ui.ptype === "all" || p.type === ui.ptype) && (ui.pmode === "all" || (p.mode || "vendor") === ui.pmode) && matchQ(p, ui.pq));
+    const bs = brands().filter(b => !ui.hidden.has(b.id));
+    const host = $("#p-table");
+    if (!S.connected) { host.innerHTML = loadingOr(""); return; }
+    if (!S.products.length) { host.innerHTML = emptyHTML("아직 등록된 제품이 없어요", `<p>제품 관리에서 첫 제품을 추가하면 이 표에 판매처별 가격이 정리돼요.</p><p class="w"><a class="btn primary" href="#products">제품 관리로 가기</a></p>`); return; }
+    if (!list.length) { host.innerHTML = emptyHTML("조건에 맞는 제품이 없어요", `<p>검색어나 구분 · 발송 필터를 바꿔 보세요.</p>`); return; }
+
+    const sub = ui.margin ? 5 : 4;
+    let h = `<p class="summary">제품 <b>${list.length}</b>개 · 판매처 <b>${bs.length}</b>곳 표시${ui.edit ? " · <b>수정 모드</b>: 칸을 고치고 Enter 또는 다른 칸으로 이동하면 저장돼요" : ""}</p>`;
+    h += `<div class="tablewrap"><table class="led"><thead><tr>
+      <th rowspan="2">상품명</th><th rowspan="2">업체 / 발송</th><th rowspan="2">구분</th><th rowspan="2">등급</th><th rowspan="2">중량</th><th rowspan="2">수량</th>
+      <th rowspan="2">단가</th><th rowspan="2">부자재</th><th rowspan="2">원가</th>`;
+    bs.forEach(b => { h += `<th class="brand bstart" colspan="${sub}">${esc(b.name)}</th>`; });
+    h += `</tr><tr>`;
+    bs.forEach(() => { h += `<th class="bstart">정상가</th><th>판매가</th><th>할인가</th><th>택배비</th>${ui.margin ? "<th>마진</th>" : ""}`; });
+    h += `</tr></thead><tbody>`;
+    groupOf(list).forEach(g => {
+      const n = g.items.length;
+      g.items.forEach((p, i) => {
+        const mc = matCost(p), tc = totalCost(p);
+        h += `<tr class="${i === 0 ? "gstart" : ""}">`;
+        if (i === 0) {
+          h += `<td class="gcell pname" rowspan="${n}"><button type="button" data-act="edit-product" data-id="${esc(p.id)}" title="제품 수정">${esc(p.name)}</button></td>`;
+          h += `<td class="gcell vend" rowspan="${n}">${p.mode === "self" ? '<span class="tag self">자체 포장</span>' : esc(vendorName(p.vendorId) || "업체 미지정")}</td>`;
+          h += `<td class="gcell ${typeClass(p.type)}" rowspan="${n}">${esc(p.type)}</td>`;
+        }
+        h += `<td class="c">${esc(p.grade)}</td><td class="c">${esc(p.weight)}</td><td class="c">${esc(p.count)}</td>`;
+        h += `<td class="num">${won(p.unitCost)}</td><td class="num muted">${mc ? won(mc) : "–"}</td><td class="num cost">${won(tc)}</td>`;
+        bs.forEach(b => {
+          const pr = (p.prices || {})[b.id];
+          const sold = isSold(pr);
+          if (ui.edit && S.canWrite) {
+            PRICE_FIELDS.forEach(([f], j) => {
+              const v = pr ? pr[f] : null;
+              const val = f === "shipping" ? (v ?? "") : won(v);
+              h += `<td class="cell ${j === 0 ? "bstart " : ""}${sold ? "" : "na"}"><input type="text" ${f === "shipping" ? 'class="ship"' : 'inputmode="numeric"'} value="${esc(val)}" data-key="${esc(p.id + ":" + b.id + ":" + f)}" data-pid="${esc(p.id)}" data-bid="${esc(b.id)}" data-f="${f}" aria-label="${esc(b.name + " " + f)}"></td>`;
+            });
+          } else if (!sold) {
+            h += `<td class="na bstart">–</td><td class="na">–</td><td class="na">–</td><td class="na">–</td>`;
+          } else {
+            h += `<td class="num bstart">${won(pr.regular)}</td><td class="num">${won(pr.sale)}</td><td class="num">${pr.discount != null ? won(pr.discount) : '<span class="muted">–</span>'}</td><td class="c">${esc(pr.shipping ?? "")}</td>`;
+          }
+          if (ui.margin) {
+            const ep = effPrice(pr);
+            if (!sold || ep == null) h += `<td class="na">–</td>`;
+            else { const m = ep - tc; const pct = ep ? Math.round(m / ep * 100) : 0; h += `<td class="num ${m >= 0 ? "pos" : "neg"}">${won(m)}<span class="pct">${pct}%</span></td>`; }
+          }
+        });
+        h += `</tr>`;
+      });
+    });
+    h += `</tbody></table></div>`;
+    if (ui.margin) h += `<p class="hint">마진 = 할인가(없으면 판매가, 그것도 없으면 정상가) − 원가. 택배비 · 수수료는 빠져 있어요.</p>`;
+    host.innerHTML = h;
+  }
+
+  async function savePriceCell(inp) {
+    const p = S.products.find(x => x.id === inp.dataset.pid);
+    const b = S.brands.find(x => x.id === inp.dataset.bid);
+    if (!p || !b) return;
+    const f = inp.dataset.f;
+    const old = (p.prices || {})[b.id] || {};
+    const prev = old[f] ?? null;
+    const nv = f === "shipping" ? (inp.value.trim() || null) : num(inp.value);
+    if (nv === prev) { if (f !== "shipping") inp.value = won(prev); return; }
+    const cur = { regular: old.regular ?? null, sale: old.sale ?? null, discount: old.discount ?? null, shipping: old.shipping ?? null };
+    cur[f] = nv;
+    if (f !== "shipping" && nv != null && !cur.shipping) cur.shipping = S.config.defaultShipping || null;
+    inp.classList.add("saving");
+    const fl = PRICE_FIELDS.find(x => x[0] === f)[1];
+    await guard(async () => {
+      await db.doc("products/" + p.id).update({ prices: { [b.id]: cur }, updatedAt: new Date().toISOString() });
+      await addHist([{ kind: "price", targetId: p.id, label: label(p), field: b.name + " " + fl, from: prev, to: nv, date: today() }]);
+    }, `${b.name} ${fl} 저장됨`);
+    inp.classList.remove("saving");
+  }
+
+  function exportCSV() {
+    const bs = brands().filter(b => !ui.hidden.has(b.id));
+    const head = ["상품명", "업체/발송", "구분", "등급", "중량", "수량", "단가", "부자재", "원가"];
+    bs.forEach(b => PRICE_FIELDS.forEach(([, t]) => head.push(b.name + " " + t)));
+    const rows = [head];
+    products().forEach(p => {
+      const r = [p.name, modeText(p), p.type, p.grade, p.weight, p.count, num(p.unitCost) ?? "", matCost(p), totalCost(p)];
+      bs.forEach(b => { const pr = (p.prices || {})[b.id] || {}; PRICE_FIELDS.forEach(([f]) => r.push(pr[f] ?? "")); });
+      rows.push(r);
+    });
+    const csv = "﻿" + rows.map(r => r.map(c => { const s = String(c ?? ""); return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; }).join(",")).join("\r\n");
+    const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
+    const a = document.createElement("a"); a.href = url; a.download = "가격표_" + today() + ".csv";
+    document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 2000);
+  }
+
+  // ---------- 메뉴2: 제품 목록 ----------
+  function renderProducts() {
+    $("#pl-mode").innerHTML = segHTML([["all", "전체"], ["vendor", "업체 발송"], ["self", "자체 포장"]], ui.plmode, "plmode");
+    const host = $("#pl-table");
+    if (!S.connected) { host.innerHTML = loadingOr(""); return; }
+    const list = products().filter(p => (ui.plmode === "all" || (p.mode || "vendor") === ui.plmode) && matchQ(p, ui.plq));
+    if (!S.products.length) { host.innerHTML = emptyHTML("첫 제품을 추가해 보세요", `<p>상품명 · 등급 · 중량 · 수량, 발송 방식(업체 / 자체 포장), 단가와 판매처별 가격을 넣으면 돼요.</p><p class="w"><button class="btn primary" data-act="new-product" type="button">+ 제품 추가</button></p>`); return; }
+    if (!list.length) { host.innerHTML = emptyHTML("조건에 맞는 제품이 없어요", ""); return; }
+    const bs = brands();
+    let h = `<p class="summary">제품 <b>${list.length}</b>개</p><div class="tablewrap"><table class="led"><thead><tr>
+      <th>상품명</th><th>구분</th><th>등급</th><th>중량</th><th>수량</th><th>발송</th><th>업체</th><th>단가</th><th>부자재</th><th>원가</th><th>판매처</th><th>최근 단가·업체 변동</th><th class="w"></th></tr></thead><tbody>`;
+    groupOf(list).forEach(g => g.items.forEach((p, i) => {
+      const lc = lastChange(p.id);
+      const soldAt = bs.filter(b => isSold((p.prices || {})[b.id])).map(b => b.name);
+      h += `<tr class="${i === 0 ? "gstart" : ""}">
+        <td class="pname"><button type="button" data-act="edit-product" data-id="${esc(p.id)}">${esc(p.name)}</button></td>
+        <td class="c ${typeClass(p.type)}">${esc(p.type)}</td><td class="c">${esc(p.grade)}</td><td class="c">${esc(p.weight)}</td><td class="c">${esc(p.count)}</td>
+        <td class="c">${p.mode === "self" ? '<span class="tag self">자체 포장</span>' : '<span class="tag vendor">업체 발송</span>'}</td>
+        <td>${p.mode === "self" ? '<span class="muted">–</span>' : esc(vendorName(p.vendorId) || "미지정")}</td>
+        <td class="num">${won(p.unitCost)}</td><td class="num muted">${matCost(p) ? won(matCost(p)) : "–"}</td><td class="num cost">${won(totalCost(p))}</td>
+        <td class="muted">${soldAt.length ? esc(soldAt.join(", ")) : "–"}</td>
+        <td class="muted">${lc ? esc(lc.date) + " · " + esc(lc.field) : "–"}</td>
+        <td class="w"><button class="btn sm" type="button" data-act="edit-product" data-id="${esc(p.id)}">수정</button> <button class="btn sm" type="button" data-act="copy-product" data-id="${esc(p.id)}">복제</button></td>
+      </tr>`;
+    }));
+    h += `</tbody></table></div>`;
+    host.innerHTML = h;
+  }
+
+  // ---------- 메뉴2: 변동 기록 ----------
+  function histValue(v) { if (v === null || v === undefined || v === "") return '<span class="muted">없음</span>'; return typeof v === "number" ? won(v) : esc(v); }
+  function histChange(x) {
+    let s = `<span class="from">${histValue(x.from)}</span><span class="arrow">→</span><b>${histValue(x.to)}</b>`;
+    if (typeof x.from === "number" && typeof x.to === "number" && x.from !== x.to) {
+      const d = x.to - x.from; const pct = x.from ? (d / x.from * 100) : 0;
+      s += `<span class="delta ${d > 0 ? "up" : "down"}">${d > 0 ? "▲" : "▼"} ${won(Math.abs(d))}${x.from ? ` (${pct > 0 ? "+" : ""}${pct.toFixed(1)}%)` : ""}</span>`;
+    }
+    if (x.kind === "create" || x.kind === "delete") s = esc(x.to ?? x.from ?? "");
+    return s;
+  }
+  function renderHistory() {
+    const sel = $("#h-target");
+    const opts = [["", "전체 대상"]];
+    products().forEach(p => opts.push(["p:" + p.id, label(p)]));
+    S.materials.slice().sort(bySort).forEach(m => opts.push(["m:" + m.id, "부자재 · " + m.name]));
+    if (!opts.some(o => o[0] === ui.htarget)) ui.htarget = "";
+    sel.innerHTML = opts.map(([v, t]) => `<option value="${esc(v)}"${v === ui.htarget ? " selected" : ""}>${esc(t)}</option>`).join("");
+    $("#h-kind").innerHTML = segHTML([["all", "전체"], ["cost", "단가"], ["vendor", "업체·발송"], ["price", "판매가"], ["material", "부자재"], ["info", "정보"], ["create", "등록·삭제"]], ui.hkind, "hkind");
+    const host = $("#h-table");
+    if (!S.connected) { host.innerHTML = loadingOr(""); return; }
+    const q = ui.hq.toLowerCase();
+    const list = S.history.slice().sort(histSort).filter(x => {
+      if (ui.htarget) { const [t, id] = [ui.htarget.slice(0, 1), ui.htarget.slice(2)]; if (x.targetId !== id || (t === "m") !== (x.target === "material")) return false; }
+      if (ui.hkind !== "all") { if (ui.hkind === "create" ? !(x.kind === "create" || x.kind === "delete") : x.kind !== ui.hkind) return false; }
+      if (q && ![x.label, x.field, x.memo, x.from, x.to].join(" ").toLowerCase().includes(q)) return false;
+      return true;
+    });
+    if (!S.history.length) { host.innerHTML = emptyHTML("아직 기록이 없어요", "<p>제품의 단가 · 업체 · 발송 방식 · 판매가를 바꾸면 날짜와 함께 여기에 쌓여요.</p>"); return; }
+    if (!list.length) { host.innerHTML = emptyHTML("조건에 맞는 기록이 없어요", ""); return; }
+    let h = `<p class="summary">기록 <b>${list.length}</b>건</p><div class="tablewrap"><table class="led"><thead><tr><th>적용일</th><th>대상</th><th>항목</th><th>변경 내용</th><th>사유 · 메모</th><th>입력 시각</th></tr></thead><tbody>`;
+    list.forEach(x => {
+      h += `<tr><td class="c" style="font-variant-numeric:tabular-nums">${esc(x.date)}</td><td>${esc(x.label)}</td>
+        <td><span class="kind k-${esc(x.kind)}">${esc(KINDS[x.kind] || x.kind)}</span>${x.kind === "create" || x.kind === "delete" ? "" : esc(x.field)}</td>
+        <td>${histChange(x)}</td><td>${esc(x.memo || "")}</td><td class="muted">${esc(stamp(x.at))}</td></tr>`;
+    });
+    h += `</tbody></table></div>`;
+    host.innerHTML = h;
+  }
+
+  // ---------- 메뉴3: 부자재 ----------
+  function renderMaterials() {
+    const host = $("#m-table");
+    if (!S.connected) { host.innerHTML = loadingOr(""); return; }
+    const q = ui.mq.toLowerCase();
+    const list = S.materials.slice().sort(bySort).filter(m => !q || [m.name, m.spec, m.supplier, m.note].join(" ").toLowerCase().includes(q));
+    if (!S.materials.length) { host.innerHTML = emptyHTML("등록된 부자재가 없어요", `<p>박스, 완충재, 아이스팩, 스티커처럼 포장에 드는 자재를 등록하면 제품 원가에 더할 수 있어요.</p><p class="w"><button class="btn primary" data-act="new-material" type="button">+ 부자재 추가</button></p>`); return; }
+    if (!list.length) { host.innerHTML = emptyHTML("조건에 맞는 부자재가 없어요", ""); return; }
+    let h = `<div class="tablewrap free"><table class="led"><thead><tr><th>부자재</th><th>규격</th><th>구매처</th><th>개당 단가</th><th>사용 제품</th><th>최근 단가 변동</th><th>메모</th><th class="w"></th></tr></thead><tbody>`;
+    list.forEach(m => {
+      const used = S.products.filter(p => (p.materials || []).some(x => x.id === m.id));
+      const lc = S.history.filter(x => x.target === "material" && x.targetId === m.id && x.kind === "cost").sort(histSort)[0];
+      h += `<tr><td><b>${esc(m.name)}</b></td><td>${esc(m.spec || "")}</td><td>${esc(m.supplier || "")}</td><td class="num cost">${won(m.cost)}</td>
+        <td class="muted">${used.length ? used.length + "개" : "–"}</td><td class="muted">${lc ? esc(lc.date) + " · " + won(lc.from) + " → " + won(lc.to) : "–"}</td>
+        <td class="muted">${esc(m.note || "")}</td>
+        <td class="w"><button class="btn sm" type="button" data-act="edit-material" data-id="${esc(m.id)}">수정</button></td></tr>`;
+    });
+    h += `</tbody></table></div>`;
+    host.innerHTML = h;
+  }
+
+  // ---------- 메뉴4: 설정 ----------
+  function renderConfig() {
+    const host = $("#cfg");
+    if (!S.connected) { host.innerHTML = loadingOr(""); return; }
+    const bs = brands();
+    const vs = S.vendors.slice().sort(bySort);
+    let h = `<div class="panel"><h3>판매처 (브랜드)</h3><p class="hint">가격표에 판매처별 정상가 · 판매가 · 할인가 · 택배비 칸이 생겨요. 순서는 화살표로 바꿔요.</p><div class="rowlist">`;
+    bs.forEach((b, i) => {
+      h += `<div class="rowitem"><input type="text" value="${esc(b.name)}" data-key="brand:${esc(b.id)}" data-rename="brand" data-id="${esc(b.id)}" aria-label="판매처 이름">
+        <button class="btn sm w" type="button" data-act="brand-up" data-id="${esc(b.id)}" ${i === 0 ? "disabled" : ""} aria-label="위로">↑</button>
+        <button class="btn sm w" type="button" data-act="brand-down" data-id="${esc(b.id)}" ${i === bs.length - 1 ? "disabled" : ""} aria-label="아래로">↓</button>
+        <button class="btn sm danger w" type="button" data-act="brand-del" data-id="${esc(b.id)}">삭제</button></div>`;
+    });
+    if (!bs.length) h += `<p class="muted">판매처가 없어요.</p>`;
+    h += `</div><div class="addrow w"><input id="add-brand" type="text" placeholder="예: 스마트스토어"><button class="btn primary" type="button" data-act="brand-add">추가</button></div></div>`;
+
+    h += `<div class="panel"><h3>업체</h3><p class="hint">업체 발송 제품을 보내는 곳이에요. 제품에서 업체를 바꾸면 변동 기록에 남아요.</p><div class="rowlist">`;
+    vs.forEach(v => {
+      const used = S.products.filter(p => p.mode !== "self" && p.vendorId === v.id).length;
+      h += `<div class="rowitem"><input type="text" value="${esc(v.name)}" data-key="vendor:${esc(v.id)}" data-rename="vendor" data-id="${esc(v.id)}" aria-label="업체 이름" style="flex:1.2">
+        <input type="text" value="${esc(v.contact || "")}" placeholder="연락처 · 담당자" data-key="vendorc:${esc(v.id)}" data-vcontact="${esc(v.id)}" aria-label="연락처">
+        <span class="hint" style="min-width:52px">${used}개 제품</span>
+        <button class="btn sm danger w" type="button" data-act="vendor-del" data-id="${esc(v.id)}">삭제</button></div>`;
+    });
+    if (!vs.length) h += `<p class="muted">등록된 업체가 없어요.</p>`;
+    h += `</div><div class="addrow w"><input id="add-vendor" type="text" placeholder="업체 이름"><input id="add-vendor-c" type="text" placeholder="연락처 (선택)"><button class="btn primary" type="button" data-act="vendor-add">추가</button></div></div>`;
+
+    const listPanel = (title, hint, key, items) => `<div class="panel"><h3>${title}</h3><p class="hint">${hint}</p><div class="taglist">${items.map((t, i) => `<span class="chip">${esc(t)}<button type="button" class="w" data-act="cfg-del" data-list="${key}" data-i="${i}" aria-label="${esc(t)} 삭제">×</button></span>`).join("") || '<span class="muted">비어 있어요</span>'}</div>
+      <div class="addrow w"><input id="add-${key}" type="text" placeholder="추가할 항목"><button class="btn" type="button" data-act="cfg-add" data-list="${key}">추가</button></div></div>`;
+    h += listPanel("구분", "선물용 · 가정용처럼 제품을 나누는 기준이에요. 첫째는 분홍, 둘째는 초록으로 표시돼요.", "types", S.config.types);
+    h += listPanel("등급 목록", "제품을 입력할 때 고를 수 있는 등급이에요. 목록에 없는 값도 직접 쓸 수 있어요.", "grades", S.config.grades);
+    h += `<div class="panel"><h3>기본 택배비 표기</h3><p class="hint">판매가를 처음 넣을 때 택배비 칸에 자동으로 들어가요.</p>
+      <div class="addrow"><input id="cfg-ship" type="text" value="${esc(S.config.defaultShipping || "")}" data-key="cfg-ship" placeholder="예: 무배 또는 3,000"><button class="btn w" type="button" data-act="cfg-ship">저장</button></div>
+      <h3 style="margin-top:18px">내보내기</h3><p class="hint">지금 가격표 전체를 엑셀에서 열 수 있는 CSV 로 저장해요.</p><button class="btn" type="button" data-act="csv">CSV 내보내기</button></div>`;
+    host.innerHTML = h;
+  }
+
+  // ---------- drawer ----------
+  let drawerMode = null; // {type:'product'|'material', id}
+  let ed = null;
+  function openDrawer(html) { $("#drawer-body").innerHTML = html; $("#drawer").hidden = false; document.body.style.overflow = "hidden"; const f = $("#drawer-body input:not([type=radio]):not([type=checkbox])"); if (f) f.focus(); }
+  function closeDrawer() { $("#drawer").hidden = true; $("#drawer-body").innerHTML = ""; document.body.style.overflow = ""; drawerMode = null; ed = null; }
+  function refreshDrawer() {
+    if (!drawerMode || !drawerMode.id) return;
+    const box = $("#ed-hist"); if (box) box.innerHTML = miniHist(drawerMode.id, drawerMode.type === "material" ? "material" : "product");
+  }
+  function miniHist(id, target) {
+    const list = S.history.filter(x => x.targetId === id && (x.target || "product") === target).sort(histSort).slice(0, 30);
+    if (!list.length) return `<p class="muted">아직 변동 기록이 없어요.</p>`;
+    return `<ul>${list.map(x => `<li><span class="d">${esc(x.date)}</span><span class="kind k-${esc(x.kind)}">${esc(KINDS[x.kind] || x.kind)}</span>${x.kind === "create" || x.kind === "delete" ? "" : esc(x.field) + " "}${histChange(x)}${x.memo ? ` <span class="muted">· ${esc(x.memo)}</span>` : ""}</li>`).join("")}</ul>`;
+  }
+
+  // product editor
+  function openProduct(id, copy) {
+    if (!S.canWrite) return;
+    const src = id ? S.products.find(p => p.id === id) : null;
+    const isNew = !src || copy;
+    const p = src ? JSON.parse(JSON.stringify(src)) : { type: S.config.types[0] || "", mode: "vendor", vendorId: (S.vendors[0] || {}).id || "", prices: {} };
+    ed = { id: isNew ? null : src.id, materials: (p.materials || []).map(m => ({ id: m.id, qty: m.qty ?? 1 })) };
+    drawerMode = { type: "product", id: ed.id };
+    const vs = S.vendors.slice().sort(bySort);
+    const vendorOpts = vs.map(v => `<option value="${esc(v.id)}"${v.id === p.vendorId ? " selected" : ""}>${esc(v.name)}</option>`).join("") + `<option value="__new"${!vs.length ? " selected" : ""}>+ 새 업체 입력</option>`;
+    const typeOpts = [...new Set([...S.config.types, p.type].filter(Boolean))].map(t => `<option${t === p.type ? " selected" : ""}>${esc(t)}</option>`).join("");
+    let prices = "";
+    brands().forEach(b => {
+      const pr = (p.prices || {})[b.id] || {};
+      const sold = isSold(pr);
+      prices += `<tr data-brow="${esc(b.id)}"><td><label class="switch bn"><input type="checkbox" data-sold="${esc(b.id)}" ${sold ? "checked" : ""}> ${esc(b.name)}</label></td>
+        ${PRICE_FIELDS.map(([f]) => `<td><input type="text" ${f === "shipping" ? 'class="ship"' : 'inputmode="numeric"'} data-pf="${f}" value="${esc(f === "shipping" ? (pr[f] ?? (sold ? "" : S.config.defaultShipping || "")) : won(pr[f]))}" ${sold ? "" : "disabled"} aria-label="${esc(b.name)} ${f}"></td>`).join("")}
+        <td class="mg" data-mg="${esc(b.id)}"></td></tr>`;
+    });
+    const html = `
+      <div class="dh"><h2 id="drawer-title">${isNew ? (copy ? "제품 복제" : "제품 추가") : "제품 수정"}</h2><button class="btn" type="button" data-act="close">닫기</button></div>
+      <form id="ed-form" autocomplete="off">
+        <fieldset><legend>기본 정보</legend><div class="grid">
+          <label class="field"><span class="req">상품명</span><input id="ed-name" type="text" list="dl-names" value="${esc(p.name || "")}" placeholder="예: 감홍사과"></label>
+          <label class="field"><span>구분</span><select id="ed-type">${typeOpts}</select></label>
+          <label class="field"><span>등급</span><input id="ed-grade" type="text" list="dl-grades" value="${esc(p.grade || "")}" placeholder="예: 중과"></label>
+          <label class="field"><span>중량</span><input id="ed-weight" type="text" list="dl-weights" value="${esc(p.weight || "")}" placeholder="예: 1.8kg"></label>
+          <label class="field"><span>수량</span><input id="ed-count" type="text" value="${esc(p.count || "")}" placeholder="예: 8-9과"></label>
+        </div></fieldset>
+
+        <fieldset><legend>발송 방식</legend>
+          <div class="modes">
+            <label class="modecard"><input type="radio" name="ed-mode" id="ed-mode-vendor" value="vendor" ${p.mode !== "self" ? "checked" : ""}><span><b>업체 발송</b><small>업체가 포장해서 고객에게 바로 보내요</small></span></label>
+            <label class="modecard"><input type="radio" name="ed-mode" id="ed-mode-self" value="self" ${p.mode === "self" ? "checked" : ""}><span><b>자체 포장</b><small>우리가 받아서 포장해 보내요</small></span></label>
+          </div>
+          <div class="grid" id="ed-vendor-row">
+            <label class="field"><span class="req">업체</span><select id="ed-vendor">${vendorOpts}</select></label>
+            <label class="field" id="ed-vnew-wrap"><span class="req">새 업체 이름</span><input id="ed-vnew" type="text" placeholder="예: 휘프레쉬"></label>
+          </div>
+        </fieldset>
+
+        <fieldset><legend>단가</legend>
+          <div class="grid"><label class="field"><span class="req">상품 단가 (원)</span><input id="ed-cost" type="text" inputmode="numeric" value="${esc(won(p.unitCost))}" placeholder="예: 16,500"></label></div>
+          <p class="hint" style="margin:10px 0 0">부자재 <span id="ed-mathint"></span></p>
+          <div class="matrows" id="ed-mats"></div>
+          <button class="btn sm" type="button" data-act="ed-addmat">+ 부자재 넣기</button>
+          <div class="totals"><div><span>상품 단가</span><b id="ed-t-unit">0</b></div><div><span>부자재</span><b id="ed-t-mat">0</b></div><div class="grand"><span>원가 합계</span><b id="ed-t-all">0</b></div></div>
+        </fieldset>
+
+        <fieldset><legend>판매처별 가격 (원)</legend>
+          ${brands().length ? `<div style="overflow-x:auto"><table class="pgrid"><thead><tr><th>판매처</th><th>정상가</th><th>판매가</th><th>할인가</th><th>택배비</th><th>마진</th></tr></thead><tbody>${prices}</tbody></table></div>
+          <p class="hint">판매하지 않는 곳은 체크를 끄세요. 가격표에서 회색 –로 보여요.</p>` : `<p class="muted">기타 설정에서 판매처를 먼저 추가하세요.</p>`}
+        </fieldset>
+
+        <fieldset><legend>${isNew ? "등록 기록" : "변동 기록"}</legend><div class="grid">
+          <label class="field"><span>적용일</span><input id="ed-date" type="date" value="${today()}"></label>
+          <label class="field" style="grid-column: span 2"><span>변동 사유 · 메모</span><input id="ed-memo" type="text" placeholder="예: 11월 산지 시세 반영, 업체 변경"></label>
+        </div><p class="hint">단가 · 업체 · 발송 방식 · 판매가가 바뀌면 이 날짜로 변동 기록에 남아요.</p></fieldset>
+
+        <label class="field"><span>제품 메모</span><textarea id="ed-note" rows="2">${esc(p.note || "")}</textarea></label>
+
+        <div class="dfoot">
+          <button class="btn primary" type="submit">${isNew ? "제품 등록" : "저장"}</button>
+          <button class="btn" type="button" data-act="close">취소</button>
+          <span class="grow"></span>
+          ${isNew ? "" : `<button class="btn" type="button" data-act="copy-product" data-id="${esc(src.id)}">복제</button><button class="btn danger" type="button" data-act="del-product" data-id="${esc(src.id)}">삭제</button>`}
+        </div>
+      </form>
+      ${isNew ? "" : `<h3>이 제품의 변동 기록</h3><div class="histmini" id="ed-hist">${miniHist(src.id, "product")}</div>`}`;
+    openDrawer(html);
+    syncVendorRow(); renderEdMats(); updateTotals();
+  }
+  function syncVendorRow() {
+    const self = $("#ed-mode-self") && $("#ed-mode-self").checked;
+    $("#ed-vendor-row").hidden = !!self;
+    $("#ed-vnew-wrap").hidden = $("#ed-vendor").value !== "__new";
+    const hint = $("#ed-mathint");
+    if (hint) hint.textContent = self ? "· 자체 포장이면 박스 · 완충재 등 실제로 쓰는 부자재를 넣어 주세요." : "· 업체 단가에 포장이 포함돼 있으면 비워 두세요. 따로 드는 것만 넣으세요.";
+  }
+  function renderEdMats() {
+    const box = $("#ed-mats"); if (!box) return;
+    const ms = S.materials.slice().sort(bySort);
+    box.innerHTML = ed.materials.map((m, i) => {
+      const mm = matById(m.id);
+      const opts = `<option value="">부자재 선택</option>` + ms.map(x => `<option value="${esc(x.id)}"${x.id === m.id ? " selected" : ""}>${esc(x.name)}${x.spec ? " (" + esc(x.spec) + ")" : ""} · ${won(x.cost)}원</option>`).join("") + (m.id && !mm ? `<option value="${esc(m.id)}" selected>(삭제된 부자재)</option>` : "");
+      return `<div class="matrow"><select data-mi="${i}" aria-label="부자재">${opts}</select><input type="text" inputmode="decimal" data-mq="${i}" value="${esc(m.qty)}" aria-label="수량"><span class="num">${mm ? won((num(mm.cost) || 0) * (num(m.qty) || 0)) : "–"}</span><button class="btn sm" type="button" data-act="ed-delmat" data-i="${i}" aria-label="빼기">×</button></div>`;
+    }).join("") || (ms.length ? "" : `<p class="hint">부자재 관리에서 먼저 부자재를 등록하면 여기서 고를 수 있어요.</p>`);
+  }
+  function updateTotals() {
+    if (!$("#ed-cost")) return;
+    const unit = num($("#ed-cost").value) || 0;
+    const mat = ed.materials.reduce((s, m) => { const mm = matById(m.id); return s + (mm ? (num(mm.cost) || 0) * (num(m.qty) || 0) : 0); }, 0);
+    $("#ed-t-unit").textContent = won(unit); $("#ed-t-mat").textContent = won(mat); $("#ed-t-all").textContent = won(unit + mat);
+    $$("[data-brow]").forEach(tr => {
+      const on = $("[data-sold]", tr).checked;
+      const get = f => num($(`[data-pf="${f}"]`, tr).value);
+      const ep = get("discount") ?? get("sale") ?? get("regular");
+      const cell = $("[data-mg]", tr);
+      if (!on || ep == null) { cell.innerHTML = '<span class="muted">–</span>'; return; }
+      const m = ep - unit - mat;
+      cell.innerHTML = `<span class="${m >= 0 ? "pos" : "neg"}">${won(m)}</span>`;
+    });
+  }
+  function collectProduct() {
+    const v = id => ($("#" + id).value || "").trim();
+    const mode = $("#ed-mode-self").checked ? "self" : "vendor";
+    const prices = {};
+    $$("[data-brow]").forEach(tr => {
+      const bid = tr.dataset.brow; const on = $("[data-sold]", tr).checked;
+      const o = {};
+      PRICE_FIELDS.forEach(([f]) => { const raw = $(`[data-pf="${f}"]`, tr).value; o[f] = on ? (f === "shipping" ? (raw.trim() || null) : num(raw)) : null; });
+      if (on && o.regular == null && o.sale == null && o.discount == null) o.__empty = true;
+      prices[bid] = o;
+    });
+    return {
+      name: v("ed-name"), type: $("#ed-type").value, grade: v("ed-grade"), weight: v("ed-weight"), count: v("ed-count"),
+      mode, vendorSel: $("#ed-vendor").value, vendorNew: v("ed-vnew"), unitCost: num($("#ed-cost").value),
+      materials: ed.materials.filter(m => m.id).map(m => ({ id: m.id, qty: num(m.qty) ?? 1 })),
+      prices, note: ($("#ed-note").value || "").trim(), date: $("#ed-date").value || today(), memo: v("ed-memo")
+    };
+  }
+  const matSummary = arr => (arr || []).length ? arr.map(m => { const mm = matById(m.id); return (mm ? mm.name : "?") + " ×" + m.qty; }).join(", ") : null;
+  const priceSummary = pr => isSold(pr) ? PRICE_FIELDS.filter(([f]) => f !== "shipping" && pr[f] != null).map(([f, t]) => t + " " + won(pr[f])).join(" / ") : "판매 안 함";
+  function diffProduct(prev, next) {
+    const out = [];
+    const push = (kind, field, from, to) => { if ((from ?? null) !== (to ?? null)) out.push({ kind, field, from: from ?? null, to: to ?? null }); };
+    [["name", "상품명"], ["type", "구분"], ["grade", "등급"], ["weight", "중량"], ["count", "수량"]].forEach(([k, t]) => push("info", t, prev[k] || null, next[k] || null));
+    const pm = prev.mode === "self" ? "self" : "vendor";
+    if (pm !== next.mode) push("vendor", "발송 방식", pm === "self" ? "자체 포장" : "업체 발송", next.mode === "self" ? "자체 포장" : "업체 발송");
+    if (next.mode === "vendor" && (pm !== "vendor" || prev.vendorId !== next.vendorId)) push("vendor", "업체", pm === "vendor" ? vendorName(prev.vendorId) || null : null, vendorName(next.vendorId));
+    push("cost", "상품 단가", num(prev.unitCost), next.unitCost);
+    const a = matSummary(prev.materials), b = matSummary(next.materials);
+    if (a !== b) push("material", "부자재", a, b);
+    brands().forEach(br => {
+      const o = (prev.prices || {})[br.id] || {}, n = next.prices[br.id] || {};
+      const os = isSold(o), ns = isSold(n);
+      if (os !== ns) push("price", br.name + " 판매", os ? priceSummary(o) : "판매 안 함", ns ? priceSummary(n) : "판매 안 함");
+      else if (ns) PRICE_FIELDS.forEach(([f, t]) => push("price", br.name + " " + t, o[f] ?? null, n[f] ?? null));
+    });
+    return out;
+  }
+  async function saveProduct() {
+    const n = collectProduct();
+    if (!n.name) { toast("상품명을 넣어 주세요.", true); $("#ed-name").focus(); return; }
+    if (n.unitCost == null) { toast("상품 단가를 넣어 주세요.", true); $("#ed-cost").focus(); return; }
+    if (n.mode === "vendor" && n.vendorSel === "__new" && !n.vendorNew) { toast("새 업체 이름을 넣어 주세요.", true); $("#ed-vnew").focus(); return; }
+    const emptyBrand = Object.keys(n.prices).find(k => n.prices[k].__empty);
+    if (emptyBrand) { const b = S.brands.find(x => x.id === emptyBrand); toast(`${b ? b.name : "판매처"}에 가격을 넣거나 체크를 꺼 주세요.`, true); return; }
+    const btn = $("#ed-form [type=submit]"); btn.disabled = true;
+    const ok = await guard(async () => {
+      let vendorId = null;
+      if (n.mode === "vendor") {
+        if (n.vendorSel === "__new") {
+          const exist = S.vendors.find(v => v.name === n.vendorNew);
+          if (exist) vendorId = exist.id;
+          else { vendorId = rid("v"); await db.doc("vendors/" + vendorId).set({ name: n.vendorNew, contact: "", sort: (Math.max(0, ...S.vendors.map(v => v.sort || 0)) + 10) }); S.vendors.push({ id: vendorId, name: n.vendorNew }); }
+        } else vendorId = n.vendorSel;
+      }
+      const prices = {};
+      Object.keys(n.prices).forEach(k => { const o = { ...n.prices[k] }; delete o.__empty; prices[k] = o; });
+      const body = { name: n.name, type: n.type, grade: n.grade, weight: n.weight, count: n.count, mode: n.mode, vendorId, unitCost: n.unitCost, materials: n.materials, note: n.note };
+      const now = new Date().toISOString();
+      if (ed.id) {
+        const prev = S.products.find(p => p.id === ed.id);
+        if (!prev) throw { code: "gone", message: "deleted" };
+        const diffs = diffProduct(prev, { ...body, prices });
+        const noteChanged = (prev.note || "") !== n.note;
+        if (!diffs.length && !noteChanged) { toast("바뀐 내용이 없어요."); return; }
+        const full = JSON.parse(JSON.stringify(prev)); delete full.id;
+        Object.assign(full, body, { prices: { ...(full.prices || {}), ...prices }, updatedAt: now });
+        await db.doc("products/" + ed.id).set(full);
+        const lbl = label({ ...full });
+        await addHist(diffs.map(d => ({ ...d, targetId: ed.id, label: lbl, date: n.date, memo: n.memo })));
+        toast(diffs.length ? `저장됨 · 변동 ${diffs.length}건 기록` : "저장됨");
+      } else {
+        const id = rid("p");
+        const maxSort = Math.max(0, ...S.products.map(p => p.sort || 0));
+        const sameGroup = products().filter(p => p.name === n.name && p.type === n.type);
+        const sort = sameGroup.length ? (sameGroup[sameGroup.length - 1].sort || 0) + 0.5 : maxSort + 10;
+        await db.doc("products/" + id).set({ ...body, prices, sort, createdAt: now, updatedAt: now });
+        const lbl = label(body);
+        await addHist([{ kind: "create", targetId: id, label: lbl, field: "제품 등록", from: null, to: `단가 ${won(n.unitCost)}원 · ${n.mode === "self" ? "자체 포장" : "업체 발송(" + vendorName(vendorId) + ")"}`, date: n.date, memo: n.memo }]);
+        toast("제품을 등록했어요");
+      }
+      closeDrawer();
+    });
+    if (btn.isConnected) btn.disabled = false;
+  }
+  async function deleteProduct(id) {
+    const p = S.products.find(x => x.id === id); if (!p) return;
+    await guard(async () => {
+      await db.doc("products/" + id).delete();
+      await addHist([{ kind: "delete", targetId: id, label: label(p), field: "제품 삭제", from: `단가 ${won(p.unitCost)}원`, to: null, date: today(), memo: "" }]);
+      closeDrawer();
+    }, "제품을 삭제했어요");
+  }
+
+  // material editor
+  function openMaterial(id) {
+    if (!S.canWrite) return;
+    const m = id ? S.materials.find(x => x.id === id) : null;
+    drawerMode = { type: "material", id: m ? m.id : null };
+    const used = m ? S.products.filter(p => (p.materials || []).some(x => x.id === m.id)) : [];
+    openDrawer(`
+      <div class="dh"><h2 id="drawer-title">${m ? "부자재 수정" : "부자재 추가"}</h2><button class="btn" type="button" data-act="close">닫기</button></div>
+      <form id="mat-form" autocomplete="off">
+        <fieldset><legend>부자재 정보</legend><div class="grid">
+          <label class="field"><span class="req">이름</span><input id="mt-name" type="text" value="${esc(m ? m.name : "")}" placeholder="예: 2.5kg 선물박스"></label>
+          <label class="field"><span>규격</span><input id="mt-spec" type="text" value="${esc(m ? m.spec || "" : "")}" placeholder="예: 30×25×12cm"></label>
+          <label class="field"><span>구매처</span><input id="mt-supplier" type="text" value="${esc(m ? m.supplier || "" : "")}"></label>
+          <label class="field"><span class="req">개당 단가 (원)</span><input id="mt-cost" type="text" inputmode="numeric" value="${esc(m ? won(m.cost) : "")}" placeholder="예: 850"></label>
+          <label class="field wide"><span>메모</span><input id="mt-note" type="text" value="${esc(m ? m.note || "" : "")}"></label>
+        </div></fieldset>
+        ${m ? `<fieldset><legend>단가 변동 기록</legend><div class="grid">
+          <label class="field"><span>적용일</span><input id="mt-date" type="date" value="${today()}"></label>
+          <label class="field" style="grid-column: span 2"><span>변동 사유</span><input id="mt-memo" type="text" placeholder="예: 박스 단가 인상"></label></div>
+          <p class="hint">단가를 바꾸면 이 부자재를 쓰는 제품 ${used.length}개의 원가가 함께 바뀌어요.</p></fieldset>` : ""}
+        <div class="dfoot"><button class="btn primary" type="submit">${m ? "저장" : "추가"}</button><button class="btn" type="button" data-act="close">취소</button><span class="grow"></span>
+          ${m ? `<button class="btn danger" type="button" data-act="del-material" data-id="${esc(m.id)}">삭제</button>` : ""}</div>
+      </form>
+      ${m ? `<h3>사용 제품</h3><p class="muted">${used.length ? used.map(p => esc(label(p))).join("<br>") : "아직 쓰는 제품이 없어요."}</p><h3 style="margin-top:16px">변동 기록</h3><div class="histmini" id="ed-hist">${miniHist(m.id, "material")}</div>` : ""}`);
+  }
+  async function saveMaterial() {
+    const name = $("#mt-name").value.trim(), cost = num($("#mt-cost").value);
+    if (!name) { toast("이름을 넣어 주세요.", true); return; }
+    if (cost == null) { toast("개당 단가를 넣어 주세요.", true); return; }
+    const body = { name, spec: $("#mt-spec").value.trim(), supplier: $("#mt-supplier").value.trim(), cost, note: $("#mt-note").value.trim() };
+    const id = drawerMode.id;
+    await guard(async () => {
+      if (id) {
+        const prev = S.materials.find(x => x.id === id);
+        const full = { ...prev, ...body, updatedAt: new Date().toISOString() }; delete full.id;
+        await db.doc("materials/" + id).set(full);
+        const date = $("#mt-date").value || today(), memo = $("#mt-memo").value.trim();
+        const h = [];
+        if (num(prev.cost) !== cost) h.push({ kind: "cost", field: "개당 단가", from: num(prev.cost), to: cost });
+        if (prev.name !== name) h.push({ kind: "info", field: "이름", from: prev.name, to: name });
+        if ((prev.supplier || "") !== body.supplier) h.push({ kind: "vendor", field: "구매처", from: prev.supplier || null, to: body.supplier || null });
+        await addHist(h.map(x => ({ ...x, target: "material", targetId: id, label: "부자재 · " + name, date, memo })));
+      } else {
+        const nid = rid("m");
+        await db.doc("materials/" + nid).set({ ...body, sort: Math.max(0, ...S.materials.map(x => x.sort || 0)) + 10, createdAt: new Date().toISOString() });
+        await addHist([{ kind: "create", target: "material", targetId: nid, label: "부자재 · " + name, field: "부자재 등록", from: null, to: `개당 ${won(cost)}원`, date: today() }]);
+      }
+      closeDrawer();
+    }, "저장했어요");
+  }
+
+  // ---------- two-step confirm ----------
+  function armed(btn) {
+    if (btn.classList.contains("armed")) return true;
+    const t = btn.textContent; btn.classList.add("armed"); btn.textContent = "한 번 더 누르면 삭제";
+    setTimeout(() => { if (btn.isConnected) { btn.classList.remove("armed"); btn.textContent = t; } }, 3500);
+    return false;
+  }
+
+  // ---------- events ----------
+  document.addEventListener("click", async e => {
+    const seg = e.target.closest("[data-ptype],[data-pmode],[data-plmode],[data-hkind],[data-brand]");
+    if (seg) {
+      if (seg.dataset.ptype) ui.ptype = seg.dataset.ptype;
+      else if (seg.dataset.pmode) ui.pmode = seg.dataset.pmode;
+      else if (seg.dataset.plmode) ui.plmode = seg.dataset.plmode;
+      else if (seg.dataset.hkind) ui.hkind = seg.dataset.hkind;
+      else if (seg.dataset.brand) { const id = seg.dataset.brand; ui.hidden.has(id) ? ui.hidden.delete(id) : ui.hidden.add(id); lsSet("pb.hiddenBrands", [...ui.hidden]); }
+      renderView(); return;
+    }
+    if (e.target.id === "drawer") { closeDrawer(); return; }
+    const b = e.target.closest("[data-act]"); if (!b) return;
+    const act = b.dataset.act, id = b.dataset.id;
+    switch (act) {
+      case "close": closeDrawer(); break;
+      case "new-product": openProduct(null); break;
+      case "edit-product": openProduct(id); break;
+      case "copy-product": openProduct(id, true); break;
+      case "del-product": if (armed(b)) deleteProduct(id); break;
+      case "ed-addmat": ed.materials.push({ id: "", qty: 1 }); renderEdMats(); updateTotals(); break;
+      case "ed-delmat": ed.materials.splice(+b.dataset.i, 1); renderEdMats(); updateTotals(); break;
+      case "new-material": openMaterial(null); break;
+      case "edit-material": openMaterial(id); break;
+      case "del-material": {
+        const used = S.products.filter(p => (p.materials || []).some(x => x.id === id));
+        if (used.length) { toast(`제품 ${used.length}개에서 쓰고 있어요. 제품에서 먼저 빼 주세요.`, true); break; }
+        if (armed(b)) { const m = S.materials.find(x => x.id === id); await guard(async () => { await db.doc("materials/" + id).delete(); await addHist([{ kind: "delete", target: "material", targetId: id, label: "부자재 · " + (m ? m.name : ""), field: "부자재 삭제", from: m ? `개당 ${won(m.cost)}원` : null, to: null, date: today() }]); closeDrawer(); }, "삭제했어요"); }
+        break;
+      }
+      case "csv": exportCSV(); break;
+      case "seed": await seedData(b); break;
+      case "brand-add": {
+        const inp = $("#add-brand"); const name = inp.value.trim(); if (!name) { inp.focus(); break; }
+        const id2 = rid("b");
+        if (await guard(() => db.doc("brands/" + id2).set({ name, sort: Math.max(0, ...S.brands.map(x => x.sort || 0)) + 10 }), "판매처를 추가했어요")) inp.value = "";
+        break;
+      }
+      case "brand-up": case "brand-down": {
+        const bs = brands(); const i = bs.findIndex(x => x.id === id); const j = act === "brand-up" ? i - 1 : i + 1;
+        if (i < 0 || j < 0 || j >= bs.length) break;
+        const a = bs[i], c = bs[j]; let sa = a.sort ?? i * 10, sc = c.sort ?? j * 10; if (sa === sc) { sa = i * 10; sc = j * 10; }
+        await guard(async () => { await db.doc("brands/" + a.id).update({ sort: sc }); await db.doc("brands/" + c.id).update({ sort: sa }); });
+        break;
+      }
+      case "brand-del": if (armed(b)) await guard(() => db.doc("brands/" + id).delete(), "판매처를 지웠어요. 제품에 넣어 둔 가격은 남아 있어요."); break;
+      case "vendor-add": {
+        const inp = $("#add-vendor"); const name = inp.value.trim(); if (!name) { inp.focus(); break; }
+        if (S.vendors.some(v => v.name === name)) { toast("이미 있는 업체예요.", true); break; }
+        if (await guard(() => db.doc("vendors/" + rid("v")).set({ name, contact: $("#add-vendor-c").value.trim(), sort: Math.max(0, ...S.vendors.map(x => x.sort || 0)) + 10 }), "업체를 추가했어요")) { inp.value = ""; $("#add-vendor-c").value = ""; }
+        break;
+      }
+      case "vendor-del": {
+        const used = S.products.filter(p => p.mode !== "self" && p.vendorId === id).length;
+        if (used) { toast(`제품 ${used}개가 이 업체로 나가요. 제품의 업체를 먼저 바꿔 주세요.`, true); break; }
+        if (armed(b)) await guard(() => db.doc("vendors/" + id).delete(), "업체를 지웠어요");
+        break;
+      }
+      case "cfg-add": {
+        const key = b.dataset.list; const inp = $("#add-" + key); const v = inp.value.trim(); if (!v) { inp.focus(); break; }
+        if (S.config[key].includes(v)) { toast("이미 있어요.", true); break; }
+        if (await saveConfig({ [key]: [...S.config[key], v] })) inp.value = "";
+        break;
+      }
+      case "cfg-del": { const key = b.dataset.list; const arr = S.config[key].slice(); arr.splice(+b.dataset.i, 1); await saveConfig({ [key]: arr }); break; }
+      case "cfg-ship": await saveConfig({ defaultShipping: $("#cfg-ship").value.trim() }); toast("저장했어요"); break;
+    }
+  });
+  async function saveConfig(patch) {
+    const next = { ...S.config, ...patch };
+    return guard(() => db.doc("config/main").set({ types: next.types, grades: next.grades, defaultShipping: next.defaultShipping || "" }));
+  }
+
+  document.addEventListener("change", async e => {
+    const t = e.target;
+    if (t.id === "p-margin") { ui.margin = t.checked; lsSet("pb.margin", ui.margin); renderView(); return; }
+    if (t.id === "p-edit") { ui.edit = t.checked; renderView(); return; }
+    if (t.dataset.pid && t.dataset.f) { savePriceCell(t); return; }
+    if (t.name === "ed-mode" || t.id === "ed-vendor") { syncVendorRow(); return; }
+    if (t.id === "h-target") { ui.htarget = t.value; renderView(); return; }
+    if (t.dataset.mi !== undefined) { ed.materials[+t.dataset.mi].id = t.value; renderEdMats(); updateTotals(); return; }
+    if (t.dataset.sold) {
+      const tr = t.closest("tr"); $$("[data-pf]", tr).forEach(i => { i.disabled = !t.checked; });
+      const ship = $('[data-pf="shipping"]', tr); if (t.checked && !ship.value) ship.value = S.config.defaultShipping || "";
+      if (t.checked) $('[data-pf="regular"]', tr).focus();
+      updateTotals(); return;
+    }
+    if (t.dataset.rename) {
+      const v = t.value.trim(); const col = t.dataset.rename === "brand" ? "brands" : "vendors";
+      if (!v) { renderView(); return; }
+      await guard(() => db.doc(col + "/" + t.dataset.id).update({ name: v }), "이름을 바꿨어요");
+      return;
+    }
+    if (t.dataset.vcontact) { await guard(() => db.doc("vendors/" + t.dataset.vcontact).update({ contact: t.value.trim() }), "저장했어요"); return; }
+  });
+  document.addEventListener("input", e => {
+    const t = e.target;
+    if (t.id === "p-q") { ui.pq = t.value; renderPricesDebounced(); }
+    else if (t.id === "pl-q") { ui.plq = t.value; renderView(); }
+    else if (t.id === "h-q") { ui.hq = t.value; renderView(); }
+    else if (t.id === "m-q") { ui.mq = t.value; renderView(); }
+    else if (t.dataset.mq !== undefined) { ed.materials[+t.dataset.mq].qty = t.value; const row = t.closest(".matrow"); const mm = matById(ed.materials[+t.dataset.mq].id); $(".num", row).textContent = mm ? won((num(mm.cost) || 0) * (num(t.value) || 0)) : "–"; updateTotals(); }
+    else if (t.id === "ed-cost" || t.dataset.pf) updateTotals();
+  });
+  let pqT; function renderPricesDebounced() { clearTimeout(pqT); pqT = setTimeout(renderView, 120); }
+  document.addEventListener("keydown", e => {
+    if (e.key === "Escape" && !$("#gate").hidden) { closeGate(); return; }
+    if (e.key === "Escape" && !$("#drawer").hidden) closeDrawer();
+    if (e.key === "Enter" && e.target.dataset && e.target.dataset.pid) { e.preventDefault(); e.target.blur(); }
+    if (e.key === "Enter" && e.target.id && e.target.id.startsWith("add-")) { e.preventDefault(); const btn = e.target.parentElement.querySelector("[data-act]"); if (btn) btn.click(); }
+  });
+  document.addEventListener("submit", e => {
+    e.preventDefault();
+    if (e.target.id === "ed-form") saveProduct();
+    if (e.target.id === "mat-form") saveMaterial();
+  });
+  // keep focused price input value formatted on blur w/out change
+  document.addEventListener("focusout", e => {
+    const t = e.target;
+    if (t.id === "ed-cost" || t.id === "mt-cost" || (t.dataset && t.dataset.pf && t.dataset.pf !== "shipping")) { const n = num(t.value); if (n != null) t.value = won(n); }
+  });
+  $("#p-csv").addEventListener("click", exportCSV);
+
+  // ---------- data ----------
+  const toObj = d => ({ id: d.id, ...d.data() });
+  const loadScript = src => new Promise((ok, bad) => { const el = document.createElement("script"); el.src = src; el.onload = ok; el.onerror = bad; document.head.appendChild(el); });
+  // Firestore 를 이 페이지가 쓰는 모양(collection/doc/onSnapshot/set/update/delete/add)으로 감쌉니다. 모든 경로는 price_book/main/ 아래.
+  function makeDb(fs) {
+    const base = fs.collection("price_book").doc("main");
+    const wrapDoc = ref => ({
+      id: ref.id,
+      set: d => ref.set(d),
+      update: d => ref.set(d, { merge: true }), // 중첩된 값(판매처별 가격)은 합쳐서 저장
+      delete: () => ref.delete(),
+      onSnapshot: (n, e) => ref.onSnapshot(n, e)
+    });
+    const wrapCol = c => ({
+      onSnapshot: (n, e) => c.onSnapshot(n, e),
+      orderBy: (f, d) => c.orderBy(f, d),
+      add: d => c.add(d),
+      doc: id => wrapDoc(id ? c.doc(id) : c.doc())
+    });
+    return {
+      collection: k => wrapCol(base.collection(k)),
+      doc: p => { const [a, b] = p.split("/"); return wrapDoc(base.collection(a).doc(b)); }
+    };
+  }
+  async function connect() {
+    try {
+      const v = "https://www.gstatic.com/firebasejs/10.12.0/";
+      await loadScript(v + "firebase-app-compat.js");
+      await Promise.all([loadScript(v + "firebase-auth-compat.js"), loadScript(v + "firebase-firestore-compat.js")]);
+      // 이름을 따로 붙여서 같은 사이트의 알바 시급 관리 로그인과 섞이지 않게 합니다.
+      const app = firebase.initializeApp(PB_FIREBASE_CONFIG, "price-book");
+      fb = { app, auth: app.auth(), fs: app.firestore() };
+      await fb.auth.setPersistence(firebase.auth.Auth.Persistence.SESSION);
+      fb.auth.onAuthStateChanged(u => { if (u && u.email === PB_EDITOR_EMAIL) setEditable(); else setReadonly(); });
+      db = makeDb(fb.fs);
+    } catch (e) {
+      console.error(e); banner("서버에 연결하지 못했어요. 인터넷 연결을 확인하고 새로고침 해 주세요."); S.connected = true; renderView(); return;
+    }
+
+    const pending = new Set(["products", "brands", "materials", "vendors", "history", "config"]);
+    const slowT = setTimeout(() => { if (pending.size) banner("데이터를 아직 다 불러오지 못했어요. 연결이 느리거나 끊겨 있을 수 있어요."); }, 10000);
+    const done = (k, snap) => {
+      S.connected = true;
+      if (!snap.metadata.fromCache) { pending.delete(k); if (!pending.size) { clearTimeout(slowT); banner(null); S.loaded = true; renderSeedBox(); } }
+      changed();
+    };
+    const onErr = k => e => {
+      pending.delete(k); S.connected = true; clearTimeout(slowT);
+      if (e && e.code === "permission-denied") banner("서버 규칙이 아직 적용되지 않았어요. Firebase 콘솔에서 prices/SETUP.md 의 규칙을 게시해 주세요.");
+      else banner("데이터를 불러오지 못했어요 (" + (e && e.code || "error") + "). 새로고침 해 주세요.");
+      changed();
+    };
+    ["products", "brands", "materials", "vendors"].forEach(k => {
+      db.collection(k).onSnapshot(s => { S[k] = s.docs.map(toObj); done(k, s); }, onErr(k));
+    });
+    db.collection("history").orderBy("at", "desc").limit(1000).onSnapshot(s => { S.history = s.docs.map(toObj); done("history", s); }, onErr("history"));
+    db.doc("config/main").onSnapshot(s => {
+      if (s.exists) { const d = s.data(); S.config = { ...DEFAULT_CONFIG, ...d, types: (d.types || DEFAULT_CONFIG.types).slice(), grades: (d.grades || DEFAULT_CONFIG.grades).slice() }; }
+      done("config", s);
+    }, onErr("config"));
+  }
+
+  async function seedData(btn) {
+    if (S.products.length || S.brands.length) { renderSeedBox(); return; }
+    btn.disabled = true;
+    await guard(async () => {
+      const batch = fb.fs.batch();
+      const base = fb.fs.collection("price_book").doc("main");
+      Object.entries(PB_SEED).forEach(([col, docs]) => Object.entries(docs).forEach(([id, d]) => batch.set(base.collection(col).doc(id), d)));
+      await batch.commit();
+    }, "시트 데이터를 넣었어요");
+    btn.disabled = false;
+  }
+
+  // ---------- PIN (수정 잠금) ----------
+  const pinPw = pin => `Price-${pin}-pin!`; // Firebase 비밀번호 규칙(6자 이상)을 맞추려고 앞뒤를 붙입니다.
+  const metaRef = () => fb.fs.collection("price_book").doc("main").collection("meta").doc("pin");
+  let gateStep = "enter", firstPin = "";
+  const authMsg = e => {
+    const c = (e && e.code) || "";
+    if (/invalid-credential|wrong-password|user-not-found|invalid-login/.test(c)) return "PIN이 맞지 않아요";
+    if (/too-many-requests/.test(c)) return "여러 번 틀려서 잠시 막혔어요. 몇 분 뒤 다시 해 주세요";
+    if (/network/.test(c)) return "인터넷 연결을 확인해 주세요";
+    if (/operation-not-allowed/.test(c)) return "Firebase 에서 이메일/비밀번호 로그인을 켜 주세요";
+    return "확인하지 못했어요 (" + (c || (e && e.message) || "error") + ")";
+  };
+  function updateGate(err) {
+    const t = {
+      enter: ["PIN 입력", "수정하려면 PIN을 넣어 주세요", "확인"],
+      new: ["PIN 만들기", "처음 한 번만 정해요. 수정하는 모든 사람이 이 PIN을 써요. 숫자 4~6자리", "다음"],
+      confirm: ["PIN 확인", "같은 PIN을 한 번 더 넣어 주세요", "PIN 저장"]
+    }[gateStep];
+    $("#gate-title").textContent = t[0]; $("#gate-sub").textContent = t[1]; $("#gate-ok").textContent = t[2];
+    $("#gate-err").textContent = err || ""; $("#gate-pin").value = "";
+    setTimeout(() => $("#gate-pin").focus(), 30);
+  }
+  async function openGate() {
+    if (!fb) { toast("서버에 연결되지 않았어요.", true); return; }
+    $("#gate").hidden = false; firstPin = ""; gateStep = "enter"; updateGate();
+    $("#gate-sub").textContent = "확인하는 중…";
+    try { const m = await metaRef().get(); gateStep = m.exists ? "enter" : "new"; updateGate(); }
+    catch (e) { updateGate(e && e.code === "permission-denied" ? "서버 규칙이 아직 적용되지 않았어요 (prices/SETUP.md)" : authMsg(e)); }
+  }
+  const closeGate = () => { $("#gate").hidden = true; };
+  async function gateSubmit() {
+    const pin = $("#gate-pin").value.trim();
+    const ok = $("#gate-ok");
+    if (gateStep === "enter") {
+      ok.disabled = true;
+      try { await fb.auth.signInWithEmailAndPassword(PB_EDITOR_EMAIL, pinPw(pin)); metaRef().set({ initialized: true }).catch(() => {}); closeGate(); toast("수정할 수 있어요. 다 쓰면 '잠그기'를 누르세요"); }
+      catch (e) { updateGate(authMsg(e)); }
+      ok.disabled = false; return;
+    }
+    if (gateStep === "new") {
+      if (!/^\d{4,6}$/.test(pin)) return updateGate("숫자 4~6자리로 넣어 주세요");
+      firstPin = pin; gateStep = "confirm"; return updateGate();
+    }
+    if (pin !== firstPin) { gateStep = "new"; return updateGate("두 번 넣은 PIN이 달라요. 다시 정해 주세요"); }
+    ok.disabled = true;
+    try {
+      await fb.auth.createUserWithEmailAndPassword(PB_EDITOR_EMAIL, pinPw(pin));
+      await metaRef().set({ initialized: true });
+      closeGate(); toast("PIN을 만들었어요. 수정할 때 이 PIN을 쓰세요");
+    } catch (e) {
+      if (/email-already-in-use/.test((e && e.code) || "")) { gateStep = "enter"; updateGate("이미 만든 PIN이 있어요. 그 PIN을 넣어 주세요"); }
+      else { gateStep = "new"; updateGate(authMsg(e)); }
+    }
+    ok.disabled = false;
+  }
+  $("#unlock-btn").addEventListener("click", async () => {
+    if (S.canWrite) { try { await fb.auth.signOut(); } catch (e) {} toast("잠갔어요. 지금은 보기만 할 수 있어요"); }
+    else openGate();
+  });
+  $("#gate-ok").addEventListener("click", gateSubmit);
+  $("#gate-cancel").addEventListener("click", closeGate);
+  $("#gate-pin").addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); gateSubmit(); } });
+  $("#gate").addEventListener("click", e => { if (e.target.id === "gate") closeGate(); });
+
+  window.addEventListener("hashchange", route);
+  updateAuthUI();
+  route();
+  connect();
+})();
+</script>
+</body>
+</html>

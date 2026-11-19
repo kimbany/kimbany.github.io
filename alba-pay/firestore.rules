@@ -14,5 +14,15 @@ service cloud.firestore {
     match /alba_pay/{document=**} {
       allow read, write: if isOwner();
     }
+
+    // 과일 가격 장부 (prices/): 보기는 누구나, 수정은 수정 PIN 으로 로그인했을 때만
+    // (prices/index.html 의 PB_EDITOR_EMAIL 과 같아야 합니다)
+    function isPriceEditor() {
+      return request.auth != null && request.auth.token.email == 'editor@price-book.local';
+    }
+    match /price_book/{document=**} {
+      allow read: if true;
+      allow write: if isPriceEditor();
+    }
   }
 }
