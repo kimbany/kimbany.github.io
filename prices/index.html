@@ -422,7 +422,7 @@ const PB_SEED = {"brands":{"b-gyul":{"name":"귤타민","sort":20},"b-kakao":{"n
   const ui = {
     view: "prices",
     pq: "", ptype: "all", pmode: "all", hidden: new Set(lsGet("pb.hiddenBrands", [])), margin: !!lsGet("pb.margin", false), edit: false,
-    plq: "", plmode: "all", htarget: "", hkind: "all", hq: "", mq: ""
+    plq: "", plmode: "all", htarget: "", hkind: "all", hq: "", mq: "", importText: "", importPlan: null
   };
   let db = null, fb = null;
 
@@ -760,10 +760,104 @@ const PB_SEED = {"brands":{"b-gyul":{"name":"귤타민","sort":20},"b-kakao":{"n
       <div class="addrow w"><input id="add-${key}" type="text" placeholder="추가할 항목"><button class="btn" type="button" data-act="cfg-add" data-list="${key}">추가</button></div></div>`;
     h += listPanel("구분", "선물용 · 가정용처럼 제품을 나누는 기준이에요. 첫째는 분홍, 둘째는 초록으로 표시돼요.", "types", S.config.types);
     h += listPanel("등급 목록", "제품을 입력할 때 고를 수 있는 등급이에요. 목록에 없는 값도 직접 쓸 수 있어요.", "grades", S.config.grades);
+    h += importPanelHTML();
     h += `<div class="panel"><h3>기본 택배비 표기</h3><p class="hint">판매가를 처음 넣을 때 택배비 칸에 자동으로 들어가요.</p>
       <div class="addrow"><input id="cfg-ship" type="text" value="${esc(S.config.defaultShipping || "")}" data-key="cfg-ship" placeholder="예: 무배 또는 3,000"><button class="btn w" type="button" data-act="cfg-ship">저장</button></div>
       <h3 style="margin-top:18px">내보내기</h3><p class="hint">지금 가격표 전체를 엑셀에서 열 수 있는 CSV 로 저장해요.</p><button class="btn" type="button" data-act="csv">CSV 내보내기</button></div>`;
     host.innerHTML = h;
+  }
+
+  // ---------- 한꺼번에 넣기 ----------
+  // 형식: [{ "name", "type", "grade", "weight", "count", "vendor" (업체 이름, 없으면 자체 포장), "mode"?, "unitCost",
+  //         "prices": { "판매처 이름": { "regular", "sale", "discount"?, "shipping"? } } }, ...]
+  const sameKey = (a, b) => ["name", "type", "grade", "weight", "count"].every(k => String(a[k] || "").trim() === String(b[k] || "").trim());
+  function planImport(text) {
+    let arr;
+    try { arr = JSON.parse(text); } catch (e) { return { error: "형식이 맞지 않아요. Claude 가 준 글을 처음부터 끝까지 그대로 붙여 넣어 주세요." }; }
+    if (arr && !Array.isArray(arr)) arr = arr.products;
+    if (!Array.isArray(arr) || !arr.length) return { error: "넣을 제품이 없어요." };
+    const rows = [], errors = [];
+    arr.forEach((r, i) => {
+      if (!r || !String(r.name || "").trim()) { errors.push((i + 1) + "번째 줄: 상품명이 없어요"); return; }
+      const cost = num(r.unitCost);
+      if (cost == null) { errors.push((i + 1) + "번째 줄(" + r.name + "): 단가가 없어요"); return; }
+      const row = {
+        name: String(r.name).trim(), type: String(r.type || "").trim(), grade: String(r.grade || "").trim(),
+        weight: String(r.weight || "").trim(), count: String(r.count || "").trim(),
+        vendor: String(r.vendor || "").trim(), mode: r.mode === "self" || (!r.vendor && r.mode !== "vendor") ? "self" : "vendor",
+        unitCost: cost, prices: {}
+      };
+      Object.entries(r.prices || {}).forEach(([bn, pr]) => {
+        if (!pr) return;
+        const o = { regular: num(pr.regular), sale: num(pr.sale), discount: num(pr.discount), shipping: pr.shipping == null || pr.shipping === "" ? null : String(pr.shipping) };
+        if (o.regular == null && o.sale == null && o.discount == null) return;
+        if (o.shipping == null) o.shipping = S.config.defaultShipping || null;
+        row.prices[String(bn).trim()] = o;
+      });
+      row.existing = S.products.find(p => sameKey(p, row)) || null;
+      rows.push(row);
+    });
+    const brandNames = new Set(S.brands.map(b => b.name));
+    const vendorNames = new Set(S.vendors.map(v => v.name));
+    const newBrands = [...new Set(rows.flatMap(r => Object.keys(r.prices)))].filter(n => !brandNames.has(n));
+    const newVendors = [...new Set(rows.filter(r => r.mode === "vendor" && r.vendor).map(r => r.vendor))].filter(n => !vendorNames.has(n));
+    return { rows, errors, newBrands, newVendors };
+  }
+  function importPanelHTML() {
+    const pl = ui.importPlan;
+    let pv = "";
+    if (pl && pl.error) pv = `<p class="neg">${esc(pl.error)}</p>`;
+    else if (pl) {
+      const nNew = pl.rows.filter(r => !r.existing).length, nUp = pl.rows.length - nNew;
+      pv = `<p><b>${pl.rows.length}</b>개 확인 · 새로 추가 <b>${nNew}</b> · 가격 바꿈 <b>${nUp}</b></p>`;
+      if (pl.newBrands.length) pv += `<p class="hint">새 판매처: ${esc(pl.newBrands.join(", "))}</p>`;
+      if (pl.newVendors.length) pv += `<p class="hint">새 업체: ${esc(pl.newVendors.join(", "))}</p>`;
+      if (pl.errors.length) pv += `<p class="neg">${pl.errors.map(esc).join("<br>")}</p>`;
+      pv += `<div class="tablewrap free" style="max-height:260px"><table class="led"><thead><tr><th></th><th>상품</th><th>업체</th><th>단가</th><th>판매처</th></tr></thead><tbody>${pl.rows.map(r => `<tr><td class="c">${r.existing ? '<span class="tag">바꿈</span>' : '<span class="tag self">새로</span>'}</td><td>${esc(label(r))}</td><td>${r.mode === "self" ? "자체 포장" : esc(r.vendor)}</td><td class="num">${won(r.unitCost)}</td><td class="muted">${esc(Object.keys(r.prices).join(", ") || "–")}</td></tr>`).join("")}</tbody></table></div>`;
+    }
+    const canRun = pl && !pl.error && pl.rows.length;
+    return `<div class="panel w" style="grid-column:1/-1"><h3>한꺼번에 넣기</h3>
+      <p class="hint">Claude 에게 가격표 이미지를 보내면 여기에 붙여 넣을 글을 만들어 줘요. 붙여 넣고 <b>미리 보기</b> → <b>가져오기</b>. 상품명 · 구분 · 등급 · 중량 · 수량이 같은 제품은 새로 만들지 않고 단가 · 가격만 바꾸며, 바뀐 내용은 변동 기록에 남아요.</p>
+      <textarea id="import-text" data-key="import-text" rows="6" style="width:100%;font-family:ui-monospace,monospace;font-size:12px" placeholder='[{"name":"시나노골드","type":"선물용","grade":"중과","weight":"2.5kg","count":"10-14과","vendor":"휘프레쉬","unitCost":14000,"prices":{"몽프루이":{"regular":24900,"sale":15900}}}]'>${esc(ui.importText)}</textarea>
+      <div class="addrow"><button class="btn" type="button" data-act="import-preview">미리 보기</button><button class="btn primary" type="button" data-act="import-run" ${canRun ? "" : "disabled"}>가져오기</button><button class="btn" type="button" data-act="import-clear">지우기</button></div>
+      <div id="import-preview" style="margin-top:10px">${pv}</div></div>`;
+  }
+  async function runImport(btn) {
+    const pl = planImport(ui.importText); ui.importPlan = pl;
+    if (pl.error || !pl.rows.length) { renderView(); return; }
+    btn.disabled = true; btn.textContent = "넣는 중…";
+    let created = 0, updated = 0, logged = 0;
+    const ok = await guard(async () => {
+      const brandId = {}; S.brands.forEach(b => { brandId[b.name] = b.id; });
+      const vendorId = {}; S.vendors.forEach(v => { vendorId[v.name] = v.id; });
+      let bSort = Math.max(0, ...S.brands.map(b => b.sort || 0)), vSort = Math.max(0, ...S.vendors.map(v => v.sort || 0));
+      for (const n of pl.newBrands) { const id = rid("b"); bSort += 10; await db.doc("brands/" + id).set({ name: n, sort: bSort }); brandId[n] = id; }
+      for (const n of pl.newVendors) { const id = rid("v"); vSort += 10; await db.doc("vendors/" + id).set({ name: n, contact: "", sort: vSort }); vendorId[n] = id; }
+      let pSort = Math.max(0, ...S.products.map(p => p.sort || 0));
+      const now = new Date().toISOString(), date = today(), memo = "한꺼번에 넣기";
+      for (const r of pl.rows) {
+        const prices = {}; Object.entries(r.prices).forEach(([bn, o]) => { prices[brandId[bn]] = o; });
+        const body = { name: r.name, type: r.type, grade: r.grade, weight: r.weight, count: r.count, mode: r.mode, vendorId: r.mode === "vendor" ? (vendorId[r.vendor] || null) : null, unitCost: r.unitCost };
+        const ex = r.existing && S.products.find(p => p.id === r.existing.id);
+        if (ex) {
+          const full = JSON.parse(JSON.stringify(ex)); delete full.id;
+          Object.assign(full, body, { prices: { ...(full.prices || {}), ...prices }, updatedAt: now });
+          const diffs = diffProduct(ex, { ...full, materials: full.materials || [], prices: full.prices });
+          if (!diffs.length) continue;
+          await db.doc("products/" + ex.id).set(full);
+          await addHist(diffs.map(d => ({ ...d, targetId: ex.id, label: label(full), date, memo })));
+          updated++; logged += diffs.length;
+        } else {
+          const id = rid("p"); pSort += 10;
+          await db.doc("products/" + id).set({ ...body, materials: [], prices, note: "", sort: pSort, createdAt: now, updatedAt: now });
+          await addHist([{ kind: "create", targetId: id, label: label(body), field: "제품 등록", from: null, to: `단가 ${won(r.unitCost)}원 · ${r.mode === "self" ? "자체 포장" : "업체 발송(" + r.vendor + ")"}`, date, memo }]);
+          created++;
+        }
+      }
+    });
+    btn.textContent = "가져오기";
+    if (ok) { ui.importText = ""; ui.importPlan = null; toast(`새로 ${created}개 · 바꿈 ${updated}개 넣었어요` + (logged ? ` (변동 ${logged}건 기록)` : "")); }
+    renderView();
   }
 
   // ---------- drawer ----------
@@ -1069,6 +1163,9 @@ const PB_SEED = {"brands":{"b-gyul":{"name":"귤타민","sort":20},"b-kakao":{"n
       }
       case "csv": exportCSV(); break;
       case "seed": await seedData(b); break;
+      case "import-preview": ui.importPlan = planImport(ui.importText); renderView(); break;
+      case "import-run": await runImport(b); break;
+      case "import-clear": ui.importText = ""; ui.importPlan = null; renderView(); break;
       case "brand-add": {
         const inp = $("#add-brand"); const name = inp.value.trim(); if (!name) { inp.focus(); break; }
         const id2 = rid("b");
@@ -1138,6 +1235,7 @@ const PB_SEED = {"brands":{"b-gyul":{"name":"귤타민","sort":20},"b-kakao":{"n
     else if (t.id === "pl-q") { ui.plq = t.value; renderView(); }
     else if (t.id === "h-q") { ui.hq = t.value; renderView(); }
     else if (t.id === "m-q") { ui.mq = t.value; renderView(); }
+    else if (t.id === "import-text") { ui.importText = t.value; if (ui.importPlan) { ui.importPlan = null; const pv = $("#import-preview"); if (pv) pv.innerHTML = ""; const rb = $("[data-act=import-run]"); if (rb) rb.disabled = true; } }
     else if (t.dataset.mq !== undefined) { ed.materials[+t.dataset.mq].qty = t.value; const row = t.closest(".matrow"); const mm = matById(ed.materials[+t.dataset.mq].id); $(".num", row).textContent = mm ? won((num(mm.cost) || 0) * (num(t.value) || 0)) : "–"; updateTotals(); }
     else if (t.id === "ed-cost" || t.dataset.pf) updateTotals();
   });
