@@ -138,8 +138,15 @@ table.led { border-collapse: separate; border-spacing: 0; width: max-content; mi
 .legend .mp { width: 12px; height: 12px; cursor: default; margin-left: 6px; }
 .spec td.mcell.now, .spec th.mcol.now { box-shadow: inset 0 0 0 2px var(--accent); }
 .spec th.mcol { width: 22px; min-width: 22px; padding: 4px 0; font-size: 11px; }
-.spec input.sp { width: 110px; padding: 3px 6px; }
-.spec input.sp.sm { width: 56px; text-align: center; }
+/* 칸 너비를 고정해서, 달 칸을 눌러 시즌 글이 바뀌어도 표가 움직이지 않게 */
+table.led.spec { table-layout: fixed; width: 1372px; }
+table.led.spec.withsel { width: 1402px; }
+.led.spec th.selc { width: 30px; }
+.led.spec th.mcol { width: 26px; }
+.led.spec td { white-space: normal; overflow-wrap: anywhere; }
+.spec input.sp { width: 100%; padding: 3px 6px; }
+.spec input.sp.sm { text-align: center; }
+.spec input[type="date"] { width: 100%; }
 .spec select { padding: 3px 4px; font-size: 12px; }
 .spec input[type="date"] { padding: 3px 6px; font-size: 12px; }
 .spec tr.editing td { background: var(--warn-bg); }
@@ -1405,7 +1412,7 @@ const PB_SEED = {"brands":{"b-gyul":{"name":"귤타민","sort":20},"b-kakao":{"n
     const mix = x => x.mixed ? ' <span class="hint" title="규격마다 값이 달라요. 저장하면 모두 같은 값이 돼요.">(여러 값)</span>' : "";
     const nNames = rowsOfName.size;
     let h = `<p class="summary">품종 <b>${nNames}</b>개 (규격 ${list.length}개) · 원산지 · 브릭스 · 시즌은 품종마다 하나예요. 지금은 <b>${nowM}월</b>(테두리) · ${SEASON_LEGEND}</p>`;
-    h += `<div class="tablewrap"><table class="led spec"><thead><tr><th>상품명</th>${S.canWrite ? selTh("sp", [...new Set(groups.map(g => g.cat + "|" + g.name))]) : ""}<th>품종</th><th class="bstart">원산지</th><th>브릭스</th><th>시즌</th>${MONTHS.map(m => `<th class="mcol${m === nowM ? " now" : ""}">${m}</th>`).join("")}<th>온라인 첫 등록일</th><th>메모</th><th class="w"></th></tr></thead><tbody>`;
+    h += `<div class="tablewrap"><table class="led spec${S.canWrite ? " withsel" : ""}"><thead><tr><th style="width:80px">상품명</th>${S.canWrite ? selTh("sp", [...new Set(groups.map(g => g.cat + "|" + g.name))]) : ""}<th style="width:140px">품종</th><th class="bstart" style="width:150px">원산지</th><th style="width:80px">브릭스</th><th style="width:200px">시즌</th>${MONTHS.map(m => `<th class="mcol${m === nowM ? " now" : ""}">${m}</th>`).join("")}<th style="width:130px">온라인 첫 등록일</th><th style="width:170px">메모</th><th class="w" style="width:110px"></th></tr></thead><tbody>`;
     const seenC = new Set(), seenN = new Set();
     groups.forEach(g => {
       const p = g.items[0], nk = g.cat + "|" + g.name;
