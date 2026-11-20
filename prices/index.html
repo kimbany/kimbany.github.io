@@ -438,7 +438,7 @@ body.ro .w { display: none !important; }
     <div class="viewhead">
       <div>
         <h1>제품별 스펙</h1>
-        <p class="sub">상품마다 원산지 · 브릭스 · 시즌(제철 달) · 온라인 첫 등록일을 봐요. 상품명 + 구분마다 한 줄이고, 수정을 누르면 바로 고칠 수 있어요.</p>
+        <p class="sub">품종마다 원산지 · 브릭스 · 시즌(제철 달) · 온라인 첫 등록일을 봐요. 품종마다 한 줄이고, 수정을 누르면 바로 고칠 수 있어요.</p>
       </div>
     </div>
     <div class="toolbar">
@@ -1368,18 +1368,20 @@ const PB_SEED = {"brands":{"b-gyul":{"name":"귤타민","sort":20},"b-kakao":{"n
     if (!list.length) { host.innerHTML = emptyHTML(ui.snow ? "이번 달 제철로 표시한 상품이 없어요" : "조건에 맞는 상품이 없어요", ui.snow ? "<p>수정을 눌러 시즌(시작 달 ~ 끝 달)을 넣으면 여기에 나와요.</p>" : ""); return; }
     // 줄 = 품종 × 구분 × 업체 (groupOf 묶음). 품종 칸들은 rowspan
     const groups = groupOf(list);
-    const rowsOfName = new Map(); groups.forEach(g => { const k = g.cat + "|" + g.name; rowsOfName.set(k, (rowsOfName.get(k) || 0) + 1); });
-    const rowsOfCat = new Map(); groups.forEach(g => rowsOfCat.set(g.cat, (rowsOfCat.get(g.cat) || 0) + 1));
+    // 품종마다 한 줄
+    const rowsOfName = new Map(); groups.forEach(g => rowsOfName.set(g.cat + "|" + g.name, 1));
+    const rowsOfCat = new Map(); [...rowsOfName.keys()].forEach(k => { const c = k.split("|")[0]; rowsOfCat.set(c, (rowsOfCat.get(c) || 0) + 1); });
     const mopt = (v, ph) => `<option value="">${ph}</option>` + MONTHS.map(m => `<option value="${m}"${num(v) === m ? " selected" : ""}>${m}월</option>`).join("");
     const mix = x => x.mixed ? ' <span class="hint" title="규격마다 값이 달라요. 저장하면 모두 같은 값이 돼요.">(여러 값)</span>' : "";
     const nNames = rowsOfName.size;
     let h = `<p class="summary">품종 <b>${nNames}</b>개 (규격 ${list.length}개) · 원산지 · 브릭스 · 시즌은 품종마다 하나예요. 지금은 <b>${nowM}월</b> — 진한 칸이 제철 달, 테두리가 이번 달이에요.</p>`;
-    h += `<div class="tablewrap"><table class="led spec"><thead><tr><th>상품명</th>${S.canWrite ? selTh("sp", [...new Set(groups.map(g => g.cat + "|" + g.name))]) : ""}<th>품종</th><th class="bstart">원산지</th><th>브릭스</th><th>시즌</th>${MONTHS.map(m => `<th class="mcol${m === nowM ? " now" : ""}">${m}</th>`).join("")}<th>온라인 첫 등록일</th><th>메모</th><th class="w"></th><th class="bstart">구분</th><th>업체</th><th>규격</th></tr></thead><tbody>`;
+    h += `<div class="tablewrap"><table class="led spec"><thead><tr><th>상품명</th>${S.canWrite ? selTh("sp", [...new Set(groups.map(g => g.cat + "|" + g.name))]) : ""}<th>품종</th><th class="bstart">원산지</th><th>브릭스</th><th>시즌</th>${MONTHS.map(m => `<th class="mcol${m === nowM ? " now" : ""}">${m}</th>`).join("")}<th>온라인 첫 등록일</th><th>메모</th><th class="w"></th></tr></thead><tbody>`;
     const seenC = new Set(), seenN = new Set();
     groups.forEach(g => {
       const p = g.items[0], nk = g.cat + "|" + g.name;
       const ed = ui.sedit && ui.sedit.key === nk;
       const firstC = !seenC.has(g.cat), firstN = !seenN.has(nk);
+      if (!firstN) return;
       h += `<tr class="${firstC ? "cstart" : firstN ? "gstart" : ""}${ed ? " editing" : ""}">`;
       if (firstC) h += `<td class="gcell catname" rowspan="${rowsOfCat.get(g.cat)}">${esc(g.cat)}</td>`;
       if (firstN) {
@@ -1404,13 +1406,10 @@ const PB_SEED = {"brands":{"b-gyul":{"name":"귤타민","sort":20},"b-kakao":{"n
             <td class="w" rowspan="${rn}"><button class="btn sm" type="button" data-act="sp-edit" data-key="${esc(nk)}">수정</button></td>`;
         }
       }
-      const sizes = [...new Set(g.items.map(x => x.weight).filter(Boolean))].sort((a, b) => wKg(a) - wKg(b)).join(" · ");
-      h += `<td class="c bstart ${typeClass(p.type)}">${esc(p.type || "–")}</td><td class="c vend">${esc(modeText(p))}</td>`;
-      h += `<td class="c"><span title="${esc(g.items.map(x => [x.grade, x.weight, x.count].filter(Boolean).join(" ")).join("\n"))}">${g.items.length}개</span>${sizes ? `<br><span class="hint">${esc(sizes)}</span>` : ""}</td>`;
       h += `</tr>`;
       seenC.add(g.cat); seenN.add(nk);
     });
-    h += `</tbody></table></div><p class="hint">수정 → 저장하면 그 품종의 모든 구분 · 규격(중량 · 수량)에 똑같이 들어가요. 수정 칸 맨 위는 상품명(분류, 예: 사과)이에요. 시즌은 11월 ~ 2월처럼 해를 넘겨도 돼요.</p>`;
+    h += `</tbody></table></div><p class="hint">품종마다 한 줄이에요. 수정 → 저장하면 그 품종의 모든 구분 · 규격(중량 · 수량)에 똑같이 들어가요. 수정 칸 맨 위는 상품명(분류, 예: 사과)이에요. 시즌은 11월 ~ 2월처럼 해를 넘겨도 돼요.</p>`;
     const mo = [["", "그대로"], ...MONTHS.map(m => [m, m + "월"])];
     host.innerHTML = h + bulkBar("sp", ` · ${bkIn("sp", "category", "상품명(분류)", 100)} ${bkIn("sp", "origin", "원산지", 100)} ${bkIn("sp", "brix", "브릭스", 60)}
       시즌 ${bkSel("sp", "seasonFrom", mo, "시즌 시작")} ~ ${bkSel("sp", "seasonTo", mo, "시즌 끝")}
