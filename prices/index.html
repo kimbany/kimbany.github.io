@@ -140,6 +140,17 @@ table.led { border-collapse: separate; border-spacing: 0; width: max-content; mi
 .led td.gcell.pname { vertical-align: top; padding-top: 10px; }
 .led tr.cstart td { border-top: 3px solid var(--ink); }
 .led tbody tr:first-child td { border-top: 0; }
+.led .selc { width: 30px; min-width: 30px; text-align: center; padding: 2px; }
+.led .selc input { accent-color: var(--accent); width: 16px; height: 16px; cursor: pointer; }
+.led tr.picked td { background: color-mix(in srgb, var(--accent-soft) 70%, var(--surface)); }
+.bulkbar { position: sticky; bottom: calc(env(safe-area-inset-bottom, 0px) + 12px); margin-top: 12px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap;
+  background: var(--ink); color: var(--bg); padding: 10px 14px; border-radius: 10px; box-shadow: var(--shadow); z-index: 6; font-size: 13px; }
+.bulkbar.top { position: sticky; top: calc(env(safe-area-inset-top, 0px) + 64px); bottom: auto; margin: 0 0 10px; }
+.bulkbar input, .bulkbar select { color: var(--ink); padding: 4px 6px; font-size: 12px; }
+.bulkbar .btn:not(.primary):not(.danger) { color: var(--ink); }
+.bulkbar .btn.danger { background: var(--surface); }
+.bulkbar .switch { color: var(--bg); }
+.bulkbar .hint { color: color-mix(in srgb, var(--bg) 70%, transparent); }
 .linkcell { all: unset; cursor: pointer; text-decoration: underline dotted; text-underline-offset: 3px; }
 .linkcell:hover { color: var(--accent); }
 .led tr.dayrow td { background: var(--surface-2); font-weight: 700; border-top: 2px solid var(--line-strong); }
@@ -693,11 +704,20 @@ const PB_SEED = {"brands":{"b-gyul":{"name":"귤타민","sort":20},"b-kakao":{"n
     const key = a && a.dataset ? a.dataset.key : null;
     let selS = null, selE = null;
     try { if (key) { selS = a.selectionStart; selE = a.selectionEnd; } } catch (e) {}
+    // 다시 그려도 스크롤 자리 그대로 (화면 · 표 안쪽)
+    const view = $("#v-" + ui.view);
+    const winY = window.scrollY, winX = window.scrollX;
+    const wraps = view ? $$(".tablewrap", view).map(w => [w.scrollTop, w.scrollLeft]) : [];
     renderDatalists();
     ({ prices: renderPrices, adjust: renderAdjust, daily: renderDaily, cost: renderHistory, products: renderProducts, spec: renderSpec, materials: renderMaterials, config: renderConfig })[ui.view]();
+    if (view && ui.lastView === ui.view) {
+      $$(".tablewrap", view).forEach((w, i) => { if (wraps[i]) { w.scrollTop = wraps[i][0]; w.scrollLeft = wraps[i][1]; } });
+      if (window.scrollY !== winY || window.scrollX !== winX) window.scrollTo(winX, winY);
+    }
+    ui.lastView = ui.view;
     if (key) {
       const el = document.querySelector('[data-key="' + CSS.escape(key) + '"]');
-      if (el && el !== document.activeElement) { el.focus(); try { if (selS != null) el.setSelectionRange(selS, selE); } catch (e) {} }
+      if (el && el !== document.activeElement) { el.focus({ preventScroll: true }); try { if (selS != null) el.setSelectionRange(selS, selE); } catch (e) {} }
     }
   }
   function renderDatalists() {
@@ -713,6 +733,168 @@ const PB_SEED = {"brands":{"b-gyul":{"name":"귤타민","sort":20},"b-kakao":{"n
   }
   function emptyHTML(title, body) { return `<div class="tablewrap free"><div class="empty"><strong>${esc(title)}</strong>${body}</div></div>`; }
   function loadingOr(html) { return S.connected ? html : `<div class="tablewrap free"><div class="empty">데이터를 불러오는 중…</div></div>`; }
+
+  // ---------- 체크박스 선택 · 일괄 수정 공용 ----------
+  ui.sel = {}; ui.bulk = {};
+  const selSet = v => ui.sel[v] || (ui.sel[v] = new Set());
+  const bk = (v, f, d = "") => { const o = ui.bulk[v] || (ui.bulk[v] = {}); return o[f] ?? d; };
+  const selTh = (v, ids, rs) => `<th class="selc"${rs ? ` rowspan="${rs}"` : ""}><input type="checkbox" data-selall="${v}" data-ids="${esc(JSON.stringify(ids))}" ${ids.length && ids.every(i => selSet(v).has(i)) ? "checked" : ""} aria-label="모두 선택"></th>`;
+  const selTd = (v, id, rs) => `<td class="selc"${rs ? ` rowspan="${rs}"` : ""}><input type="checkbox" data-sel="${v}" data-id="${esc(id)}" ${selSet(v).has(id) ? "checked" : ""} aria-label="선택"></td>`;
+  const bkIn = (v, f, ph, w = 90, type = "text") => `<input type="${type}" data-bkv="${v}" data-bkf="${f}" value="${esc(bk(v, f))}" placeholder="${esc(ph)}" style="width:${w}px" aria-label="${esc(ph)}">`;
+  const bkSel = (v, f, opts, label) => `<select data-bkv="${v}" data-bkf="${f}" aria-label="${esc(label)}">${opts.map(([val, t]) => `<option value="${esc(val)}"${String(bk(v, f, opts[0][0])) === String(val) ? " selected" : ""}>${esc(t)}</option>`).join("")}</select>`;
+  function bulkBar(v, inner, unitWord = "개", top = false) {
+    const n = selSet(v).size;
+    if (!n || !S.canWrite) return "";
+    return `<div class="bulkbar${top ? " top" : ""}"><b>선택 ${n}${unitWord}</b>${inner}<span class="grow"></span><button class="btn sm" type="button" data-act="sel-clear" data-v="${v}">선택 해제</button></div>`;
+  }
+  // 단가 · 가격 일괄 계산: 값으로 / +원 / −원 / +% / −%  (10원 단위로 맞춤)
+  const OPS = [["set", "값으로"], ["add", "+ 원"], ["sub", "− 원"], ["pctUp", "+ %"], ["pctDown", "− %"]];
+  const applyOp = (base, op, val) => {
+    const v = num(val); if (v == null) return base;
+    const b = num(base) ?? 0;
+    const r = op === "set" ? v : op === "add" ? b + v : op === "sub" ? b - v : op === "pctUp" ? b * (1 + v / 100) : op === "pctDown" ? b * (1 - v / 100) : b;
+    return op === "set" ? r : Math.round(r / 10) * 10;
+  };
+
+  // 판매가 수정: 선택한 줄의 칸에 값 넣기 (저장은 아래 저장 버튼으로)
+  function applyPriceBulk() {
+    const o = ui.bulk.pp || {};
+    const bid = o.bid || (brands()[0] || {}).id; const f = o.f || "sale", op = o.op || "set";
+    if (!bid) return;
+    if (f !== "stop" && (o.val == null || String(o.val).trim() === "")) { toast("금액이나 %를 넣어 주세요.", true); return; }
+    let n = 0;
+    selSet("pp").forEach(pid => {
+      const p = S.products.find(x => x.id === pid); if (!p) return;
+      const cur = curPrice(p, bid);
+      const put = (fld, val) => { const k = dKey(pid, bid, fld); const stored = ((p.prices || {})[bid] || {})[fld] ?? null; if ((parseField(fld, val) ?? null) === stored) delete ui.drafts[k]; else ui.drafts[k] = val; };
+      if (f === "stop") { put("regular", ""); put("sale", ""); }
+      else if (f === "shipping") put("shipping", op === "set" ? String(o.val).trim() : String(applyOp(cur.shipping, op, o.val)));
+      else (f === "both" ? ["regular", "sale"] : [f]).forEach(fld => put(fld, won(applyOp(cur[fld], op, o.val))));
+      n++;
+    });
+    renderView();
+    toast(`${n}줄에 넣었어요 · 아래 저장을 눌러야 반영돼요`);
+  }
+  async function applyProductsBulk(btn) {
+    const o = ui.bulk.pl || {};
+    if (!o.mode && !o.vendor && !o.type && !String(o.category || "").trim() && !(o.costOp && String(o.costVal || "").trim())) { toast("바꿀 내용을 하나 이상 골라 주세요.", true); return; }
+    const date = o.date || today(), memo = String(o.memo || "").trim() || "일괄 수정";
+    btn.disabled = true; let n = 0;
+    const ok = await guard(async () => {
+      for (const pid of selSet("pl")) {
+        const p = S.products.find(x => x.id === pid); if (!p) continue;
+        const full = JSON.parse(JSON.stringify(p)); delete full.id;
+        if (o.mode) full.mode = o.mode;
+        if (o.vendor) { full.vendorId = o.vendor; if (!o.mode) full.mode = "vendor"; }
+        if (o.type) full.type = o.type;
+        if (String(o.category || "").trim()) full.category = String(o.category).trim();
+        if (o.costOp && String(o.costVal || "").trim()) full.unitCost = applyOp(p.unitCost, o.costOp, o.costVal);
+        const diffs = diffProduct(p, full);
+        if (!diffs.length) continue;
+        full.updatedAt = new Date().toISOString();
+        await db.doc("products/" + pid).set(full);
+        await addHist(diffs.map(d => ({ ...d, targetId: pid, label: label(full), date, memo })));
+        n++;
+      }
+    });
+    btn.disabled = false;
+    if (ok) toast(n ? `${n}개 제품을 바꿨어요` : "바뀐 내용이 없어요");
+  }
+  async function deleteProductsBulk(btn) {
+    if (!armed(btn)) return;
+    const ids = [...selSet("pl")]; let n = 0;
+    const ok = await guard(async () => {
+      for (const pid of ids) {
+        const p = S.products.find(x => x.id === pid); if (!p) continue;
+        await db.doc("products/" + pid).delete();
+        await addHist([{ kind: "delete", targetId: pid, label: label(p), field: "제품 삭제", from: `단가 ${won(p.unitCost)}원`, to: null, date: today(), memo: "일괄 삭제" }]);
+        n++;
+      }
+    });
+    if (ok) { selSet("pl").clear(); toast(`${n}개 제품을 삭제했어요`); }
+  }
+  async function applySpecBulk(btn) {
+    const o = ui.bulk.sp || {};
+    const body = {};
+    ["category", "origin", "brix", "onlineDate", "specNote"].forEach(f => { const v = String(o[f] || "").trim(); if (v) body[f] = v; });
+    if (o.seasonFrom || o.seasonTo) {
+      if (!(o.seasonFrom && o.seasonTo)) { toast("시즌은 시작 달과 끝 달을 둘 다 골라 주세요.", true); return; }
+      body.seasonFrom = num(o.seasonFrom); body.seasonTo = num(o.seasonTo);
+    }
+    if (!Object.keys(body).length) { toast("넣을 값을 하나 이상 적어 주세요.", true); return; }
+    btn.disabled = true; let n = 0;
+    const ok = await guard(async () => {
+      for (const t of S.products.filter(x => selSet("sp").has(catOf(x) + "|" + x.name))) {
+        const h = [];
+        const push = (field, from, to) => { if ((from || null) !== (to || null)) h.push({ kind: "info", field, from: from || null, to: to || null }); };
+        if ("category" in body) push("상품명(분류)", t.category, body.category);
+        if ("origin" in body) push("원산지", t.origin, body.origin);
+        if ("brix" in body) push("브릭스", t.brix, body.brix);
+        if ("seasonFrom" in body) push("시즌", seasonText(t), seasonText(body));
+        if ("onlineDate" in body) push("온라인 첫 등록일", t.onlineDate, body.onlineDate);
+        if ("specNote" in body) push("스펙 메모", t.specNote, body.specNote);
+        if (!h.length) continue;
+        await db.doc("products/" + t.id).update({ ...body, updatedAt: new Date().toISOString() });
+        await addHist(h.map(x => ({ ...x, targetId: t.id, label: label(t), date: today(), memo: "제품별 스펙 일괄 수정" })));
+        n++;
+      }
+    });
+    btn.disabled = false;
+    if (ok) { if ("category" in body) selSet("sp").clear(); toast(n ? `규격 ${n}개에 넣었어요` : "바뀐 내용이 없어요"); }
+  }
+  async function applyMatGridBulk(btn) {
+    const o = ui.bulk.mg || {};
+    const cats = gridCats(); const cat = o.cat || cats[0]; const act = o.act || "set";
+    const item = o.item && catMats(cat).some(m => m.id === o.item) ? o.item : (catMats(cat)[0] || {}).id;
+    if (act === "set" && !item) { toast("넣을 부자재가 없어요.", true); return; }
+    const qty = NOQTY.has(cat) ? 1 : (num(o.qty) ?? 1);
+    const byP = new Map();
+    selSet("mg").forEach(k => { const [pid, bid] = k.split("|"); if (!byP.has(pid)) byP.set(pid, []); byP.get(pid).push(bid); });
+    btn.disabled = true; let n = 0;
+    const ok = await guard(async () => {
+      for (const [pid, bids] of byP) {
+        const p = S.products.find(x => x.id === pid); if (!p) continue;
+        const patch = {}, hist = [];
+        bids.forEach(bid => {
+          const before = matsFor(p, bid);
+          const after = before.filter(x => matCat(matById(x.id)) !== cat);
+          if (act === "set") after.push({ id: item, qty });
+          const a = matSummary(before), z = matSummary(after);
+          if (a === z) return;
+          patch[bid] = after;
+          const b = S.brands.find(x => x.id === bid);
+          hist.push({ kind: "material", targetId: pid, label: label(p), field: (b ? b.name : "") + " 부자재", from: a, to: z, date: today(), memo: "부자재 일괄 수정" });
+        });
+        if (!hist.length) continue;
+        await db.doc("products/" + pid).update({ matsByBrand: patch, updatedAt: new Date().toISOString() });
+        await addHist(hist); n += hist.length;
+      }
+    });
+    btn.disabled = false;
+    if (ok) toast(n ? `${n}줄을 바꿨어요` : "바뀐 내용이 없어요");
+  }
+  async function applyMatListBulk(btn) {
+    const o = ui.bulk.ml || {};
+    if (!(o.costOp && String(o.costVal || "").trim()) && !o.cat) { toast("바꿀 내용을 골라 주세요.", true); return; }
+    const date = o.date || today(), memo = String(o.memo || "").trim() || "일괄 수정";
+    btn.disabled = true; let n = 0;
+    const ok = await guard(async () => {
+      for (const id of selSet("ml")) {
+        const m = S.materials.find(x => x.id === id); if (!m) continue;
+        const full = { ...m }; delete full.id;
+        const h = [];
+        if (o.costOp && String(o.costVal || "").trim()) { full.cost = o.costOp === "set" ? num(o.costVal) : Math.round(applyOp(m.cost, o.costOp, o.costVal) * 10) / 10; if (num(m.cost) !== full.cost) h.push({ kind: "cost", field: "개당 단가", from: num(m.cost), to: full.cost }); }
+        if (o.cat && matCat(m) !== o.cat) { full.cat = o.cat; h.push({ kind: "info", field: "분류", from: matCat(m), to: o.cat }); }
+        if (!h.length) continue;
+        full.updatedAt = new Date().toISOString();
+        await db.doc("materials/" + id).set(full);
+        await addHist(h.map(x => ({ ...x, target: "material", targetId: id, label: "부자재 · " + m.name, date, memo })));
+        n++;
+      }
+    });
+    btn.disabled = false;
+    if (ok) toast(n ? `부자재 ${n}개를 바꿨어요` : "바뀐 내용이 없어요");
+  }
 
   // ---------- 가격표 (보기 · 수정 공용) ----------
   function renderFilters(pre) {
@@ -735,7 +917,7 @@ const PB_SEED = {"brands":{"b-gyul":{"name":"귤타민","sort":20},"b-kakao":{"n
     const bs = brands().filter(b => !ui.hidden.has(b.id));
     const cbs = ui.chan ? bs.filter(b => brandChannels(b).length) : [];
     let h = `<div class="tablewrap"><table class="led"><thead><tr>
-      <th rowspan="3">상품명</th><th rowspan="3">품종</th><th rowspan="3">구분</th><th rowspan="3">업체</th><th rowspan="3">등급</th><th rowspan="3">중량</th><th rowspan="3">수량</th>
+      ${S.canWrite ? selTh("pp", list.map(p => p.id), 3) : ""}<th rowspan="3">상품명</th><th rowspan="3">품종</th><th rowspan="3">구분</th><th rowspan="3">업체</th><th rowspan="3">등급</th><th rowspan="3">중량</th><th rowspan="3">수량</th>
       <th rowspan="3">단가</th>`;
     bs.forEach(b => { h += `<th class="brand bstart" colspan="6">${esc(b.name)}</th>`; });
     cbs.forEach(b => { h += `<th class="brand bstart" colspan="${brandChannels(b).length}">${esc(b.name)} 채널</th>`; });
@@ -749,7 +931,8 @@ const PB_SEED = {"brands":{"b-gyul":{"name":"귤타민","sort":20},"b-kakao":{"n
     groupOf(list).forEach(g => {
       const n = g.items.length;
       g.items.forEach((p, i) => {
-        h += `<tr class="${i === 0 ? (g.catSpan ? "cstart" : "gstart") : ""}">`;
+        h += `<tr class="${i === 0 ? (g.catSpan ? "cstart" : "gstart") : ""}${selSet("pp").has(p.id) ? " picked" : ""}">`;
+        if (S.canWrite) h += selTd("pp", p.id);
         if (i === 0) h += catCell(g) + nameCell(g, p) + `<td class="gcell ${typeClass(p.type)}" rowspan="${n}">${esc(p.type)}</td>` + vendCell(p, n);
         h += `<td class="c">${esc(p.grade)}</td><td class="c">${esc(p.weight)}</td><td class="c">${esc(p.count)}</td>`;
         h += `<td class="num cost">${won(p.unitCost)}</td>`;
@@ -796,7 +979,8 @@ const PB_SEED = {"brands":{"b-gyul":{"name":"귤타민","sort":20},"b-kakao":{"n
     if (!S.products.length) { host.innerHTML = emptyHTML("아직 등록된 제품이 없어요", `<p>제품 관리에서 첫 제품을 추가하면 이 표에 판매처별 가격이 정리돼요.</p>`); return; }
     const list = filtered();
     if (!list.length) { host.innerHTML = emptyHTML("조건에 맞는 제품이 없어요", `<p>검색어나 구분 · 발송 필터를 바꿔 보세요.</p>`); return; }
-    host.innerHTML = `<p class="summary">제품 <b>${list.length}</b>개</p>` + ledgerHTML(list, false);
+    host.innerHTML = `<p class="summary">제품 <b>${list.length}</b>개${S.canWrite ? " · 체크해서 판매가 수정으로 가져가면 한꺼번에 고칠 수 있어요" : ""}</p>` + ledgerHTML(list, false)
+      + bulkBar("pp", `<button class="btn sm primary" type="button" data-act="pp-to-adjust">판매가 수정에서 한꺼번에 고치기</button>`);
   }
   function renderAdjust() {
     renderFilters("a");
@@ -805,9 +989,12 @@ const PB_SEED = {"brands":{"b-gyul":{"name":"귤타민","sort":20},"b-kakao":{"n
     if (!S.connected) { host.innerHTML = loadingOr(""); return; }
     if (!S.canWrite) { host.innerHTML = emptyHTML("가격을 고치려면 PIN이 필요해요", `<p>오른쪽 위 <b>수정하기</b>를 누르고 PIN을 넣어 주세요.</p><p><button class="btn primary" type="button" data-act="unlock">수정하기</button></p>`); return; }
     if (!S.products.length) { host.innerHTML = emptyHTML("아직 등록된 제품이 없어요", ""); return; }
-    const list = filtered();
-    if (!list.length) { host.innerHTML = emptyHTML("조건에 맞는 제품이 없어요", ""); return; }
-    host.innerHTML = `<p class="summary">제품 <b>${list.length}</b>개 · 칸을 고치면 노란색으로 표시되고, 아래 <b>저장</b>을 눌러야 반영돼요. 정상가 · 판매가를 모두 비우면 그 판매처에서는 판매 안 함이 돼요.</p>` + ledgerHTML(list, true);
+    const list = filtered().filter(p => !ui.ppOnly || selSet("pp").has(p.id));
+    if (!list.length) { host.innerHTML = emptyHTML("조건에 맞는 제품이 없어요", ui.ppOnly ? `<p><button class="btn" type="button" data-act="pp-only-off">선택한 것만 보기 끄기</button></p>` : ""); return; }
+    const ppBar = bulkBar("pp", ` · 판매처 ${bkSel("pp", "bid", brands().map(b => [b.id, b.name]), "판매처")} ${bkSel("pp", "f", [["sale", "판매가"], ["regular", "정상가"], ["both", "정상가 · 판매가"], ["shipping", "배송비"], ["stop", "판매 안 함으로"]], "항목")} ${bkSel("pp", "op", OPS, "계산")} ${bkIn("pp", "val", "금액 또는 %")}
+      <button class="btn sm primary" type="button" data-act="pp-apply">선택한 줄에 넣기</button>
+      <label class="switch"><input type="checkbox" id="pp-only" ${ui.ppOnly ? "checked" : ""}> 선택한 것만 보기</label>`, "개", true);
+    host.innerHTML = ppBar + `<p class="summary">제품 <b>${list.length}</b>개 · 칸을 고치면 노란색으로 표시되고, 아래 <b>저장</b>을 눌러야 반영돼요. 정상가 · 판매가를 모두 비우면 그 판매처에서는 판매 안 함이 돼요.</p>` + ledgerHTML(list, true);
   }
   function updateAdjustBar() {
     const n = Object.keys(ui.drafts).length;
@@ -894,12 +1081,12 @@ const PB_SEED = {"brands":{"b-gyul":{"name":"귤타민","sort":20},"b-kakao":{"n
     if (!list.length) { host.innerHTML = emptyHTML("조건에 맞는 제품이 없어요", ""); return; }
     const bs = brands();
     let h = `<p class="summary">제품 <b>${list.length}</b>개</p><div class="tablewrap"><table class="led"><thead><tr>
-      <th>상품명</th><th>품종</th><th>원산지</th><th>브릭스</th><th>구분</th><th>등급</th><th>중량</th><th>수량</th><th>발송</th><th>업체</th><th>단가</th><th>포장비 (판매처별)</th><th>원가</th><th>판매처</th><th>최근 단가·업체 변동</th><th class="w"></th></tr></thead><tbody>`;
+      ${S.canWrite ? selTh("pl", list.map(p => p.id)) : ""}<th>상품명</th><th>품종</th><th>원산지</th><th>브릭스</th><th>구분</th><th>등급</th><th>중량</th><th>수량</th><th>발송</th><th>업체</th><th>단가</th><th>포장비 (판매처별)</th><th>원가</th><th>판매처</th><th>최근 단가·업체 변동</th><th class="w"></th></tr></thead><tbody>`;
     groupOf(list).forEach(g => g.items.forEach((p, i) => {
       const lc = lastChange(p.id);
       const soldAt = bs.filter(b => isSold((p.prices || {})[b.id])).map(b => b.name);
       const sv = f => specVal(g.nameItems, f).v;
-      h += `<tr class="${i === 0 ? (g.catSpan ? "cstart" : "gstart") : ""}">
+      h += `<tr class="${i === 0 ? (g.catSpan ? "cstart" : "gstart") : ""}${selSet("pl").has(p.id) ? " picked" : ""}">${S.canWrite ? selTd("pl", p.id) : ""}
         ${i === 0 ? catCell(g) + nameCell(g, p) + (g.nameSpan ? `<td class="gcell" rowspan="${g.nameSpan}">${esc(sv("origin"))}</td><td class="gcell" rowspan="${g.nameSpan}">${esc(sv("brix"))}</td>` : "") + `<td class="gcell ${typeClass(p.type)}" rowspan="${g.items.length}">${esc(p.type)}</td>` : ""}
         <td class="c">${esc(p.grade)}</td><td class="c">${esc(p.weight)}</td><td class="c">${esc(p.count)}</td>
         <td class="c">${p.mode === "self" ? '<span class="tag self">자체 포장</span>' : '<span class="tag vendor">업체 발송</span>'}</td>
@@ -911,7 +1098,15 @@ const PB_SEED = {"brands":{"b-gyul":{"name":"귤타민","sort":20},"b-kakao":{"n
       </tr>`;
     }));
     h += `</tbody></table></div>`;
-    host.innerHTML = h;
+    const vs = S.vendors.slice().sort(bySort);
+    host.innerHTML = h + bulkBar("pl", ` · ${bkSel("pl", "mode", [["", "발송 그대로"], ["vendor", "업체 발송"], ["self", "자체 포장"]], "발송")}
+      ${bkSel("pl", "vendor", [["", "업체 그대로"], ...vs.map(v => [v.id, v.name])], "업체")}
+      ${bkSel("pl", "type", [["", "구분 그대로"], ...S.config.types.map(t => [t, t])], "구분")}
+      ${bkIn("pl", "category", "상품명(분류)", 100)}
+      ${bkSel("pl", "costOp", [["", "단가 그대로"], ...OPS], "단가")} ${bkIn("pl", "costVal", "금액 또는 %", 90)}
+      ${bkIn("pl", "date", "적용일", 130, "date")} ${bkIn("pl", "memo", "사유", 110)}
+      <button class="btn sm primary" type="button" data-act="pl-apply">선택한 제품에 적용</button>
+      <button class="btn sm danger" type="button" data-act="pl-delete">선택한 제품 삭제</button>`);
   }
 
   // ---------- 메뉴2: 변동 기록 ----------
@@ -1179,7 +1374,7 @@ const PB_SEED = {"brands":{"b-gyul":{"name":"귤타민","sort":20},"b-kakao":{"n
     const mix = x => x.mixed ? ' <span class="hint" title="규격마다 값이 달라요. 저장하면 모두 같은 값이 돼요.">(여러 값)</span>' : "";
     const nNames = rowsOfName.size;
     let h = `<p class="summary">품종 <b>${nNames}</b>개 (규격 ${list.length}개) · 원산지 · 브릭스 · 시즌은 품종마다 하나예요. 지금은 <b>${nowM}월</b> — 진한 칸이 제철 달, 테두리가 이번 달이에요.</p>`;
-    h += `<div class="tablewrap"><table class="led spec"><thead><tr><th>상품명</th><th>품종</th><th class="bstart">원산지</th><th>브릭스</th><th>시즌</th>${MONTHS.map(m => `<th class="mcol${m === nowM ? " now" : ""}">${m}</th>`).join("")}<th>온라인 첫 등록일</th><th>메모</th><th class="w"></th><th class="bstart">구분</th><th>업체</th><th>규격</th></tr></thead><tbody>`;
+    h += `<div class="tablewrap"><table class="led spec"><thead><tr><th>상품명</th>${S.canWrite ? selTh("sp", [...new Set(groups.map(g => g.cat + "|" + g.name))]) : ""}<th>품종</th><th class="bstart">원산지</th><th>브릭스</th><th>시즌</th>${MONTHS.map(m => `<th class="mcol${m === nowM ? " now" : ""}">${m}</th>`).join("")}<th>온라인 첫 등록일</th><th>메모</th><th class="w"></th><th class="bstart">구분</th><th>업체</th><th>규격</th></tr></thead><tbody>`;
     const seenC = new Set(), seenN = new Set();
     groups.forEach(g => {
       const p = g.items[0], nk = g.cat + "|" + g.name;
@@ -1189,6 +1384,7 @@ const PB_SEED = {"brands":{"b-gyul":{"name":"귤타민","sort":20},"b-kakao":{"n
       if (firstC) h += `<td class="gcell catname" rowspan="${rowsOfCat.get(g.cat)}">${esc(g.cat)}</td>`;
       if (firstN) {
         const rn = rowsOfName.get(nk), sv = svOf(nk);
+        if (S.canWrite) h += selTd("sp", nk, rn);
         h += `<td class="gcell pname" rowspan="${rn}"><button type="button" data-act="edit-product" data-id="${esc(p.id)}" title="제품 수정">${esc(g.name)}</button></td>`;
         if (ed) {
           const d = ui.sedit.draft;
@@ -1215,7 +1411,11 @@ const PB_SEED = {"brands":{"b-gyul":{"name":"귤타민","sort":20},"b-kakao":{"n
       seenC.add(g.cat); seenN.add(nk);
     });
     h += `</tbody></table></div><p class="hint">수정 → 저장하면 그 품종의 모든 구분 · 규격(중량 · 수량)에 똑같이 들어가요. 수정 칸 맨 위는 상품명(분류, 예: 사과)이에요. 시즌은 11월 ~ 2월처럼 해를 넘겨도 돼요.</p>`;
-    host.innerHTML = h;
+    const mo = [["", "그대로"], ...MONTHS.map(m => [m, m + "월"])];
+    host.innerHTML = h + bulkBar("sp", ` · ${bkIn("sp", "category", "상품명(분류)", 100)} ${bkIn("sp", "origin", "원산지", 100)} ${bkIn("sp", "brix", "브릭스", 60)}
+      시즌 ${bkSel("sp", "seasonFrom", mo, "시즌 시작")} ~ ${bkSel("sp", "seasonTo", mo, "시즌 끝")}
+      등록일 ${bkIn("sp", "onlineDate", "온라인 첫 등록일", 130, "date")} ${bkIn("sp", "specNote", "메모", 110)}
+      <button class="btn sm primary" type="button" data-act="sp-bulk">선택한 품종에 적용</button> <span class="hint">빈 칸은 그대로 둬요</span>`, "개 품종");
   }
   async function saveSpec(btn) {
     const e = ui.sedit; if (!e) return;
@@ -1280,7 +1480,7 @@ const PB_SEED = {"brands":{"b-gyul":{"name":"귤타민","sort":20},"b-kakao":{"n
     if (!rows.length) { host.innerHTML = emptyHTML("보여 줄 제품이 없어요", `<p>자체 발송 제품 중 판매하거나 부자재를 넣은 판매처가 있는 제품이 여기에 나와요. "업체 발송 제품도 보기"를 켜면 더 보여요.</p>`); return; }
     const colsOf = c => 1 + (catMats(c).length > 1 ? 1 : 0) + (NOQTY.has(c) ? 0 : 1);
     let h = `<p class="summary"><b>${rows.length}</b>줄 · 한 줄 = 그 제품을 그 판매처에서 팔 때의 포장이에요. 고치면 제품별 가격표의 포장비 · 마진에 바로 반영돼요.</p>`;
-    h += `<div class="tablewrap"><table class="led mgrid"><thead><tr><th rowspan="2">상품명</th><th rowspan="2">품종</th><th rowspan="2">판매처</th><th rowspan="2">구분</th><th rowspan="2">등급</th><th rowspan="2">중량</th><th rowspan="2">수량</th>`;
+    h += `<div class="tablewrap"><table class="led mgrid"><thead><tr>${S.canWrite ? selTh("mg", rows.map(r => r.p.id + "|" + r.b.id), 2) : ""}<th rowspan="2">상품명</th><th rowspan="2">품종</th><th rowspan="2">판매처</th><th rowspan="2">구분</th><th rowspan="2">등급</th><th rowspan="2">중량</th><th rowspan="2">수량</th>`;
     cats.forEach(c => { h += `<th class="brand bstart" colspan="${colsOf(c)}">${esc(c)}</th>`; });
     h += `<th class="brand bstart" colspan="${base.length + (sl ? 1 : 0) + (sh ? 1 : 0)}">기본 (자동)</th><th rowspan="2" class="bstart">포장비</th><th rowspan="2" class="w"></th></tr><tr class="r2">`;
     cats.forEach(c => { h += `<th class="bstart">사용</th>${catMats(c).length > 1 ? "<th>종류</th>" : ""}${NOQTY.has(c) ? "" : "<th>수량</th>"}`; });
@@ -1293,7 +1493,8 @@ const PB_SEED = {"brands":{"b-gyul":{"name":"귤타민","sort":20},"b-kakao":{"n
       const editing = ui.medit && ui.medit.pid === p.id && ui.medit.bid === b.id;
       const L = matsFor(p, b.id);
       const d = editing ? ui.medit.draft : null;
-      h += `<tr class="${p.id !== lastP ? "gstart" : ""}${editing ? " editing" : ""}">`;
+      h += `<tr class="${p.id !== lastP ? "gstart" : ""}${editing ? " editing" : ""}${selSet("mg").has(p.id + "|" + b.id) ? " picked" : ""}">`;
+      if (S.canWrite) h += selTd("mg", p.id + "|" + b.id);
       h += `<td class="c catname">${esc(catOf(p))}</td><td class="pname"><button type="button" data-act="edit-product" data-id="${esc(p.id)}" title="제품 수정">${esc(p.name)}</button></td>`;
       h += `<td class="c"><b>${esc(b.name)}</b>${sold ? "" : '<br><span class="hint">판매 안 함</span>'}</td><td class="c ${typeClass(p.type)}">${esc(p.type)}</td><td class="c">${esc(p.grade)}</td><td class="c">${esc(p.weight)}</td><td class="c">${esc(p.count)}</td>`;
       cats.forEach(c => {
@@ -1322,7 +1523,10 @@ const PB_SEED = {"brands":{"b-gyul":{"name":"귤타민","sort":20},"b-kakao":{"n
       lastP = p.id;
     });
     h += `</tbody></table></div><p class="hint">기본(테이프 · 인건비 · 택배비)은 기타 설정에서 정한 대로 자동으로 들어가요. 택배비는 중량 ${num(S.config.heavyKg) || 6}kg 이상이면 무거운 택배비예요. 같은 분류를 두 개 이상 쓰면 "외 1"처럼 보이고, 그건 제품 수정 창에서 고쳐요.</p>`;
-    host.innerHTML = h;
+    const bc = bk("mg", "cat", cats[0]);
+    host.innerHTML = h + bulkBar("mg", ` · ${bkSel("mg", "cat", cats.map(c => [c, c]), "분류")} ${bkSel("mg", "act", [["set", "넣기 · 바꾸기"], ["off", "빼기"]], "동작")}
+      ${bk("mg", "act", "set") === "set" ? bkSel("mg", "item", catMats(bc).map(m => [m.id, shortName(m, bc)]), "종류") + (NOQTY.has(bc) ? "" : " 수량 " + bkIn("mg", "qty", "1", 50)) : ""}
+      <button class="btn sm primary" type="button" data-act="mg-bulk">선택한 줄에 적용</button>`, "줄");
   }
   function listFromDraft(p, bid, d) {
     const cats = gridCats();
@@ -1370,18 +1574,21 @@ const PB_SEED = {"brands":{"b-gyul":{"name":"귤타민","sort":20},"b-kakao":{"n
     const list = S.materials.slice().sort(bySort).filter(m => !q || [m.name, m.spec, m.supplier, m.note].join(" ").toLowerCase().includes(q));
     if (!S.materials.length) { host.innerHTML = emptyHTML("등록된 부자재가 없어요", `<p>박스, 완충재, 아이스팩, 스티커처럼 포장에 드는 자재를 등록하면 제품 원가에 더할 수 있어요.</p><p class="w"><button class="btn primary" data-act="new-material" type="button">+ 부자재 추가</button></p>`); return; }
     if (!list.length) { host.innerHTML = emptyHTML("조건에 맞는 부자재가 없어요", ""); return; }
-    let h = `<div class="tablewrap free"><table class="led"><thead><tr><th>분류</th><th>부자재</th><th>규격</th><th>구매처</th><th>개당 단가</th><th>사용 제품</th><th>최근 단가 변동</th><th>메모</th><th class="w"></th></tr></thead><tbody>`;
+    let h = `<div class="tablewrap free"><table class="led"><thead><tr>${S.canWrite ? selTh("ml", list.map(m => m.id)) : ""}<th>분류</th><th>부자재</th><th>규격</th><th>구매처</th><th>개당 단가</th><th>사용 제품</th><th>최근 단가 변동</th><th>메모</th><th class="w"></th></tr></thead><tbody>`;
     list.forEach(m => {
       const used = S.products.filter(p => usesMat(p, m.id));
       const isBase = (S.config.baseMats || []).some(x => x.id === m.id) || S.config.shipLight === m.id || S.config.shipHeavy === m.id;
       const lc = S.history.filter(x => x.target === "material" && x.targetId === m.id && x.kind === "cost").sort(histSort)[0];
-      h += `<tr><td class="c">${esc(matCat(m))}</td><td><b>${esc(m.name)}</b></td><td>${esc(m.spec || "")}</td><td>${esc(m.supplier || "")}</td><td class="num cost">${won(m.cost)}</td>
+      h += `<tr class="${selSet("ml").has(m.id) ? "picked" : ""}">${S.canWrite ? selTd("ml", m.id) : ""}<td class="c">${esc(matCat(m))}</td><td><b>${esc(m.name)}</b></td><td>${esc(m.spec || "")}</td><td>${esc(m.supplier || "")}</td><td class="num cost">${won(m.cost)}</td>
         <td class="muted">${isBase ? "기본 (모든 자체 발송)" : used.length ? used.length + "개" : "–"}</td><td class="muted">${lc ? esc(lc.date) + " · " + won(lc.from) + " → " + won(lc.to) : "–"}</td>
         <td class="muted">${esc(m.note || "")}</td>
         <td class="w"><button class="btn sm" type="button" data-act="edit-material" data-id="${esc(m.id)}">수정</button></td></tr>`;
     });
     h += `</tbody></table></div>`;
-    host.innerHTML = h;
+    host.innerHTML = h + bulkBar("ml", ` · 단가 ${bkSel("ml", "costOp", [["", "그대로"], ...OPS], "단가")} ${bkIn("ml", "costVal", "금액 또는 %", 90)}
+      분류 ${bkSel("ml", "cat", [["", "그대로"], ...[...MAT_CATS, "기본"].map(c => [c, c])], "분류")}
+      ${bkIn("ml", "date", "적용일", 130, "date")} ${bkIn("ml", "memo", "사유", 110)}
+      <button class="btn sm primary" type="button" data-act="ml-bulk">선택한 부자재에 적용</button>`);
   }
 
   // ---------- 메뉴4: 설정 ----------
@@ -1948,6 +2155,15 @@ const PB_SEED = {"brands":{"b-gyul":{"name":"귤타민","sort":20},"b-kakao":{"n
         break;
       }
       case "csv": exportCSV(); break;
+      case "sel-clear": selSet(b.dataset.v).clear(); renderView(); break;
+      case "pp-apply": applyPriceBulk(); break;
+      case "pp-to-adjust": ui.ppOnly = true; location.hash = "#adjust"; break;
+      case "pp-only-off": ui.ppOnly = false; renderView(); break;
+      case "pl-apply": await applyProductsBulk(b); break;
+      case "pl-delete": await deleteProductsBulk(b); break;
+      case "sp-bulk": await applySpecBulk(b); break;
+      case "mg-bulk": await applyMatGridBulk(b); break;
+      case "ml-bulk": await applyMatListBulk(b); break;
       case "mg-edit": {
         if (!S.canWrite) { openGate(); break; }
         const p = S.products.find(x => x.id === id); if (!p) break;
@@ -2035,6 +2251,10 @@ const PB_SEED = {"brands":{"b-gyul":{"name":"귤타민","sort":20},"b-kakao":{"n
     const t = e.target;
     if (t.id === "p-chan" || t.id === "a-chan") { ui.chan = t.checked; lsSet("pb.chan", ui.chan); renderView(); return; }
     if (t.dataset.pid && t.dataset.f) { if (ui.drafts[dKey(t.dataset.pid, t.dataset.bid, t.dataset.f)] != null && t.dataset.f !== "shipping") { const n = num(t.value); if (n != null) { t.value = won(n); onAdjustInput(t); } } return; }
+    if (t.dataset.sel) { const st = selSet(t.dataset.sel); t.checked ? st.add(t.dataset.id) : st.delete(t.dataset.id); renderView(); return; }
+    if (t.dataset.selall) { const st = selSet(t.dataset.selall); let ids = []; try { ids = JSON.parse(t.dataset.ids); } catch (e) {} ids.forEach(i => t.checked ? st.add(i) : st.delete(i)); renderView(); return; }
+    if (t.dataset.bkv) { (ui.bulk[t.dataset.bkv] = ui.bulk[t.dataset.bkv] || {})[t.dataset.bkf] = t.value; if (t.tagName === "SELECT") renderView(); return; }
+    if (t.id === "pp-only") { ui.ppOnly = t.checked; renderView(); return; }
     if (t.id === "d-changed") { ui.dchanged = t.checked; lsSet("pb.dchanged", ui.dchanged); renderView(); return; }
     if (t.id === "s-now") { ui.snow = t.checked; renderView(); return; }
     if (ui.sedit && t.dataset.sp && t.tagName === "SELECT") {
@@ -2099,6 +2319,7 @@ const PB_SEED = {"brands":{"b-gyul":{"name":"귤타민","sort":20},"b-kakao":{"n
     else if (t.id === "m-q") { ui.mq = t.value; renderView(); }
     else if (t.id === "s-q") { ui.sq = t.value; renderView(); }
     else if (t.id === "d-q") { ui.dq = t.value; renderView(); }
+    else if (t.dataset.bkv && t.tagName === "INPUT") (ui.bulk[t.dataset.bkv] = ui.bulk[t.dataset.bkv] || {})[t.dataset.bkf] = t.value;
     else if (ui.sedit && t.dataset.sp && t.tagName === "INPUT") ui.sedit.draft[t.dataset.sp] = t.value;
     else if (ui.medit && t.dataset.mgq) { ui.medit.draft[t.dataset.mgq].qty = t.value; updateGridCost(); }
     else if (t.id === "import-text") { ui.importText = t.value; if (ui.importPlan) { ui.importPlan = null; const pv = $("#import-preview"); if (pv) pv.innerHTML = ""; const rb = $("[data-act=import-run]"); if (rb) rb.disabled = true; } }
