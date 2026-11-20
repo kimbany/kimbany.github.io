@@ -831,6 +831,10 @@ const PB_SEED = {"brands":{"b-gyul":{"name":"귤타민","sort":20},"b-kakao":{"n
       const put = (fld, val) => setDraft(p, bid, fld, val);
       if (f === "stop") { put("regular", ""); put("sale", ""); }
       else if (f === "shipping") put("shipping", op === "set" ? String(o.val).trim() : String(applyOp(cur.shipping, op, o.val)));
+      else if ((f === "sale" || f === "both") && autoRegularOn()) {
+        const sale = applyOp(cur.sale ?? cur.regular, op, o.val); put("sale", won(sale));
+        const reg = regularFromSale(sale); if (reg != null) put("regular", won(reg));
+      }
       else (f === "both" ? ["regular", "sale"] : [f]).forEach(fld => put(fld, won(applyOp(cur[fld], op, o.val))));
       n++;
     });
@@ -966,6 +970,18 @@ const PB_SEED = {"brands":{"b-gyul":{"name":"귤타민","sort":20},"b-kakao":{"n
   }
   const filtered = () => products().filter(p => (ui.ptype === "all" || p.type === ui.ptype) && (ui.pmode === "all" || (p.mode || "vendor") === ui.pmode) && matchQ(p, ui.pq));
   const dKey = (pid, bid, f) => pid + "|" + bid + "|" + f;
+  // 판매가를 넣으면 정상가 = 판매가 ÷ (1 − 할인율). 뒷자리는 …800 또는 …900 중 가까운 값 (판매가보다 작지 않게)
+  const autoRegularOn = () => S.config.autoRegular !== false;
+  const regDiscount = () => { const d = num(S.config.regularDiscount); return d == null ? 30 : d; };
+  function regularFromSale(sale) {
+    sale = num(sale); if (!sale || sale <= 0) return null;
+    const d = regDiscount(); if (d >= 100) return null;
+    const raw = sale / (1 - d / 100), th = Math.floor(raw / 1000);
+    const cands = [];
+    for (let t = th - 1; t <= th + 1; t++) [800, 900].forEach(e => { const v = t * 1000 + e; if (v >= sale && v > 0) cands.push(v); });
+    cands.sort((a, b) => Math.abs(a - raw) - Math.abs(b - raw) || b - a);
+    return cands[0] ?? null;
+  }
   // 판매가 수정: 임시저장한 칸(서버, 빨강) + 지금 고친 칸(노랑). 저장하면 둘 다 반영돼요.
   const tempCells = () => (S.adjTemp && S.adjTemp.cells) || {};
   const pendingCells = () => ({ ...tempCells(), ...ui.drafts });
@@ -1066,7 +1082,7 @@ const PB_SEED = {"brands":{"b-gyul":{"name":"귤타민","sort":20},"b-kakao":{"n
     const ppBar = bulkBar("pp", ` · 판매처 ${bkSel("pp", "bid", brands().map(b => [b.id, b.name]), "판매처")} ${bkSel("pp", "f", [["sale", "판매가"], ["regular", "정상가"], ["both", "정상가 · 판매가"], ["shipping", "배송비"], ["stop", "판매 안 함으로"]], "항목")} ${bkSel("pp", "op", OPS, "계산")} ${bkIn("pp", "val", "금액 또는 %")}
       <button class="btn sm primary" type="button" data-act="pp-apply">선택한 줄에 넣기</button>
       <label class="switch"><input type="checkbox" id="pp-only" ${ui.ppOnly ? "checked" : ""}> 선택한 것만 보기</label>`, "개", true);
-    host.innerHTML = ppBar + `<p class="summary">제품 <b>${list.length}</b>개 · 고친 칸은 노란색, <b>임시저장</b>한 칸은 빨간 글씨예요. <b>저장</b>을 눌러야 가격표에 반영되고 검정으로 돌아와요. 정상가 · 판매가를 모두 비우면 그 판매처에서는 판매 안 함이 돼요.</p>` + ledgerHTML(list, true);
+    host.innerHTML = ppBar + `<p class="summary">제품 <b>${list.length}</b>개 · ${autoRegularOn() ? `판매가를 넣으면 정상가가 할인율 ${regDiscount()}% 기준으로 자동으로 채워져요(뒷자리 800 · 900). ` : ""}고친 칸은 노란색, <b>임시저장</b>한 칸은 빨간 글씨예요. <b>저장</b>을 눌러야 가격표에 반영되고 검정으로 돌아와요. 정상가 · 판매가를 모두 비우면 그 판매처에서는 판매 안 함이 돼요.</p>` + ledgerHTML(list, true);
   }
   function updateAdjustBar() {
     const n = Object.keys(ui.drafts).length, t = Object.keys(tempCells()).length;
@@ -1082,6 +1098,12 @@ const PB_SEED = {"brands":{"b-gyul":{"name":"귤타민","sort":20},"b-kakao":{"n
     setDraft(p, bid, f, inp.value);
     inp.classList.toggle("dirty", k in ui.drafts);
     inp.classList.toggle("temp", !(k in ui.drafts) && k in tempCells());
+    if (f === "sale" && autoRegularOn()) {
+      const reg = regularFromSale(parseField("sale", inp.value));
+      const rk = dKey(p.id, bid, "regular");
+      const rin = document.querySelector(`[data-key="${CSS.escape(rk)}"]`);
+      if (reg != null) { setDraft(p, bid, "regular", won(reg)); if (rin) { rin.value = won(reg); rin.classList.toggle("dirty", rk in ui.drafts); rin.classList.toggle("temp", !(rk in ui.drafts) && rk in tempCells()); } }
+    }
     const pr = curPrice(p, bid), sold = isSold(pr), c = sold ? calcMargin(p, pr, 0, bid) : null;
     const id = p.id + "|" + bid;
     const mc = document.querySelector(`[data-mc="${CSS.escape(id)}"]`), mr = document.querySelector(`[data-mr="${CSS.escape(id)}"]`);
@@ -1931,6 +1953,9 @@ const PB_SEED = {"brands":{"b-gyul":{"name":"귤타민","sort":20},"b-kakao":{"n
       </div></div>`;
     h += listPanel("등급 목록", "제품을 입력할 때 고를 수 있는 등급이에요. 목록에 없는 값도 직접 쓸 수 있어요.", "grades", S.config.grades);
     h += importPanelHTML();
+    h += `<div class="panel"><h3>판매가 → 정상가 자동</h3><p class="hint">판매가를 넣으면 정상가 = 판매가 ÷ (1 − 할인율)로 채우고, 뒷자리는 800 · 900 중 가까운 쪽으로 맞춰요. 예: 할인율 30%, 판매가 15,900 → 정상가 22,800</p>
+      <div class="addrow"><label class="switch"><input type="checkbox" id="cfg-autoreg" ${autoRegularOn() ? "checked" : ""} ${dis}> 자동으로 채우기</label>
+      <span>정상가 대비 할인율</span><input id="cfg-regdisc" type="text" inputmode="decimal" value="${esc(String(regDiscount()))}" style="max-width:70px;flex:0 0 70px;text-align:right" ${dis}>%</div></div>`;
     h += `<div class="panel"><h3>기본 택배비 표기</h3><p class="hint">판매가를 처음 넣을 때 택배비 칸에 자동으로 들어가요.</p>
       <div class="addrow"><input id="cfg-ship" type="text" value="${esc(S.config.defaultShipping || "")}" data-key="cfg-ship" placeholder="예: 무배 또는 3,000"><button class="btn w" type="button" data-act="cfg-ship">저장</button></div>
       <h3 style="margin-top:18px">내보내기</h3><p class="hint">지금 가격표 전체를 엑셀에서 열 수 있는 CSV 로 저장해요.</p><button class="btn" type="button" data-act="csv">CSV 내보내기</button></div>`;
@@ -2568,7 +2593,8 @@ const PB_SEED = {"brands":{"b-gyul":{"name":"귤타민","sort":20},"b-kakao":{"n
   async function saveConfig(patch) {
     const next = { ...S.config, ...patch };
     return guard(() => db.doc("config/main").set({ types: next.types, grades: next.grades, defaultShipping: next.defaultShipping || "",
-      baseMats: (next.baseMats || []).map(m => ({ id: m.id, qty: num(m.qty) ?? 1 })), shipLight: next.shipLight || "", shipHeavy: next.shipHeavy || "", heavyKg: num(next.heavyKg) ?? 6 }));
+      baseMats: (next.baseMats || []).map(m => ({ id: m.id, qty: num(m.qty) ?? 1 })), shipLight: next.shipLight || "", shipHeavy: next.shipHeavy || "", heavyKg: num(next.heavyKg) ?? 6,
+      autoRegular: next.autoRegular !== false, regularDiscount: num(next.regularDiscount) ?? 30 }));
   }
 
   document.addEventListener("change", async e => {
@@ -2583,6 +2609,8 @@ const PB_SEED = {"brands":{"b-gyul":{"name":"귤타민","sort":20},"b-kakao":{"n
     if (t.id === "ev-start" || t.id === "ev-end") { const ev = evState(); ev[t.id === "ev-start" ? "start" : "end"] = t.value; ev.dirty = true; renderView(); return; }
     if (t.id === "e-ratedonly") { ui.evRatedOnly = t.checked; renderView(); return; }
     if (t.id === "ev-from" || t.id === "ev-to") { ui[t.id === "ev-from" ? "evsFrom" : "evsTo"] = t.value; renderView(); return; }
+    if (t.id === "cfg-autoreg") { await saveConfig({ autoRegular: t.checked }); toast(t.checked ? "판매가를 넣으면 정상가를 자동으로 채워요" : "정상가 자동 채우기를 껐어요"); return; }
+    if (t.id === "cfg-regdisc") { const d = num(t.value); if (d == null || d < 0 || d >= 100) { toast("0 ~ 99 사이로 넣어 주세요.", true); renderView(); return; } await saveConfig({ regularDiscount: d }); toast(`할인율 ${d}% 로 저장했어요`); return; }
     if (t.id === "pp-only") { ui.ppOnly = t.checked; renderView(); return; }
     if (t.id === "d-changed") { ui.dchanged = t.checked; lsSet("pb.dchanged", ui.dchanged); renderView(); return; }
     if (ui.sedit && t.dataset.sp && t.tagName === "SELECT") {
@@ -2656,7 +2684,10 @@ const PB_SEED = {"brands":{"b-gyul":{"name":"귤타민","sort":20},"b-kakao":{"n
     else if (ui.medit && t.dataset.mgq) { ui.medit.draft[t.dataset.mgq].qty = t.value; updateGridCost(); }
     else if (t.id === "import-text") { ui.importText = t.value; if (ui.importPlan) { ui.importPlan = null; const pv = $("#import-preview"); if (pv) pv.innerHTML = ""; const rb = $("[data-act=import-run]"); if (rb) rb.disabled = true; } }
     else if (t.dataset.mq !== undefined) { ed.mats[ed.mb][+t.dataset.mq].qty = t.value; const row = t.closest(".matrow"); const mm = matById(ed.mats[ed.mb][+t.dataset.mq].id); $(".num", row).textContent = mm ? won((num(mm.cost) || 0) * (num(t.value) || 0)) : "–"; updateTotals(); }
-    else if (t.id === "ed-cost" || t.id === "ed-weight" || t.dataset.pf) updateTotals();
+    else if (t.id === "ed-cost" || t.id === "ed-weight" || t.dataset.pf) {
+      if (t.dataset.pf === "sale" && autoRegularOn()) { const reg = regularFromSale(parseField("sale", t.value)); const ri = t.closest("tr") && t.closest("tr").querySelector('[data-pf="regular"]'); if (ri && reg != null) ri.value = won(reg); }
+      updateTotals();
+    }
   });
   let pqT; function renderPricesDebounced() { clearTimeout(pqT); pqT = setTimeout(renderView, 120); }
   window.addEventListener("beforeunload", e => { if (Object.keys(ui.drafts).length || (ui.ev && ui.ev.dirty)) { e.preventDefault(); e.returnValue = ""; } });
