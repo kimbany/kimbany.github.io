@@ -119,6 +119,8 @@ table.led { border-collapse: separate; border-spacing: 0; width: max-content; mi
 .led thead th.basic { color: var(--ink); font-weight: 600; }
 .led td.ch { text-align: right; font-variant-numeric: tabular-nums; }
 .led td.cell input.dirty { border-color: var(--warn); background: var(--warn-bg); }
+.led td.cell input.temp { color: var(--up); font-weight: 700; border-color: color-mix(in srgb, var(--up) 45%, transparent); }
+.savebar .tcount { color: #ff8a80; font-weight: 700; }
 .led td.up { color: var(--up); font-weight: 700; }
 .led td.down { color: var(--down); font-weight: 700; }
 .led th.datecol { min-width: 84px; }
@@ -391,9 +393,11 @@ body.ro .w { display: none !important; }
     </div>
     <div id="a-table"></div>
     <div class="savebar" id="a-bar" hidden>
-      <span>바뀐 칸 <b id="a-count">0</b>개</span>
+      <span>고친 칸 <b id="a-count">0</b>개 <span id="a-tcount" class="tcount"></span></span>
       <input id="a-memo" type="text" placeholder="변동 사유 (선택) · 예: 주말 행사가" aria-label="변동 사유">
       <button class="btn" type="button" data-act="adjust-revert">되돌리기</button>
+      <button class="btn" type="button" data-act="adjust-temp-clear" id="a-tclear" hidden>임시저장 지우기</button>
+      <button class="btn" type="button" data-act="adjust-temp">임시저장</button>
       <button class="btn primary" type="button" data-act="adjust-save">저장</button>
     </div>
   </section>
@@ -824,7 +828,7 @@ const PB_SEED = {"brands":{"b-gyul":{"name":"귤타민","sort":20},"b-kakao":{"n
     selSet("pp").forEach(pid => {
       const p = S.products.find(x => x.id === pid); if (!p) return;
       const cur = curPrice(p, bid);
-      const put = (fld, val) => { const k = dKey(pid, bid, fld); const stored = ((p.prices || {})[bid] || {})[fld] ?? null; if ((parseField(fld, val) ?? null) === stored) delete ui.drafts[k]; else ui.drafts[k] = val; };
+      const put = (fld, val) => setDraft(p, bid, fld, val);
       if (f === "stop") { put("regular", ""); put("sale", ""); }
       else if (f === "shipping") put("shipping", op === "set" ? String(o.val).trim() : String(applyOp(cur.shipping, op, o.val)));
       else (f === "both" ? ["regular", "sale"] : [f]).forEach(fld => put(fld, won(applyOp(cur[fld], op, o.val))));
@@ -962,11 +966,23 @@ const PB_SEED = {"brands":{"b-gyul":{"name":"귤타민","sort":20},"b-kakao":{"n
   }
   const filtered = () => products().filter(p => (ui.ptype === "all" || p.type === ui.ptype) && (ui.pmode === "all" || (p.mode || "vendor") === ui.pmode) && matchQ(p, ui.pq));
   const dKey = (pid, bid, f) => pid + "|" + bid + "|" + f;
+  // 판매가 수정: 임시저장한 칸(서버, 빨강) + 지금 고친 칸(노랑). 저장하면 둘 다 반영돼요.
+  const tempCells = () => (S.adjTemp && S.adjTemp.cells) || {};
+  const pendingCells = () => ({ ...tempCells(), ...ui.drafts });
   function curPrice(p, bid) {
     const old = (p.prices || {})[bid] || {};
     const o = { regular: old.regular ?? null, sale: old.sale ?? null, shipping: old.shipping ?? null };
-    PRICE_FIELDS.forEach(([f]) => { const k = dKey(p.id, bid, f); if (k in ui.drafts) o[f] = parseField(f, ui.drafts[k]); });
+    const pc = pendingCells();
+    PRICE_FIELDS.forEach(([f]) => { const k = dKey(p.id, bid, f); if (k in pc) o[f] = parseField(f, pc[k]); });
     return o;
+  }
+  // 칸 값을 고칠 때: 저장된 값과 같고 임시저장도 없으면 지우고, 임시저장 값과 같으면 지금 고친 칸에서만 빼요
+  function setDraft(p, bid, f, val) {
+    const k = dKey(p.id, bid, f), tc = tempCells();
+    const stored = ((p.prices || {})[bid] || {})[f] ?? null, nv = parseField(f, val) ?? null;
+    if (k in tc && (parseField(f, tc[k]) ?? null) === nv) { delete ui.drafts[k]; return; }
+    if (!(k in tc) && nv === stored) { delete ui.drafts[k]; return; }
+    ui.drafts[k] = val;
   }
   function ledgerHTML(list, editable) {
     const bs = brands().filter(b => !ui.hidden.has(b.id));
@@ -998,9 +1014,10 @@ const PB_SEED = {"brands":{"b-gyul":{"name":"귤타민","sort":20},"b-kakao":{"n
           if (editable) {
             PRICE_FIELDS.forEach(([f, t], j) => {
               const k = dKey(p.id, b.id, f);
-              const dirty = k in ui.drafts;
+              const dirty = k in ui.drafts, temp = !dirty && k in tempCells();
               const v = dirty ? ui.drafts[k] : (f === "shipping" ? shipText(pr[f]) : won(pr[f]));
-              h += `<td class="cell ${j === 0 ? "bstart " : ""}${sold ? "" : "na"}"><input type="text" class="${f === "shipping" ? "ship " : ""}${dirty ? "dirty" : ""}" ${f === "shipping" ? "" : 'inputmode="numeric"'} value="${esc(v)}" data-key="${esc(k)}" data-pid="${esc(p.id)}" data-bid="${esc(b.id)}" data-f="${f}" aria-label="${esc(p.name + " " + b.name + " " + t)}"></td>`;
+              const was = ((p.prices || {})[b.id] || {})[f];
+              h += `<td class="cell ${j === 0 ? "bstart " : ""}${sold ? "" : "na"}"${dirty || temp ? ` title="저장된 값: ${esc(was == null || was === "" ? "없음" : f === "shipping" ? shipText(was) : won(was))}"` : ""}><input type="text" class="${f === "shipping" ? "ship " : ""}${dirty ? "dirty" : temp ? "temp" : ""}" ${f === "shipping" ? "" : 'inputmode="numeric"'} value="${esc(v)}" data-key="${esc(k)}" data-pid="${esc(p.id)}" data-bid="${esc(b.id)}" data-f="${f}" aria-label="${esc(p.name + " " + b.name + " " + t)}"></td>`;
             });
           } else if (!sold) {
             h += `<td class="na bstart">–</td><td class="na">–</td><td class="na">–</td>`;
@@ -1049,19 +1066,22 @@ const PB_SEED = {"brands":{"b-gyul":{"name":"귤타민","sort":20},"b-kakao":{"n
     const ppBar = bulkBar("pp", ` · 판매처 ${bkSel("pp", "bid", brands().map(b => [b.id, b.name]), "판매처")} ${bkSel("pp", "f", [["sale", "판매가"], ["regular", "정상가"], ["both", "정상가 · 판매가"], ["shipping", "배송비"], ["stop", "판매 안 함으로"]], "항목")} ${bkSel("pp", "op", OPS, "계산")} ${bkIn("pp", "val", "금액 또는 %")}
       <button class="btn sm primary" type="button" data-act="pp-apply">선택한 줄에 넣기</button>
       <label class="switch"><input type="checkbox" id="pp-only" ${ui.ppOnly ? "checked" : ""}> 선택한 것만 보기</label>`, "개", true);
-    host.innerHTML = ppBar + `<p class="summary">제품 <b>${list.length}</b>개 · 칸을 고치면 노란색으로 표시되고, 아래 <b>저장</b>을 눌러야 반영돼요. 정상가 · 판매가를 모두 비우면 그 판매처에서는 판매 안 함이 돼요.</p>` + ledgerHTML(list, true);
+    host.innerHTML = ppBar + `<p class="summary">제품 <b>${list.length}</b>개 · 고친 칸은 노란색, <b>임시저장</b>한 칸은 빨간 글씨예요. <b>저장</b>을 눌러야 가격표에 반영되고 검정으로 돌아와요. 정상가 · 판매가를 모두 비우면 그 판매처에서는 판매 안 함이 돼요.</p>` + ledgerHTML(list, true);
   }
   function updateAdjustBar() {
-    const n = Object.keys(ui.drafts).length;
-    $("#a-bar").hidden = !(n && S.canWrite && ui.view === "adjust");
+    const n = Object.keys(ui.drafts).length, t = Object.keys(tempCells()).length;
+    $("#a-bar").hidden = !((n || t) && S.canWrite && ui.view === "adjust");
     $("#a-count").textContent = n;
+    $("#a-tcount").textContent = t ? `· 임시저장 ${t}칸` : "";
+    $("#a-tclear").hidden = !t;
+    const memo = $("#a-memo"); if (t && !memo.value && S.adjTemp && S.adjTemp.memo && document.activeElement !== memo) memo.value = S.adjTemp.memo;
   }
   function onAdjustInput(inp) {
     const p = S.products.find(x => x.id === inp.dataset.pid); if (!p) return;
     const bid = inp.dataset.bid, f = inp.dataset.f, k = dKey(p.id, bid, f);
-    const stored = ((p.prices || {})[bid] || {})[f] ?? null;
-    if ((parseField(f, inp.value) ?? null) === stored) delete ui.drafts[k]; else ui.drafts[k] = inp.value;
+    setDraft(p, bid, f, inp.value);
     inp.classList.toggle("dirty", k in ui.drafts);
+    inp.classList.toggle("temp", !(k in ui.drafts) && k in tempCells());
     const pr = curPrice(p, bid), sold = isSold(pr), c = sold ? calcMargin(p, pr, 0, bid) : null;
     const id = p.id + "|" + bid;
     const mc = document.querySelector(`[data-mc="${CSS.escape(id)}"]`), mr = document.querySelector(`[data-mr="${CSS.escape(id)}"]`);
@@ -1076,8 +1096,21 @@ const PB_SEED = {"brands":{"b-gyul":{"name":"귤타민","sort":20},"b-kakao":{"n
     });
     updateAdjustBar();
   }
+  // 임시저장: 서버에 남겨서 빨간 글씨로 보이고, 새로고침 · 다른 기기에서도 이어서 고쳐요
+  async function tempSaveAdjust(btn) {
+    const pc = pendingCells(), cells = {};
+    Object.entries(pc).forEach(([k, val]) => {
+      const [pid, bid, f] = k.split("|"); const p = S.products.find(x => x.id === pid); if (!p) return;
+      const stored = ((p.prices || {})[bid] || {})[f] ?? null;
+      if ((parseField(f, val) ?? null) !== stored) cells[k] = String(val);
+    });
+    btn.disabled = true;
+    const ok = await guard(() => db.doc("drafts/adjust").set({ cells, memo: $("#a-memo").value.trim(), updatedAt: new Date().toISOString() }));
+    btn.disabled = false;
+    if (ok) { S.adjTemp = { ...(S.adjTemp || {}), cells }; ui.drafts = {}; toast(Object.keys(cells).length ? `임시저장했어요 · ${Object.keys(cells).length}칸 (빨간 글씨) · 저장을 눌러야 가격표에 반영돼요` : "임시저장할 칸이 없어요"); renderView(); }
+  }
   async function saveAdjust(btn) {
-    const keys = Object.keys(ui.drafts); if (!keys.length) return;
+    const keys = Object.keys(pendingCells()); if (!keys.length) return;
     const byP = {};
     keys.forEach(k => { const [pid, bid] = k.split("|"); (byP[pid] = byP[pid] || new Set()).add(bid); });
     const memo = $("#a-memo").value.trim(), date = today(), now = new Date().toISOString();
@@ -1104,6 +1137,7 @@ const PB_SEED = {"brands":{"b-gyul":{"name":"귤타민","sort":20},"b-kakao":{"n
       }
     });
     btn.disabled = false;
+    if (ok && Object.keys(tempCells()).length) { await guard(() => db.doc("drafts/adjust").set({ cells: {}, memo: "", updatedAt: new Date().toISOString() })); S.adjTemp = { cells: {} }; }
     if (ok) { ui.drafts = {}; $("#a-memo").value = ""; toast(cells ? `저장했어요 · ${cells}칸 바뀜` : "바뀐 내용이 없어요"); renderView(); }
   }
 
@@ -2470,7 +2504,9 @@ const PB_SEED = {"brands":{"b-gyul":{"name":"귤타민","sort":20},"b-kakao":{"n
       case "goto-mats": { const p = S.products.find(x => x.id === id); if (!p) break; ui.mtab = "grid"; ui.mgb = b.dataset.bid || "all"; ui.mq = p.name; ui.mgvendor = p.mode !== "self"; location.hash = "#materials"; renderView(); break; }
       case "unlock": if (!S.canWrite) openGate(); break;
       case "adjust-save": await saveAdjust(b); break;
-      case "adjust-revert": ui.drafts = {}; renderView(); toast("고친 칸을 되돌렸어요"); break;
+      case "adjust-revert": ui.drafts = {}; renderView(); toast("임시저장 뒤에 고친 칸을 되돌렸어요"); break;
+      case "adjust-temp": await tempSaveAdjust(b); break;
+      case "adjust-temp-clear": if (!armed(b, "한 번 더 누르면 임시저장 지움")) break; if (await guard(() => db.doc("drafts/adjust").set({ cells: {}, memo: "", updatedAt: new Date().toISOString() }), "임시저장을 지웠어요")) { S.adjTemp = { cells: {} }; renderView(); } break;
       case "chan-add": {
         const br = S.brands.find(x => x.id === id); if (!br) break;
         const ni = $("#addch-name-" + CSS.escape(id)), fi = $("#addch-fee-" + CSS.escape(id));
@@ -2684,7 +2720,7 @@ const PB_SEED = {"brands":{"b-gyul":{"name":"귤타민","sort":20},"b-kakao":{"n
       console.error(e); banner("서버에 연결하지 못했어요. 인터넷 연결을 확인하고 새로고침 해 주세요."); S.connected = true; renderView(); return;
     }
 
-    const pending = new Set(["products", "brands", "materials", "vendors", "history", "config", "events"]);
+    const pending = new Set(["products", "brands", "materials", "vendors", "history", "config", "events", "drafts"]);
     const slowT = setTimeout(() => { if (pending.size) banner("데이터를 아직 다 불러오지 못했어요. 연결이 느리거나 끊겨 있을 수 있어요."); }, 10000);
     const done = (k, snap) => {
       S.connected = true;
@@ -2700,6 +2736,7 @@ const PB_SEED = {"brands":{"b-gyul":{"name":"귤타민","sort":20},"b-kakao":{"n
     ["products", "brands", "materials", "vendors"].forEach(k => {
       db.collection(k).onSnapshot(s => { S[k] = s.docs.map(toObj); done(k, s); }, onErr(k));
     });
+    db.doc("drafts/adjust").onSnapshot(s => { S.adjTemp = s.exists ? s.data() : { cells: {} }; done("drafts", s); }, onErr("drafts"));
     db.collection("events").onSnapshot(s => { S.events = s.docs.map(toObj); done("events", s); }, onErr("events"));
     db.collection("history").orderBy("at", "desc").limit(1000).onSnapshot(s => { S.history = s.docs.map(toObj); done("history", s); }, onErr("history"));
     db.doc("config/main").onSnapshot(s => {
