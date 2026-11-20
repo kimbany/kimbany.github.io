@@ -166,6 +166,12 @@ table.led.spec.withsel { width: 1402px; }
 .bulkbar .btn.danger { background: var(--surface); }
 .bulkbar .switch { color: var(--bg); }
 .bulkbar .hint { color: color-mix(in srgb, var(--bg) 70%, transparent); }
+.evpanel { margin-bottom: 12px; display: flex; flex-direction: column; gap: 10px; }
+.evrow { display: flex; gap: 12px; flex-wrap: wrap; align-items: flex-end; }
+.evrow .field { flex: 1; min-width: 140px; }
+.evfoot { align-items: center; }
+.evpanel .chip { cursor: pointer; }
+.led.evt td.cell input.rate { width: 54px; }
 .linkcell { all: unset; cursor: pointer; text-decoration: underline dotted; text-underline-offset: 3px; }
 .linkcell:hover { color: var(--accent); }
 .led tr.dayrow td { background: var(--surface-2); font-weight: 700; border-top: 2px solid var(--line-strong); }
@@ -326,6 +332,7 @@ body.ro .w { display: none !important; }
       <a href="#prices" data-nav="prices">제품별 가격표</a>
       <a href="#products" data-nav="products">제품 관리</a>
       <a href="#adjust" data-nav="adjust">판매가 수정</a>
+      <a href="#event" data-nav="eventplan">이벤트 기획</a>
       <a href="#materials" data-nav="materials">부자재 관리</a>
       <a href="#daily" data-nav="history">변동 이력</a>
       <a href="#config" data-nav="config">기타 설정</a>
@@ -389,6 +396,42 @@ body.ro .w { display: none !important; }
       <button class="btn" type="button" data-act="adjust-revert">되돌리기</button>
       <button class="btn primary" type="button" data-act="adjust-save">저장</button>
     </div>
+  </section>
+
+  <!-- 이벤트 기획 · 할인율 -->
+  <section class="view" id="v-event" hidden>
+    <div class="viewhead">
+      <div>
+        <h1>이벤트 기획 · 할인율</h1>
+        <p class="sub">판매처마다 할인율을 넣으면 할인가와 마진 · 마진율이 바로 계산돼요. 임시저장 → 저장(최종) 두 단계로 저장하고, 저장한 뒤에도 불러와서 고칠 수 있어요.</p>
+      </div>
+      <div class="subtabs"><a href="#event" aria-current="page">할인율</a><a href="#events">이벤트 내역</a></div>
+    </div>
+    <div id="e-panel"></div>
+    <div class="toolbar">
+      <input id="e-q" type="search" placeholder="상품명 · 품종 · 등급 검색" aria-label="검색">
+      <div class="seg" id="e-type" role="group" aria-label="구분"></div>
+      <label class="switch"><input type="checkbox" id="e-ratedonly"> 할인율 넣은 줄만</label>
+    </div>
+    <div id="e-table"></div>
+  </section>
+
+  <!-- 이벤트 기획 · 이벤트 내역 -->
+  <section class="view" id="v-events" hidden>
+    <div class="viewhead">
+      <div>
+        <h1>이벤트 기획 · 이벤트 내역</h1>
+        <p class="sub">지금까지 기획한 이벤트예요. 기간을 고르고 일별 · 월별로 묶어 봐요. 열기를 누르면 할인율 화면에서 이어서 고칠 수 있어요.</p>
+      </div>
+      <div class="subtabs"><a href="#event">할인율</a><a href="#events" aria-current="page">이벤트 내역</a></div>
+    </div>
+    <div class="toolbar">
+      <div class="seg" id="ev-unit" role="group" aria-label="단위"></div>
+      <span class="daterange">기간 <input id="ev-from" type="date" aria-label="시작일"> ~ <input id="ev-to" type="date" aria-label="종료일"></span>
+      <div class="seg" id="ev-status" role="group" aria-label="상태"></div>
+      <input id="ev-q" type="search" placeholder="이벤트명 검색" aria-label="검색">
+    </div>
+    <div id="ev-table"></div>
   </section>
 
   <!-- 일별 가격 변동 -->
@@ -701,12 +744,12 @@ const PB_SEED = {"brands":{"b-gyul":{"name":"귤타민","sort":20},"b-kakao":{"n
   }
 
   // ---------- routing ----------
-  const VIEWS = ["prices", "adjust", "daily", "cost", "products", "spec", "materials", "config"];
+  const VIEWS = ["prices", "adjust", "event", "events", "daily", "cost", "products", "spec", "materials", "config"];
   function route() {
     const h = (location.hash || "").replace("#", "");
     ui.view = VIEWS.includes(h) ? h : "spec";
     VIEWS.forEach(v => { $("#v-" + v).hidden = v !== ui.view; });
-    const navKey = ui.view === "daily" || ui.view === "cost" ? "history" : ui.view;
+    const navKey = ui.view === "daily" || ui.view === "cost" ? "history" : ui.view === "event" || ui.view === "events" ? "eventplan" : ui.view;
     $$("nav.menu a").forEach(a => a.setAttribute("aria-current", a.dataset.nav === navKey ? "page" : "false"));
     renderView();
   }
@@ -724,7 +767,7 @@ const PB_SEED = {"brands":{"b-gyul":{"name":"귤타민","sort":20},"b-kakao":{"n
     const winY = window.scrollY, winX = window.scrollX;
     const wraps = view ? $$(".tablewrap", view).map(w => [w.scrollTop, w.scrollLeft]) : [];
     renderDatalists();
-    ({ prices: renderPrices, adjust: renderAdjust, daily: renderDaily, cost: renderHistory, products: renderProducts, spec: renderSpec, materials: renderMaterials, config: renderConfig })[ui.view]();
+    ({ prices: renderPrices, adjust: renderAdjust, daily: renderDaily, cost: renderHistory, products: renderProducts, spec: renderSpec, event: renderEvent, events: renderEvents, materials: renderMaterials, config: renderConfig })[ui.view]();
     if (view && ui.lastView === ui.view) {
       $$(".tablewrap", view).forEach((w, i) => { if (wraps[i]) { w.scrollTop = wraps[i][0]; w.scrollLeft = wraps[i][1]; } });
       if (window.scrollY !== winY || window.scrollX !== winX) window.scrollTo(winX, winY);
@@ -1477,6 +1520,186 @@ const PB_SEED = {"brands":{"b-gyul":{"name":"귤타민","sort":20},"b-kakao":{"n
     if (ok) { ui.sedit = null; toast(n ? `저장했어요 · 규격 ${n}개` : "바뀐 내용이 없어요"); renderView(); }
   }
 
+  // ---------- 이벤트 기획 ----------
+  S.events = S.events || [];
+  const newEvent = () => ({ id: null, name: "", start: today(), end: today(), brands: brands().map(b => b.id), rates: {}, note: "", status: "new", dirty: false });
+  ui.ev = null; ui.evq = ""; ui.evtype = "all"; ui.evRatedOnly = false;
+  ui.evsUnit = "month"; ui.evsFrom = ""; ui.evsTo = ""; ui.evsStatus = "all"; ui.evsQ = ""; ui.evsOpen = new Set();
+  const evState = () => ui.ev || (ui.ev = newEvent());
+  const evRate = (pid, bid) => { const r = ((evState().rates || {})[pid] || {})[bid]; return r === "" || r == null ? null : num(r); };
+  // 할인가 = 판매가(없으면 정상가) × (1 − 할인율), 10원 단위 반올림
+  const evDisc = (price, rate) => rate == null ? price : Math.round(price * (1 - rate / 100) / 10) * 10;
+  function evCalc(p, bid) {
+    const pr = (p.prices || {})[bid] || {};
+    if (!isSold(pr)) return null;
+    const price = effPrice(pr), rate = evRate(p.id, bid), disc = evDisc(price, rate);
+    const cost = (num(p.unitCost) || 0) + packCost(p, bid), m = disc - cost;
+    return { price, rate, disc, cost, m, r: disc ? m / disc * 100 : 0 };
+  }
+  const evStatusTag = st => st === "saved" ? '<span class="tag self">저장됨</span>' : st === "draft" ? '<span class="tag">임시저장</span>' : '<span class="tag">새 이벤트</span>';
+  function renderEvent() {
+    const ev = evState();
+    if (ev.status === "new" && !ev.dirty && !ev.brands.length) ev.brands = brands().map(b => b.id);
+    ev.brands = ev.brands.filter(id => S.brands.some(b => b.id === id));
+    const evs = S.events.slice().sort((a, b) => String(b.start || "").localeCompare(String(a.start || "")) || String(b.updatedAt || "").localeCompare(String(a.updatedAt || "")));
+    const cnt = Object.values(ev.rates || {}).reduce((a, o) => a + Object.entries(o).filter(([bid, r]) => ev.brands.includes(bid) && num(r) > 0).length, 0);
+    $("#e-panel").innerHTML = `<div class="panel evpanel">
+      <div class="evrow">
+        <label class="field"><span>이벤트</span><select id="ev-pick"><option value="">+ 새 이벤트</option>${evs.map(x => `<option value="${esc(x.id)}"${x.id === ev.id ? " selected" : ""}>${esc(x.name || "(이름 없음)")} · ${esc(x.start || "")}${x.status === "saved" ? "" : " · 임시"}</option>`).join("")}</select></label>
+        <label class="field" style="flex:2"><span class="req">이벤트명</span><input id="ev-name" type="text" value="${esc(ev.name)}" placeholder="예: 11월 감홍사과 첫 출하 기념"></label>
+        <label class="field"><span>시작일</span><input id="ev-start" type="date" value="${esc(ev.start)}"></label>
+        <label class="field"><span>종료일</span><input id="ev-end" type="date" value="${esc(ev.end)}"></label>
+      </div>
+      <div class="evrow">
+        <div class="field"><span>이번 행사를 할 판매처</span><div class="chips">${brands().map(b => `<label class="chip" aria-pressed="${ev.brands.includes(b.id)}"><input type="checkbox" data-evb="${esc(b.id)}" ${ev.brands.includes(b.id) ? "checked" : ""} ${S.canWrite ? "" : "disabled"} hidden>${esc(b.name)}</label>`).join("")}</div></div>
+        <label class="field" style="flex:2"><span>메모</span><input id="ev-note" type="text" value="${esc(ev.note)}" placeholder="예: 카톡 공지 · 첫 구매 쿠폰과 중복 불가"></label>
+      </div>
+      <div class="evrow evfoot">
+        ${evStatusTag(ev.status)} ${ev.dirty ? '<span class="tag" style="color:var(--warn);border-color:var(--warn)">바뀐 내용 있음</span>' : ""}
+        <span class="hint">할인율 넣은 칸 <b>${cnt}</b>개</span>
+        <span class="grow"></span>
+        ${S.canWrite ? `<button class="btn" type="button" data-act="ev-draft">임시저장</button>
+        <button class="btn primary" type="button" data-act="ev-save">저장${ev.status === "saved" ? " (수정)" : ""}</button>
+        <button class="btn" type="button" data-act="ev-new">새 이벤트</button>
+        ${ev.id ? '<button class="btn danger" type="button" data-act="ev-del">이벤트 삭제</button>' : ""}` : '<span class="hint">저장하려면 오른쪽 위 수정하기 → PIN</span>'}
+      </div></div>`;
+    $("#e-type").innerHTML = segHTML([["all", "전체"], ...S.config.types.map(t => [t, t])], ui.evtype, "evtype");
+    $("#e-ratedonly").checked = ui.evRatedOnly;
+    if (document.activeElement !== $("#e-q")) $("#e-q").value = ui.evq;
+    const host = $("#e-table");
+    if (!S.connected) { host.innerHTML = loadingOr(""); return; }
+    const bs = brands().filter(b => ev.brands.includes(b.id));
+    if (!bs.length) { host.innerHTML = emptyHTML("행사할 판매처를 골라 주세요", "<p>위에서 귤타민 · 몽프루이 등 이번 행사를 할 판매처를 누르면 그 판매처 칸이 생겨요.</p>"); return; }
+    const q = ui.evq.toLowerCase();
+    const list = products().filter(p => (ui.evtype === "all" || p.type === ui.evtype)
+      && bs.some(b => isSold((p.prices || {})[b.id]))
+      && (!ui.evRatedOnly || bs.some(b => evRate(p.id, b.id) != null))
+      && (!q || [catOf(p), p.name, p.type, p.grade, p.weight, p.count].join(" ").toLowerCase().includes(q)));
+    if (!list.length) { host.innerHTML = emptyHTML("조건에 맞는 제품이 없어요", "<p>고른 판매처에서 판매가가 있는 제품만 나와요.</p>"); return; }
+    let h = `<p class="summary">제품 <b>${list.length}</b>개 · 할인가 = 판매가 × (1 − 할인율), 10원 단위 · 마진 = 할인가 − 단가 − 포장비(자체 발송)</p>`;
+    h += `<div class="tablewrap"><table class="led evt"><thead><tr>${S.canWrite ? selTh("ev", list.map(p => p.id), 2) : ""}<th rowspan="2">상품명</th><th rowspan="2">품종</th><th rowspan="2">구분</th><th rowspan="2">업체</th><th rowspan="2">등급</th><th rowspan="2">중량</th><th rowspan="2">수량</th><th rowspan="2">단가</th>`;
+    bs.forEach(b => { h += `<th class="brand bstart" colspan="5">${esc(b.name)}</th>`; });
+    h += `</tr><tr class="r2">`;
+    bs.forEach(() => { h += `<th class="bstart">판매가</th><th>할인율</th><th>할인가</th><th>마진</th><th>마진율</th>`; });
+    h += `</tr></thead><tbody>`;
+    groupOf(list).forEach(g => {
+      const n = g.items.length;
+      g.items.forEach((p, i) => {
+        h += `<tr class="${i === 0 ? (g.catSpan ? "cstart" : "gstart") : ""}${selSet("ev").has(p.id) ? " picked" : ""}">`;
+        if (S.canWrite) h += selTd("ev", p.id);
+        if (i === 0) h += catCell(g) + nameCell(g, p) + `<td class="gcell ${typeClass(p.type)}" rowspan="${n}">${esc(p.type)}</td>` + vendCell(p, n);
+        h += `<td class="c">${esc(p.grade)}</td><td class="c">${esc(p.weight)}</td><td class="c">${esc(p.count)}</td><td class="num cost">${won(p.unitCost)}</td>`;
+        bs.forEach(b => {
+          const c = evCalc(p, b.id);
+          if (!c) { h += `<td class="na bstart">–</td><td class="na">–</td><td class="na">–</td><td class="na">–</td><td class="na">–</td>`; return; }
+          const k = p.id + "|" + b.id;
+          h += `<td class="num bstart">${won(c.price)}</td>
+            <td class="cell"><input type="text" inputmode="decimal" class="rate${c.rate != null ? " dirty" : ""}" data-evr="${esc(k)}" data-key="evr:${esc(k)}" value="${c.rate != null ? esc(String(c.rate)) : ""}" placeholder="0" ${S.canWrite ? "" : "disabled"} aria-label="${esc(b.name)} 할인율">%</td>
+            <td class="num" data-evd="${esc(k)}">${c.rate != null ? `<b>${won(c.disc)}</b>` : `<span class="muted">${won(c.disc)}</span>`}</td>
+            <td class="num" data-evm="${esc(k)}">${mHTML(c)}</td><td class="num" data-evmr="${esc(k)}">${rHTML(c)}</td>`;
+        });
+        h += `</tr>`;
+      });
+    });
+    h += `</tbody></table></div>`;
+    h += bulkBar("ev", ` · 판매처 ${bkSel("ev", "bid", [["all", "고른 판매처 모두"], ...bs.map(b => [b.id, b.name])], "판매처")} 할인율 ${bkIn("ev", "rate", "예: 10", 60)}%
+      <button class="btn sm primary" type="button" data-act="ev-bulk">선택한 줄에 넣기</button> <button class="btn sm" type="button" data-act="ev-bulk-clear">할인율 비우기</button>`);
+    host.innerHTML = h;
+  }
+  function evInput(inp) {
+    const [pid, bid] = inp.dataset.evr.split("|");
+    const ev = evState(); ev.rates = ev.rates || {};
+    const v = String(inp.value).trim();
+    if (v === "") { if (ev.rates[pid]) { delete ev.rates[pid][bid]; if (!Object.keys(ev.rates[pid]).length) delete ev.rates[pid]; } }
+    else { const n = num(v); if (n == null) return; (ev.rates[pid] = ev.rates[pid] || {})[bid] = Math.max(0, Math.min(100, n)); }
+    ev.dirty = true;
+    inp.classList.toggle("dirty", v !== "");
+    const p = S.products.find(x => x.id === pid); const c = p && evCalc(p, bid); if (!c) return;
+    const k = CSS.escape(pid + "|" + bid);
+    const d = document.querySelector(`[data-evd="${k}"]`), m = document.querySelector(`[data-evm="${k}"]`), r = document.querySelector(`[data-evmr="${k}"]`);
+    if (d) d.innerHTML = c.rate != null ? `<b>${won(c.disc)}</b>` : `<span class="muted">${won(c.disc)}</span>`;
+    if (m) m.innerHTML = mHTML(c); if (r) r.innerHTML = rHTML(c);
+  }
+  function evSnapshot(ev) {
+    const items = [];
+    products().forEach(p => ev.brands.forEach(bid => {
+      const rate = evRate(p.id, bid); if (!(rate > 0)) return;
+      const c = evCalc(p, bid); if (!c) return;
+      const b = S.brands.find(x => x.id === bid);
+      items.push({ pid: p.id, cat: catOf(p), name: p.name, type: p.type || "", grade: p.grade || "", weight: p.weight || "", count: p.count || "", bid, bname: b ? b.name : "", price: c.price, rate: c.rate, disc: c.disc, cost: Math.round(c.cost * 10) / 10, margin: Math.round(c.m), mr: Math.round(c.r * 10) / 10 });
+    }));
+    return items;
+  }
+  async function saveEvent(status, btn) {
+    const ev = evState();
+    if (!String(ev.name || "").trim()) { toast("이벤트명을 넣어 주세요.", true); $("#ev-name").focus(); return; }
+    if (!ev.brands.length) { toast("행사할 판매처를 하나 이상 골라 주세요.", true); return; }
+    if (ev.start && ev.end && ev.start > ev.end) { toast("종료일이 시작일보다 빨라요.", true); return; }
+    const items = evSnapshot(ev);
+    if (status === "saved" && !items.length) { toast("할인율을 넣은 제품이 없어요.", true); return; }
+    if (status === "saved" && !armed(btn, "한 번 더 누르면 최종 저장")) return;
+    const rates = {};
+    Object.entries(ev.rates || {}).forEach(([pid, o]) => Object.entries(o).forEach(([bid, r]) => { if (ev.brands.includes(bid) && num(r) > 0) (rates[pid] = rates[pid] || {})[bid] = num(r); }));
+    const now = new Date().toISOString();
+    const id = ev.id || rid("e");
+    const prev = S.events.find(x => x.id === id);
+    const doc = { ...(prev ? (() => { const c = { ...prev }; delete c.id; return c; })() : { createdAt: now }),
+      name: String(ev.name).trim(), start: ev.start || "", end: ev.end || "", brands: ev.brands.slice(), rates, note: String(ev.note || "").trim(),
+      status: status === "saved" ? "saved" : (prev && prev.status === "saved" ? "saved" : "draft"), items, updatedAt: now, ...(status === "saved" ? { savedAt: now } : {}) };
+    if (status !== "saved" && prev && prev.status === "saved") doc.status = "draft";
+    btn.disabled = true;
+    const ok = await guard(() => db.doc("events/" + id).set(doc));
+    btn.disabled = false;
+    if (ok) { ev.id = id; ev.status = doc.status; ev.dirty = false; toast(status === "saved" ? `저장했어요 · 할인 ${items.length}칸` : "임시저장했어요"); renderView(); }
+  }
+  function loadEvent(id) {
+    const x = S.events.find(e => e.id === id);
+    if (!x) { ui.ev = newEvent(); return; }
+    ui.ev = { id: x.id, name: x.name || "", start: x.start || "", end: x.end || "", brands: (x.brands || []).slice(), rates: JSON.parse(JSON.stringify(x.rates || {})), note: x.note || "", status: x.status || "draft", dirty: false };
+  }
+
+  function renderEvents() {
+    $("#ev-unit").innerHTML = segHTML([["day", "일별"], ["month", "월별"]], ui.evsUnit, "evsunit");
+    $("#ev-status").innerHTML = segHTML([["all", "전체"], ["saved", "저장됨"], ["draft", "임시저장"]], ui.evsStatus, "evsstatus");
+    $("#ev-from").value = ui.evsFrom; $("#ev-to").value = ui.evsTo;
+    if (document.activeElement !== $("#ev-q")) $("#ev-q").value = ui.evsQ;
+    const host = $("#ev-table");
+    if (!S.connected) { host.innerHTML = loadingOr(""); return; }
+    if (!S.events.length) { host.innerHTML = emptyHTML("아직 이벤트가 없어요", `<p><a href="#event">할인율</a>에서 이벤트를 만들고 임시저장하거나 저장하면 여기에 쌓여요.</p>`); return; }
+    const q = ui.evsQ.toLowerCase();
+    const list = S.events.filter(x => (ui.evsStatus === "all" || (x.status || "draft") === ui.evsStatus)
+      && (!ui.evsFrom || String(x.end || x.start || "") >= ui.evsFrom) && (!ui.evsTo || String(x.start || "") <= ui.evsTo)
+      && (!q || [x.name, x.note].join(" ").toLowerCase().includes(q)))
+      .sort((a, b) => String(b.start || "").localeCompare(String(a.start || "")) || String(b.updatedAt || "").localeCompare(String(a.updatedAt || "")));
+    if (!list.length) { host.innerHTML = emptyHTML("조건에 맞는 이벤트가 없어요", ""); return; }
+    const keyOf = x => ui.evsUnit === "day" ? (x.start || "날짜 없음") : (x.start ? x.start.slice(0, 7) : "날짜 없음");
+    const groupLabel = k => k.length === 7 ? `${k.slice(0, 4)}년 ${+k.slice(5)}월` : (k.length === 10 ? dayLabel(k) : k);
+    const groups = new Map(); list.forEach(x => { const k = keyOf(x); if (!groups.has(k)) groups.set(k, []); groups.get(k).push(x); });
+    const bname = id => (S.brands.find(b => b.id === id) || {}).name || "(삭제된 판매처)";
+    let h = `<p class="summary">이벤트 <b>${list.length}</b>개 · ${ui.evsUnit === "day" ? "시작일" : "시작 달"}로 묶었어요</p><div class="tablewrap free"><table class="led evs"><thead><tr><th>상태</th><th>이벤트명</th><th>기간</th><th>판매처</th><th>할인 제품</th><th>판매처별 평균 할인율</th><th>평균 마진율</th><th>메모</th><th>마지막 저장</th><th class="w"></th></tr></thead><tbody>`;
+    groups.forEach((xs, k) => {
+      h += `<tr class="dayrow"><td colspan="10">${esc(groupLabel(k))} · ${xs.length}건</td></tr>`;
+      xs.forEach(x => {
+        const items = x.items || [];
+        const byB = new Map(); items.forEach(it => { if (!byB.has(it.bname)) byB.set(it.bname, []); byB.get(it.bname).push(it); });
+        const avg = arr => arr.length ? (arr.reduce((a, it) => a + (num(it.rate) || 0), 0) / arr.length) : 0;
+        const avgMr = items.length ? items.reduce((a, it) => a + (num(it.mr) || 0), 0) / items.length : null;
+        const open = ui.evsOpen.has(x.id);
+        h += `<tr class="${open ? "picked" : ""}"><td class="c">${evStatusTag(x.status)}</td><td><b>${esc(x.name || "(이름 없음)")}</b></td><td class="c">${esc(dateKo(x.start))}${x.end && x.end !== x.start ? " ~ " + esc(dateKo(x.end)) : ""}</td>
+          <td class="c">${esc((x.brands || []).map(bname).join(", "))}</td><td class="num">${new Set(items.map(it => it.pid)).size}개 <span class="hint">(${items.length}칸)</span></td>
+          <td>${[...byB.entries()].map(([bn, arr]) => `${esc(bn)} ${avg(arr).toFixed(1)}%`).join(" · ") || "–"}</td>
+          <td class="num">${avgMr == null ? "–" : `<span class="${avgMr >= 0 ? "pos" : "neg"}">${avgMr.toFixed(1)}%</span>`}</td>
+          <td class="muted">${esc(x.note || "")}</td><td class="muted">${esc(stamp(x.updatedAt))}</td>
+          <td class="w" style="white-space:nowrap"><button class="btn sm" type="button" data-act="evs-toggle" data-id="${esc(x.id)}">${open ? "접기" : "자세히"}</button> <button class="btn sm" type="button" data-act="evs-open" data-id="${esc(x.id)}">열기 · 수정</button></td></tr>`;
+        if (open) {
+          h += `<tr><td colspan="10" style="padding:8px 12px;background:var(--surface-2)">${items.length ? `<table class="led" style="min-width:0"><thead><tr><th>상품명</th><th>품종</th><th>구분</th><th>등급</th><th>중량</th><th>수량</th><th>판매처</th><th>판매가</th><th>할인율</th><th>할인가</th><th>원가</th><th>마진</th><th>마진율</th></tr></thead><tbody>${items.map(it => `<tr><td class="c">${esc(it.cat)}</td><td>${esc(it.name)}</td><td class="c">${esc(it.type)}</td><td class="c">${esc(it.grade)}</td><td class="c">${esc(it.weight)}</td><td class="c">${esc(it.count)}</td><td class="c">${esc(it.bname)}</td><td class="num">${won(it.price)}</td><td class="num"><b>${esc(String(it.rate))}%</b></td><td class="num"><b>${won(it.disc)}</b></td><td class="num muted">${won(it.cost)}</td><td class="num ${it.margin >= 0 ? "pos" : "neg"}">${won(it.margin)}</td><td class="num ${it.mr >= 0 ? "pos" : "neg"}">${esc(String(it.mr))}%</td></tr>`).join("")}</tbody></table><p class="hint">저장할 때의 판매가 · 원가 기준이에요.</p>` : '<p class="muted">할인율을 넣은 제품이 없어요.</p>'}</td></tr>`;
+        }
+      });
+    });
+    h += `</tbody></table></div>`;
+    host.innerHTML = h;
+  }
+
   // ---------- 제품별 부자재 표 ----------
   const MAT_CATS = ["박스", "에어셀", "이중망", "패드", "팩", "크래프트지", "봉지", "브로셔", "기타"];
   const NOQTY = new Set(["크래프트지", "브로셔"]);
@@ -2135,16 +2358,16 @@ const PB_SEED = {"brands":{"b-gyul":{"name":"귤타민","sort":20},"b-kakao":{"n
   }
 
   // ---------- two-step confirm ----------
-  function armed(btn) {
+  function armed(btn, msg) {
     if (btn.classList.contains("armed")) return true;
-    const t = btn.textContent; btn.classList.add("armed"); btn.textContent = "한 번 더 누르면 삭제";
+    const t = btn.textContent; btn.classList.add("armed"); btn.textContent = msg || "한 번 더 누르면 삭제";
     setTimeout(() => { if (btn.isConnected) { btn.classList.remove("armed"); btn.textContent = t; } }, 3500);
     return false;
   }
 
   // ---------- events ----------
   document.addEventListener("click", async e => {
-    const seg = e.target.closest("[data-ptype],[data-pmode],[data-plmode],[data-hkind],[data-brand],[data-dbrand],[data-hview],[data-htype],[data-mgb],[data-mgtype],[data-mtab],[data-stype],[data-dview],[data-dfield],[data-snow]");
+    const seg = e.target.closest("[data-ptype],[data-pmode],[data-plmode],[data-hkind],[data-brand],[data-dbrand],[data-hview],[data-htype],[data-mgb],[data-mgtype],[data-mtab],[data-stype],[data-dview],[data-dfield],[data-snow],[data-evtype],[data-evsunit],[data-evsstatus]");
     if (seg) {
       if (seg.dataset.ptype) ui.ptype = seg.dataset.ptype;
       else if (seg.dataset.pmode) ui.pmode = seg.dataset.pmode;
@@ -2156,6 +2379,9 @@ const PB_SEED = {"brands":{"b-gyul":{"name":"귤타민","sort":20},"b-kakao":{"n
       else if (seg.dataset.mgb) ui.mgb = seg.dataset.mgb;
       else if (seg.dataset.stype) ui.stype = seg.dataset.stype;
       else if (seg.dataset.snow !== undefined) ui.snow = seg.dataset.snow;
+      else if (seg.dataset.evtype) ui.evtype = seg.dataset.evtype;
+      else if (seg.dataset.evsunit) ui.evsUnit = seg.dataset.evsunit;
+      else if (seg.dataset.evsstatus) ui.evsStatus = seg.dataset.evsstatus;
       else if (seg.dataset.dview) { ui.dview = seg.dataset.dview; lsSet("pb.dview", ui.dview); }
       else if (seg.dataset.dfield) ui.dfield = seg.dataset.dfield;
       else if (seg.dataset.mgtype) ui.mgtype = seg.dataset.mgtype;
@@ -2202,6 +2428,21 @@ const PB_SEED = {"brands":{"b-gyul":{"name":"귤타민","sort":20},"b-kakao":{"n
       }
       case "csv": exportCSV(); break;
       case "spb-months-reset": if (ui.bulk.sp) { ui.bulk.sp.monthsTouched = false; ui.bulk.sp.months = null; } renderView(); break;
+      case "ev-draft": await saveEvent("draft", b); break;
+      case "ev-save": await saveEvent("saved", b); break;
+      case "ev-new": if (evState().dirty && !armed(b, "한 번 더 누르면 새로 시작")) { toast("저장하지 않은 내용이 있어요. 한 번 더 누르면 버리고 새로 시작해요."); break; } ui.ev = newEvent(); selSet("ev").clear(); renderView(); break;
+      case "ev-del": { const ev = evState(); if (!ev.id) break; if (!armed(b)) break; if (await guard(() => db.doc("events/" + ev.id).delete(), "이벤트를 지웠어요")) { ui.ev = newEvent(); renderView(); } break; }
+      case "ev-bulk": case "ev-bulk-clear": {
+        const ev = evState(); const o = ui.bulk.ev || {}; const which = o.bid && o.bid !== "all" ? [o.bid] : ev.brands.slice();
+        const rate = act === "ev-bulk-clear" ? null : num(o.rate);
+        if (act === "ev-bulk" && rate == null) { toast("할인율을 넣어 주세요.", true); break; }
+        let n = 0;
+        selSet("ev").forEach(pid => { const p = S.products.find(x => x.id === pid); if (!p) return; which.forEach(bid => { if (!isSold((p.prices || {})[bid])) return; ev.rates = ev.rates || {};
+          if (rate == null) { if (ev.rates[pid]) delete ev.rates[pid][bid]; } else (ev.rates[pid] = ev.rates[pid] || {})[bid] = Math.max(0, Math.min(100, rate)); n++; }); });
+        ev.dirty = true; renderView(); toast(`${n}칸에 넣었어요 · 임시저장이나 저장을 눌러야 남아요`); break;
+      }
+      case "evs-toggle": ui.evsOpen.has(id) ? ui.evsOpen.delete(id) : ui.evsOpen.add(id); renderView(); break;
+      case "evs-open": loadEvent(id); location.hash = "#event"; break;
       case "sel-clear": selSet(b.dataset.v).clear(); renderView(); break;
       case "pp-apply": applyPriceBulk(); break;
       case "pp-to-adjust": ui.ppOnly = true; location.hash = "#adjust"; break;
@@ -2301,6 +2542,11 @@ const PB_SEED = {"brands":{"b-gyul":{"name":"귤타민","sort":20},"b-kakao":{"n
     if (t.dataset.sel) { const st = selSet(t.dataset.sel); t.checked ? st.add(t.dataset.id) : st.delete(t.dataset.id); renderView(); return; }
     if (t.dataset.selall) { const st = selSet(t.dataset.selall); let ids = []; try { ids = JSON.parse(t.dataset.ids); } catch (e) {} ids.forEach(i => t.checked ? st.add(i) : st.delete(i)); renderView(); return; }
     if (t.dataset.bkv) { (ui.bulk[t.dataset.bkv] = ui.bulk[t.dataset.bkv] || {})[t.dataset.bkf] = t.value; if (t.tagName === "SELECT") renderView(); return; }
+    if (t.dataset.evb) { const ev = evState(); const id = t.dataset.evb; ev.brands = t.checked ? [...new Set([...ev.brands, id])] : ev.brands.filter(x => x !== id); ev.dirty = true; renderView(); return; }
+    if (t.id === "ev-pick") { const ev = evState(); if (ev.dirty && !ui.evSwitchOk) { ui.evSwitchOk = true; toast("저장하지 않은 내용이 있어요. 한 번 더 고르면 버리고 불러와요."); t.value = ev.id || ""; return; } ui.evSwitchOk = false; t.value ? loadEvent(t.value) : (ui.ev = newEvent()); selSet("ev").clear(); renderView(); return; }
+    if (t.id === "ev-start" || t.id === "ev-end") { const ev = evState(); ev[t.id === "ev-start" ? "start" : "end"] = t.value; ev.dirty = true; renderView(); return; }
+    if (t.id === "e-ratedonly") { ui.evRatedOnly = t.checked; renderView(); return; }
+    if (t.id === "ev-from" || t.id === "ev-to") { ui[t.id === "ev-from" ? "evsFrom" : "evsTo"] = t.value; renderView(); return; }
     if (t.id === "pp-only") { ui.ppOnly = t.checked; renderView(); return; }
     if (t.id === "d-changed") { ui.dchanged = t.checked; lsSet("pb.dchanged", ui.dchanged); renderView(); return; }
     if (ui.sedit && t.dataset.sp && t.tagName === "SELECT") {
@@ -2365,6 +2611,10 @@ const PB_SEED = {"brands":{"b-gyul":{"name":"귤타민","sort":20},"b-kakao":{"n
     else if (t.id === "m-q") { ui.mq = t.value; renderView(); }
     else if (t.id === "s-q") { ui.sq = t.value; renderView(); }
     else if (t.id === "d-q") { ui.dq = t.value; renderView(); }
+    else if (t.dataset.evr) evInput(t);
+    else if (t.id === "ev-name" || t.id === "ev-note") { const ev = evState(); ev[t.id === "ev-name" ? "name" : "note"] = t.value; ev.dirty = true; }
+    else if (t.id === "e-q") { ui.evq = t.value; renderView(); }
+    else if (t.id === "ev-q") { ui.evsQ = t.value; renderView(); }
     else if (t.dataset.bkv && t.tagName === "INPUT") (ui.bulk[t.dataset.bkv] = ui.bulk[t.dataset.bkv] || {})[t.dataset.bkf] = t.value;
     else if (ui.sedit && t.dataset.sp && t.tagName === "INPUT") ui.sedit.draft[t.dataset.sp] = t.value;
     else if (ui.medit && t.dataset.mgq) { ui.medit.draft[t.dataset.mgq].qty = t.value; updateGridCost(); }
@@ -2373,7 +2623,7 @@ const PB_SEED = {"brands":{"b-gyul":{"name":"귤타민","sort":20},"b-kakao":{"n
     else if (t.id === "ed-cost" || t.id === "ed-weight" || t.dataset.pf) updateTotals();
   });
   let pqT; function renderPricesDebounced() { clearTimeout(pqT); pqT = setTimeout(renderView, 120); }
-  window.addEventListener("beforeunload", e => { if (Object.keys(ui.drafts).length) { e.preventDefault(); e.returnValue = ""; } });
+  window.addEventListener("beforeunload", e => { if (Object.keys(ui.drafts).length || (ui.ev && ui.ev.dirty)) { e.preventDefault(); e.returnValue = ""; } });
   document.addEventListener("keydown", e => {
     if (e.key === "Escape" && !$("#gate").hidden) { closeGate(); return; }
     if (e.key === "Escape" && !$("#drawer").hidden) closeDrawer();
@@ -2434,7 +2684,7 @@ const PB_SEED = {"brands":{"b-gyul":{"name":"귤타민","sort":20},"b-kakao":{"n
       console.error(e); banner("서버에 연결하지 못했어요. 인터넷 연결을 확인하고 새로고침 해 주세요."); S.connected = true; renderView(); return;
     }
 
-    const pending = new Set(["products", "brands", "materials", "vendors", "history", "config"]);
+    const pending = new Set(["products", "brands", "materials", "vendors", "history", "config", "events"]);
     const slowT = setTimeout(() => { if (pending.size) banner("데이터를 아직 다 불러오지 못했어요. 연결이 느리거나 끊겨 있을 수 있어요."); }, 10000);
     const done = (k, snap) => {
       S.connected = true;
@@ -2450,6 +2700,7 @@ const PB_SEED = {"brands":{"b-gyul":{"name":"귤타민","sort":20},"b-kakao":{"n
     ["products", "brands", "materials", "vendors"].forEach(k => {
       db.collection(k).onSnapshot(s => { S[k] = s.docs.map(toObj); done(k, s); }, onErr(k));
     });
+    db.collection("events").onSnapshot(s => { S.events = s.docs.map(toObj); done("events", s); }, onErr("events"));
     db.collection("history").orderBy("at", "desc").limit(1000).onSnapshot(s => { S.history = s.docs.map(toObj); done("history", s); }, onErr("history"));
     db.doc("config/main").onSnapshot(s => {
       if (s.exists) { const d = s.data(); S.config = { ...DEFAULT_CONFIG, ...d, types: (d.types || DEFAULT_CONFIG.types).slice(), grades: (d.grades || DEFAULT_CONFIG.grades).slice() }; }
