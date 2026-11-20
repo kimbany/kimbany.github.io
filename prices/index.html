@@ -366,13 +366,17 @@ body.ro .w { display: none !important; }
     <div class="viewhead">
       <div>
         <h1>일별 가격 변동</h1>
-        <p class="sub">판매가 수정에서 바꾼 정상가 · 판매가 · 배송비를 날짜별로 쌓아 보여 줘요. 하루에 여러 번 바꾸면 그날 처음 값 → 마지막 값으로 묶어요.</p>
+        <p class="sub">판매가 수정에서 바꾼 정상가 · 판매가 · 배송비를 날짜별로 쌓아 보여 줘요. 하루에 여러 번 바꾸면 그날 마지막 값으로 봐요.</p>
       </div>
     </div>
     <div class="toolbar">
+      <div class="seg" id="d-view" role="group" aria-label="보기"></div>
+      <div class="seg" id="d-field" role="group" aria-label="항목"></div>
       <select id="d-target" aria-label="제품"></select>
+      <input id="d-q" type="search" placeholder="상품명 · 등급 검색" aria-label="검색">
       <div class="seg" id="d-brand" role="group" aria-label="판매처"></div>
       <span class="daterange">기간 <input id="d-from" type="date" aria-label="시작일"> ~ <input id="d-to" type="date" aria-label="종료일"></span>
+      <label class="switch" id="d-changed-wrap"><input type="checkbox" id="d-changed"> 가격이 바뀐 줄만</label>
     </div>
     <div id="d-table"></div>
   </section>
@@ -527,7 +531,7 @@ const PB_SEED = {"brands":{"b-gyul":{"name":"귤타민","sort":20},"b-kakao":{"n
   const S = { products: [], brands: [], materials: [], vendors: [], history: [], config: { ...DEFAULT_CONFIG }, canWrite: false, connected: false, loaded: false };
   const ui = {
     view: "prices",
-    pq: "", ptype: "all", pmode: "all", hidden: new Set(lsGet("pb.hiddenBrands", [])), chan: lsGet("pb.chan", true) !== false, edit: false, drafts: {}, dtarget: "", dbrand: "all", dfrom: "", dto: "",
+    pq: "", ptype: "all", pmode: "all", hidden: new Set(lsGet("pb.hiddenBrands", [])), chan: lsGet("pb.chan", true) !== false, edit: false, drafts: {}, dtarget: "", dbrand: "all", dfrom: "", dto: "", dview: lsGet("pb.dview", "table"), dfield: "sale", dq: "", dchanged: lsGet("pb.dchanged", true) !== false,
     plq: "", plmode: "all", htarget: "", hkind: "all", sq: "", stype: "all", snow: false, sedit: null, mtab: lsGet("pb.mtab", "grid"), mgb: "all", mgtype: "all", mgvendor: false, medit: null, hq: "", hview: lsGet("pb.hview", "table"), htype: "all", hchanged: lsGet("pb.hchanged", true) !== false, mq: "", importText: "", importPlan: null
   };
   let db = null, fb = null;
@@ -1003,7 +1007,69 @@ const PB_SEED = {"brands":{"b-gyul":{"name":"귤타민","sort":20},"b-kakao":{"n
     const b = S.brands.slice().sort((a, c) => c.name.length - a.name.length).find(b => String(x.field || "").startsWith(b.name + " "));
     return b ? b.id : "";
   }
+  // ---------- 일별 가격 변동: 날짜별 표 ----------
+  const priceField = x => x.pf || (/정상가$/.test(x.field || "") ? "regular" : /판매가$/.test(x.field || "") ? "sale" : /(배송비|택배비)$/.test(x.field || "") ? "shipping" : null);
+  function priceTimelines() {
+    const map = new Map(); // pid|bid|pf -> [{date, at, from, to}]
+    S.history.filter(x => x.kind === "price").forEach(x => {
+      const pf = priceField(x); if (!pf) return;
+      const bid = histBrandId(x); if (!bid) return;
+      const k = x.targetId + "|" + bid + "|" + pf;
+      if (!map.has(k)) map.set(k, []);
+      map.get(k).push(x);
+    });
+    map.forEach(a => a.sort((p, q) => (String(p.date) + String(p.at)).localeCompare(String(q.date) + String(q.at))));
+    return map;
+  }
+  const priceAt = (ev, cur, d) => { if (!ev || !ev.length) return cur; let v = ev[0].from ?? null; ev.forEach(x => { if (x.date <= d) v = x.to ?? null; }); return v; };
+  const priceBefore = (ev, cur, d) => { if (!ev || !ev.length) return cur; let v = ev[0].from ?? null; ev.forEach(x => { if (x.date < d) v = x.to ?? null; }); return v; };
+  const pval = v => v == null || v === "" ? "–" : (typeof v === "number" ? won(v) : esc(v));
+  function renderDailyTable() {
+    const host = $("#d-table");
+    const tl = priceTimelines();
+    const f = ui.dfield, q = ui.dq.toLowerCase();
+    const bs = brands().filter(b => ui.dbrand === "all" || b.id === ui.dbrand);
+    const list = products().filter(p => (!ui.dtarget || p.id === ui.dtarget) && (!q || [p.name, p.type, p.grade, p.weight, p.count].join(" ").toLowerCase().includes(q)));
+    const rows = [];
+    groupOf(list).forEach(g => g.items.forEach(p => bs.forEach(b => {
+      const ev = (tl.get(p.id + "|" + b.id + "|" + f) || []).filter(x => (!ui.dfrom || x.date >= ui.dfrom) && (!ui.dto || x.date <= ui.dto));
+      const cur = ((p.prices || {})[b.id] || {})[f] ?? null;
+      const moved = ev.some(x => (x.from ?? null) !== (x.to ?? null));
+      if (ui.dchanged ? !moved : (cur == null && !ev.length)) return;
+      rows.push({ p, b, ev, cur });
+    })));
+    if (!rows.length) { host.innerHTML = emptyHTML(ui.dchanged ? "가격이 바뀐 줄이 없어요" : "보여 줄 가격이 없어요", `<p><a href="#adjust">판매가 수정</a>에서 가격을 고치고 저장하면 날짜별로 여기에 쌓여요.${ui.dchanged ? " '가격이 바뀐 줄만'을 끄면 지금 가격도 볼 수 있어요." : ""}</p>`); return; }
+    let dates = [...new Set(rows.flatMap(r => r.ev.map(x => x.date)))].sort().reverse();
+    if (!dates.length) dates = [today()];
+    const fname = (PRICE_FIELDS.find(x => x[0] === f) || [, f])[1];
+    let h = `<p class="summary"><b>${rows.length}</b>줄 · 날짜 <b>${dates.length}</b>개 · <b>${esc(fname)}</b> 기준 · 맨 왼쪽 날짜가 가장 최근이에요. 그날 오른 칸은 빨강, 내린 칸은 초록이에요 (칸에 마우스를 올리면 바뀌기 전 값).</p>`;
+    h += `<div class="tablewrap"><table class="led"><thead><tr><th>상품명</th><th>구분</th><th>등급</th><th>중량</th><th>수량</th><th>판매처</th><th>지금</th>${dates.map((d, i) => `<th class="${i === 0 ? "bstart " : ""}datecol">${esc(dateHead(d))}</th>`).join("")}</tr></thead><tbody>`;
+    let lastP = null;
+    rows.forEach(({ p, b, ev, cur }) => {
+      h += `<tr class="${p.id !== lastP ? "gstart" : ""}">`;
+      if (p.id !== lastP) {
+        const n = rows.filter(r => r.p.id === p.id).length;
+        h += `<td class="gcell pname" rowspan="${n}"><button type="button" data-act="edit-product" data-id="${esc(p.id)}" title="제품 수정">${esc(p.name)}</button></td><td class="gcell ${typeClass(p.type)}" rowspan="${n}">${esc(p.type)}</td><td class="gcell" rowspan="${n}">${esc(p.grade)}</td><td class="gcell" rowspan="${n}">${esc(p.weight)}</td><td class="gcell" rowspan="${n}">${esc(p.count)}</td>`;
+      }
+      h += `<td class="c"><b>${esc(b.name)}</b></td><td class="num cost">${pval(cur)}</td>`;
+      dates.forEach((d, j) => {
+        const v = priceAt(ev, cur, d), older = priceBefore(ev, cur, d);
+        const changed = ev.some(x => x.date === d) && v !== older;
+        const cls = v == null ? "na" : (changed && typeof v === "number" && typeof older === "number" ? (v > older ? "num up" : "num down") : "num");
+        h += `<td class="${cls}${j === 0 ? " bstart" : ""}"${changed ? ` title="이날 바꿈 · 전 ${older == null ? "없음" : typeof older === "number" ? won(older) : esc(older)}"` : ""}>${pval(v)}</td>`;
+      });
+      h += `</tr>`;
+      lastP = p.id;
+    });
+    h += `</tbody></table></div><p class="hint">한 줄 = 제품 × 판매처예요. 위에서 정상가 · 판매가 · 배송비를 골라 볼 수 있어요. "지금"은 현재 가격표 값이에요.</p>`;
+    host.innerHTML = h;
+  }
+
   function renderDaily() {
+    $("#d-view").innerHTML = segHTML([["table", "날짜별 표"], ["list", "변동 목록"]], ui.dview, "dview");
+    const tableMode = ui.dview === "table";
+    $("#d-field").hidden = !tableMode; $("#d-changed-wrap").hidden = !tableMode; $("#d-q").hidden = !tableMode;
+    if (tableMode) { $("#d-field").innerHTML = segHTML(PRICE_FIELDS.map(([k, t]) => [k, t]), ui.dfield, "dfield"); $("#d-changed").checked = ui.dchanged; if (document.activeElement !== $("#d-q")) $("#d-q").value = ui.dq; }
     const sel = $("#d-target");
     const opts = [["", "전체 제품"]]; products().forEach(p => opts.push([p.id, label(p)]));
     if (!opts.some(o => o[0] === ui.dtarget)) ui.dtarget = "";
@@ -1012,6 +1078,7 @@ const PB_SEED = {"brands":{"b-gyul":{"name":"귤타민","sort":20},"b-kakao":{"n
     $("#d-from").value = ui.dfrom; $("#d-to").value = ui.dto;
     const host = $("#d-table");
     if (!S.connected) { host.innerHTML = loadingOr(""); return; }
+    if (tableMode) { renderDailyTable(); return; }
     const raw = S.history.filter(x => x.kind === "price").sort((a, b) => String(a.at || "").localeCompare(String(b.at || "")));
     if (!raw.length) { host.innerHTML = emptyHTML("아직 가격 변동이 없어요", `<p><a href="#adjust">판매가 수정</a>에서 가격을 고치고 저장하면 날짜별로 여기에 쌓여요.</p>`); return; }
     const agg = new Map();
@@ -1781,7 +1848,7 @@ const PB_SEED = {"brands":{"b-gyul":{"name":"귤타민","sort":20},"b-kakao":{"n
 
   // ---------- events ----------
   document.addEventListener("click", async e => {
-    const seg = e.target.closest("[data-ptype],[data-pmode],[data-plmode],[data-hkind],[data-brand],[data-dbrand],[data-hview],[data-htype],[data-mgb],[data-mgtype],[data-mtab],[data-stype]");
+    const seg = e.target.closest("[data-ptype],[data-pmode],[data-plmode],[data-hkind],[data-brand],[data-dbrand],[data-hview],[data-htype],[data-mgb],[data-mgtype],[data-mtab],[data-stype],[data-dview],[data-dfield]");
     if (seg) {
       if (seg.dataset.ptype) ui.ptype = seg.dataset.ptype;
       else if (seg.dataset.pmode) ui.pmode = seg.dataset.pmode;
@@ -1792,6 +1859,8 @@ const PB_SEED = {"brands":{"b-gyul":{"name":"귤타민","sort":20},"b-kakao":{"n
       else if (seg.dataset.htype) ui.htype = seg.dataset.htype;
       else if (seg.dataset.mgb) ui.mgb = seg.dataset.mgb;
       else if (seg.dataset.stype) ui.stype = seg.dataset.stype;
+      else if (seg.dataset.dview) { ui.dview = seg.dataset.dview; lsSet("pb.dview", ui.dview); }
+      else if (seg.dataset.dfield) ui.dfield = seg.dataset.dfield;
       else if (seg.dataset.mgtype) ui.mgtype = seg.dataset.mgtype;
       else if (seg.dataset.mtab) { e.preventDefault(); ui.mtab = seg.dataset.mtab; lsSet("pb.mtab", ui.mtab); ui.mq = ""; }
       else if (seg.dataset.brand) { const id = seg.dataset.brand; ui.hidden.has(id) ? ui.hidden.delete(id) : ui.hidden.add(id); lsSet("pb.hiddenBrands", [...ui.hidden]); }
@@ -1910,6 +1979,7 @@ const PB_SEED = {"brands":{"b-gyul":{"name":"귤타민","sort":20},"b-kakao":{"n
     const t = e.target;
     if (t.id === "p-chan" || t.id === "a-chan") { ui.chan = t.checked; lsSet("pb.chan", ui.chan); renderView(); return; }
     if (t.dataset.pid && t.dataset.f) { if (ui.drafts[dKey(t.dataset.pid, t.dataset.bid, t.dataset.f)] != null && t.dataset.f !== "shipping") { const n = num(t.value); if (n != null) { t.value = won(n); onAdjustInput(t); } } return; }
+    if (t.id === "d-changed") { ui.dchanged = t.checked; lsSet("pb.dchanged", ui.dchanged); renderView(); return; }
     if (t.id === "s-now") { ui.snow = t.checked; renderView(); return; }
     if (t.id === "sp-all" && ui.sedit) { ui.sedit.all = t.checked; return; }
     if (ui.sedit && t.dataset.sp && t.tagName === "SELECT") {
@@ -1973,6 +2043,7 @@ const PB_SEED = {"brands":{"b-gyul":{"name":"귤타민","sort":20},"b-kakao":{"n
     else if (t.id === "h-q") { ui.hq = t.value; renderView(); }
     else if (t.id === "m-q") { ui.mq = t.value; renderView(); }
     else if (t.id === "s-q") { ui.sq = t.value; renderView(); }
+    else if (t.id === "d-q") { ui.dq = t.value; renderView(); }
     else if (ui.sedit && t.dataset.sp && t.tagName === "INPUT") ui.sedit.draft[t.dataset.sp] = t.value;
     else if (ui.medit && t.dataset.mgq) { ui.medit.draft[t.dataset.mgq].qty = t.value; updateGridCost(); }
     else if (t.id === "import-text") { ui.importText = t.value; if (ui.importPlan) { ui.importPlan = null; const pv = $("#import-preview"); if (pv) pv.innerHTML = ""; const rb = $("[data-act=import-run]"); if (rb) rb.disabled = true; } }
