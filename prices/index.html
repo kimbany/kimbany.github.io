@@ -128,6 +128,14 @@ table.led { border-collapse: separate; border-spacing: 0; width: max-content; mi
 .mgrid tr.editing td { background: var(--warn-bg); }
 .spec td.mcell { width: 22px; min-width: 22px; padding: 0; background: var(--surface-2); }
 .spec td.mcell.on, .led.spec tbody tr:hover td.mcell.on, .spec tr.editing td.mcell.on { background: var(--down); }
+.spec td.mcell.sell, .led.spec tbody tr:hover td.mcell.sell, .spec tr.editing td.mcell.sell { background: color-mix(in srgb, var(--down) 32%, var(--surface)); }
+.spec td.mcell.pick { cursor: pointer; }
+.mpick { display: inline-flex; gap: 2px; flex-wrap: wrap; }
+.mp { width: 24px; height: 24px; padding: 0; display: inline-flex; align-items: center; justify-content: center; border: 1px solid var(--line-strong); border-radius: 4px; font-size: 11px; cursor: pointer; background: var(--surface); color: var(--ink); vertical-align: middle; }
+.mp.on { background: var(--down); color: var(--surface); border-color: var(--down); }
+.mp.sell { background: color-mix(in srgb, var(--down) 32%, var(--surface)); }
+.legend { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; color: var(--muted); }
+.legend .mp { width: 12px; height: 12px; cursor: default; margin-left: 6px; }
 .spec td.mcell.now, .spec th.mcol.now { box-shadow: inset 0 0 0 2px var(--accent); }
 .spec th.mcol { width: 22px; min-width: 22px; padding: 4px 0; font-size: 11px; }
 .spec input.sp { width: 110px; padding: 3px 6px; }
@@ -444,7 +452,7 @@ body.ro .w { display: none !important; }
     <div class="toolbar">
       <input id="s-q" type="search" placeholder="상품명 · 원산지 검색" aria-label="검색">
       <div class="seg" id="s-type" role="group" aria-label="구분"></div>
-      <label class="switch"><input type="checkbox" id="s-now"> 이번 달 제철만</label>
+      <div class="seg" id="s-now" role="group" aria-label="이번 달"></div>
     </div>
     <div id="s-table"></div>
   </section>
@@ -550,7 +558,7 @@ const PB_SEED = {"brands":{"b-gyul":{"name":"귤타민","sort":20},"b-kakao":{"n
   const ui = {
     view: "prices",
     pq: "", ptype: "all", pmode: "all", hidden: new Set(lsGet("pb.hiddenBrands", [])), chan: lsGet("pb.chan", true) !== false, edit: false, drafts: {}, dtarget: "", dbrand: "all", dfrom: "", dto: "", dview: lsGet("pb.dview", "table"), dfield: "sale", dq: "", dchanged: lsGet("pb.dchanged", true) !== false,
-    plq: "", plmode: "all", htarget: "", hkind: "all", sq: "", stype: "all", snow: false, sedit: null, mtab: lsGet("pb.mtab", "grid"), mgb: "all", mgtype: "all", mgvendor: false, medit: null, hq: "", hview: lsGet("pb.hview", "table"), htype: "all", hchanged: lsGet("pb.hchanged", true) !== false, mq: "", importText: "", importPlan: null
+    plq: "", plmode: "all", htarget: "", hkind: "all", sq: "", stype: "all", snow: "", sedit: null, mtab: lsGet("pb.mtab", "grid"), mgb: "all", mgtype: "all", mgvendor: false, medit: null, hq: "", hview: lsGet("pb.hview", "table"), htype: "all", hchanged: lsGet("pb.hchanged", true) !== false, mq: "", importText: "", importPlan: null
   };
   let db = null, fb = null;
 
@@ -817,10 +825,7 @@ const PB_SEED = {"brands":{"b-gyul":{"name":"귤타민","sort":20},"b-kakao":{"n
     const o = ui.bulk.sp || {};
     const body = {};
     ["category", "origin", "brix", "onlineDate", "specNote"].forEach(f => { const v = String(o[f] || "").trim(); if (v) body[f] = v; });
-    if (o.seasonFrom || o.seasonTo) {
-      if (!(o.seasonFrom && o.seasonTo)) { toast("시즌은 시작 달과 끝 달을 둘 다 골라 주세요.", true); return; }
-      body.seasonFrom = num(o.seasonFrom); body.seasonTo = num(o.seasonTo);
-    }
+    if (o.monthsTouched) { body.seasonMonths = (o.months || MONTHS.map(() => "")).slice(); body.seasonFrom = null; body.seasonTo = null; }
     if (!Object.keys(body).length) { toast("넣을 값을 하나 이상 적어 주세요.", true); return; }
     btn.disabled = true; let n = 0;
     const ok = await guard(async () => {
@@ -830,7 +835,7 @@ const PB_SEED = {"brands":{"b-gyul":{"name":"귤타민","sort":20},"b-kakao":{"n
         if ("category" in body) push("상품명(분류)", t.category, body.category);
         if ("origin" in body) push("원산지", t.origin, body.origin);
         if ("brix" in body) push("브릭스", t.brix, body.brix);
-        if ("seasonFrom" in body) push("시즌", seasonText(t), seasonText(body));
+        if ("seasonMonths" in body) push("시즌", seasonText(t), seasonText(body));
         if ("onlineDate" in body) push("온라인 첫 등록일", t.onlineDate, body.onlineDate);
         if ("specNote" in body) push("스펙 메모", t.specNote, body.specNote);
         if (!h.length) continue;
@@ -1329,10 +1334,33 @@ const PB_SEED = {"brands":{"b-gyul":{"name":"귤타민","sort":20},"b-kakao":{"n
   // ---------- 메뉴3: 부자재 ----------
   // ---------- 제품별 스펙 ----------
   const MONTHS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
-  const inSeason = (p, m) => { const a = num(p.seasonFrom), b = num(p.seasonTo); if (!a || !b) return false; return a <= b ? (m >= a && m <= b) : (m >= a || m <= b); };
-  const seasonText = p => { const a = num(p.seasonFrom), b = num(p.seasonTo); return a && b ? (a === b ? `${a}월` : `${a}월 ~ ${b}월`) : ""; };
+  // 시즌: 달마다 "main"(주력) · "sell"(일반 판매) · ""(비시즌). 예전의 시작 ~ 끝 달 값은 주력으로 읽어요.
+  const monthsOf = p => {
+    if (p && Array.isArray(p.seasonMonths) && p.seasonMonths.length === 12) return p.seasonMonths.map(x => x === "main" || x === "sell" ? x : "");
+    const a = num(p && p.seasonFrom), b = num(p && p.seasonTo);
+    return MONTHS.map(m => (a && b && (a <= b ? (m >= a && m <= b) : (m >= a || m <= b))) ? "main" : "");
+  };
+  const inSeason = (p, m) => monthsOf(p)[m - 1] === "main";
+  const runsText = ms => {
+    if (!ms.length) return "";
+    const set = new Set(ms); if (set.size === 12) return "1~12월";
+    const runs = []; let start = null;
+    for (let m = 1; m <= 12; m++) { if (set.has(m) && start == null) start = m; if (!set.has(m) && start != null) { runs.push([start, m - 1]); start = null; } }
+    if (start != null) runs.push([start, 12]);
+    if (runs.length > 1 && runs[0][0] === 1 && runs[runs.length - 1][1] === 12) { const last = runs.pop(); runs[0] = [last[0], runs[0][1]]; }
+    return runs.map(([a, b]) => a === b ? `${a}월` : `${a}~${b}월`).join(", ");
+  };
+  const seasonText = p => {
+    const arr = monthsOf(p);
+    const mn = runsText(MONTHS.filter(m => arr[m - 1] === "main")), sl = runsText(MONTHS.filter(m => arr[m - 1] === "sell"));
+    return [mn ? "주력 " + mn : "", sl ? "일반 " + sl : ""].filter(Boolean).join(" · ");
+  };
+  const nextState = st => st === "" ? "sell" : st === "sell" ? "main" : "";
+  const stCls = st => st === "main" ? " on" : st === "sell" ? " sell" : "";
+  const mpickHTML = (scope, arr) => `<span class="mpick">${MONTHS.map(m => `<button type="button" class="mp${stCls(arr[m - 1])}" data-mpick="${scope}" data-m="${m}" title="${m}월: ${arr[m - 1] === "main" ? "주력" : arr[m - 1] === "sell" ? "일반 판매" : "비시즌"} · 눌러서 바꾸기">${m}</button>`).join("")}</span>`;
+  const SEASON_LEGEND = `<span class="legend"><span class="mp on"></span>주력 <span class="mp sell"></span>일반 판매 <span class="mp"></span>비시즌</span>`;
   // 스펙은 상품명 + 구분 단위로 한 줄 (중량 · 수량만 다른 제품은 원산지 · 브릭스 · 시즌이 같아요)
-  const SPEC_FIELDS = [["origin", "원산지"], ["brix", "브릭스"], ["seasonFrom", "시즌 시작"], ["seasonTo", "시즌 끝"], ["onlineDate", "온라인 첫 등록일"], ["specNote", "스펙 메모"]];
+  const SPEC_FIELDS = [["origin", "원산지"], ["brix", "브릭스"], ["seasonKey", "시즌"], ["onlineDate", "온라인 첫 등록일"], ["specNote", "스펙 메모"]];
   const specKey = p => (p.name || "") + "|" + (p.type || "");
   function specGroups(list) {
     const m = new Map();
@@ -1341,14 +1369,14 @@ const PB_SEED = {"brands":{"b-gyul":{"name":"귤타민","sort":20},"b-kakao":{"n
   }
   // 묶음 안에서 값이 다르면 가장 많은 값을 보여 주고 "여러 값" 표시
   function specVal(items, f) {
-    const c = new Map(); items.forEach(p => { const v = p[f] ?? ""; c.set(v, (c.get(v) || 0) + 1); });
+    const c = new Map(); items.forEach(p => { const v = f === "seasonKey" ? monthsOf(p).join(",") : (p[f] ?? ""); c.set(v, (c.get(v) || 0) + 1); });
     const top = [...c.entries()].sort((a, b) => b[1] - a[1] || (b[0] !== "" ? 1 : -1))[0];
     return { v: top ? top[0] : "", mixed: c.size > 1 };
   }
   const dateKo = d => { if (!d) return ""; const x = new Date(d + "T00:00"); return isNaN(x) ? d : `${x.getFullYear()}.${x.getMonth() + 1}.${x.getDate()}`; };
   function renderSpec() {
     $("#s-type").innerHTML = segHTML([["all", "전체"], ...S.config.types.map(t => [t, t])], ui.stype, "stype");
-    $("#s-now").checked = ui.snow;
+    $("#s-now").innerHTML = segHTML([["", "모든 달"], ["main", "이번 달 주력"], ["sale", "이번 달 판매 가능"]], ui.snow, "snow");
     if (document.activeElement !== $("#s-q")) $("#s-q").value = ui.sq;
     const host = $("#s-table");
     if (!S.connected) { host.innerHTML = loadingOr(""); return; }
@@ -1362,10 +1390,12 @@ const PB_SEED = {"brands":{"b-gyul":{"name":"귤타민","sort":20},"b-kakao":{"n
     const list = all.filter(p => {
       const k = catOf(p) + "|" + p.name; const sv = svOf(k);
       if (ui.stype !== "all" && p.type !== ui.stype) return false;
-      if (ui.snow && !inSeason({ seasonFrom: sv.seasonFrom.v, seasonTo: sv.seasonTo.v }, nowM)) return false;
+      const stNow = String(sv.seasonKey.v).split(",")[nowM - 1] || "";
+      if (ui.snow === "main" && stNow !== "main") return false;
+      if (ui.snow === "sale" && !stNow) return false;
       return !q || [catOf(p), p.name, p.type, sv.origin.v, sv.brix.v, sv.specNote.v, modeText(p)].join(" ").toLowerCase().includes(q);
     });
-    if (!list.length) { host.innerHTML = emptyHTML(ui.snow ? "이번 달 제철로 표시한 상품이 없어요" : "조건에 맞는 상품이 없어요", ui.snow ? "<p>수정을 눌러 시즌(시작 달 ~ 끝 달)을 넣으면 여기에 나와요.</p>" : ""); return; }
+    if (!list.length) { host.innerHTML = emptyHTML(ui.snow ? "이번 달에 해당하는 품종이 없어요" : "조건에 맞는 상품이 없어요", ui.snow ? "<p>수정을 누르고 달 칸을 눌러 주력 · 일반 판매를 정하면 여기에 나와요.</p>" : ""); return; }
     // 줄 = 품종 × 구분 × 업체 (groupOf 묶음). 품종 칸들은 rowspan
     const groups = groupOf(list);
     // 품종마다 한 줄
@@ -1374,7 +1404,7 @@ const PB_SEED = {"brands":{"b-gyul":{"name":"귤타민","sort":20},"b-kakao":{"n
     const mopt = (v, ph) => `<option value="">${ph}</option>` + MONTHS.map(m => `<option value="${m}"${num(v) === m ? " selected" : ""}>${m}월</option>`).join("");
     const mix = x => x.mixed ? ' <span class="hint" title="규격마다 값이 달라요. 저장하면 모두 같은 값이 돼요.">(여러 값)</span>' : "";
     const nNames = rowsOfName.size;
-    let h = `<p class="summary">품종 <b>${nNames}</b>개 (규격 ${list.length}개) · 원산지 · 브릭스 · 시즌은 품종마다 하나예요. 지금은 <b>${nowM}월</b> — 진한 칸이 제철 달, 테두리가 이번 달이에요.</p>`;
+    let h = `<p class="summary">품종 <b>${nNames}</b>개 (규격 ${list.length}개) · 원산지 · 브릭스 · 시즌은 품종마다 하나예요. 지금은 <b>${nowM}월</b>(테두리) · ${SEASON_LEGEND}</p>`;
     h += `<div class="tablewrap"><table class="led spec"><thead><tr><th>상품명</th>${S.canWrite ? selTh("sp", [...new Set(groups.map(g => g.cat + "|" + g.name))]) : ""}<th>품종</th><th class="bstart">원산지</th><th>브릭스</th><th>시즌</th>${MONTHS.map(m => `<th class="mcol${m === nowM ? " now" : ""}">${m}</th>`).join("")}<th>온라인 첫 등록일</th><th>메모</th><th class="w"></th></tr></thead><tbody>`;
     const seenC = new Set(), seenN = new Set();
     groups.forEach(g => {
@@ -1392,16 +1422,16 @@ const PB_SEED = {"brands":{"b-gyul":{"name":"귤타민","sort":20},"b-kakao":{"n
           const d = ui.sedit.draft;
           h += `<td class="bstart" rowspan="${rn}"><input type="text" class="sp" data-sp="category" value="${esc(d.category)}" placeholder="상품명 예: 사과" aria-label="상품명(분류)" title="상품명(분류)"><br><input type="text" class="sp" data-sp="origin" value="${esc(d.origin)}" placeholder="원산지 예: 경북 청송" aria-label="원산지" style="margin-top:4px"></td>
             <td rowspan="${rn}"><input type="text" class="sp sm" data-sp="brix" value="${esc(d.brix)}" placeholder="14" aria-label="브릭스"></td>
-            <td rowspan="${rn}" style="white-space:nowrap"><select data-sp="seasonFrom" aria-label="시작 달">${mopt(d.seasonFrom, "시작")}</select> ~ <select data-sp="seasonTo" aria-label="끝 달">${mopt(d.seasonTo, "끝")}</select></td>`;
-          const tmp = { seasonFrom: d.seasonFrom, seasonTo: d.seasonTo };
-          MONTHS.forEach(m => { h += `<td rowspan="${rn}" class="mcell${inSeason(tmp, m) ? " on" : ""}${m === nowM ? " now" : ""}" data-mc="${m}"></td>`; });
+            <td rowspan="${rn}" class="c" data-stxt="1" style="font-size:12px">${esc(seasonText({ seasonMonths: d.months })) || '<span class="hint">달 칸을 눌러요</span>'}</td>`;
+          MONTHS.forEach(m => { h += `<td rowspan="${rn}" class="mcell pick${stCls(d.months[m - 1])}${m === nowM ? " now" : ""}" data-mpick="sp" data-m="${m}" title="눌러서 비시즌 → 일반 → 주력"></td>`; });
           h += `<td rowspan="${rn}"><input type="date" data-sp="onlineDate" value="${esc(d.onlineDate)}" aria-label="온라인 첫 등록일"></td>
             <td rowspan="${rn}"><input type="text" class="sp" data-sp="specNote" value="${esc(d.specNote)}" placeholder="메모" aria-label="메모"></td>
             <td rowspan="${rn}" class="w" style="white-space:nowrap"><button class="btn sm primary" type="button" data-act="sp-save">저장</button> <button class="btn sm" type="button" data-act="sp-cancel">취소</button></td>`;
         } else {
-          const st = seasonText({ seasonFrom: sv.seasonFrom.v, seasonTo: sv.seasonTo.v });
-          h += `<td class="c bstart" rowspan="${rn}">${esc(sv.origin.v)}${mix(sv.origin)}</td><td class="c" rowspan="${rn}">${esc(sv.brix.v)}${mix(sv.brix)}</td><td class="c" rowspan="${rn}">${esc(st)}${mix(sv.seasonFrom.mixed ? sv.seasonFrom : sv.seasonTo)}</td>`;
-          MONTHS.forEach(m => { h += `<td rowspan="${rn}" class="mcell${inSeason({ seasonFrom: sv.seasonFrom.v, seasonTo: sv.seasonTo.v }, m) ? " on" : ""}${m === nowM ? " now" : ""}"></td>`; });
+          const arr = String(sv.seasonKey.v).split(",");
+          const st = seasonText({ seasonMonths: arr });
+          h += `<td class="c bstart" rowspan="${rn}">${esc(sv.origin.v)}${mix(sv.origin)}</td><td class="c" rowspan="${rn}">${esc(sv.brix.v)}${mix(sv.brix)}</td><td class="c" rowspan="${rn}" style="font-size:12px">${esc(st)}${mix(sv.seasonKey)}</td>`;
+          MONTHS.forEach(m => { h += `<td rowspan="${rn}" class="mcell${stCls(arr[m - 1] || "")}${m === nowM ? " now" : ""}" title="${m}월: ${arr[m - 1] === "main" ? "주력" : arr[m - 1] === "sell" ? "일반 판매" : "비시즌"}"></td>`; });
           h += `<td class="c" rowspan="${rn}">${esc(dateKo(sv.onlineDate.v))}${mix(sv.onlineDate)}</td><td class="muted" rowspan="${rn}">${esc(sv.specNote.v)}${mix(sv.specNote)}</td>
             <td class="w" rowspan="${rn}"><button class="btn sm" type="button" data-act="sp-edit" data-key="${esc(nk)}">수정</button></td>`;
         }
@@ -1409,18 +1439,17 @@ const PB_SEED = {"brands":{"b-gyul":{"name":"귤타민","sort":20},"b-kakao":{"n
       h += `</tr>`;
       seenC.add(g.cat); seenN.add(nk);
     });
-    h += `</tbody></table></div><p class="hint">품종마다 한 줄이에요. 수정 → 저장하면 그 품종의 모든 구분 · 규격(중량 · 수량)에 똑같이 들어가요. 수정 칸 맨 위는 상품명(분류, 예: 사과)이에요. 시즌은 11월 ~ 2월처럼 해를 넘겨도 돼요.</p>`;
+    h += `</tbody></table></div><p class="hint">품종마다 한 줄이에요. 수정 → 저장하면 그 품종의 모든 구분 · 규격(중량 · 수량)에 똑같이 들어가요. 수정 칸 맨 위는 상품명(분류, 예: 사과)이에요. 시즌은 수정 중에 달 칸을 누를 때마다 비시즌 → 일반 판매 → 주력 순으로 바뀌어요.</p>`;
     const mo = [["", "그대로"], ...MONTHS.map(m => [m, m + "월"])];
     host.innerHTML = h + bulkBar("sp", ` · ${bkIn("sp", "category", "상품명(분류)", 100)} ${bkIn("sp", "origin", "원산지", 100)} ${bkIn("sp", "brix", "브릭스", 60)}
-      시즌 ${bkSel("sp", "seasonFrom", mo, "시즌 시작")} ~ ${bkSel("sp", "seasonTo", mo, "시즌 끝")}
+      시즌 ${mpickHTML("spb", bk("sp", "months", MONTHS.map(() => "")))}${bk("sp", "monthsTouched") ? ' <button class="btn sm" type="button" data-act="spb-months-reset">시즌 그대로</button>' : ' <span class="hint">(누르면 적용)</span>'}
       등록일 ${bkIn("sp", "onlineDate", "온라인 첫 등록일", 130, "date")} ${bkIn("sp", "specNote", "메모", 110)}
       <button class="btn sm primary" type="button" data-act="sp-bulk">선택한 품종에 적용</button> <span class="hint">빈 칸은 그대로 둬요</span>`, "개 품종");
   }
   async function saveSpec(btn) {
     const e = ui.sedit; if (!e) return;
     const d = e.draft;
-    const body = { category: String(d.category || "").trim(), origin: String(d.origin || "").trim(), brix: String(d.brix || "").trim(), seasonFrom: num(d.seasonFrom), seasonTo: num(d.seasonTo), onlineDate: String(d.onlineDate || ""), specNote: String(d.specNote || "").trim() };
-    if ((body.seasonFrom == null) !== (body.seasonTo == null)) { toast("시즌은 시작 달과 끝 달을 둘 다 골라 주세요.", true); return; }
+    const body = { category: String(d.category || "").trim(), origin: String(d.origin || "").trim(), brix: String(d.brix || "").trim(), seasonMonths: d.months.slice(), seasonFrom: null, seasonTo: null, onlineDate: String(d.onlineDate || ""), specNote: String(d.specNote || "").trim() };
     const targets = S.products.filter(x => catOf(x) + "|" + x.name === e.key);
     if (!targets.length) return;
     btn.disabled = true;
@@ -1823,7 +1852,7 @@ const PB_SEED = {"brands":{"b-gyul":{"name":"귤타민","sort":20},"b-kakao":{"n
     const src = id ? S.products.find(p => p.id === id) : null;
     const isNew = !src || copy;
     const p = src ? JSON.parse(JSON.stringify(src)) : { type: S.config.types[0] || "", mode: "vendor", vendorId: (S.vendors[0] || {}).id || "", prices: {} };
-    ed = { id: isNew ? null : src.id, mats: {}, mb: (brands()[0] || {}).id || "" };
+    ed = { id: isNew ? null : src.id, mats: {}, mb: (brands()[0] || {}).id || "", months: monthsOf(p) };
     brands().forEach(b => { ed.mats[b.id] = matsFor(p, b.id).map(m => ({ id: m.id, qty: m.qty ?? 1 })); });
     drawerMode = { type: "product", id: ed.id };
     const vs = S.vendors.slice().sort(bySort);
@@ -1848,9 +1877,8 @@ const PB_SEED = {"brands":{"b-gyul":{"name":"귤타민","sort":20},"b-kakao":{"n
           <label class="field"><span>중량</span><input id="ed-weight" type="text" list="dl-weights" value="${esc(p.weight || "")}" placeholder="예: 1.8kg"></label>
           <label class="field"><span>수량</span><input id="ed-count" type="text" value="${esc(p.count || "")}" placeholder="예: 8-9과"></label>
           <label class="field"><span>원산지</span><input id="ed-origin" type="text" value="${esc(p.origin || "")}" placeholder="예: 경북 청송"></label>
-          <label class="field"><span>시즌 시작</span><select id="ed-sfrom"><option value="">-</option>${MONTHS.map(m => `<option value="${m}"${num(p.seasonFrom) === m ? " selected" : ""}>${m}월</option>`).join("")}</select></label>
-          <label class="field"><span>시즌 끝</span><select id="ed-sto"><option value="">-</option>${MONTHS.map(m => `<option value="${m}"${num(p.seasonTo) === m ? " selected" : ""}>${m}월</option>`).join("")}</select></label>
           <label class="field"><span>브릭스</span><input id="ed-brix" type="text" value="${esc(p.brix || "")}" placeholder="예: 14"></label>
+          <div class="field wide"><span>시즌 · 달을 누를 때마다 비시즌 → 일반 판매 → 주력 ${SEASON_LEGEND}</span><div id="ed-months">${mpickHTML("ed", ed.months)}</div></div>
         </div></fieldset>
 
         <fieldset><legend>발송 방식</legend>
@@ -1956,7 +1984,7 @@ const PB_SEED = {"brands":{"b-gyul":{"name":"귤타민","sort":20},"b-kakao":{"n
       prices[bid] = o;
     });
     return {
-      name: v("ed-name"), category: v("ed-cat"), type: $("#ed-type").value, grade: v("ed-grade"), weight: v("ed-weight"), count: v("ed-count"), origin: v("ed-origin"), brix: v("ed-brix"), seasonFrom: num($("#ed-sfrom").value), seasonTo: num($("#ed-sto").value),
+      name: v("ed-name"), category: v("ed-cat"), type: $("#ed-type").value, grade: v("ed-grade"), weight: v("ed-weight"), count: v("ed-count"), origin: v("ed-origin"), brix: v("ed-brix"), seasonMonths: ed.months.slice(),
       mode, vendorSel: $("#ed-vendor").value, vendorNew: v("ed-vnew"), unitCost: num($("#ed-cost").value),
       matsByBrand: Object.fromEntries(Object.entries(ed.mats).map(([bid, arr]) => [bid, arr.filter(m => m.id).map(m => ({ id: m.id, qty: num(m.qty) ?? 1 }))])),
       prices, note: ($("#ed-note").value || "").trim(), date: $("#ed-date").value || today(), memo: v("ed-memo")
@@ -2010,7 +2038,7 @@ const PB_SEED = {"brands":{"b-gyul":{"name":"귤타민","sort":20},"b-kakao":{"n
       }
       const prices = {};
       Object.keys(n.prices).forEach(k => { const o = { ...n.prices[k] }; delete o.__empty; prices[k] = o; });
-      const body = { name: n.name, category: n.category, type: n.type, grade: n.grade, weight: n.weight, count: n.count, origin: n.origin, brix: n.brix, seasonFrom: n.seasonFrom ?? null, seasonTo: n.seasonTo ?? null, mode: n.mode, vendorId, unitCost: n.unitCost, matsByBrand: n.matsByBrand, note: n.note };
+      const body = { name: n.name, category: n.category, type: n.type, grade: n.grade, weight: n.weight, count: n.count, origin: n.origin, brix: n.brix, seasonMonths: n.seasonMonths, seasonFrom: null, seasonTo: null, mode: n.mode, vendorId, unitCost: n.unitCost, matsByBrand: n.matsByBrand, note: n.note };
       const now = new Date().toISOString();
       if (ed.id) {
         const prev = S.products.find(p => p.id === ed.id);
@@ -2109,7 +2137,7 @@ const PB_SEED = {"brands":{"b-gyul":{"name":"귤타민","sort":20},"b-kakao":{"n
 
   // ---------- events ----------
   document.addEventListener("click", async e => {
-    const seg = e.target.closest("[data-ptype],[data-pmode],[data-plmode],[data-hkind],[data-brand],[data-dbrand],[data-hview],[data-htype],[data-mgb],[data-mgtype],[data-mtab],[data-stype],[data-dview],[data-dfield]");
+    const seg = e.target.closest("[data-ptype],[data-pmode],[data-plmode],[data-hkind],[data-brand],[data-dbrand],[data-hview],[data-htype],[data-mgb],[data-mgtype],[data-mtab],[data-stype],[data-dview],[data-dfield],[data-snow]");
     if (seg) {
       if (seg.dataset.ptype) ui.ptype = seg.dataset.ptype;
       else if (seg.dataset.pmode) ui.pmode = seg.dataset.pmode;
@@ -2120,6 +2148,7 @@ const PB_SEED = {"brands":{"b-gyul":{"name":"귤타민","sort":20},"b-kakao":{"n
       else if (seg.dataset.htype) ui.htype = seg.dataset.htype;
       else if (seg.dataset.mgb) ui.mgb = seg.dataset.mgb;
       else if (seg.dataset.stype) ui.stype = seg.dataset.stype;
+      else if (seg.dataset.snow !== undefined) ui.snow = seg.dataset.snow;
       else if (seg.dataset.dview) { ui.dview = seg.dataset.dview; lsSet("pb.dview", ui.dview); }
       else if (seg.dataset.dfield) ui.dfield = seg.dataset.dfield;
       else if (seg.dataset.mgtype) ui.mgtype = seg.dataset.mgtype;
@@ -2128,6 +2157,17 @@ const PB_SEED = {"brands":{"b-gyul":{"name":"귤타민","sort":20},"b-kakao":{"n
       renderView(); return;
     }
     if (e.target.id === "drawer") { closeDrawer(); return; }
+    const mpk = e.target.closest("[data-mpick]");
+    if (mpk) {
+      const m = +mpk.dataset.m, sc = mpk.dataset.mpick;
+      const arr = sc === "sp" ? (ui.sedit && ui.sedit.draft.months) : sc === "ed" ? (ed && ed.months) : (() => { const o = ui.bulk.sp = ui.bulk.sp || {}; if (!o.months) o.months = MONTHS.map(() => ""); o.monthsTouched = true; return o.months; })();
+      if (!arr) return;
+      arr[m - 1] = nextState(arr[m - 1] || "");
+      if (sc === "spb") { renderView(); return; }
+      mpk.className = mpk.className.replace(/ (on|sell)\b/g, "") + stCls(arr[m - 1]);
+      if (sc === "sp") { const tx = document.querySelector("tr.editing [data-stxt]"); if (tx) tx.textContent = seasonText({ seasonMonths: arr }) || "비시즌"; }
+      return;
+    }
     const edb = e.target.closest("[data-edb]"); if (edb && ed) { ed.mb = edb.dataset.edb; renderEdMats(); updateTotals(); return; }
     const b = e.target.closest("[data-act]"); if (!b) return;
     const act = b.dataset.act, id = b.dataset.id;
@@ -2154,6 +2194,7 @@ const PB_SEED = {"brands":{"b-gyul":{"name":"귤타민","sort":20},"b-kakao":{"n
         break;
       }
       case "csv": exportCSV(); break;
+      case "spb-months-reset": if (ui.bulk.sp) { ui.bulk.sp.monthsTouched = false; ui.bulk.sp.months = null; } renderView(); break;
       case "sel-clear": selSet(b.dataset.v).clear(); renderView(); break;
       case "pp-apply": applyPriceBulk(); break;
       case "pp-to-adjust": ui.ppOnly = true; location.hash = "#adjust"; break;
@@ -2173,7 +2214,7 @@ const PB_SEED = {"brands":{"b-gyul":{"name":"귤타민","sort":20},"b-kakao":{"n
         if (!S.canWrite) { openGate(); break; }
         const key = b.dataset.key; const items = S.products.filter(x => catOf(x) + "|" + x.name === key); if (!items.length) break;
         const v = f => specVal(items, f).v;
-        ui.sedit = { key, draft: { category: catOf(items[0]), origin: v("origin"), brix: v("brix"), seasonFrom: v("seasonFrom"), seasonTo: v("seasonTo"), onlineDate: v("onlineDate"), specNote: v("specNote") } }; renderView(); break;
+        ui.sedit = { key, draft: { category: catOf(items[0]), origin: v("origin"), brix: v("brix"), months: String(v("seasonKey")).split(","), onlineDate: v("onlineDate"), specNote: v("specNote") } }; renderView(); break;
       }
       case "sp-cancel": ui.sedit = null; renderView(); break;
       case "sp-save": await saveSpec(b); break;
@@ -2255,7 +2296,6 @@ const PB_SEED = {"brands":{"b-gyul":{"name":"귤타민","sort":20},"b-kakao":{"n
     if (t.dataset.bkv) { (ui.bulk[t.dataset.bkv] = ui.bulk[t.dataset.bkv] || {})[t.dataset.bkf] = t.value; if (t.tagName === "SELECT") renderView(); return; }
     if (t.id === "pp-only") { ui.ppOnly = t.checked; renderView(); return; }
     if (t.id === "d-changed") { ui.dchanged = t.checked; lsSet("pb.dchanged", ui.dchanged); renderView(); return; }
-    if (t.id === "s-now") { ui.snow = t.checked; renderView(); return; }
     if (ui.sedit && t.dataset.sp && t.tagName === "SELECT") {
       ui.sedit.draft[t.dataset.sp] = t.value;
       const tmp = { seasonFrom: ui.sedit.draft.seasonFrom, seasonTo: ui.sedit.draft.seasonTo };
