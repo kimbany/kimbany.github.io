@@ -639,7 +639,7 @@ const PB_SEED = {"brands":{"b-gyul":{"name":"귤타민","sort":20},"b-kakao":{"n
   const packCostRaw = (p, bid) => listCost(matsFor(p, bid)) + listCost(baseList(p.weight));
   const packCost = (p, bid) => p.mode !== "self" ? 0 : packCostRaw(p, bid);
   // 원가 = 단가 + 그 판매처 부자재 (자체 발송일 때). 기본비(테이프 · 인건비 · 택배비)는 따로
-  const origCost = (p, bid) => (num(p.unitCost) || 0) + (p.mode === "self" ? listCost(matsFor(p, bid)) : 0);
+  const origCost = (p, bid) => (num(p.unitCost) || 0) + packCost(p, bid);
   const matCost = p => { const bs = brands(); if (!bs.length) return p.mode !== "self" ? 0 : listCost(p.materials) + listCost(baseList(p.weight)); return Math.max(0, ...bs.map(b => packCost(p, b.id))); };
   const totalCost = p => (num(p.unitCost) || 0) + matCost(p);
   const typeClass = t => { const i = S.config.types.indexOf(t); return i === 0 ? "t0" : i === 1 ? "t1" : "t2"; };
@@ -1011,13 +1011,13 @@ const PB_SEED = {"brands":{"b-gyul":{"name":"귤타민","sort":20},"b-kakao":{"n
     let h = `<div class="tablewrap"><table class="led"><thead><tr>
       ${S.canWrite ? selTh("pp", list.map(p => p.id), 3) : ""}<th rowspan="3">상품명</th><th rowspan="3">품종</th><th rowspan="3">구분</th><th rowspan="3">업체</th><th rowspan="3">등급</th><th rowspan="3">중량</th><th rowspan="3">수량</th>
       <th rowspan="3" title="단가 + 부자재 (판매처마다 다르면 판매처별로)">원가</th>`;
-    bs.forEach(b => { h += `<th class="brand bstart" colspan="6">${esc(b.name)}</th>`; });
+    bs.forEach(b => { h += `<th class="brand bstart" colspan="5">${esc(b.name)}</th>`; });
     cbs.forEach(b => { h += `<th class="brand bstart" colspan="${brandChannels(b).length}">${esc(b.name)} 채널</th>`; });
     h += `</tr><tr class="r2">`;
-    bs.forEach(() => { h += `<th class="bstart basic" colspan="6">기본</th>`; });
+    bs.forEach(() => { h += `<th class="bstart basic" colspan="5">기본</th>`; });
     cbs.forEach(b => brandChannels(b).forEach((c, i) => { h += `<th class="${i === 0 ? "bstart " : ""}basic">${esc(c.name)}</th>`; }));
     h += `</tr><tr class="r3">`;
-    bs.forEach(() => { h += `<th class="bstart">정상가</th><th>판매가</th><th>배송비</th><th title="자체 발송: 테이프 · 인건비 · 택배비">기본비</th><th>마진</th><th>마진율</th>`; });
+    bs.forEach(() => { h += `<th class="bstart">정상가</th><th>판매가</th><th>배송비</th><th>마진</th><th>마진율</th>`; });
     cbs.forEach(b => brandChannels(b).forEach((c, i) => { h += `<th class="${i === 0 ? "bstart " : ""}fee">${esc(String(c.fee ?? 0))}%</th>`; }));
     h += `</tr></thead><tbody>`;
     groupOf(list).forEach(g => {
@@ -1027,12 +1027,16 @@ const PB_SEED = {"brands":{"b-gyul":{"name":"귤타민","sort":20},"b-kakao":{"n
         if (S.canWrite) h += selTd("pp", p.id);
         if (i === 0) h += catCell(g) + nameCell(g, p) + `<td class="gcell ${typeClass(p.type)}" rowspan="${n}">${esc(p.type)}</td>` + vendCell(p, n);
         h += `<td class="c">${esc(p.grade)}</td><td class="c">${esc(p.weight)}</td><td class="c">${esc(p.count)}</td>`;
-        // 원가 = 단가 + 그 판매처 부자재 (자체 발송). 판매처마다 다르면 줄을 나눠 보여요
+        // 원가 = 단가 + 그 판매처 부자재 전부(포장재 + 테이프 · 인건비 · 택배비, 자체 발송). 판매처마다 다르면 줄을 나눠 보여요
         const oc = bsAll.filter(b => isSold((p.prices || {})[b.id]) || listCost(matsFor(p, b.id))).map(b => [b, origCost(p, b.id)]);
         const uniq = [...new Set(oc.map(x => Math.round(x[1])))];
-        h += p.mode !== "self" || uniq.length <= 1
-          ? `<td class="num cost" title="단가 ${won(p.unitCost)}${p.mode === "self" && oc.length ? " + 부자재 " + won(listCost(matsFor(p, oc[0][0].id))) : ""}">${won(uniq.length ? uniq[0] : num(p.unitCost))}</td>`
-          : `<td class="num cost">${oc.map(([b, c]) => `<div class="ocline" title="단가 ${won(p.unitCost)} + ${esc(b.name)} 부자재 ${won(listCost(matsFor(p, b.id)))}"><span class="hint">${esc(b.name)}</span> ${won(c)}</div>`).join("")}</td>`;
+        const tip = b => `단가 ${won(p.unitCost)} + 부자재 ${won(packCost(p, b.id))} (포장재 ${won(listCost(matsFor(p, b.id)))} + 테이프 · 인건비 · 택배비 ${won(listCost(baseList(p.weight)))}) · 눌러서 부자재 보기`;
+        const ocBtn = (b, c) => `<button type="button" class="linkcell" data-act="goto-mats" data-id="${esc(p.id)}" data-bid="${esc(b.id)}" title="${esc(tip(b))}">${won(c)}</button>`;
+        h += p.mode !== "self" || !oc.length
+          ? `<td class="num cost" title="${p.mode === "self" ? "부자재 없음" : "업체 발송: 단가에 포장 · 배송 포함"}">${won(p.mode === "self" ? num(p.unitCost) + listCost(baseList(p.weight)) : num(p.unitCost))}</td>`
+          : uniq.length <= 1
+          ? `<td class="num cost">${ocBtn(oc[0][0], oc[0][1])}</td>`
+          : `<td class="num cost">${oc.map(([b, c]) => `<div class="ocline"><span class="hint">${esc(b.name)}</span> ${ocBtn(b, c)}</div>`).join("")}</td>`;
         bs.forEach(b => {
           const pr = editable ? curPrice(p, b.id) : ((p.prices || {})[b.id] || {});
           const sold = isSold(pr);
@@ -1051,7 +1055,7 @@ const PB_SEED = {"brands":{"b-gyul":{"name":"귤타민","sort":20},"b-kakao":{"n
             h += `<td class="num bstart">${won(pr.regular)}</td><td class="num">${won(pr.sale)}</td><td class="c">${esc(shipText(pr.shipping))}</td>`;
           }
           const pk = p.mode === "self" ? `<td class="num muted"><button type="button" class="linkcell" data-act="goto-mats" data-id="${esc(p.id)}" data-bid="${esc(b.id)}" title="${esc(baseList(p.weight).map(m => { const mm = matById(m.id); return mm ? mm.name + " " + won(mm.cost * (num(m.qty) || 1)) : ""; }).filter(Boolean).join(" + "))} · 원가 ${won(origCost(p, b.id))} · 눌러서 부자재 보기">${won(listCost(baseList(p.weight)))}</button></td>` : `<td class="c muted" title="업체 발송: 단가에 포장 포함${listCost(matsFor(p, b.id)) ? " · 자체 발송으로 바꾸면 " + won(packCostRaw(p, b.id)) + "원" : ""}">업체</td>`;
-          h += sold || editable ? pk : `<td class="na">–</td>`;
+
           h += sold ? `<td class="num" data-mc="${esc(p.id + "|" + b.id)}">${mHTML(c)}</td><td class="num" data-mr="${esc(p.id + "|" + b.id)}">${rHTML(c)}</td>`
                     : `<td class="na" data-mc="${esc(p.id + "|" + b.id)}">–</td><td class="na" data-mr="${esc(p.id + "|" + b.id)}">–</td>`;
         });
@@ -1067,7 +1071,7 @@ const PB_SEED = {"brands":{"b-gyul":{"name":"귤타민","sort":20},"b-kakao":{"n
       });
     });
     h += `</tbody></table></div>`;
-    h += `<p class="hint">원가 = 단가 + 부자재(그 판매처 박스 · 에어셀 등). 판매처마다 부자재가 다르면 원가 칸에 판매처별로 나눠 보여요. 기본비 = 테이프 · 인건비 · 택배비(6kg 이상은 6kg 이상 택배비). <b>마진 = 판매가(없으면 정상가) − 원가 − 기본비.</b> 업체 발송은 원가 = 단가이고 기본비는 "업체"(단가에 포함)예요. 채널 마진은 판매가 × 수수료를 더 뺀 값이에요.</p>`;
+    h += `<p class="hint">원가 = 단가 + 부자재(그 판매처 박스 · 에어셀 등 + 테이프 · 인건비 · 택배비, 자체 발송일 때). 판매처마다 부자재가 다르면 원가 칸에 판매처별로 나눠 보여요. 원가에 마우스를 올리면 내역, 누르면 부자재 표로 가요. <b>마진 = 판매가(없으면 정상가) − 원가.</b> 업체 발송은 원가 = 단가예요. 채널 마진은 판매가 × 수수료를 더 뺀 값이에요.</p>`;
     return h;
   }
   function renderPrices() {
