@@ -1985,6 +1985,7 @@ const PB_SEED = {"brands":{"b-gyul":{"name":"귤타민","sort":20},"b-kakao":{"n
         name: String(r.name).trim(), category: r.category == null ? null : String(r.category).trim(), type: String(r.type || "").trim(), grade: String(r.grade || "").trim(),
         weight: String(r.weight || "").trim(), count: String(r.count || "").trim(), brix: r.brix == null ? null : String(r.brix).trim(), origin: r.origin == null ? null : String(r.origin).trim(),
         mats: r.materials && typeof r.materials === "object" && !Array.isArray(r.materials) ? r.materials : null,
+        memo: r.memo ? String(r.memo).trim() : null,
         costHistory: Array.isArray(r.costHistory) ? r.costHistory.map(c => ({ date: String(c.date || "").slice(0, 10), unitCost: num(c.unitCost) })).filter(c => /^\d{4}-\d{2}-\d{2}$/.test(c.date) && c.unitCost != null).sort((a, b) => a.date.localeCompare(b.date)) : [],
         vendor: String(r.vendor || "").trim(), mode: r.mode === "self" || (!r.vendor && r.mode !== "vendor") ? "self" : "vendor",
         unitCost: cost, prices: {}
@@ -2096,7 +2097,7 @@ const PB_SEED = {"brands":{"b-gyul":{"name":"귤타민","sort":20},"b-kakao":{"n
           const diffs = diffProduct(ex, { ...full, prices: full.prices });
           if (!diffs.length) continue;
           await db.doc("products/" + ex.id).set(full);
-          await addHist(diffs.map(d => ({ ...d, targetId: ex.id, label: label(full), date, memo })));
+          await addHist(diffs.map(d => ({ ...d, targetId: ex.id, label: label(full), date, memo: r.memo || memo })));
           updated++; logged += diffs.length;
         } else {
           const id = rid("p"); pSort += 10;
