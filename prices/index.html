@@ -387,6 +387,7 @@ body.ro .w { display: none !important; }
       <input id="a-q" type="search" placeholder="상품명 · 등급 · 업체 검색" aria-label="검색">
       <div class="seg" id="a-type" role="group" aria-label="구분"></div>
       <span class="grow"></span>
+      <button class="btn w" type="button" data-act="regen-regular" id="a-regen" title="보이는 줄 · 켜 둔 판매처의 정상가를 판매가 기준으로 다시 계산해요">정상가 다시 계산 (판매가 기준)</button>
       <label class="switch"><input type="checkbox" id="a-chan"> 채널별 마진</label>
     </div>
     <div class="toolbar">
@@ -827,13 +828,14 @@ const PB_SEED = {"brands":{"b-gyul":{"name":"귤타민","sort":20},"b-kakao":{"n
     const o = ui.bulk.pp || {};
     const bid = o.bid || (brands()[0] || {}).id; const f = o.f || "sale", op = o.op || "set";
     if (!bid) return;
-    if (f !== "stop" && (o.val == null || String(o.val).trim() === "")) { toast("금액이나 %를 넣어 주세요.", true); return; }
+    if (f !== "stop" && f !== "regen" && (o.val == null || String(o.val).trim() === "")) { toast("금액이나 %를 넣어 주세요.", true); return; }
     let n = 0;
     selSet("pp").forEach(pid => {
       const p = S.products.find(x => x.id === pid); if (!p) return;
       const cur = curPrice(p, bid);
       const put = (fld, val) => setDraft(p, bid, fld, val);
       if (f === "stop") { put("regular", ""); put("sale", ""); }
+      else if (f === "regen") { const reg = regularFromSale(cur.sale); if (reg == null) return; put("regular", won(reg)); }
       else if (f === "shipping") put("shipping", op === "set" ? String(o.val).trim() : String(applyOp(cur.shipping, op, o.val)));
       else if ((f === "sale" || f === "both") && autoRegularOn()) {
         const sale = applyOp(cur.sale ?? cur.regular, op, o.val); put("sale", won(sale));
@@ -986,6 +988,19 @@ const PB_SEED = {"brands":{"b-gyul":{"name":"귤타민","sort":20},"b-kakao":{"n
     cands.sort((a, b) => Math.abs(a - raw) - Math.abs(b - raw) || b - a);
     return cands[0] ?? null;
   }
+  // 보이는 줄 · 켜 둔 판매처의 정상가를 판매가 기준으로 다시 채워요 (노란 칸으로 → 임시저장 · 저장)
+  function regenRegular() {
+    const bs = brands().filter(b => !ui.hidden.has(b.id));
+    const list = filtered().filter(p => !ui.ppOnly || selSet("pp").has(p.id));
+    let n = 0;
+    list.forEach(p => bs.forEach(b => {
+      const cur = curPrice(p, b.id); if (!isSold(cur) || cur.sale == null) return;
+      const reg = regularFromSale(cur.sale); if (reg == null || reg === cur.regular) return;
+      setDraft(p, b.id, "regular", won(reg)); n++;
+    }));
+    renderView();
+    toast(n ? `정상가 ${n}칸을 다시 계산했어요 · 노란 칸 확인 후 임시저장이나 저장을 눌러요` : "바꿀 정상가가 없어요 (이미 판매가 기준과 같아요)");
+  }
   // 판매가 수정: 임시저장한 칸(서버, 빨강) + 지금 고친 칸(노랑). 저장하면 둘 다 반영돼요.
   const tempCells = () => (S.adjTemp && S.adjTemp.cells) || {};
   const pendingCells = () => ({ ...tempCells(), ...ui.drafts });
@@ -1093,12 +1108,13 @@ const PB_SEED = {"brands":{"b-gyul":{"name":"귤타민","sort":20},"b-kakao":{"n
     if (!S.products.length) { host.innerHTML = emptyHTML("아직 등록된 제품이 없어요", ""); return; }
     const list = filtered().filter(p => !ui.ppOnly || selSet("pp").has(p.id));
     if (!list.length) { host.innerHTML = emptyHTML("조건에 맞는 제품이 없어요", ui.ppOnly ? `<p><button class="btn" type="button" data-act="pp-only-off">선택한 것만 보기 끄기</button></p>` : ""); return; }
-    const ppBar = bulkBar("pp", ` · 판매처 ${bkSel("pp", "bid", brands().map(b => [b.id, b.name]), "판매처")} ${bkSel("pp", "f", [["sale", "판매가"], ["regular", "정상가"], ["both", "정상가 · 판매가"], ["shipping", "배송비"], ["stop", "판매 안 함으로"]], "항목")} ${bkSel("pp", "op", OPS, "계산")} ${bkIn("pp", "val", "금액 또는 %")}
+    const ppBar = bulkBar("pp", ` · 판매처 ${bkSel("pp", "bid", brands().map(b => [b.id, b.name]), "판매처")} ${bkSel("pp", "f", [["sale", "판매가"], ["regular", "정상가"], ["both", "정상가 · 판매가"], ["shipping", "배송비"], ["regen", "정상가만 다시 계산"], ["stop", "판매 안 함으로"]], "항목")} ${bkSel("pp", "op", OPS, "계산")} ${bkIn("pp", "val", "금액 또는 %")}
       <button class="btn sm primary" type="button" data-act="pp-apply">선택한 줄에 넣기</button>
       <label class="switch"><input type="checkbox" id="pp-only" ${ui.ppOnly ? "checked" : ""}> 선택한 것만 보기</label>`, "개", true);
     host.innerHTML = ppBar + `<p class="summary">제품 <b>${list.length}</b>개 · ${autoRegularOn() ? `판매가를 넣으면 정상가가 할인율 ${regDiscount()}% 기준으로 자동으로 채워져요(뒷자리 800 · 900). ` : ""}고친 칸은 노란색, <b>임시저장</b>한 칸은 빨간 글씨예요. <b>저장</b>을 눌러야 가격표에 반영되고 검정으로 돌아와요. 정상가 · 판매가를 모두 비우면 그 판매처에서는 판매 안 함이 돼요.</p>` + ledgerHTML(list, true);
   }
   function updateAdjustBar() {
+    const rg = $("#a-regen"); if (rg) rg.hidden = !autoRegularOn();
     const n = Object.keys(ui.drafts).length, t = Object.keys(tempCells()).length;
     $("#a-bar").hidden = !((n || t) && S.canWrite && ui.view === "adjust");
     $("#a-count").textContent = n;
@@ -2546,6 +2562,7 @@ const PB_SEED = {"brands":{"b-gyul":{"name":"귤타민","sort":20},"b-kakao":{"n
       case "adjust-save": await saveAdjust(b); break;
       case "adjust-revert": ui.drafts = {}; renderView(); toast("임시저장 뒤에 고친 칸을 되돌렸어요"); break;
       case "adjust-temp": await tempSaveAdjust(b); break;
+      case "regen-regular": regenRegular(); break;
       case "adjust-temp-clear": if (!armed(b, "한 번 더 누르면 임시저장 지움")) break; if (await guard(() => db.doc("drafts/adjust").set({ cells: {}, memo: "", updatedAt: new Date().toISOString() }), "임시저장을 지웠어요")) { S.adjTemp = { cells: {} }; renderView(); } break;
       case "chan-add": {
         const br = S.brands.find(x => x.id === id); if (!br) break;
