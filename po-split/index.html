@@ -62,8 +62,12 @@ details.hist summary{cursor:pointer;color:var(--muted);font-size:.88rem}
 .hist li.sel{background:var(--chip)}
 .hist li .fn{flex:1;min-width:0;word-break:break-all;font-size:.88rem}
 .vendors{display:flex;flex-direction:column;gap:8px}
-.vendor{display:grid;grid-template-columns:120px 1fr auto;gap:12px;align-items:start;padding:10px 12px;border:1px solid var(--line);border-radius:8px}
-.vendor .vn{font-weight:600;padding-top:4px;word-break:break-all}
+.vendor{display:grid;grid-template-columns:140px 1fr auto;gap:12px;align-items:start;padding:10px 12px;border:1px solid var(--line);border-radius:8px}
+.vendor .vn{min-width:0}
+.vendor input.vname{font-weight:600;width:100%;border-color:transparent;background:transparent;padding:4px 6px;margin-left:-6px}
+.vendor input.vname:hover{border-color:var(--line)}
+.vendor input.vname:focus{border-color:var(--accent);background:var(--bg)}
+.vendor .vn .cnt{padding-left:0}
 .vendor .vn .cnt{display:block;font-weight:400;font-size:.78rem;color:var(--muted);font-variant-numeric:tabular-nums}
 .chips{display:flex;flex-wrap:wrap;gap:6px;align-items:center;min-width:0}
 .chip{background:var(--chip);border-radius:999px;padding:2px 4px 2px 10px;font-size:.85rem;display:inline-flex;align-items:center;gap:2px}
@@ -139,7 +143,7 @@ tr.unk td{background:var(--warn-soft)}
 
   <section class="card">
     <h2><span class="step">STEP 2</span>업체 · 키워드 규칙</h2>
-    <p class="hint">SKU 이름에 키워드가 들어 있으면 그 업체로 갑니다. 띄어쓰기와 대소문자는 무시합니다. 위에 있는 업체부터 차례로 확인하고, 처음 맞은 업체로 보냅니다. 상품명이 모두 “다조은”으로 시작하므로 “다조은”은 키워드로 쓰지 마세요.</p>
+    <p class="hint">SKU 이름에 키워드가 들어 있으면 그 업체로 갑니다. 띄어쓰기와 대소문자는 무시합니다. 위에 있는 업체부터 차례로 확인하고, 처음 맞은 업체로 보냅니다. 업체 이름을 누르면 바꿀 수 있습니다. 상품명이 모두 “다조은”으로 시작하므로 “다조은”은 키워드로 쓰지 마세요.</p>
     <div class="vendors" id="vendors"></div>
     <div class="row">
       <input type="text" id="newVendor" placeholder="새 업체 이름" maxlength="31" aria-label="새 업체 이름">
@@ -344,7 +348,20 @@ function renderRules(cls){
   if(!S.draft.vendors.length){box.innerHTML='<p class="empty">업체가 없습니다. 아래에서 업체 이름을 넣고 “업체 추가”를 누르세요.</p>'}
   S.draft.vendors.forEach((v,i)=>{
     const el=document.createElement('div'); el.className='vendor';
-    const vn=document.createElement('div'); vn.className='vn'; vn.textContent=v.name;
+    const vn=document.createElement('div'); vn.className='vn';
+    const nm=document.createElement('input'); nm.type='text'; nm.className='vname'; nm.value=v.name; nm.maxLength=31; nm.id='vn-'+i;
+    nm.title='눌러서 업체 이름 바꾸기'; nm.setAttribute('aria-label','업체 이름');
+    const commit=()=>{const n=nm.value.trim(); if(n===v.name) return;
+      const err = !n?'업체 이름을 넣어 주세요.' : BAD_SHEET.test(n)?'업체 이름에는 : \\ / ? * [ ] 를 쓸 수 없습니다 (엑셀 시트 이름 규칙).'
+        : (n===UNK||vendorNames().includes(n))?'이미 있는 이름입니다.' : '';
+      if(err){toast(err);nm.value=v.name;return}
+      const old=v.name; v.name=n;
+      if(S.draft.fallback===old) S.draft.fallback=n;
+      const ov=S.draft.overrides||{}; Object.keys(ov).forEach(k=>{if(ov[k]===old) ov[k]=n});
+      changed(); toast(`“${old}” → “${n}” 으로 바꿨습니다. 규칙 저장을 눌러 주세요.`)};
+    nm.onblur=commit;
+    nm.onkeydown=e=>{if(e.key==='Enter'&&!e.isComposing){e.preventDefault();nm.blur()} else if(e.key==='Escape'){nm.value=v.name;nm.blur()}};
+    vn.append(nm);
     const cnt=document.createElement('span'); cnt.className='cnt'; cnt.textContent=cls?`${counts[v.name]||0}개 상품`:''; vn.append(cnt);
     const chips=document.createElement('div'); chips.className='chips';
     (v.keywords||[]).forEach((k,ki)=>{
