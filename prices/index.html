@@ -175,6 +175,7 @@ table.led.spec.withsel { width: 1402px; }
 .evpanel .chip { cursor: pointer; }
 .led.evt td.cell input.rate { width: 54px; }
 .led td .ocline { white-space: nowrap; line-height: 1.35; }
+.led td .taek { font-size: 11px; color: var(--warn); font-weight: 600; margin-left: 3px; white-space: nowrap; }
 .led td .ocline .hint { font-size: 11px; margin-right: 2px; }
 .linkcell { all: unset; cursor: pointer; text-decoration: underline dotted; text-underline-offset: 3px; }
 .linkcell:hover { color: var(--accent); }
@@ -631,10 +632,9 @@ const PB_SEED = {"brands":{"b-gyul":{"name":"귤타민","sort":20},"b-kakao":{"n
   // 기본 부자재(테이프 · 인건비 등) + 택배비(중량 기준) — 자체 발송 모든 제품에 자동으로 들어가요
   const baseList = weight => {
     const out = (S.config.baseMats || []).filter(m => m && m.id).map(m => ({ id: m.id, qty: num(m.qty) ?? 1 }));
-    const heavy = wKg(weight) >= (num(S.config.heavyKg) || 6);
-    const ship = heavy ? S.config.shipHeavy : S.config.shipLight;
-    if (ship) out.push({ id: ship, qty: 1 });
-    return out;
+    // 택배비는 여기(부자재)서 빼고, 판매가의 배송비(무배 / 유배)로 따로 계산해요
+    const shipIds = new Set([S.config.shipLight, S.config.shipHeavy].filter(Boolean));
+    return out.filter(m => !shipIds.has(m.id));
   };
   const packCostRaw = (p, bid) => listCost(matsFor(p, bid)) + listCost(baseList(p.weight));
   const packCost = (p, bid) => p.mode !== "self" ? 0 : packCostRaw(p, bid);
@@ -647,6 +647,19 @@ const PB_SEED = {"brands":{"b-gyul":{"name":"귤타민","sort":20},"b-kakao":{"n
   const modeText = p => p.mode === "self" ? "자체 포장" : (vendorName(p.vendorId) || "업체 발송");
   const isSold = pr => !!pr && (pr.regular != null || pr.sale != null);
   const effPrice = pr => pr ? (pr.sale ?? pr.regular ?? null) : null;
+  // 택배비 설정: 기본 3,500원, 5kg 이상 4,500원 (기타 설정에서 바꿈)
+  const courierCfg = () => ({ light: num(S.config.courierLight) ?? 3500, heavy: num(S.config.courierHeavy) ?? 4500, kg: num(S.config.courierHeavyKg) ?? 5 });
+  // 배송비 칸: "유배" · "유료" · 금액(예: 3,500) = 고객이 따로 냄 / "무배" · "무료" · 빈칸 = 우리가 냄
+  const isPaidShip = v => {
+    if (typeof v === "number") return v > 0;
+    const t = String(v ?? "").trim(); if (!t) return false;
+    if (/무배|무료/.test(t)) return false;
+    if (/유배|유료/.test(t)) return true;
+    const n = num(t); return n != null && n > 0;
+  };
+  const courierFee = p => { const c = courierCfg(); return wKg(p.weight) >= c.kg ? c.heavy : c.light; };
+  // 자체 발송 · 판매 중 · 무배일 때만 택배비를 마진에서 빼요 (업체 발송은 업체 단가에 배송 포함)
+  const courierFor = (p, pr) => (p.mode !== "self" || !pr || !isSold(pr) || isPaidShip(pr.shipping)) ? 0 : courierFee(p);
   const shipNum = pr => (pr && typeof pr.shipping === "number") ? pr.shipping : (num(pr && pr.shipping) || 0);
   const shipText = v => v == null || v === "" ? "" : (typeof v === "number" ? won(v) : String(v));
   // 배송비 칸: 숫자면 금액(원), 아니면 '무배' 같은 글자
@@ -659,7 +672,7 @@ const PB_SEED = {"brands":{"b-gyul":{"name":"귤타민","sort":20},"b-kakao":{"n
   // 마진 = 판매가(없으면 정상가) − 수수료 − 단가 − 포장비(자체 발송일 때 그 판매처 부자재 + 기본 부자재 · 택배비)
   const calcMargin = (p, pr, fee, bid) => {
     const price = effPrice(pr); if (price == null) return null;
-    const m = price - price * (fee || 0) / 100 - (num(p.unitCost) || 0) - packCost(p, bid);
+    const m = price - price * (fee || 0) / 100 - (num(p.unitCost) || 0) - packCost(p, bid) - courierFor(p, pr);
     return { m, r: price ? m / price * 100 : 0 };
   };
   const mHTML = c => c == null ? "" : `<span class="${c.m >= 0 ? "pos" : "neg"}">${won(c.m)}</span>`;
@@ -1028,15 +1041,17 @@ const PB_SEED = {"brands":{"b-gyul":{"name":"귤타민","sort":20},"b-kakao":{"n
         if (i === 0) h += catCell(g) + nameCell(g, p) + `<td class="gcell ${typeClass(p.type)}" rowspan="${n}">${esc(p.type)}</td>` + vendCell(p, n);
         h += `<td class="c">${esc(p.grade)}</td><td class="c">${esc(p.weight)}</td><td class="c">${esc(p.count)}</td>`;
         // 원가 = 단가 + 그 판매처 부자재 전부(포장재 + 테이프 · 인건비 · 택배비, 자체 발송). 판매처마다 다르면 줄을 나눠 보여요
-        const oc = bsAll.filter(b => isSold((p.prices || {})[b.id]) || listCost(matsFor(p, b.id))).map(b => [b, origCost(p, b.id)]);
-        const uniq = [...new Set(oc.map(x => Math.round(x[1])))];
-        const tip = b => `단가 ${won(p.unitCost)} + 부자재 ${won(packCost(p, b.id))} (포장재 ${won(listCost(matsFor(p, b.id)))} + 테이프 · 인건비 · 택배비 ${won(listCost(baseList(p.weight)))}) · 눌러서 부자재 보기`;
-        const ocBtn = (b, c) => `<button type="button" class="linkcell" data-act="goto-mats" data-id="${esc(p.id)}" data-bid="${esc(b.id)}" title="${esc(tip(b))}">${won(c)}</button>`;
+        const prOf = b => editable ? curPrice(p, b.id) : ((p.prices || {})[b.id] || {});
+        const oc = bsAll.filter(b => isSold(prOf(b)) || listCost(matsFor(p, b.id))).map(b => [b, origCost(p, b.id), courierFor(p, prOf(b))]);
+        const uniq = [...new Set(oc.map(x => Math.round(x[1]) + "|" + x[2]))];
+        const tb = c => c ? `<span class="taek" title="무배: 택배비 ${won(c)}원을 마진에서 빼요">(택 ${won(c)})</span>` : "";
+        const tip = b => `단가 ${won(p.unitCost)} + 부자재 ${won(packCost(p, b.id))} (포장재 ${won(listCost(matsFor(p, b.id)))} + 테이프 · 인건비 ${won(listCost(baseList(p.weight)))}) · 눌러서 부자재 보기`;
+        const ocBtn = (b, c, cr) => `<button type="button" class="linkcell" data-act="goto-mats" data-id="${esc(p.id)}" data-bid="${esc(b.id)}" title="${esc(tip(b))}">${won(c)}</button>${tb(cr)}`;
         h += p.mode !== "self" || !oc.length
           ? `<td class="num cost" title="${p.mode === "self" ? "부자재 없음" : "업체 발송: 단가에 포장 · 배송 포함"}">${won(p.mode === "self" ? num(p.unitCost) + listCost(baseList(p.weight)) : num(p.unitCost))}</td>`
           : uniq.length <= 1
-          ? `<td class="num cost">${ocBtn(oc[0][0], oc[0][1])}</td>`
-          : `<td class="num cost">${oc.map(([b, c]) => `<div class="ocline"><span class="hint">${esc(b.name)}</span> ${ocBtn(b, c)}</div>`).join("")}</td>`;
+          ? `<td class="num cost">${ocBtn(oc[0][0], oc[0][1], oc[0][2])}</td>`
+          : `<td class="num cost">${oc.map(([b, c, cr]) => `<div class="ocline"><span class="hint">${esc(b.name)}</span> ${ocBtn(b, c, cr)}</div>`).join("")}</td>`;
         bs.forEach(b => {
           const pr = editable ? curPrice(p, b.id) : ((p.prices || {})[b.id] || {});
           const sold = isSold(pr);
@@ -1071,7 +1086,7 @@ const PB_SEED = {"brands":{"b-gyul":{"name":"귤타민","sort":20},"b-kakao":{"n
       });
     });
     h += `</tbody></table></div>`;
-    h += `<p class="hint">원가 = 단가 + 부자재(그 판매처 박스 · 에어셀 등 + 테이프 · 인건비 · 택배비, 자체 발송일 때). 판매처마다 부자재가 다르면 원가 칸에 판매처별로 나눠 보여요. 원가에 마우스를 올리면 내역, 누르면 부자재 표로 가요. <b>마진 = 판매가(없으면 정상가) − 원가.</b> 업체 발송은 원가 = 단가예요. 채널 마진은 판매가 × 수수료를 더 뺀 값이에요.</p>`;
+    h += `<p class="hint">원가 = 단가 + 부자재(그 판매처 박스 · 에어셀 등 + 테이프 · 인건비, 자체 발송일 때). 판매처마다 다르면 원가 칸에 판매처별로 나눠 보여요. 배송비가 <b>무배</b>면 택배비(${won(courierCfg().light)}원, ${courierCfg().kg}kg 이상 ${won(courierCfg().heavy)}원)를 "(택 …)"으로 표시하고 마진에서 빼요. <b>유배</b>(또는 금액)면 고객이 내니까 빼지 않아요. <b>마진 = 판매가(없으면 정상가) − 원가 − 택배비(무배일 때).</b> 업체 발송은 원가 = 단가예요. 채널 마진은 판매가 × 수수료를 더 뺀 값이에요.</p>`;
     return h;
   }
   function renderPrices() {
@@ -1603,7 +1618,7 @@ const PB_SEED = {"brands":{"b-gyul":{"name":"귤타민","sort":20},"b-kakao":{"n
     const pr = (p.prices || {})[bid] || {};
     if (!isSold(pr)) return null;
     const price = effPrice(pr), rate = evRate(p.id, bid), disc = evDisc(price, rate);
-    const cost = (num(p.unitCost) || 0) + packCost(p, bid), m = disc - cost;
+    const cost = (num(p.unitCost) || 0) + packCost(p, bid) + courierFor(p, pr), m = disc - cost;
     return { price, rate, disc, cost, m, r: disc ? m / disc * 100 : 0 };
   }
   const evStatusTag = st => st === "saved" ? '<span class="tag self">저장됨</span>' : st === "draft" ? '<span class="tag">임시저장</span>' : '<span class="tag">새 이벤트</span>';
@@ -1802,7 +1817,7 @@ const PB_SEED = {"brands":{"b-gyul":{"name":"귤타민","sort":20},"b-kakao":{"n
     const host = $("#m-table");
     const cats = gridCats();
     const base = (S.config.baseMats || []).map(m => matById(m.id)).filter(Boolean);
-    const sl = matById(S.config.shipLight), sh = matById(S.config.shipHeavy);
+    const sl = null, sh = null; // 택배비는 판매가의 무배 · 유배로 따로 계산
     if (!cats.length) { host.innerHTML = emptyHTML("부자재가 아직 없어요", `<p>「부자재 단가」 탭에서 부자재를 먼저 등록하거나, 기타 설정의 <b>한꺼번에 넣기</b>로 넣어 주세요.</p>`); return; }
     const rows = rowsForGrid();
     if (!rows.length) { host.innerHTML = emptyHTML("보여 줄 제품이 없어요", `<p>자체 발송 제품 중 판매하거나 부자재를 넣은 판매처가 있는 제품이 여기에 나와요. "업체 발송 제품도 보기"를 켜면 더 보여요.</p>`); return; }
@@ -1850,7 +1865,7 @@ const PB_SEED = {"brands":{"b-gyul":{"name":"귤타민","sort":20},"b-kakao":{"n
       h += `</tr>`;
       lastP = p.id;
     });
-    h += `</tbody></table></div><p class="hint">기본(테이프 · 인건비 · 택배비)은 기타 설정에서 정한 대로 자동으로 들어가요. 택배비는 중량 ${num(S.config.heavyKg) || 6}kg 이상이면 무거운 택배비예요. 같은 분류를 두 개 이상 쓰면 "외 1"처럼 보이고, 그건 제품 수정 창에서 고쳐요.</p>`;
+    h += `</tbody></table></div><p class="hint">기본(테이프 · 인건비)은 기타 설정에서 정한 대로 자동으로 들어가요. 택배비는 부자재가 아니라 판매가 수정의 배송비가 무배일 때 마진에서 빼요(기본 ${won(courierCfg().light)}원, ${courierCfg().kg}kg 이상 ${won(courierCfg().heavy)}원). 참고: 예전 기준 ${num(S.config.heavyKg) || 6}kg 이상이면 무거운 택배비예요. 같은 분류를 두 개 이상 쓰면 "외 1"처럼 보이고, 그건 제품 수정 창에서 고쳐요.</p>`;
     const bc = bk("mg", "cat", cats[0]);
     host.innerHTML = h + bulkBar("mg", ` · ${bkSel("mg", "cat", cats.map(c => [c, c]), "분류")} ${bkSel("mg", "act", [["set", "넣기 · 바꾸기"], ["off", "빼기"]], "동작")}
       ${bk("mg", "act", "set") === "set" ? bkSel("mg", "item", catMats(bc).map(m => [m.id, shortName(m, bc)]), "종류") + (NOQTY.has(bc) ? "" : " 수량 " + bkIn("mg", "qty", "1", 50)) : ""}
@@ -1961,9 +1976,9 @@ const PB_SEED = {"brands":{"b-gyul":{"name":"귤타민","sort":20},"b-kakao":{"n
     if (!(S.config.baseMats || []).length) h += `<p class="muted">기본 부자재가 없어요.</p>`;
     h += `</div><div class="addrow w"><select id="add-basemat">${mopts("")}</select><button class="btn" type="button" data-act="base-add">추가</button></div>
       <div class="grid" style="margin-top:12px">
-        <label class="field"><span>택배비 (기본)</span><select data-shipcfg="shipLight" ${dis}>${mopts(S.config.shipLight || "")}</select></label>
-        <label class="field"><span>택배비 (무거운 것)</span><select data-shipcfg="shipHeavy" ${dis}>${mopts(S.config.shipHeavy || "")}</select></label>
-        <label class="field"><span>무거운 기준 (kg 이상)</span><input type="text" inputmode="decimal" data-shipcfg="heavyKg" value="${esc(String(S.config.heavyKg ?? 6))}" ${dis}></label>
+        <label class="field"><span>무배일 때 택배비 (원)</span><input type="text" inputmode="numeric" data-couriercfg="courierLight" value="${esc(won(courierCfg().light))}" ${dis}></label>
+        <label class="field"><span>무거운 기준 (kg 이상)</span><input type="text" inputmode="decimal" data-couriercfg="courierHeavyKg" value="${esc(String(courierCfg().kg))}" ${dis}></label>
+        <label class="field"><span>무거울 때 택배비 (원)</span><input type="text" inputmode="numeric" data-couriercfg="courierHeavy" value="${esc(won(courierCfg().heavy))}" ${dis}></label>
       </div></div>`;
     h += listPanel("등급 목록", "제품을 입력할 때 고를 수 있는 등급이에요. 목록에 없는 값도 직접 쓸 수 있어요.", "grades", S.config.grades);
     h += importPanelHTML();
@@ -2259,6 +2274,7 @@ const PB_SEED = {"brands":{"b-gyul":{"name":"귤타민","sort":20},"b-kakao":{"n
     const weight = $("#ed-weight").value;
     const base = baseList(weight), baseCost = listCost(base);
     const packOf = bid => selfMode ? listCost(ed.mats[bid] || []) + baseCost : 0;
+    const cfee = (() => { const c = courierCfg(); return wKg(weight) >= c.kg ? c.heavy : c.light; })();
     const mat = listCost(ed.mats[ed.mb] || []);
     $("#ed-t-unit").textContent = won(unit); $("#ed-t-mat").textContent = won(mat) + (selfMode ? "" : " (계산 안 함)");
     $("#ed-t-base").textContent = selfMode ? won(baseCost) : "–";
@@ -2272,8 +2288,9 @@ const PB_SEED = {"brands":{"b-gyul":{"name":"귤타민","sort":20},"b-kakao":{"n
       const ep = get("sale") ?? get("regular");
       const cell = $("[data-mg]", tr);
       if (!on || ep == null) { cell.innerHTML = '<span class="muted">–</span>'; return; }
-      const m = ep - unit - mat;
-      cell.innerHTML = `<span class="${m >= 0 ? "pos" : "neg"}">${won(m)}</span>`;
+      const cr = selfMode && !isPaidShip(get("shipping")) ? cfee : 0;
+      const m = ep - unit - mat - cr;
+      cell.innerHTML = `<span class="${m >= 0 ? "pos" : "neg"}">${won(m)}</span>${cr ? ` <span class="hint">(택 ${won(cr)} 뺌)</span>` : ""}`;
     });
   }
   function collectProduct() {
@@ -2609,12 +2626,14 @@ const PB_SEED = {"brands":{"b-gyul":{"name":"귤타민","sort":20},"b-kakao":{"n
     const next = { ...S.config, ...patch };
     return guard(() => db.doc("config/main").set({ types: next.types, grades: next.grades, defaultShipping: next.defaultShipping || "",
       baseMats: (next.baseMats || []).map(m => ({ id: m.id, qty: num(m.qty) ?? 1 })), shipLight: next.shipLight || "", shipHeavy: next.shipHeavy || "", heavyKg: num(next.heavyKg) ?? 6,
-      autoRegular: next.autoRegular !== false, regularDiscount: num(next.regularDiscount) ?? 30 }));
+      autoRegular: next.autoRegular !== false, regularDiscount: num(next.regularDiscount) ?? 30,
+      courierLight: num(next.courierLight) ?? 3500, courierHeavy: num(next.courierHeavy) ?? 4500, courierHeavyKg: num(next.courierHeavyKg) ?? 5 }));
   }
 
   document.addEventListener("change", async e => {
     const t = e.target;
     if (t.id === "p-chan" || t.id === "a-chan") { ui.chan = t.checked; lsSet("pb.chan", ui.chan); renderView(); return; }
+    if (t.dataset.pid && t.dataset.f === "shipping") { renderView(); return; }
     if (t.dataset.pid && t.dataset.f) { if (ui.drafts[dKey(t.dataset.pid, t.dataset.bid, t.dataset.f)] != null && t.dataset.f !== "shipping") { const n = num(t.value); if (n != null) { t.value = won(n); onAdjustInput(t); } } return; }
     if (t.dataset.sel) { const st = selSet(t.dataset.sel); t.checked ? st.add(t.dataset.id) : st.delete(t.dataset.id); renderView(); return; }
     if (t.dataset.selall) { const st = selSet(t.dataset.selall); let ids = []; try { ids = JSON.parse(t.dataset.ids); } catch (e) {} ids.forEach(i => t.checked ? st.add(i) : st.delete(i)); renderView(); return; }
@@ -2648,6 +2667,7 @@ const PB_SEED = {"brands":{"b-gyul":{"name":"귤타민","sort":20},"b-kakao":{"n
       if (t.dataset.basemat !== undefined) arr[+t.dataset.basemat].id = t.value; else arr[+t.dataset.baseqty].qty = num(t.value) ?? 1;
       await saveConfig({ baseMats: arr }); return;
     }
+    if (t.dataset.couriercfg) { const v = num(t.value); if (v == null || v < 0) { toast("숫자로 넣어 주세요.", true); renderView(); return; } await saveConfig({ [t.dataset.couriercfg]: v }); toast("택배비 설정을 저장했어요"); return; }
     if (t.dataset.shipcfg) { await saveConfig({ [t.dataset.shipcfg]: t.dataset.shipcfg === "heavyKg" ? (num(t.value) ?? 6) : t.value }); toast("저장했어요"); return; }
     if (t.dataset.chon) {
       const br = S.brands.find(x => x.id === t.dataset.chon); if (!br) return;
