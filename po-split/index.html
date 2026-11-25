@@ -180,7 +180,7 @@ tr.unk td{background:var(--warn-soft)}
     <div id="dlNote"></div>
     <div class="dlgrid">
       <div>
-        <p class="hint" style="margin-bottom:6px"><b>1차 가공</b>: 원본 시트 + 업체별 시트 + 업체별 “-1” 시트(입고예정일 · 물류센터별 확정수량 합계)가 한 파일에 들어 있습니다.</p>
+        <p class="hint" style="margin-bottom:6px"><b>1차 가공</b>: 원본(전체) 시트 · 업체별 시트와 각각의 “-1” 시트(입고예정일 · 물류센터별 확정수량 합계)가 한 파일에 들어 있습니다.</p>
         <div class="dlrow"><button class="primary" id="dl1">1차 가공 엑셀 받기</button></div>
       </div>
       <div>
@@ -499,7 +499,8 @@ function changed(){S.dirty=true;renderAll()}
 
 /* ---------- actions ---------- */
 $('dl1').onclick=()=>{const {data,cls}=S._last||{}; if(!data)return; const {order,g}=groups(data,cls);
-  const sheets=[[data.sheetName||'원본',makeSheet(data,data.rows)]];
+  const orig=data.sheetName||'원본';
+  const sheets=[[orig,makeSheet(data,data.rows)],[subName(orig),pivotSheet(data,data.rows)]];
   order.forEach(n=>{ if(n===UNK&&!g[n].length) return; sheets.push([n,makeSheet(data,g[n])]); sheets.push([subName(n),pivotSheet(data,g[n])]) });
   save(`${baseName(data)}_1차가공.xlsx`,new Blob([wbBuffer(sheets)]))};
 $('addVendor').onclick=()=>{const inp=$('newVendor'); const n=inp.value.trim();
