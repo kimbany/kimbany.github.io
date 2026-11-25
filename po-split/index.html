@@ -341,12 +341,19 @@ function pivotSheet(data,rows){
     tot:{font:{bold:true},border:{top:{style:'double',color:{rgb:C1}}}},
   };
   const aoa=[[],[],['행 레이블','합계 : '+qLabel]]; const styles=[null,null,[st.head,st.headR]];
-  const push=(label,val,s)=>{aoa.push([label,val]);styles.push([s,s])};
-  [...tree.keys()].sort(cmp).forEach(d=>{const cm=tree.get(d); push(d,sum(cm),st.d);
-    [...cm.keys()].sort(cmp).forEach(c=>{const nm=cm.get(c); push(c,sum(nm),st.c);
-      [...nm.keys()].sort(cmp).forEach(n=>push(n,nm.get(n),st.n))})});
-  push('총합계',sum(tree),st.tot);
+  // 상품 줄은 숫자, 소계 · 총합계 줄은 수식(SUM)으로 넣는다. B열, 엑셀 행 번호 = aoa 위치 + 1
+  const push=(label,val,s)=>{aoa.push([label,val]);styles.push([s,s]);return aoa.length};
+  const formulas={}; const B=r=>'B'+r;
+  const dateRows=[];
+  [...tree.keys()].sort(cmp).forEach(d=>{const cm=tree.get(d); const dr=push(d,sum(cm),st.d); dateRows.push(dr); const cRows=[];
+    [...cm.keys()].sort(cmp).forEach(c=>{const nm=cm.get(c); const cr=push(c,sum(nm),st.c); cRows.push(cr);
+      const names=[...nm.keys()].sort(cmp); names.forEach(n=>push(n,nm.get(n),st.n));
+      formulas[cr]=names.length?`SUM(${B(cr+1)}:${B(cr+names.length)})`:'0'});
+    formulas[dr]=cRows.length?'SUM('+cRows.map(B).join(',')+')':'0'});
+  const tr=push('총합계',sum(tree),st.tot);
+  formulas[tr]=dateRows.length?'SUM('+dateRows.map(B).join(',')+')':'0';
   const ws=XLSX.utils.aoa_to_sheet(aoa);
+  Object.entries(formulas).forEach(([r,f])=>{const c=ws['B'+r]; if(c){c.f=f; c.t='n'}});
   styles.forEach((rs,r)=>rs&&rs.forEach((s,c)=>{const a=XLSX.utils.encode_cell({r,c}); if(ws[a]) ws[a].s=c===1?{...s,numFmt:'#,##0'}:s}));
   ws['!cols']=[{wch:64},{wch:18}];
   return ws;
