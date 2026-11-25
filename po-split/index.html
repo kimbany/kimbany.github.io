@@ -109,6 +109,7 @@ tr.unk td{background:var(--warn-soft)}
 .pad button{justify-content:center;font-size:1.3rem;padding:14px 0;border-radius:12px}
 .pad button.blank{visibility:hidden}
 .wrap.locked{visibility:hidden}
+#resetBtn.armed{background:var(--warn);color:var(--panel);border-color:var(--warn);font-weight:600}
 </style>
 </head>
 <body>
@@ -182,6 +183,15 @@ tr.unk td{background:var(--warn-soft)}
         <p class="hint" style="margin-bottom:6px"><b>2차 가공</b>: 업체 시트를 하나씩 따로 된 엑셀 파일로 받습니다.</p>
         <div class="dlrow" id="dl2"></div>
       </div>
+    </div>
+  </section>
+
+  <section class="card reset">
+    <h2>다음 발주서 준비</h2>
+    <p class="hint">올린 발주서와 분배 결과를 모두 지웁니다. 지난 발주서 목록도 함께 지워지고, 모든 사람의 화면에서 사라집니다. <b>업체 · 키워드 규칙과 상품별 직접 지정은 그대로 남습니다.</b></p>
+    <div class="row">
+      <button class="danger" id="resetBtn">발주 데이터 초기화</button>
+      <span class="hint" id="resetHint"></span>
     </div>
   </section>
 </div>
@@ -529,6 +539,27 @@ fi.onchange=()=>{handleFile(fi.files[0]);fi.value=''};
 drop.ondragover=e=>{e.preventDefault();drop.classList.add('over')};
 drop.ondragleave=()=>drop.classList.remove('over');
 drop.ondrop=e=>{e.preventDefault();drop.classList.remove('over');handleFile(e.dataTransfer.files[0])};
+
+/* ---------- reset (발주 데이터만, 규칙은 남김) ---------- */
+$('resetBtn').onclick=async()=>{
+  const b=$('resetBtn');
+  if(!S.uploads.length&&!S.local){toast('지울 발주 데이터가 없습니다.');return}
+  if(!b.classList.contains('armed')){
+    b.classList.add('armed'); b.textContent='한 번 더 누르면 초기화합니다';
+    $('resetHint').textContent=`발주서 ${S.uploads.length+(S.local?1:0)}건이 지워집니다.`;
+    clearTimeout(b._t); b._t=setTimeout(()=>{b.classList.remove('armed');b.textContent='발주 데이터 초기화';$('resetHint').textContent=''},5000);
+    return;
+  }
+  clearTimeout(b._t); b.classList.remove('armed'); b.textContent='발주 데이터 초기화'; $('resetHint').textContent='';
+  b.disabled=true;
+  try{
+    if(S.db) await FB.remove(FB.ref(S.db,'uploads'));
+    S.local=null; S.selId=null; S.uploads=[]; renderAll();
+    toast('발주 데이터를 지웠습니다. 업체 · 키워드 규칙은 그대로입니다.');
+    window.scrollTo({top:0,behavior:'smooth'});
+  }catch(e){toast('지우지 못했습니다. 다시 로그인한 뒤 시도해 주세요.')}
+  finally{b.disabled=false}
+};
 
 /* ---------- boot ---------- */
 const DEFAULT_VENDORS=['휘','다조은','삼영','에스엘','하늘감'];
