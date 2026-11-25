@@ -7,7 +7,7 @@
 <title>발주서 업체 분배</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <style>
 /* Layout: one working column — 올리기 → 분배 규칙 → 결과 표 → 받기, like a packing slip read top to bottom */
@@ -175,7 +175,7 @@ tr.unk td{background:var(--warn-soft)}
     <div id="dlNote"></div>
     <div class="dlgrid">
       <div>
-        <p class="hint" style="margin-bottom:6px"><b>1차 가공</b>: 원본 시트 + 업체별 시트가 한 파일에 들어 있습니다.</p>
+        <p class="hint" style="margin-bottom:6px"><b>1차 가공</b>: 원본 시트 + 업체별 시트 + 업체별 “-1” 시트(입고예정일 · 물류센터별 확정수량 합계)가 한 파일에 들어 있습니다.</p>
         <div class="dlrow"><button class="primary" id="dl1">1차 가공 엑셀 받기</button></div>
       </div>
       <div>
@@ -299,6 +299,45 @@ function makeSheet(data,rows){
   ws['!cols']=data.header.map(h=>COL_WIDTH[h]?{wch:COL_WIDTH[h]+1}:{wch:9});
   return ws;
 }
+/* 1차-1: 입고예정일 → 물류센터 → SKU 이름 별 확정수량 합계 (피벗 모양) */
+function pivotSheet(data,rows){
+  const H=data.header;
+  const iD=H.indexOf('입고예정일'), iC=H.indexOf('물류센터'), iN=H.indexOf('SKU 이름');
+  let iQ=H.indexOf('확정수량'); const qLabel=iQ>=0?'확정수량':'발주수량'; if(iQ<0) iQ=H.indexOf('발주수량');
+  const blank='(비어 있음)';
+  const dl=v=>v==null||v===''?blank:fmtCell(v,iD>=0?data.fmts[iD]:null);
+  const tree=new Map();
+  rows.forEach(r=>{
+    const d=iD>=0?dl(r[iD]):blank, c=iC>=0&&r[iC]!=null&&r[iC]!==''?String(r[iC]):blank, n=r[iN]!=null?String(r[iN]):blank;
+    const q=+r[iQ]||0;
+    if(!tree.has(d)) tree.set(d,new Map()); const cm=tree.get(d);
+    if(!cm.has(c)) cm.set(c,new Map()); const nm=cm.get(c);
+    nm.set(n,(nm.get(n)||0)+q);
+  });
+  const cmp=(a,b)=>a===blank?1:b===blank?-1:a.localeCompare(b,'ko');
+  const sum=m=>[...m.values()].reduce((a,v)=>a+(v instanceof Map?sum(v):v),0);
+  const C1='77933C', L1='D8E4BC', L2='EBF1DE', WHITE='FFFFFF';
+  const border={top:{style:'thin',color:{rgb:'C4D79B'}}};
+  const st={
+    head:{font:{bold:true,color:{rgb:WHITE}},fill:{fgColor:{rgb:C1}}},
+    headR:{font:{bold:true,color:{rgb:WHITE}},fill:{fgColor:{rgb:C1}},alignment:{horizontal:'right'}},
+    d:{font:{bold:true},fill:{fgColor:{rgb:L1}},border},
+    c:{font:{bold:true},fill:{fgColor:{rgb:L2}},alignment:{indent:1},border},
+    n:{alignment:{indent:2},border},
+    tot:{font:{bold:true},border:{top:{style:'double',color:{rgb:C1}}}},
+  };
+  const aoa=[[],[],['행 레이블','합계 : '+qLabel]]; const styles=[null,null,[st.head,st.headR]];
+  const push=(label,val,s)=>{aoa.push([label,val]);styles.push([s,s])};
+  [...tree.keys()].sort(cmp).forEach(d=>{const cm=tree.get(d); push(d,sum(cm),st.d);
+    [...cm.keys()].sort(cmp).forEach(c=>{const nm=cm.get(c); push(c,sum(nm),st.c);
+      [...nm.keys()].sort(cmp).forEach(n=>push(n,nm.get(n),st.n))})});
+  push('총합계',sum(tree),st.tot);
+  const ws=XLSX.utils.aoa_to_sheet(aoa);
+  styles.forEach((rs,r)=>rs&&rs.forEach((s,c)=>{const a=XLSX.utils.encode_cell({r,c}); if(ws[a]) ws[a].s=c===1?{...s,numFmt:'#,##0'}:s}));
+  ws['!cols']=[{wch:64},{wch:18}];
+  return ws;
+}
+const subName=n=>n.slice(0,29)+'-1';
 function wbBuffer(sheets){
   const wb=XLSX.utils.book_new();
   sheets.forEach(([name,ws])=>XLSX.utils.book_append_sheet(wb,ws,name.slice(0,31)));
@@ -447,7 +486,7 @@ function changed(){S.dirty=true;renderAll()}
 /* ---------- actions ---------- */
 $('dl1').onclick=()=>{const {data,cls}=S._last||{}; if(!data)return; const {order,g}=groups(data,cls);
   const sheets=[[data.sheetName||'원본',makeSheet(data,data.rows)]];
-  order.forEach(n=>{ if(n===UNK&&!g[n].length) return; sheets.push([n,makeSheet(data,g[n])]) });
+  order.forEach(n=>{ if(n===UNK&&!g[n].length) return; sheets.push([n,makeSheet(data,g[n])]); sheets.push([subName(n),pivotSheet(data,g[n])]) });
   save(`${baseName(data)}_1차가공.xlsx`,new Blob([wbBuffer(sheets)]))};
 $('addVendor').onclick=()=>{const inp=$('newVendor'); const n=inp.value.trim();
   if(!n) return toast('업체 이름을 넣어 주세요.');
