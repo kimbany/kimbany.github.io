@@ -348,6 +348,7 @@ const CHANNEL_FORMATS = [
   { v:'ssg',        t:'SSG' },
   { v:'baemin',     t:'배달의민족(전국특가)' },
   { v:'paldogam',   t:'팔도감' },
+  { v:'kakao',      t:'카카오톡(톡딜)' },
   { v:'custom',     t:'기타' },
 ];
 function formatLabel(f) { return (CHANNEL_FORMATS.find(x=>x.v===f)||{}).t || '기타'; }
@@ -1273,7 +1274,51 @@ function parseCoupang(matrix) {
   if (!items.length) throw new Error('데이터 행을 찾지 못했습니다');
   return items;
 }
-const PARSERS = { cafe24:parseCafe24, smartstore:parseSmartstore, ssg:parseSsg, baemin:parseBaemin, paldogam:parsePaldogam, coupang:parseCoupang };
+/* -------------------------------------------------- 파서: 카카오톡(톡딜/톡스토어) */
+const KKO_CANCEL = ['취소','환불','반품'];
+function parseKakao(matrix) {
+  const hi = headerIndex(matrix, ['주문번호','정산기준금액']);
+  if (hi < 0) throw new Error('카카오톡 양식(주문번호·정산기준금액 열)을 찾지 못했습니다');
+  const f = colFinder(matrix[hi]);
+  const col = {
+    orderNo:f.eq('주문번호'), status:f.eq('주문상태'),
+    productCode:f.eq('채널상품번호'), optionCode:f.eq('옵션코드'),
+    productName:f.eq('상품명'), optionName:f.eq('옵션'), qty:f.eq('수량'),
+    base:f.eq('정산기준금액'), fee1:f.eq('기본수수료'), fee2:f.eq('노출추가수수료'),
+    fee3:f.eq('추천리워드수수료'), feeDc:f.eq('수수료할인금액'),
+    orderDate:f.eq('주문일'), cancelDate:f.eq('취소완료일'), refundDate:f.eq('환불완료일'),
+  };
+  const need = ['orderNo','productCode','base'];
+  const miss = need.filter(k => col[k] < 0);
+  if (miss.length) throw new Error('카카오톡 열을 찾지 못했습니다: '+miss.join(','));
+  const g = (r,k) => col[k]>=0 ? (r[col[k]]||'') : '';
+  const items = [];
+  for (let i=hi+1;i<matrix.length;i++) {
+    const r = matrix[i]; if (!r || !String(g(r,'orderNo')).trim()) continue;
+    const qty = parseNum(g(r,'qty')) || 1;
+    const base = parseNum(g(r,'base'));   // 정산기준금액 = 매출
+    // 정산금(순매출) = 정산기준금액 - 기본수수료 - 노출추가수수료 - 추천리워드수수료 (+ 수수료할인금액 되돌림)
+    const net = base - parseNum(g(r,'fee1')) - parseNum(g(r,'fee2')) - parseNum(g(r,'fee3')) + parseNum(g(r,'feeDc'));
+    const pc = String(g(r,'productCode')).trim() || '(코드없음)';
+    const oc = String(g(r,'optionCode')).trim() || '__NONE__';
+    const status = String(g(r,'status'));
+    const cancelled = KKO_CANCEL.some(w => status.indexOf(w)>=0) || String(g(r,'cancelDate')).trim()!=='' || String(g(r,'refundDate')).trim()!=='';
+    const dateRaw = String(g(r,'orderDate')).trim();
+    items.push({
+      orderNo:String(g(r,'orderNo')).trim(), itemOrderNo:String(g(r,'orderNo')).trim()+'-'+pc,
+      orderDateTime:dateRaw, orderDate:normDateStr(dateRaw),
+      buyerName:'',
+      productCode:pc, optionCode:oc,
+      productName:String(g(r,'productName')).trim(), optionName:cleanOption(g(r,'optionName')),
+      qty, listPrice: qty>0 ? Math.round(base/qty) : base,
+      grossAmount:base, netAmount: cancelled ? 0 : net,
+      isCancelled:cancelled,
+    });
+  }
+  if (!items.length) throw new Error('데이터 행을 찾지 못했습니다');
+  return items;
+}
+const PARSERS = { cafe24:parseCafe24, smartstore:parseSmartstore, ssg:parseSsg, baemin:parseBaemin, paldogam:parsePaldogam, coupang:parseCoupang, kakao:parseKakao };
 window.__PARSERS = PARSERS;
 
 /* -------------------------------------------------- 요약 */
