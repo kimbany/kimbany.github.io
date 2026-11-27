@@ -180,7 +180,7 @@ tr.unk td{background:var(--warn-soft)}
     <div id="dlNote"></div>
     <div class="dlgrid">
       <div>
-        <p class="hint" style="margin-bottom:6px"><b>1차 가공</b>: 원본(전체) 시트 · 업체별 시트와 각각의 “-1” 시트(입고예정일 · 물류센터별 확정수량 합계)가 한 파일에 들어 있습니다.</p>
+        <p class="hint" style="margin-bottom:6px"><b>1차 가공</b>: 원본(전체) 시트 · 업체별 시트와 각각의 “-1” 시트(입고예정일마다 센터별 · 상품별 확정수량 합계)가 한 파일에 들어 있습니다.</p>
         <div class="dlrow"><button class="primary" id="dl1">1차 가공 엑셀 받기</button></div>
       </div>
       <div>
@@ -313,11 +313,12 @@ function makeSheet(data,rows){
   ws['!cols']=data.header.map(h=>COL_WIDTH[h]?{wch:COL_WIDTH[h]+1}:{wch:9});
   return ws;
 }
-/* 1차-1: 입고예정일 → 물류센터 → SKU 이름 별 확정수량 합계 (피벗 모양) */
+/* 1차-1: 입고예정일마다 [센터별] 물류센터 → 상품 확정수량 + 센터 총합계, [상품별] 센터를 합친 상품 확정수량 + 총합계.
+   상품 줄은 숫자, 소계 · 총합계 · 상품별 합계는 수식. */
 function pivotSheet(data,rows){
   const H=data.header;
   const iD=H.indexOf('입고예정일'), iC=H.indexOf('물류센터'), iN=H.indexOf('SKU 이름');
-  let iQ=H.indexOf('확정수량'); const qLabel=iQ>=0?'확정수량':'발주수량'; if(iQ<0) iQ=H.indexOf('발주수량');
+  let iQ=H.indexOf('확정수량'); if(iQ<0) iQ=H.indexOf('발주수량');
   const blank='(비어 있음)';
   // 입고예정일은 날짜만 (시간이 붙어 있어도 떼어 냄)
   const dl=v=>{
@@ -335,33 +336,48 @@ function pivotSheet(data,rows){
     nm.set(n,(nm.get(n)||0)+q);
   });
   const cmp=(a,b)=>a===blank?1:b===blank?-1:a.localeCompare(b,'ko');
-  const sum=m=>[...m.values()].reduce((a,v)=>a+(v instanceof Map?sum(v):v),0);
-  const C1='77933C', L1='D8E4BC', L2='EBF1DE', WHITE='FFFFFF';
-  const border={top:{style:'thin',color:{rgb:'C4D79B'}}};
+  const sumv=m=>[...m.values()].reduce((a,v)=>a+v,0);
+  const GRAY='808080', LG='D9D9D9', WHITE='FFFFFF', LINE='BFBFBF';
+  const CENTER_FILLS=['C5D9F1','EBF1DE','FDE9D9','FFF2CC','E4DFEC','DAEEF3'];
+  const thin={bottom:{style:'thin',color:{rgb:'E7E7E7'}}};
   const st={
-    head:{font:{bold:true,color:{rgb:WHITE}},fill:{fgColor:{rgb:C1}}},
-    headR:{font:{bold:true,color:{rgb:WHITE}},fill:{fgColor:{rgb:C1}},alignment:{horizontal:'right'}},
-    d:{font:{bold:true},fill:{fgColor:{rgb:L1}},border},
-    c:{font:{bold:true},fill:{fgColor:{rgb:L2}},alignment:{indent:1},border},
-    n:{alignment:{indent:2},border},
-    tot:{font:{bold:true},border:{top:{style:'double',color:{rgb:C1}}}},
+    head:{font:{bold:true,color:{rgb:WHITE}},fill:{fgColor:{rgb:GRAY}}},
+    date:{font:{bold:true},fill:{fgColor:{rgb:LG}}},
+    sec:{font:{bold:true,sz:12},fill:{fgColor:{rgb:LG}}},
+    center:f=>({font:{bold:true},fill:{fgColor:{rgb:f}},alignment:{indent:1}}),
+    item:{alignment:{indent:2},border:thin},
+    tot:{font:{bold:true},border:{top:{style:'double',color:{rgb:LINE}},bottom:{style:'thin',color:{rgb:LINE}}}},
   };
-  const aoa=[[],[],['행 레이블','합계 : '+qLabel]]; const styles=[null,null,[st.head,st.headR]];
-  // 상품 줄은 숫자, 소계 · 총합계 줄은 수식(SUM)으로 넣는다. B열, 엑셀 행 번호 = aoa 위치 + 1
-  const push=(label,val,s)=>{aoa.push([label,val]);styles.push([s,s]);return aoa.length};
-  const formulas={}; const B=r=>'B'+r;
-  const dateRows=[];
-  [...tree.keys()].sort(cmp).forEach(d=>{const cm=tree.get(d); const dr=push(d,sum(cm),st.d); dateRows.push(dr); const cRows=[];
-    [...cm.keys()].sort(cmp).forEach(c=>{const nm=cm.get(c); const cr=push(c,sum(nm),st.c); cRows.push(cr);
-      const names=[...nm.keys()].sort(cmp); names.forEach(n=>push(n,nm.get(n),st.n));
-      formulas[cr]=names.length?`SUM(${B(cr+1)}:${B(cr+names.length)})`:'0'});
-    formulas[dr]=cRows.length?'SUM('+cRows.map(B).join(',')+')':'0'});
-  const tr=push('총합계',sum(tree),st.tot);
-  formulas[tr]=dateRows.length?'SUM('+dateRows.map(B).join(',')+')':'0';
+  const aoa=[[],[]], styles=[null,null], formulas={};
+  const push=(label,val,s)=>{aoa.push([label,val]);styles.push(s?[s,s]:null);return aoa.length};
+  const B=r=>'B'+r;
+  push('행 레이블','',st.head);
+  const dates=[...tree.keys()].sort(cmp);
+  dates.forEach((d,di)=>{
+    if(di>0){push('',null,null);push('',null,null)}
+    const cm=tree.get(d);
+    push(d,'',st.date);
+    push('센터별','',st.sec);
+    const where=new Map(); // 상품 → 센터별 상품 줄 번호들
+    [...cm.keys()].sort(cmp).forEach((c,ci)=>{
+      const nm=cm.get(c); const names=[...nm.keys()].sort(cmp);
+      const cr=push(c,sumv(nm),st.center(CENTER_FILLS[ci%CENTER_FILLS.length]));
+      names.forEach(n=>{const r=push(n,nm.get(n),st.item); if(!where.has(n)) where.set(n,[]); where.get(n).push(r)});
+      formulas[cr]=names.length?`SUM(${B(cr+1)}:${B(cr+names.length)})`:'0';
+      const tr=push('총합계',sumv(nm),st.tot); formulas[tr]=B(cr);
+    });
+    push('',null,null);push('',null,null);
+    push('상품별','',st.sec);
+    const names=[...where.keys()].sort(cmp); let first=0,last=0;
+    names.forEach(n=>{const tot=[...cm.values()].reduce((a,m)=>a+(m.get(n)||0),0);
+      const r=push(n,tot,st.item); if(!first) first=r; last=r; formulas[r]=where.get(n).map(B).join('+')});
+    const tr=push('총합계',[...cm.values()].reduce((a,m)=>a+sumv(m),0),st.tot);
+    formulas[tr]=first?`SUM(${B(first)}:${B(last)})`:'0';
+  });
   const ws=XLSX.utils.aoa_to_sheet(aoa);
   Object.entries(formulas).forEach(([r,f])=>{const c=ws['B'+r]; if(c){c.f=f; c.t='n'}});
-  styles.forEach((rs,r)=>rs&&rs.forEach((s,c)=>{const a=XLSX.utils.encode_cell({r,c}); if(ws[a]) ws[a].s=c===1?{...s,numFmt:'#,##0'}:s}));
-  ws['!cols']=[{wch:64},{wch:18}];
+  styles.forEach((rs,r)=>rs&&rs.forEach((s,c)=>{const a=XLSX.utils.encode_cell({r,c}); if(!ws[a]) ws[a]={t:'s',v:''}; ws[a].s=c===1?{...s,numFmt:'#,##0'}:s}));
+  ws['!cols']=[{wch:64},{wch:14}];
   return ws;
 }
 const subName=n=>n.slice(0,29)+'-1';
