@@ -1619,9 +1619,7 @@ function productTable(sales, total) {
     else { pk='u:'+s.channelId+'|'+s.channelProductCode; pl='⚠ '+(s.rawProductName||'미매칭'); kk='uo:'+(s.channelOptionCode||''); kl=s.rawOptionName||'기본'; matched=false; }
     const g=(map[pk]=map[pk]||{label:pl,matched,gross:0,net:0,qty:0,kids:{}});
     g.gross+=s.grossAmount||0; g.net+=s.netAmount||0; g.qty+=s.qty||0;
-    const k=(g.kids[kk]=g.kids[kk]||{label:kl,gross:0,net:0,qty:0,chans:{}}); k.gross+=s.grossAmount||0; k.net+=s.netAmount||0; k.qty+=s.qty||0;
-    const chName=(DB.get('channels',s.channelId)||{}).name||'(채널)';
-    const c=(k.chans[s.channelId]=k.chans[s.channelId]||{label:chName,gross:0,net:0,qty:0}); c.gross+=s.grossAmount||0; c.net+=s.netAmount||0; c.qty+=s.qty||0;
+    const k=(g.kids[kk]=g.kids[kk]||{label:kl,gross:0,net:0,qty:0}); k.gross+=s.grossAmount||0; k.net+=s.netAmount||0; k.qty+=s.qty||0;
   });
   const rows = Object.values(map).sort((a,b)=>b.gross-a.gross);
   const bar=v=>`<div class="h-1.5 bg-slate-100 rounded"><i class="block h-full bg-brand rounded" style="width:${(v/(total||1)*100).toFixed(1)}%"></i></div>`;
@@ -1638,16 +1636,43 @@ function productTable(sales, total) {
         <td class="py-2 text-right num font-semibold">${won(r.gross)}</td><td class="py-2 text-right num text-slate-500">${won(r.net)}</td>
         <td class="py-2 text-right num text-slate-500">${comma(r.qty)}개</td><td class="py-2 pl-3 w-24">${bar(r.gross)}</td>
         <td class="py-2 pl-2 text-right text-xs text-slate-400 num">${(r.gross/(total||1)*100).toFixed(1)}%</td></tr>`;
-      kids.forEach(k=>{
-        const chans=Object.values(k.chans).sort((a,b)=>b.gross-a.gross);
-        const chip = chans.length===1 ? `<span class="text-[10px] text-slate-400 font-normal ml-1">· ${esc(chans[0].label)}</span>` : '';
-        h+=`<tr class="border-b border-slate-50 text-slate-600">
-        <td class="py-1.5 pl-5">└ ${esc(k.label)}${chip}</td><td class="py-1.5 text-right num">${won(k.gross)}</td>
-        <td class="py-1.5 text-right num text-slate-400">${won(k.net)}</td><td class="py-1.5 text-right num text-slate-400">${comma(k.qty)}개</td><td></td><td></td></tr>`;
-        if (chans.length>1) chans.forEach(c=>{ h+=`<tr class="border-b border-slate-50 text-slate-400">
-          <td class="py-1 pl-10 text-xs">· ${esc(c.label)}</td><td class="py-1 text-right num text-xs">${won(c.gross)}</td>
-          <td class="py-1 text-right num text-xs">${won(c.net)}</td><td class="py-1 text-right num text-xs">${comma(c.qty)}개</td><td></td><td></td></tr>`; });
-      });
+      kids.forEach(k=>{ h+=`<tr class="border-b border-slate-50 text-slate-600">
+        <td class="py-1.5 pl-5">└ ${esc(k.label)}</td><td class="py-1.5 text-right num">${won(k.gross)}</td>
+        <td class="py-1.5 text-right num text-slate-400">${won(k.net)}</td><td class="py-1.5 text-right num text-slate-400">${comma(k.qty)}개</td><td></td><td></td></tr>`; });
+      return h;
+    }).join('') : '<tr><td colspan="6" class="py-6 text-center text-slate-400 text-sm">데이터 없음</td></tr>'}
+    </tbody></table></div>`;
+}
+
+function channelTable(sales, total) {
+  const map = {};
+  sales.forEach(s=>{ if(s.isCancelled) return;
+    const chId=s.channelId; const chName=(DB.get('channels',chId)||{}).name||'(채널)';
+    const g=(map[chId]=map[chId]||{label:chName,gross:0,net:0,qty:0,kids:{}});
+    g.gross+=s.grossAmount||0; g.net+=s.netAmount||0; g.qty+=s.qty||0;
+    let kk,kl,matched;
+    if(s.productItemId){ const it=DB.get('productItems',s.productItemId)||{}; const p=DB.get('products',it.productId)||{}; kk='i:'+s.productItemId; kl=(p.name||'(상품)')+' · '+itemLabel(it); matched=true; }
+    else { kk='u:'+s.channelProductCode+'|'+(s.channelOptionCode||''); kl='⚠ '+(s.rawProductName||'미매칭')+(s.rawOptionName&&s.rawOptionName!=='기본'?' · '+s.rawOptionName:''); matched=false; }
+    const k=(g.kids[kk]=g.kids[kk]||{label:kl,matched,gross:0,net:0,qty:0}); k.gross+=s.grossAmount||0; k.net+=s.netAmount||0; k.qty+=s.qty||0;
+  });
+  const rows = Object.values(map).sort((a,b)=>b.gross-a.gross);
+  const bar=v=>`<div class="h-1.5 bg-slate-100 rounded"><i class="block h-full bg-brand rounded" style="width:${(v/(total||1)*100).toFixed(1)}%"></i></div>`;
+  return `<div class="bg-white rounded-2xl border border-slate-200 p-4">
+    <h3 class="font-bold text-sm mb-3">채널별 상세 <span class="font-normal text-slate-400">각 채널에서 팔린 상품·규격</span></h3>
+    <table class="w-full text-sm"><thead><tr class="text-[11px] text-slate-400 border-b border-slate-100">
+      <th class="text-left font-semibold pb-1.5">채널 · 상품</th><th class="text-right font-semibold pb-1.5">매출</th>
+      <th class="text-right font-semibold pb-1.5">순매출</th><th class="text-right font-semibold pb-1.5">수량</th>
+      <th class="pb-1.5"></th><th class="text-right font-semibold pb-1.5">비중</th></tr></thead><tbody>
+    ${rows.length?rows.map(r=>{
+      const kids=Object.values(r.kids).sort((a,b)=>b.gross-a.gross);
+      let h=`<tr class="bg-slate-50/60 border-b border-slate-100">
+        <td class="py-2 font-bold">${esc(r.label)}</td>
+        <td class="py-2 text-right num font-semibold">${won(r.gross)}</td><td class="py-2 text-right num text-slate-500">${won(r.net)}</td>
+        <td class="py-2 text-right num text-slate-500">${comma(r.qty)}개</td><td class="py-2 pl-3 w-24">${bar(r.gross)}</td>
+        <td class="py-2 pl-2 text-right text-xs text-slate-400 num">${(r.gross/(total||1)*100).toFixed(1)}%</td></tr>`;
+      kids.forEach(k=>{ h+=`<tr class="border-b border-slate-50 text-slate-600">
+        <td class="py-1.5 pl-5 ${k.matched?'':'text-rose-600'}">└ ${esc(k.label)}</td><td class="py-1.5 text-right num">${won(k.gross)}</td>
+        <td class="py-1.5 text-right num text-slate-400">${won(k.net)}</td><td class="py-1.5 text-right num text-slate-400">${comma(k.qty)}개</td><td></td><td></td></tr>`; });
       return h;
     }).join('') : '<tr><td colspan="6" class="py-6 text-center text-slate-400 text-sm">데이터 없음</td></tr>'}
     </tbody></table></div>`;
@@ -1661,7 +1686,7 @@ function breakdownHtml(sales, total) {
   const chRows = groupSum(sales, s=>s.channelId, s=>(DB.get('channels',s.channelId)||{}).name||'(채널)');
   const brRows = groupSum(sales, s=>s.brandId, s=>(DB.get('brands',s.brandId)||{}).name||'(브랜드)');
   return `<div class="grid gap-4 lg:grid-cols-2 mb-4">${simpleTable('채널별', chRows, total)}${simpleTable('브랜드별', brRows, total)}</div>
-    ${productTable(sales, total)}`;
+    <div class="grid gap-4 mb-4">${productTable(sales, total)}${channelTable(sales, total)}</div>`;
 }
 
 /* ============================================================ 메인 화면 */
